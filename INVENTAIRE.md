@@ -210,6 +210,20 @@ Le détail, avec les références dans le code, est dans [`inventaire/5-occhab-c
 
 Isoler ensuite maplibre-compose derrière une façade `carte/` propre à GeoMys-Common, puisque son API peut encore changer. Cette couche carte commune est estimée à 400 à 600 lignes.
 
+> **Résultat du prototype, le 18 octobre** ([`PROTOTYPE-CARTE.md`](PROTOTYPE-CARTE.md)). **MapLibre est retenu.**
+>
+> | Essai | Android | iOS |
+> |---|---|---|
+> | Glisser d'un sommet | ✅ (dont un Galaxy A12) | ✅ (iPhone 16, au doigt) |
+> | Fond MBTiles | ✅ | ✅ |
+> | Zone hors-ligne | ✅ | ✅ |
+> | Cap et rotation | ✅ | ✅ (iPhone 16 ; rotation fluide grâce à un lissage commun) |
+> | User-Agent | ❌ | ❌ |
+>
+> Pour le User-Agent, les en-têtes de l'intercepteur ne sont pas appliqués en 0.20.0. Le contournement prévu consiste à servir les tuiles par un `MapResourceProvider` basé sur Ktor.
+>
+> Avec maplibre-compose 0.20.0, la carte est dessinée dans une surface Compose sur les deux plateformes : le partage des touchers avec une vue native n'est plus un sujet.
+
 **Conséquences à prévoir**
 - Le cache osmdroid (`cache/MapTiles/cache.db`) est illisible par MapLibre. Les zones déjà téléchargées seront perdues, sauf à les convertir en MBTiles (conversion à évaluer).
 - L'application actuelle autorise le téléchargement en masse de tuiles openstreetmap.org, ce que la politique d'usage d'OSM interdit. À régler dans GeoMys-Common : exclure OSM du téléchargement de zones, ou changer de fournisseur.
@@ -407,7 +421,7 @@ Chaque lot suit le même cycle : il porte son code depuis le commit Android not�
 
 | Lot | Contenu | Tests | Critère de sortie |
 |---|---|---|---|
-| 0 | Squelette Gradle (core, ui, androidApp, iosApp). **Prototype carte** (§ 5). Mesure mémoire de TaxRef sur iPhone. CI | premier test commun (`CompatibiliteServeur`) | **squelette fait le 18 octobre** : l'appli tourne sur les deux OS. Restent le prototype carte, la mesure mémoire et la CI |
+| 0 | Squelette Gradle (core, ui, androidApp, iosApp). **Prototype carte** (§ 5). Mesure mémoire de TaxRef sur iPhone. CI | premier test commun (`CompatibiliteServeur`) | **squelette et prototype carte faits le 18 octobre** ([`PROTOTYPE-CARTE.md`](PROTOTYPE-CARTE.md)). Restent la mesure mémoire et la CI |
 | 1 | Fondations : modèles `@Serializable`, `JsonCompat`, stockage atomique et quarantaine, verrous, dates, UUID, logs, coffre, client Ktor et authentification | T1, T2, aller-retour JSON | connexion et authentification sur un serveur GeoNature de test |
 | 2 | Référentiels et synchro : TaxRef (index et stockage), nomenclatures, JDD, listes, observateurs, HABREF, Monitoring (modules, schémas, objets, datalists), `SyncRunner`, `ExecutionLongue` | T3, T4 (synchro) | synchro complète sur un serveur de test, en ligne et hors-ligne |
 | 3 | Envois : OccTax (anti-doublon, médias, orphelins), file Monitoring, OccHab | T4 (envois et réseau dégradé) | tous les scénarios anti-doublon passent |

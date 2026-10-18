@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Variante debug seulement : autorise le HTTP en clair vers le serveur de tuiles de test du
+     prototype carte (Mac hôte vu depuis l'émulateur). La version release n'en hérite pas. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application android:networkSecurityConfig="@xml/reseau_debug" />
+</manifest>

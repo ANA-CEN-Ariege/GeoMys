@@ -6,6 +6,8 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 
 **État : socle (lot 0).** L'application affiche un accueil provisoire. Le portage des fonctions de GeoMys-Android suit l'inventaire [`INVENTAIRE.md`](INVENTAIRE.md) (§ 10, ordre de portage).
 
+**Prototype carte.** Le bouton « Prototype carte » de l'accueil ouvre l'écran d'essais MapLibre, avec ses fonds, le MBTiles, le hors-ligne, le cap et les sommets déplaçables. Son bilan est dans [`PROTOTYPE-CARTE.md`](PROTOTYPE-CARTE.md), et ses outils dans `outils/prototype-carte/`.
+
 ## Structure
 
 | Dossier | Contenu |
@@ -14,6 +16,8 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 | `ui/` | Écrans Compose Multiplatform, thème, ressources (`composeResources`). Sur iOS, ce module produit le framework `GeoMysUi`. |
 | `androidApp/` | Application Android : `MainActivity`, manifeste, icônes. |
 | `iosApp/` | Projet Xcode de l'application iOS, qui affiche l'interface Compose. |
+| `outils/` | Outils de développement, dont le serveur de tuiles et le générateur de MBTiles de test (`prototype-carte/`). |
+| `docs/` | Captures et documents annexes. |
 | `INVENTAIRE.md`, `inventaire/` | Inventaire de ce qui est partageable dans GeoMys-Android, et suivi du portage. |
 
 ## Identité
@@ -61,6 +65,7 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 |---|---|
 | Kotlin | 2.4.21 |
 | Compose Multiplatform | 1.12.2 |
+| maplibre-compose (carte) | 0.20.0 |
 | AGP | 9.1.1 |
 | Gradle | 9.3.1 |
 

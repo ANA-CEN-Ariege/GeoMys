@@ -20,14 +20,27 @@ package fr.ariegenature.geomys.ui
 
 import androidx.compose.ui.window.ComposeUIViewController
 import fr.ariegenature.geomys.InfosApp
+import fr.ariegenature.geomys.ui.carte.ConfigurationCarte
 import platform.Foundation.NSBundle
+import platform.Foundation.NSProcessInfo
 import platform.UIKit.UIDevice
 import platform.UIKit.UIViewController
 
 /** Point d'entrée iOS, appelé par ContentView.swift (iosApp). */
 fun MainViewController(): UIViewController {
     val infos = infosIos()
-    return ComposeUIViewController { GeoMysApp(infos) }
+    ConfigurationCarte.initialiser(infos)
+    val lancement = parametresLancement()
+    return ComposeUIViewController { GeoMysApp(infos, lancement) }
+}
+
+/** Paramètres d'essai passés en arguments `-cle valeur`, par exemple :
+ *  `xcrun simctl launch <appareil> fr.ariegenature.geomys.common -ecran prototype-carte -fond serveur-test` */
+private fun parametresLancement(): Map<String, String> {
+    val arguments = NSProcessInfo.processInfo.arguments.map { it.toString() }
+    return arguments.zipWithNext()
+        .filter { (cle, _) -> cle.startsWith("-") && cle.length > 1 }
+        .associate { (cle, valeur) -> cle.removePrefix("-") to valeur }
 }
 
 private fun infosIos(): InfosApp {

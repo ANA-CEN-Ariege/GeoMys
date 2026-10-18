@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -39,6 +40,7 @@ import fr.ariegenature.geomys.InfosApp
 import fr.ariegenature.geomys.network.VERSION_GEONATURE_MINIMALE
 import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.ui.ressources.accueil_geonature_min
+import fr.ariegenature.geomys.ui.ressources.accueil_prototype_carte
 import fr.ariegenature.geomys.ui.ressources.accueil_sous_titre
 import fr.ariegenature.geomys.ui.ressources.accueil_version
 import fr.ariegenature.geomys.ui.ressources.app_name
@@ -52,7 +54,7 @@ import org.jetbrains.compose.resources.stringResource
 /** Accueil provisoire du socle : il valide le rendu commun (logo, thème, ressources, code de
  *  `core`) sur les deux plateformes, en attendant l'accueil de GeoMys (tuiles de saisie, menu). */
 @Composable
-fun AccueilScreen(infos: InfosApp) {
+fun AccueilScreen(infos: InfosApp, onPrototypeCarte: () -> Unit) {
     FondGeoMys {
         Column(
             modifier = Modifier
@@ -91,6 +93,10 @@ fun AccueilScreen(infos: InfosApp) {
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.White.copy(alpha = 0.7f),
             )
+            Spacer(Modifier.height(24.dp))
+            OutlinedButton(onClick = onPrototypeCarte) {
+                Text(stringResource(Res.string.accueil_prototype_carte), color = CouleursGeoMys.jauneClair)
+            }
         }
     }
 }
