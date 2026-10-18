@@ -26,30 +26,46 @@ import androidx.compose.runtime.setValue
 import fr.ariegenature.geomys.InfosApp
 import fr.ariegenature.geomys.ui.accueil.AccueilScreen
 import fr.ariegenature.geomys.ui.carte.prototype.PrototypeCarteScreen
+import fr.ariegenature.geomys.ui.mesure.MesureTaxRefScreen
 import fr.ariegenature.geomys.ui.theme.GeoMysTheme
 
 /** Racine de l'interface, identique sur Android (MainActivity) et iOS (MainViewController).
  *
  *  [lancement] : paramètres de lancement pour les essais automatisés (le simulateur iOS ne sait
- *  pas simuler de toucher) : `ecran=prototype-carte`, `fond=<id>`, `zoom=<n>`, `action=hors-ligne`.
+ *  pas simuler de toucher) : `ecran=prototype-carte`, `fond=<id>`, `zoom=<n>`, `action=hors-ligne` ;
+ *  `ecran=mesure-taxref`, `action=preparer`, `taxons=<n>` ou `action=mesurer`, `lecture=flux|chaine`.
  *  Passés en extras d'intent sur Android, en arguments `-cle valeur` sur iOS. */
 @Composable
 fun GeoMysApp(infos: InfosApp, lancement: Map<String, String> = emptyMap()) {
     GeoMysTheme {
         // Navigation provisoire, en attendant navigation-compose (lot 5).
         var ecran by remember {
-            mutableStateOf(if (lancement["ecran"] == "prototype-carte") Ecran.PROTOTYPE_CARTE else Ecran.ACCUEIL)
+            mutableStateOf(Ecran.entries.firstOrNull { it.id == lancement["ecran"] } ?: Ecran.ACCUEIL)
         }
         when (ecran) {
-            Ecran.ACCUEIL -> AccueilScreen(infos, onPrototypeCarte = { ecran = Ecran.PROTOTYPE_CARTE })
+            Ecran.ACCUEIL -> AccueilScreen(
+                infos,
+                onPrototypeCarte = { ecran = Ecran.PROTOTYPE_CARTE },
+                onMesureTaxRef = { ecran = Ecran.MESURE_TAXREF },
+            )
             Ecran.PROTOTYPE_CARTE -> PrototypeCarteScreen(
                 onRetour = { ecran = Ecran.ACCUEIL },
                 fondInitial = lancement["fond"],
                 zoomInitial = lancement["zoom"]?.toDoubleOrNull(),
                 telechargerAuDemarrage = lancement["action"] == "hors-ligne",
             )
+            Ecran.MESURE_TAXREF -> MesureTaxRefScreen(
+                onRetour = { ecran = Ecran.ACCUEIL },
+                action = lancement["action"],
+                taxons = lancement["taxons"]?.toIntOrNull(),
+                lecture = lancement["lecture"],
+            )
         }
     }
 }
 
-private enum class Ecran { ACCUEIL, PROTOTYPE_CARTE }
+private enum class Ecran(val id: String) {
+    ACCUEIL("accueil"),
+    PROTOTYPE_CARTE("prototype-carte"),
+    MESURE_TAXREF("mesure-taxref"),
+}

@@ -1,0 +1,4 @@
+# Mémoire encore disponible avant que le système ne ferme l'application (iOS 13+).
+headers = os/proc.h
+headerFilter = os/proc.h
+package = fr.ariegenature.geomys.plateforme.proc

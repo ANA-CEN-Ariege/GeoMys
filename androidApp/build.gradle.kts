@@ -22,6 +22,13 @@ android {
         release {
             isMinifyEnabled = false
         }
+        // La release signée avec la clé de debug, pour mesurer durées et mémoire sur un téléphone
+        // sans les ralentissements d'une appli débogable : ./gradlew :androidApp:assembleMesure.
+        create("mesure") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

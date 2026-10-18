@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidMultiplatformLibrary)
+    alias(libs.plugins.kotlinxSerialization)
 }
 
 // Logique commune, sans dépendance à Compose : elle se compile et se teste sans l'UI.
@@ -19,12 +20,18 @@ kotlin {
         withHostTest {}
     }
 
-    iosArm64()
-    iosSimulatorArm64()
+    listOf(iosArm64(), iosSimulatorArm64()).forEach { cible ->
+        // os/proc.h (os_proc_available_memory) n'est pas dans les bibliothèques de plateforme
+        // de Kotlin/Native : définition dans src/nativeInterop/cinterop/proc.def.
+        cible.compilations.getByName("main").cinterops.create("proc")
+    }
 
     sourceSets {
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.serialization.json)
+            implementation(libs.kotlinx.serialization.json.okio)
+            implementation(libs.okio)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

@@ -319,6 +319,7 @@ Le détail est dans [`inventaire/7-tests.md`](inventaire/7-tests.md). Les 99 fic
    - Des Regex sont recompilées à chaque frappe.
    - Le ramasse-miettes de Kotlin/Native se comporte autrement que celui de la JVM.
    - Mesurer tôt, sur un vrai iPhone.
+   - **Mesuré le 18 octobre** ([`MESURE-TAXREF.md`](MESURE-TAXREF.md)). Pour 100 000 taxons, le pic atteint 275 Mo sur l'iPhone 16, soit 8 % de ce qu'iOS accorde à l'appli ; 200 000 taxons en prennent 17 %. Le risque se déplace vers Android : sans `largeHeap`, 200 000 taxons remplissent 99 % du tas d'un Galaxy A12. Le chargement y prend 10 à 18 s pour 100 000 taxons.
 8. **L'arrière-plan sur iOS** : rien n'équivaut au service au premier plan de la synchro (§ 4).
 9. **HTTP et authentification avec le moteur Darwin.**
    - Couper la gestion automatique des cookies.
@@ -421,7 +422,7 @@ Chaque lot suit le même cycle : il porte son code depuis le commit Android not�
 
 | Lot | Contenu | Tests | Critère de sortie |
 |---|---|---|---|
-| 0 | Squelette Gradle (core, ui, androidApp, iosApp). **Prototype carte** (§ 5). Mesure mémoire de TaxRef sur iPhone. CI | premier test commun (`CompatibiliteServeur`) | **squelette et prototype carte faits le 18 octobre** ([`PROTOTYPE-CARTE.md`](PROTOTYPE-CARTE.md)). Restent la mesure mémoire et la CI |
+| 0 | Squelette Gradle (core, ui, androidApp, iosApp). **Prototype carte** (§ 5). Mesure mémoire de TaxRef sur iPhone. Vérification avant de pousser | premier test commun (`CompatibiliteServeur`) | **fait le 18 octobre** : squelette, prototype carte ([`PROTOTYPE-CARTE.md`](PROTOTYPE-CARTE.md)), mesure mémoire ([`MESURE-TAXREF.md`](MESURE-TAXREF.md)). Pas d'intégration continue (décision du 18 octobre) : la vérification se fait en local, par `outils/verifier.sh` |
 | 1 | Fondations : modèles `@Serializable`, `JsonCompat`, stockage atomique et quarantaine, verrous, dates, UUID, logs, coffre, client Ktor et authentification | T1, T2, aller-retour JSON | connexion et authentification sur un serveur GeoNature de test |
 | 2 | Référentiels et synchro : TaxRef (index et stockage), nomenclatures, JDD, listes, observateurs, HABREF, Monitoring (modules, schémas, objets, datalists), `SyncRunner`, `ExecutionLongue` | T3, T4 (synchro) | synchro complète sur un serveur de test, en ligne et hors-ligne |
 | 3 | Envois : OccTax (anti-doublon, médias, orphelins), file Monitoring, OccHab | T4 (envois et réseau dégradé) | tous les scénarios anti-doublon passent |
@@ -445,6 +446,8 @@ Chaque lot suit le même cycle : il porte son code depuis le commit Android not�
 6. **Carte.** MapLibre via maplibre-compose, derrière une façade, après le prototype : recommandé.
 7. **Concurrence.** API `suspend` protégées par `Mutex` pour les stores, puisque tous leurs appelants seront réécrits (ViewModels) ; atomicfu seulement pour les caches en mémoire. Recommandé.
 8. **Stockage.** Garder des fichiers JSON pour un portage fidèle, en sortant les saisies des SharedPreferences. Pour TaxRef, rester en JSON au départ, et passer à SQLite seulement si la mesure mémoire sur iPhone l'impose.
+   - **Tranché pour TaxRef le 18 octobre : JSON.** La mesure sur iPhone n'impose pas SQLite ([`MESURE-TAXREF.md`](MESURE-TAXREF.md)).
+   - Deux conditions : déclarer `largeHeap` sur Android comme GeoMys-Android, et charger TaxRef en arrière-plan et à la demande.
 9. **`http://` sur iOS.** Le refuser (statu quo iOS), ou ouvrir une exception ATS ?
 10. **Chaînes.** Garder le français en dur dans le code commun, comme aujourd'hui (portage plus fidèle et plus rapide), ou externaliser les quelque 1 200 libellés dans `composeResources` ?
 11. **Restauration après la mort du processus.** Des brouillons sauvegardés automatiquement dans le code commun, qui fonctionnent sur les deux OS, plutôt que `SavedStateHandle`. Recommandé.

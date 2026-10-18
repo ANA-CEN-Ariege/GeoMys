@@ -8,6 +8,8 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 
 **Prototype carte.** Le bouton « Prototype carte » de l'accueil ouvre l'écran d'essais MapLibre, avec ses fonds, le MBTiles, le hors-ligne, le cap et les sommets déplaçables. Son bilan est dans [`PROTOTYPE-CARTE.md`](PROTOTYPE-CARTE.md), et ses outils dans `outils/prototype-carte/`.
 
+**Mesure mémoire TaxRef.** Le bouton « Mesure mémoire TaxRef » mesure ce que coûte un référentiel TaxRef chargé en mémoire comme dans GeoMys-Android. Son bilan est dans [`MESURE-TAXREF.md`](MESURE-TAXREF.md).
+
 ## Structure
 
 | Dossier | Contenu |
@@ -16,7 +18,7 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 | `ui/` | Écrans Compose Multiplatform, thème, ressources (`composeResources`). Sur iOS, ce module produit le framework `GeoMysUi`. |
 | `androidApp/` | Application Android : `MainActivity`, manifeste, icônes. |
 | `iosApp/` | Projet Xcode de l'application iOS, qui affiche l'interface Compose. |
-| `outils/` | Outils de développement, dont le serveur de tuiles et le générateur de MBTiles de test (`prototype-carte/`). |
+| `outils/` | Outils de développement : la vérification avant de pousser (`verifier.sh`), le serveur de tuiles et le générateur de MBTiles de test (`prototype-carte/`). |
 | `docs/` | Captures et documents annexes. |
 | `INVENTAIRE.md`, `inventaire/` | Inventaire de ce qui est partageable dans GeoMys-Android, et suivi du portage. |
 
@@ -43,6 +45,7 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 
 **Android**
 - `./gradlew :androidApp:assembleDebug` produit l'APK dans `androidApp/build/outputs/apk/debug/`.
+- `./gradlew :androidApp:assembleMesure` produit une release signée avec la clé de debug, pour mesurer durées et mémoire sans les ralentissements d'une appli débogable.
 - Dans Android Studio, ouvrir le dossier racine et lancer la configuration `androidApp`.
 
 **iOS**
@@ -58,6 +61,7 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 
 **Tests**
 - `./gradlew :core:allTests` lance les tests communs sur la JVM et sur le simulateur iOS.
+- `outils/verifier.sh` fait la vérification complète, à lancer avant de pousser : APK Android, tests communs (JVM et simulateur iOS) et build iOS pour le simulateur. Il tient lieu d'intégration continue. Avec `--sans-ios`, il se passe de Xcode.
 
 ## Versions
 
@@ -66,6 +70,8 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 | Kotlin | 2.4.21 |
 | Compose Multiplatform | 1.12.2 |
 | maplibre-compose (carte) | 0.20.0 |
+| kotlinx-serialization | 1.11.0 |
+| okio | 3.18.2 |
 | AGP | 9.1.1 |
 | Gradle | 9.3.1 |
 

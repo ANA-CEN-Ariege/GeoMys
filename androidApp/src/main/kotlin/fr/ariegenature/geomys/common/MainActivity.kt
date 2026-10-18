@@ -29,7 +29,7 @@ import fr.ariegenature.geomys.InfosApp
 import fr.ariegenature.geomys.ui.GeoMysApp
 import fr.ariegenature.geomys.ui.carte.ConfigurationCarte
 
-private val CLES_LANCEMENT = listOf("ecran", "fond", "zoom", "action")
+private val CLES_LANCEMENT = listOf("ecran", "fond", "zoom", "action", "taxons", "lecture")
 
 /** Point d'entrée Android : il ne fait qu'afficher l'interface commune (module ui). */
 class MainActivity : ComponentActivity() {

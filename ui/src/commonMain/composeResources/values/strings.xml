@@ -7,4 +7,5 @@
     <string name="accueil_version">Version %1$s · %2$s</string>
     <string name="accueil_geonature_min">Pour GeoNature %1$s ou plus récent</string>
     <string name="accueil_prototype_carte">Prototype carte</string>
+    <string name="accueil_mesure_taxref">Mesure mémoire TaxRef</string>
 </resources>

@@ -8,3 +8,6 @@ APP_NAME=GeoMysCommon
 APP_DISPLAY_NAME=GeoMys Common
 MARKETING_VERSION=0.1.0
 CURRENT_PROJECT_VERSION=1
+// Le code Kotlin n'est compilé que pour les simulateurs Apple Silicon (iosSimulatorArm64) : sans
+// cette ligne, un build pour « tout simulateur » réclame aussi x86_64.
+EXCLUDED_ARCHS[sdk=iphonesimulator*]=x86_64
