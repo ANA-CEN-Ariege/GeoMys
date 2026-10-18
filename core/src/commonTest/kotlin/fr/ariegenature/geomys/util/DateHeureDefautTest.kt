@@ -1,0 +1,62 @@
+/*
+ * GeoMys-Common — application de saisie naturaliste pour GeoNature, Android et iOS.
+ * Copyright (C) 2026 ANA - CEN Ariège
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+// Porté de GeoMys-Android @ cdd5196 (app/src/test/java/fr/ariegenature/geomys/DateHeureDefautTest.kt) :
+// JUnit remplacé par kotlin.test.
+
+package fr.ariegenature.geomys.util
+
+import kotlin.test.Test
+import kotlin.test.assertTrue
+
+/** Vérifie que les défauts date/heure produisent les formats exacts attendus par les
+ *  renderers et le backend GeoNature (cf. creerChampDate / creerChampTime / creerChampDateTime). */
+class DateHeureDefautTest {
+
+    @Test
+    fun dateDuJour_formatISO_aaaa_mm_jj() {
+        assertTrue(
+            DateHeureDefaut.dateDuJour().matches(Regex("""\d{4}-\d{2}-\d{2}""")),
+            "format attendu yyyy-MM-dd, obtenu ${DateHeureDefaut.dateDuJour()}",
+        )
+    }
+
+    @Test
+    fun heureActuelle_format24h_hh_mm() {
+        val h = DateHeureDefaut.heureActuelle()
+        assertTrue(h.matches(Regex("""\d{2}:\d{2}""")), "format attendu HH:mm, obtenu $h")
+        val (hh, mm) = h.split(":").map { it.toInt() }
+        assertTrue(hh in 0..23, "heure 0..23")
+        assertTrue(mm in 0..59, "minute 0..59")
+    }
+
+    @Test
+    fun dateHeureActuelle_format_complet_avec_secondes() {
+        assertTrue(
+            DateHeureDefaut.dateHeureActuelle().matches(Regex("""\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}""")),
+            "format attendu yyyy-MM-dd HH:mm:ss, obtenu ${DateHeureDefaut.dateHeureActuelle()}",
+        )
+    }
+
+    @Test
+    fun dateHeure_commence_par_la_date_du_jour() {
+        // Les deux helpers lisent l'horloge à des instants différents : on tolère un
+        // changement de jour improbable en comparant juste le préfixe date du datetime.
+        assertTrue(DateHeureDefaut.dateHeureActuelle().startsWith(DateHeureDefaut.dateDuJour()))
+    }
+}

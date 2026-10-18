@@ -126,7 +126,7 @@ Les colonnes de catégorie sont en lignes de code.
 | Android aujourd'hui | Usage relevé | Remplaçant multiplateforme | À savoir |
 |---|---|---|---|
 | `HttpURLConnection` | 16 fichiers, ≈ 50 appels | Ktor client (moteur OkHttp sur Android, Darwin sur iOS) | Timeouts posés requête par requête, d'inactivité et non de durée totale. Login sans suivre les redirections. Aucun rejeu des POST. Liste des quelque 37 routes appelées : `inventaire/1-reseau-sync.md` § 3. |
-| `org.json` | 20 fichiers ; plus de 500 appels `opt*`/`get*` dans `network/` | kotlinx.serialization (`JsonElement`) et une petite couche `JsonCompat` | La sémantique d'org.json doit être reproduite (`optString` renvoie `"null"`, conversions implicites…). Des tests de caractérisation la verrouillent. |
+| `org.json` | 20 fichiers ; plus de 500 appels `opt*`/`get*` dans `network/` | **fait au lot 1** : l'org.json d'Android porté en Kotlin commun (`core/…/json/`, Apache 2.0), au lieu d'une couche sur kotlinx ([`LOT-1.md`](LOT-1.md) § 2) | Sa sémantique est reproduite à l'identique : 369 cas comparés aux sources d'Android, sur la JVM et sur iOS. |
 | Gson | 19 fichiers : persistance, `TypeToken`, lecture en flux | kotlinx.serialization (`@Serializable`) | Décoder élément par élément pour garder la quarantaine des entrées abîmées. Les règles R8 propres à Gson disparaissent. |
 | `SharedPreferences` | 20 fichiers ; une dizaine de fichiers de préférences (`gn_config`, `GeoMys_prefs`, `sorties_store`, `occhab_store`, `taxref_cache`…) | multiplatform-settings | Pour les réglages simples. Les saisies (`sorties_store`, `occhab_store`) vont dans des fichiers atomiques. |
 | `java.io.File`, `Context.filesDir` | ≈ 30 fichiers | okio (ou kotlinx-io), avec des racines fournies par la plateforme | Écriture atomique et quarantaine. Le `fsync` est à garantir sur iOS. |
@@ -423,7 +423,7 @@ Chaque lot suit le même cycle : il porte son code depuis le commit Android not�
 | Lot | Contenu | Tests | Critère de sortie |
 |---|---|---|---|
 | 0 | Squelette Gradle (core, ui, androidApp, iosApp). **Prototype carte** (§ 5). Mesure mémoire de TaxRef sur iPhone. Vérification avant de pousser | premier test commun (`CompatibiliteServeur`) | **fait le 18 octobre** : squelette, prototype carte ([`PROTOTYPE-CARTE.md`](PROTOTYPE-CARTE.md)), mesure mémoire ([`MESURE-TAXREF.md`](MESURE-TAXREF.md)). Pas d'intégration continue (décision du 18 octobre) : la vérification se fait en local, par `outils/verifier.sh` |
-| 1 | Fondations : modèles `@Serializable`, `JsonCompat`, stockage atomique et quarantaine, verrous, dates, UUID, logs, coffre, client Ktor et authentification | T1, T2, aller-retour JSON | connexion et authentification sur un serveur GeoNature de test |
+| 1 | Fondations : modèles `@Serializable`, `JsonCompat`, stockage atomique et quarantaine, verrous, dates, UUID, logs, coffre, client Ktor et authentification | T1, T2, aller-retour JSON | connexion et authentification sur un serveur GeoNature de test. **Fait le 18 octobre** ([`LOT-1.md`](LOT-1.md)) : connexion et authentification réussies sur un vrai serveur GeoNature 2.17.5, depuis le Galaxy A12 et l'iPhone 16 |
 | 2 | Référentiels et synchro : TaxRef (index et stockage), nomenclatures, JDD, listes, observateurs, HABREF, Monitoring (modules, schémas, objets, datalists), `SyncRunner`, `ExecutionLongue` | T3, T4 (synchro) | synchro complète sur un serveur de test, en ligne et hors-ligne |
 | 3 | Envois : OccTax (anti-doublon, médias, orphelins), file Monitoring, OccHab | T4 (envois et réseau dégradé) | tous les scénarios anti-doublon passent |
 | 4 | Moteur de formulaires : `FormulaireEtat`, champ taxon, champs additionnels | tests du moteur | mêmes valeurs envoyées qu'Android |
@@ -444,7 +444,7 @@ Chaque lot suit le même cycle : il porte son code depuis le commit Android not�
 4. **Référence fonctionnelle.** Android, recommandé ; puis trancher chaque divergence du § 8.3.
 5. **Défauts Android** (§ 8.2) : les corriger dans GeoMys-Android, dans GeoMys-Common seulement, ou dans les deux ?
 6. **Carte.** MapLibre via maplibre-compose, derrière une façade, après le prototype : recommandé.
-7. **Concurrence.** API `suspend` protégées par `Mutex` pour les stores, puisque tous leurs appelants seront réécrits (ViewModels) ; atomicfu seulement pour les caches en mémoire. Recommandé.
+7. **Concurrence.** API `suspend` protégées par `Mutex` pour les stores, puisque tous leurs appelants seront réécrits (ViewModels) ; atomicfu seulement pour les caches en mémoire. Recommandé. **Appliqué au lot 1** (`JsonCollectionStore`, `GeoNatureAuth`) ; atomicfu n'a pas été nécessaire.
 8. **Stockage.** Garder des fichiers JSON pour un portage fidèle, en sortant les saisies des SharedPreferences. Pour TaxRef, rester en JSON au départ, et passer à SQLite seulement si la mesure mémoire sur iPhone l'impose.
    - **Tranché pour TaxRef le 18 octobre : JSON.** La mesure sur iPhone n'impose pas SQLite ([`MESURE-TAXREF.md`](MESURE-TAXREF.md)).
    - Deux conditions : déclarer `largeHeap` sur Android comme GeoMys-Android, et charger TaxRef en arrière-plan et à la demande.

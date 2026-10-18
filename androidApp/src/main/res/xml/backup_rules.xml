@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Règles de sauvegarde (Android < API 31, via fullBackupContent), reprises de GeoMys-Android.
+     On EXCLUT le mot de passe chiffré (gn_secure_v2, MdpChiffre) : la clé de chiffrement est dans
+     l'Android Keystore et ne quitte jamais l'appareil, donc le blob serait inutilisable après
+     restauration — et c'est un secret, il ne doit jamais partir en sauvegarde. URL et login
+     (gn_config) restent sauvegardés.
+     On EXCLUT aussi les caches synchronisés (retéléchargeables) et les médias : au-delà de 25 Mo,
+     Android n'effectue AUCUNE sauvegarde, et même les réglages et les saisies seraient perdus. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="gn_secure_v2.xml" />
+    <exclude domain="file" path="taxref" />
+    <exclude domain="file" path="monitoring" />
+    <exclude domain="file" path="mbtiles" />
+    <exclude domain="file" path="medias" />
+</full-backup-content>

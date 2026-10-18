@@ -24,8 +24,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import fr.ariegenature.geomys.InfosApp
+import fr.ariegenature.geomys.ServicesGeoNature
 import fr.ariegenature.geomys.ui.accueil.AccueilScreen
 import fr.ariegenature.geomys.ui.carte.prototype.PrototypeCarteScreen
+import fr.ariegenature.geomys.ui.connexion.ConnexionScreen
 import fr.ariegenature.geomys.ui.mesure.MesureTaxRefScreen
 import fr.ariegenature.geomys.ui.theme.GeoMysTheme
 
@@ -33,10 +35,11 @@ import fr.ariegenature.geomys.ui.theme.GeoMysTheme
  *
  *  [lancement] : paramètres de lancement pour les essais automatisés (le simulateur iOS ne sait
  *  pas simuler de toucher) : `ecran=prototype-carte`, `fond=<id>`, `zoom=<n>`, `action=hors-ligne` ;
- *  `ecran=mesure-taxref`, `action=preparer`, `taxons=<n>` ou `action=mesurer`, `lecture=flux|chaine`.
+ *  `ecran=mesure-taxref`, `action=preparer`, `taxons=<n>` ou `action=mesurer`, `lecture=flux|chaine` ;
+ *  `ecran=connexion`, `url=<url>`, `login=<identifiant>`, `mdp=<mot de passe>`, `action=tester`.
  *  Passés en extras d'intent sur Android, en arguments `-cle valeur` sur iOS. */
 @Composable
-fun GeoMysApp(infos: InfosApp, lancement: Map<String, String> = emptyMap()) {
+fun GeoMysApp(infos: InfosApp, services: ServicesGeoNature, lancement: Map<String, String> = emptyMap()) {
     GeoMysTheme {
         // Navigation provisoire, en attendant navigation-compose (lot 5).
         var ecran by remember {
@@ -47,6 +50,7 @@ fun GeoMysApp(infos: InfosApp, lancement: Map<String, String> = emptyMap()) {
                 infos,
                 onPrototypeCarte = { ecran = Ecran.PROTOTYPE_CARTE },
                 onMesureTaxRef = { ecran = Ecran.MESURE_TAXREF },
+                onConnexion = { ecran = Ecran.CONNEXION },
             )
             Ecran.PROTOTYPE_CARTE -> PrototypeCarteScreen(
                 onRetour = { ecran = Ecran.ACCUEIL },
@@ -60,6 +64,7 @@ fun GeoMysApp(infos: InfosApp, lancement: Map<String, String> = emptyMap()) {
                 taxons = lancement["taxons"]?.toIntOrNull(),
                 lecture = lancement["lecture"],
             )
+            Ecran.CONNEXION -> ConnexionScreen(services, onRetour = { ecran = Ecran.ACCUEIL }, lancement = lancement)
         }
     }
 }
@@ -68,4 +73,5 @@ private enum class Ecran(val id: String) {
     ACCUEIL("accueil"),
     PROTOTYPE_CARTE("prototype-carte"),
     MESURE_TAXREF("mesure-taxref"),
+    CONNEXION("connexion"),
 }

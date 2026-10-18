@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Règles d'extraction (Android API 31+), reprises de GeoMys-Android. On EXCLUT le mot de passe
+     chiffré (gn_secure_v2, MdpChiffre) de la sauvegarde cloud ET du transfert d'appareil : la clé
+     reste dans l'Android Keystore, le blob serait inutilisable ailleurs — et c'est un secret.
+     URL et login (gn_config) restent inclus ; le mot de passe est re-saisi. Caches synchronisés et
+     médias exclus : au-delà de 25 Mo, la sauvegarde cloud échoue ENTIÈREMENT. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="gn_secure_v2.xml" />
+        <exclude domain="file" path="taxref" />
+        <exclude domain="file" path="monitoring" />
+        <exclude domain="file" path="mbtiles" />
+        <exclude domain="file" path="medias" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="gn_secure_v2.xml" />
+        <exclude domain="file" path="taxref" />
+        <exclude domain="file" path="monitoring" />
+        <exclude domain="file" path="mbtiles" />
+        <exclude domain="file" path="medias" />
+    </device-transfer>
+</data-extraction-rules>

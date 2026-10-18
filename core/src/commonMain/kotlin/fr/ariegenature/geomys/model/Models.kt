@@ -1,0 +1,194 @@
+/*
+ * GeoMys-Common — application de saisie naturaliste pour GeoNature, Android et iOS.
+ * Copyright (C) 2026 ANA - CEN Ariège
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+// Porté de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/model/Models.kt) :
+// @Serializable sur chaque classe ; UUID et currentTimeMillis remplacés par leurs équivalents
+// communs. Les noms des propriétés forment le format des fichiers : ne pas les renommer.
+
+package fr.ariegenature.geomys.model
+
+import fr.ariegenature.geomys.util.maintenantMillis
+import fr.ariegenature.geomys.util.uuidAleatoire
+import kotlinx.serialization.Serializable
+
+@Serializable
+enum class Taxon { OISEAU, MAMMIFERE, REPTILE, BATRACIEN, POISSON, INSECTE, FONGE, MOLLUSQUE, INVERTEBRES, PLANTE }
+
+@Serializable
+data class PointTrace(
+    val latitude: Double,
+    val longitude: Double
+)
+
+/** Un dénombrement (counting) GeoNature : 1 occurrence peut en avoir plusieurs.
+ *  Chacun a sa propre tranche d'effectif + caractéristiques (sexe, stade…) + médias attachés. */
+@Serializable
+data class Denombrement(
+    val id: String = uuidAleatoire(),
+    var nombreMin: Int = 1,
+    var nombreMax: Int = 1,
+    var sexe: String? = null,
+    var stadeVie: String? = null,
+    var objDenbr: String? = null,
+    var typDenbr: String? = null,
+    /** URIs locales (file:///…) des photos attachées à ce counting. Uploadées à l'envoi
+     *  via POST /api/gn_commons/media, puis référencées dans le JSON du counting. */
+    var mediaUris: List<String> = emptyList(),
+    /** Champs additionnels OCCTAX_DENOMBREMENT (configurables côté instance GN). */
+    var additionalFields: Map<String, String> = emptyMap(),
+)
+
+@Serializable
+data class Observation(
+    val id: String = uuidAleatoire(),
+    var espece: String,
+    var taxon: Taxon? = null,   // null = OISEAU (rétrocompatibilité JSON existant)
+    var cdNom: Int? = null,
+    var latitude: Double,
+    var longitude: Double,
+    /** Type de la géométrie associée au relevé (partagée par toutes les obs d'un releveId).
+     *  Valeurs : `"Point"` (défaut historique, latitude/longitude suffisent), `"LineString"`,
+     *  `"Polygon"`. Null pour rétrocompatibilité JSON ancien (= Point). */
+    var geometryType: String? = null,
+    /** Coordonnées de la géométrie sérialisées en JSON (`List<DoubleArray>` au format
+     *  [lon, lat]). Renseigné uniquement pour LineString et Polygon. Pour Point,
+     *  null et latitude/longitude font foi. Toutes les obs d'un releveId partagent cette
+     *  valeur (OCCTAX : un relevé = une géométrie + N occurrences). */
+    var geometryCoordsJson: String? = null,
+    var date: Long = maintenantMillis(),
+    var notes: String = "",
+    // ── Champs du counting #0 (conservés en flat pour rétrocompat Gson + mono-taxon) ──
+    var nombre: Int = 1,
+    var sexe: String? = null,
+    var stadeVie: String? = null,
+    var objDenbr: String? = null,
+    var typDenbr: String? = null,
+    // ── Caractérisation de l'occurrence ──
+    var techniqueObs: String? = null,
+    var statutBio: String? = null,
+    var etaBio: String? = null,
+    var preuveExist: String? = null,
+    var comportement: String? = null,
+    var methDetermin: String? = null,
+    var naturalite: String? = null,
+    var determinateur: String? = null,
+    // UUID partagé par les obs d'une même saisie multi-taxons : à l'envoi, elles seront
+    // regroupées dans un seul relevé GeoNature (1 relevé = 1 point + N occurrences).
+    // null pour les obs mono-taxon (saisie rapide, import GPX) → chacune devient son propre relevé.
+    var releveId: String? = null,
+    // ── Extras counting #0 (mode multi-taxon) ──
+    /** Si null, le counting #0 utilise `nombre` pour count_min ET count_max. */
+    var nombreMax: Int? = null,
+    // ── Dénombrements supplémentaires (mode multi-taxon : countings 1..N) ──
+    /** Le counting #0 est représenté par les champs flat ci-dessus ; cette liste
+     *  contient les dénombrements supplémentaires éventuels. À l'envoi GeoNature,
+     *  un cor_counting_occtax est émis pour chaque (counting #0 + entrées de cette liste). */
+    var denombrementsAdditionnels: List<Denombrement> = emptyList(),
+    // ── Statut d'observation ──
+    var statutObs: String? = null,
+    /** Photos attachées au counting #0 (URIs locales). Les countings additionnels portent
+     *  leurs photos via Denombrement.mediaUris. */
+    var mediaUrisCounting0: List<String> = emptyList(),
+    // ── Champs additionnels (config gn_commons.t_additional_fields, dynamiques par instance) ──
+    /** Champs additionnels du relevé (OCCTAX_RELEVE) — partagés entre toutes les obs d'un même releveId. */
+    var additionalFieldsReleve: Map<String, String> = emptyMap(),
+    /** Champs OCCURRENCE pilotés par form_fields du serveur (statut de la source, floutage, preuve
+     *  numérique / non numérique). Clé = clé form_fields ; valeur = code nomenclature ou texte.
+     *  Map unique pour ne pas multiplier les champs à travers tout le code. */
+    var champsOccExtra: Map<String, String> = emptyMap(),
+    /** Champs additionnels de l'occurrence (OCCTAX_OCCURRENCE). */
+    var additionalFieldsOccurrence: Map<String, String> = emptyMap(),
+    /** Champs additionnels OCCTAX_DENOMBREMENT pour le counting #0. */
+    var additionalFieldsCounting0: Map<String, String> = emptyMap(),
+    // ── Override par relevé (édités via « Détails du relevé »), partagés entre toutes les obs
+    //    d'un même releveId. null = on retombe sur les valeurs par défaut de la config / du login. ──
+    /** Jeu de données du relevé. null → `config.idDataset`. */
+    var idDatasetReleve: Int? = null,
+    /** Observateurs du relevé (→ `observers`, tableau d'id_role). Vide → utilisateur connecté. */
+    var observateursReleveIds: List<Int> = emptyList(),
+    /** Libellés des observateurs du relevé (affichage), alignés sur [observateursReleveIds]. */
+    var observateursReleveNoms: List<String> = emptyList(),
+    /** Observateur unique du relevé — legacy (saisies d'avant le multi-observateurs). Lu en repli
+     *  si [observateursReleveIds] est vide ; plus jamais écrit. */
+    var observateurReleveId: Int? = null,
+    /** Libellé de l'observateur du relevé — legacy (cf. [observateurReleveId]). */
+    var observateurReleveNom: String? = null,
+    /** Commentaire libre du relevé (→ `comment` des properties). null/"" = non renseigné. */
+    var commentReleve: String? = null,
+    /** Habitat du relevé — code HABREF (→ `cd_hab`). null = non renseigné. */
+    var cdHabReleve: Int? = null,
+    /** Libellé de l'habitat (affichage), aligné sur [cdHabReleve]. */
+    var habitatReleveLabel: String? = null,
+    /** Type de regroupement du relevé (nomenclature TYP_GRP). null/"" = non renseigné. */
+    var typGrpReleve: String? = null,
+    /** Date+heure de DÉBUT du relevé (epoch millis), saisie dans « Détails ». null = on utilise les
+     *  dates de saisie des obs (→ `date_min`/`hour_min`). */
+    var dateDebutReleve: Long? = null,
+    /** Date+heure de FIN du relevé (epoch millis). null = même que le début (→ `date_max`/`hour_max`). */
+    var dateFinReleve: Long? = null,
+    /** Champs relevé supplémentaires pilotés par `form_fields` du serveur (altitude_min/max,
+     *  depth_min/max, place_name, precision, grp_method, geo_object_nature). Clé = clé `form_fields`,
+     *  valeur = saisie en texte (entier pour les numériques, code mnémonique pour geo_object_nature).
+     *  Vide = aucun renseigné. Map unique pour ne pas multiplier les champs à travers tout le code. */
+    var champsReleveExtra: Map<String, String> = emptyMap(),
+    /** true dès que l'occurrence a été CRÉÉE côté serveur (POST 2xx). Après un envoi PARTIEL
+     *  (réseau tombé en cours de route), la sortie reste ré-envoyable : les obs marquées ne
+     *  sont pas re-postées (anti-doublon), seules les restantes partent. Persisté par
+     *  SortieStore.marquerObservationsEnvoyees dès le retour d'envoi — anciens JSON sans le
+     *  champ → false (défaut primitif Gson), comportement inchangé. */
+    var envoyeeServeur: Boolean = false,
+    /** true = « relevé sans espèce » : cette Observation est un PLACEHOLDER qui ne porte AUCUN
+     *  taxon (cdNom null) — elle matérialise un relevé (géométrie + détails du relevé) créé
+     *  volontairement sans occurrence. À l'envoi, son relevé est créé côté GeoNature avec un
+     *  `t_occurrences_occtax` VIDE et n'est PAS supprimé (pas de rollback « relevé orphelin »).
+     *  Les vraies observations gardent false. Ancien JSON sans le champ → false (défaut Gson). */
+    var releveSansEspece: Boolean = false,
+    /** Identifiant client STABLE de l'occurrence, envoyé en `unique_id_occurence_occtax`
+     *  (accepté par OccurrenceSchema à la création). Anti-doublon après un envoi INCERTAIN : le
+     *  ré-envoi vérifie sa présence dans le relevé visé avant de re-POSTer (audit 2026-08-27).
+     *  Ancien JSON sans le champ → régénéré par la normalisation du store, stable ensuite. */
+    var uuidOccurrence: String = uuidAleatoire(),
+    /** Relevé serveur (id_releve_occtax) dans lequel le POST de cette occurrence a été émis SANS
+     *  réponse (coupure après émission) : elle y a peut-être été créée. Le prochain envoi vérifie
+     *  par [uuidOccurrence] avant de re-POSTer ; effacé dès que l'occurrence est marquée créée.
+     *  Null = aucune incertitude. */
+    var idReleveIncertain: Int? = null,
+    /** true dès que la création du RELEVÉ de ce groupe a été TENTÉE (POST émis). Posé AVANT le
+     *  POST : si le processus meurt pendant celui-ci, le relevé existe peut-être côté serveur sans
+     *  aucune trace locale — au prochain envoi, on interroge le serveur sur l'uuid déterministe du
+     *  groupe (`unique_id_sinp_grp`) au lieu d'en créer un second. Décisif pour un RELEVÉ SANS
+     *  ESPÈCE, où le relevé EST la donnée : le re-créer produit un doublon franc d'absence
+     *  (audit 2026-09-14, R1-M1). Reste posé après un envoi partiel, ce qui permet de rattacher les
+     *  observations restantes au relevé déjà créé au lieu d'en ouvrir un second. */
+    var releveTente: Boolean = false,
+)
+
+@Serializable
+data class Sortie(
+    val id: String = uuidAleatoire(),
+    val date: Long = maintenantMillis(),
+    var pointsParcours: List<PointTrace> = emptyList(),
+    var observations: List<Observation> = emptyList(),
+    var distanceTotale: Double = 0.0,
+    var envoyeGeoNature: Boolean = false,
+    var estImportee: Boolean = false,
+    /** Message du dernier ÉCHEC d'envoi GeoNature (humanisé). Null si jamais échoué ou si
+     *  l'envoi a fini par réussir. Sert au marquage visuel (cadre rouge) dans « Mes saisies »
+     *  pour qu'un échec ne passe pas inaperçu une fois le dialog d'erreur fermé. */
+    var derniereErreurEnvoi: String? = null,
+)

@@ -1,0 +1,369 @@
+analyser	1
+analyser	-1
+analyser	+1
+analyser	2147483647
+analyser	2147483648
+analyser	-2147483648
+analyser	-2147483649
+analyser	9223372036854775807
+analyser	9223372036854775808
+analyser	-9223372036854775809
+analyser	1.0
+analyser	1.5
+analyser	-1.5
+analyser	1e3
+analyser	1E3
+analyser	1e-3
+analyser	-0
+analyser	-0.0
+analyser	0
+analyser	00
+analyser	012
+analyser	-012
+analyser	08
+analyser	0x1F
+analyser	0X1f
+analyser	0x
+analyser	-0x1F
+analyser	.5
+analyser	5.
+analyser	1e400
+analyser	-1e400
+analyser	NaN
+analyser	Infinity
+analyser	-Infinity
+analyser	1d
+analyser	1f
+analyser	true
+analyser	TRUE
+analyser	False
+analyser	null
+analyser	NULL
+analyser	Null
+analyser	abc
+analyser	a b
+analyser	"abc"
+analyser	'abc'
+analyser	'a"b'
+analyser	"a'b"
+analyser	"a\"b"
+analyser	"\u00e9"
+analyser	"\u-001"
+analyser	"\u+041"
+analyser	"\x"
+analyser	"\/"
+analyser	"a⏎b"
+analyser	{}
+analyser	[]
+analyser	[1,]
+analyser	[,]
+analyser	[,1]
+analyser	[1;2]
+analyser	[1,,2]
+analyser	{"a":1;"b":2}
+analyser	{a:1}
+analyser	{"a"=1}
+analyser	{"a"=>1}
+analyser	{'a':'b'}
+analyser	{"a":1,}
+analyser	{1:2}
+analyser	{null:1}
+analyser	{true:1}
+analyser	// commentaire⏎{"a":1}
+analyser	/* c */ [1]
+analyser	# c⏎[1]
+analyser	[1] reste
+analyser	⟪BOM⟫{"a":1}
+analyser	{"a":{"b":[1,{"c":null}]}}
+analyser	{"a":1,"a":2}
+analyser	  12  
+analyser	"
+analyser	{
+analyser	[
+analyser	{"a"}
+analyser	{"a":1
+analyser	"abc
+analyser	"\u12"
+analyser	"\u12zz"
+analyser	/* abc
+analyser	
+analyser	{"a" 1}
+analyser	[1 2]
+analyser	1.2.3
+analyser	1e
+analyser	-
+analyser	0.0000001
+analyser	123456789.123
+analyser	1e20
+analyser	1e7
+analyser	9999999
+analyser	1e-5
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optString	s
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optString	n
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optString	i
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optString	l
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optString	d
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optString	e
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optString	b
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optString	o
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optString	t
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optString	vide
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optString	neg
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optString	grand
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optString	absent
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optInt	i
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optInt	l
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optInt	d
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optInt	e
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optInt	ns
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optInt	s
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optInt	b
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optInt	n
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optInt	grand
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optInt	esp
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optInt	nb
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optInt	neg
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optInt	absent
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optLong	l
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optLong	ns
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optLong	grand
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optLong	d
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optLong	s
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optLong	esp
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optLong	absent
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optDouble	d
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optDouble	i
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optDouble	l
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optDouble	e
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optDouble	s
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optDouble	n
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optDouble	ns
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optDouble	neg
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optDouble	esp
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optDouble	grand
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optDouble	absent
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optBoolean	b
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optBoolean	bs
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optBoolean	bf
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optBoolean	s
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optBoolean	i
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optBoolean	n
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optBoolean	absent
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getString	s
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getString	n
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getString	i
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getString	d
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getString	b
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getString	o
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getString	absent
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getInt	i
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getInt	ns
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getInt	s
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getInt	n
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getInt	b
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getInt	o
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getInt	absent
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getLong	l
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getLong	s
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getDouble	d
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getDouble	ns
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getDouble	s
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getDouble	n
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getBoolean	b
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getBoolean	bs
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getBoolean	bf
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getBoolean	i
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getJSONObject	o
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getJSONObject	t
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getJSONObject	s
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getJSONObject	n
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getJSONObject	absent
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getJSONArray	t
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getJSONArray	o
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	getJSONArray	absent
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	isNull	n
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	isNull	s
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	isNull	absent
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	has	n
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	has	s
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	has	absent
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	opt	s
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	opt	n
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	opt	i
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	opt	l
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	opt	d
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	opt	e
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	opt	b
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	opt	o
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	opt	t
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	opt	neg
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	opt	absent
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	get	s
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	get	n
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	get	absent
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optJSONObject	o
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optJSONObject	s
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optJSONObject	n
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optJSONObject	absent
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optJSONArray	t
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optJSONArray	o
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optJSONArray	absent
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optString	absent	def
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optString	n	def
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optString	s	def
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optInt	absent	7
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optInt	s	7
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optInt	n	7
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optLong	absent	7
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optDouble	absent	7.5
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optDouble	s	7.5
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optBoolean	absent	true
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optBoolean	s	true
+objet	{"s":"x","n":null,"i":12,"l":3000000000,"d":12.7,"e":1e3,"b":true,"bs":"TRUE","ns":"12.7","neg":-0.0,"o":{"a":1},"t":[1,2],"vide":"","esp":" 12 ","grand":1e20,"bf":"oui","nb":"-3"}	optBoolean	bs	false
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	length	0
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optString	0
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optString	1
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optString	2
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optString	3
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optString	4
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optString	5
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optString	6
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optString	7
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optString	8
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optString	9
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optString	-1
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optInt	0
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optInt	1
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optInt	2
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optInt	3
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optInt	6
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optInt	7
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optInt	9
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optLong	1
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optLong	6
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optDouble	0
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optDouble	1
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optDouble	6
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optDouble	8
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optBoolean	3
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optBoolean	1
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optBoolean	8
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	isNull	2
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	isNull	7
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	isNull	0
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	isNull	9
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	get	0
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	get	2
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	get	7
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	get	9
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	get	-1
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	opt	0
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	opt	1
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	opt	2
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	opt	3
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	opt	4
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	opt	5
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	opt	6
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	opt	7
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	opt	9
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	opt	-1
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	getString	0
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	getString	2
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	getString	7
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	getInt	1
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	getInt	8
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	getInt	2
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	getDouble	6
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	getDouble	8
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	getBoolean	3
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	getBoolean	0
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	getJSONObject	4
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	getJSONObject	5
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	getJSONArray	5
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	getJSONArray	4
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optJSONObject	4
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optJSONObject	5
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optJSONArray	5
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optJSONArray	4
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	remove	2
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	remove	9
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optString	9	def
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optString	2	def
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optInt	8	7
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optDouble	9	7.5
+tableau	[1,"2",null,true,{"a":1},[3],1.5,,"x"]	optBoolean	9	true
+ecrire	{"url":"http://x/y","ctl":"a␁b","tab":"a⇥b","nl":"a⏎b","cr":"a␍b","bk":"a␈b","ff":"a␌b","us":"a␟b","q":"\"","bs":"\\","uni":"é€","ls":"\u2028","del":"\u007f"}
+ecrire	{"a":1.0,"b":-0.0,"c":1.5,"d":1e20,"e":100,"f":3000000000,"g":0.1,"h":1e-5,"i":1e7,"j":123456789.123,"k":-1.5e-7,"l":1e300,"m":9223372036854775807,"n":4.9e-324}
+ecrire	{"a":null,"b":true,"c":false,"d":[],"e":{},"f":[null,[]],"g":"","h":"null"}
+ecrire	[1,"2",null,true,{"a":1},[3],1.5,,"x"]
+ecrire	[1,,2,]
+ecrire	{"z":1,"a":2,"m":3}
+ecrire-indente	{"a":[1,{"b":2}],"c":{},"d":[]}	2
+ecrire-indente	[1,[2,[3]],{"a":{}}]	4
+ecrire-indente	{}	2
+ecrire-indente	{"a":1}	0
+quote	a/b
+quote	a"b
+quote	a\b
+quote	␁
+quote	␟
+quote	é€
+quote	⇥⏎
+quote	
+quote	⟪NULL⟫
+quote	\u2028
+nombre	int	5
+nombre	int	-7
+nombre	long	3000000000
+nombre	long	9007199254740993
+nombre	double	1.0
+nombre	double	-0.0
+nombre	double	0.0
+nombre	double	1.5
+nombre	double	1e20
+nombre	double	1e-5
+nombre	double	0.001
+nombre	double	1234567.0
+nombre	double	12345678.9
+nombre	double	9.2233720368547758E18
+nombre	double	-1e300
+nombre	float	1.5
+nombre	float	0.1
+nombre	float	-0.0
+nombre	double	NaN
+nombre	double	Infinity
+nombre	float	NaN
+mettre	int	5
+mettre	long	5
+mettre	double	5
+mettre	double	0.5
+mettre	double	NaN
+mettre	double	-Infinity
+mettre	boolean	true
+mettre	chaine	a/b
+mettre	float	1.5
+mettre	float	NaN
+mettre	nul	-
+mettre-indice	0	7
+mettre-indice	3	7
+mettre-indice	-1	7
+cumuler	{"k":1}	k	2
+cumuler	{"k":[1]}	k	2
+cumuler	{}	k	2
+ajouter	{"k":[1]}	k	2
+ajouter	{}	k	2
+ajouter	{"k":1}	k	2
+noms	{"b":1,"a":2}
+cles	{"b":1,"a":2}
+noms	{}
+cles	{}
+joindre	[1,"a",null,true,1.5]	, 
+joindre	[]	,
+joindre	["a/b"]	|
+vers-tableau	{"a":1,"b":2}	["b","x"]
+vers-tableau	{"a":1}	[]
+vers-objet	[1,2,3]	["a","b"]
+vers-objet	[1]	[]
+vers-objet	[]	["a"]
+vers-objet	[1,2]	["a",null]
+vers-objet	[1,null]	["a",null]

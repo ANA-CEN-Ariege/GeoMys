@@ -8,6 +8,8 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 
 **Prototype carte.** Le bouton « Prototype carte » de l'accueil ouvre l'écran d'essais MapLibre, avec ses fonds, le MBTiles, le hors-ligne, le cap et les sommets déplaçables. Son bilan est dans [`PROTOTYPE-CARTE.md`](PROTOTYPE-CARTE.md), et ses outils dans `outils/prototype-carte/`.
 
+**Connexion GeoNature.** Le bouton « Connexion GeoNature » vérifie la connexion et l'authentification sur un serveur (lot 1). Le bilan du lot est dans [`LOT-1.md`](LOT-1.md).
+
 **Mesure mémoire TaxRef.** Le bouton « Mesure mémoire TaxRef » mesure ce que coûte un référentiel TaxRef chargé en mémoire comme dans GeoMys-Android. Son bilan est dans [`MESURE-TAXREF.md`](MESURE-TAXREF.md).
 
 ## Structure
@@ -18,7 +20,8 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 | `ui/` | Écrans Compose Multiplatform, thème, ressources (`composeResources`). Sur iOS, ce module produit le framework `GeoMysUi`. |
 | `androidApp/` | Application Android : `MainActivity`, manifeste, icônes. |
 | `iosApp/` | Projet Xcode de l'application iOS, qui affiche l'interface Compose. |
-| `outils/` | Outils de développement : la vérification avant de pousser (`verifier.sh`), le serveur de tuiles et le générateur de MBTiles de test (`prototype-carte/`). |
+| `outils/` | Outils de développement : la vérification avant de pousser (`verifier.sh`), les attendus d'org.json tirés des sources d'Android (`reference-org-json/`), un GeoNature simulé pour l'authentification (`geonature-simule/`), le serveur de tuiles et le générateur de MBTiles de test (`prototype-carte/`). |
+| `licences/` | Texte des licences des codes repris d'autres projets (Apache 2.0 pour org.json). |
 | `docs/` | Captures et documents annexes. |
 | `INVENTAIRE.md`, `inventaire/` | Inventaire de ce qui est partageable dans GeoMys-Android, et suivi du portage. |
 
@@ -71,6 +74,10 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 | Compose Multiplatform | 1.12.2 |
 | maplibre-compose (carte) | 0.20.0 |
 | kotlinx-serialization | 1.11.0 |
+| kotlinx-datetime | 0.8.0 |
+| Ktor (client) | 3.6.0 |
+| Kermit (journaux) | 2.2.0 |
+| multiplatform-settings | 1.3.0 |
 | okio | 3.18.2 |
 | AGP | 9.1.1 |
 | Gradle | 9.3.1 |

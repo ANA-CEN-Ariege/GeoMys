@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import fr.ariegenature.geomys.InfosApp
 import fr.ariegenature.geomys.network.VERSION_GEONATURE_MINIMALE
 import fr.ariegenature.geomys.ui.ressources.Res
+import fr.ariegenature.geomys.ui.ressources.accueil_connexion
 import fr.ariegenature.geomys.ui.ressources.accueil_geonature_min
 import fr.ariegenature.geomys.ui.ressources.accueil_mesure_taxref
 import fr.ariegenature.geomys.ui.ressources.accueil_prototype_carte
@@ -55,7 +56,7 @@ import org.jetbrains.compose.resources.stringResource
 /** Accueil provisoire du socle : il valide le rendu commun (logo, thème, ressources, code de
  *  `core`) sur les deux plateformes, en attendant l'accueil de GeoMys (tuiles de saisie, menu). */
 @Composable
-fun AccueilScreen(infos: InfosApp, onPrototypeCarte: () -> Unit, onMesureTaxRef: () -> Unit) {
+fun AccueilScreen(infos: InfosApp, onPrototypeCarte: () -> Unit, onMesureTaxRef: () -> Unit, onConnexion: () -> Unit) {
     FondGeoMys {
         Column(
             modifier = Modifier
@@ -95,6 +96,9 @@ fun AccueilScreen(infos: InfosApp, onPrototypeCarte: () -> Unit, onMesureTaxRef:
                 color = Color.White.copy(alpha = 0.7f),
             )
             Spacer(Modifier.height(24.dp))
+            OutlinedButton(onClick = onConnexion) {
+                Text(stringResource(Res.string.accueil_connexion), color = CouleursGeoMys.jauneClair)
+            }
             OutlinedButton(onClick = onPrototypeCarte) {
                 Text(stringResource(Res.string.accueil_prototype_carte), color = CouleursGeoMys.jauneClair)
             }

@@ -26,10 +26,11 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import fr.ariegenature.geomys.InfosApp
+import fr.ariegenature.geomys.servicesGeoNature
 import fr.ariegenature.geomys.ui.GeoMysApp
 import fr.ariegenature.geomys.ui.carte.ConfigurationCarte
 
-private val CLES_LANCEMENT = listOf("ecran", "fond", "zoom", "action", "taxons", "lecture")
+private val CLES_LANCEMENT = listOf("ecran", "fond", "zoom", "action", "taxons", "lecture", "url", "login", "mdp")
 
 /** Point d'entrée Android : il ne fait qu'afficher l'interface commune (module ui). */
 class MainActivity : ComponentActivity() {
@@ -48,6 +49,7 @@ class MainActivity : ComponentActivity() {
         ConfigurationCarte.initialiser(infos)
         // Paramètres d'essai : adb shell am start … --es ecran prototype-carte --es fond serveur-test
         val lancement = CLES_LANCEMENT.mapNotNull { cle -> intent.getStringExtra(cle)?.let { cle to it } }.toMap()
-        setContent { GeoMysApp(infos, lancement) }
+        val services = servicesGeoNature(applicationContext)
+        setContent { GeoMysApp(infos, services, lancement) }
     }
 }

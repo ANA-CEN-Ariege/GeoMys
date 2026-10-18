@@ -20,6 +20,7 @@ package fr.ariegenature.geomys.ui
 
 import androidx.compose.ui.window.ComposeUIViewController
 import fr.ariegenature.geomys.InfosApp
+import fr.ariegenature.geomys.servicesGeoNature
 import fr.ariegenature.geomys.ui.carte.ConfigurationCarte
 import platform.Foundation.NSBundle
 import platform.Foundation.NSProcessInfo
@@ -31,7 +32,8 @@ fun MainViewController(): UIViewController {
     val infos = infosIos()
     ConfigurationCarte.initialiser(infos)
     val lancement = parametresLancement()
-    return ComposeUIViewController { GeoMysApp(infos, lancement) }
+    val services = servicesGeoNature()
+    return ComposeUIViewController { GeoMysApp(infos, services, lancement) }
 }
 
 /** Paramètres d'essai passés en arguments `-cle valeur`, par exemple :
