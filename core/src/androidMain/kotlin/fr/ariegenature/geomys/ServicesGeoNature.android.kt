@@ -21,18 +21,26 @@ package fr.ariegenature.geomys
 import android.content.Context
 import fr.ariegenature.geomys.network.http.ClientsGeoNature
 import fr.ariegenature.geomys.network.http.moteurHttpPlateforme
+import fr.ariegenature.geomys.plateforme.ExecutionLongue
 import fr.ariegenature.geomys.store.CoffreAndroid
-import fr.ariegenature.geomys.store.GeoNatureConfig
-import fr.ariegenature.geomys.store.reglagesGeoNature
+import fr.ariegenature.geomys.store.fabriqueReglages
+import fr.ariegenature.geomys.store.racinesStockage
 
 @Volatile
 private var services: ServicesGeoNature? = null
 
-/** Les services de l'appli, créés au premier appel puis partagés par tout le processus. */
-fun servicesGeoNature(context: Context): ServicesGeoNature =
+/** Les services de l'appli, créés au premier appel puis partagés par tout le processus.
+ *  [executionLongue] vient du module de l'appli : son service au premier plan et sa notification
+ *  ont besoin de ses ressources (icône, nom). */
+fun servicesGeoNature(context: Context, executionLongue: ExecutionLongue): ServicesGeoNature =
     services ?: synchronized(ServicesGeoNature::class) {
         services ?: ServicesGeoNature(
-            config = GeoNatureConfig(reglagesGeoNature(context), CoffreAndroid(context)),
-            clients = ClientsGeoNature(moteurHttpPlateforme(), moteurHttpPlateforme(ecriture = true)),
+            Socle(
+                racines = racinesStockage(context),
+                reglages = fabriqueReglages(context),
+                coffre = CoffreAndroid(context),
+                clients = ClientsGeoNature(moteurHttpPlateforme(), moteurHttpPlateforme(ecriture = true)),
+                executionLongue = executionLongue,
+            ),
         ).also { services = it }
     }

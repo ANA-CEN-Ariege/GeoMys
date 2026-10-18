@@ -1,0 +1,137 @@
+/*
+ * GeoMys-Common — application de saisie naturaliste pour GeoNature, Android et iOS.
+ * Copyright (C) 2026 ANA - CEN Ariège
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+// Porté de GeoMys-Android @ cdd5196 (app/src/test/java/fr/ariegenature/geomys/SchemaFusionTest.kt) :
+// org.json remplacé par son portage, JUnit par kotlin.test.
+
+package fr.ariegenature.geomys.network
+
+import fr.ariegenature.geomys.json.JSONObject
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+/** Fusion des blocs `generic` + `specific` d'un object_type du schéma /config/<code>
+ *  (un attribut `specific` surcharge le `generic` champ par champ). */
+class SchemaFusionTest {
+
+    // ── fusionnerChamp (merge shallow) ─────────────────────────────────────────
+    @Test
+    fun fusion_union_des_cles() {
+        val g = JSONObject("""{"type_widget":"text","required":false}""")
+        val s = JSONObject("""{"label":"Spécifique"}""")
+        val out = MonitoringSchemas.fusionnerChamp(g, s)
+        assertEquals("text", out.getString("type_widget"))
+        assertEquals("Spécifique", out.getString("label"))
+        assertFalse(out.getBoolean("required"))
+    }
+
+    @Test
+    fun fusion_specific_surcharge_generic() {
+        val g = JSONObject("""{"type_widget":"text","required":false}""")
+        val s = JSONObject("""{"required":true}""")
+        val out = MonitoringSchemas.fusionnerChamp(g, s)
+        assertTrue(out.getBoolean("required")) // specific gagne
+        assertEquals("text", out.getString("type_widget"))
+    }
+
+    @Test
+    fun fusion_avec_blocs_nuls() {
+        val g = JSONObject("""{"type_widget":"date"}""")
+        assertEquals("date", MonitoringSchemas.fusionnerChamp(g, null).getString("type_widget"))
+        assertEquals("date", MonitoringSchemas.fusionnerChamp(null, g).getString("type_widget"))
+        assertEquals(0, MonitoringSchemas.fusionnerChamp(null, null).length())
+    }
+
+    // ── parserPropertiesFusionnees ──────────────────────────────────────────────
+    @Test
+    fun fusionne_generic_et_specific_par_nom() {
+        val schema = JSONObject(
+            """
+            {
+              "generic":  { "comment": { "type_widget": "textarea", "label": "Remarque" } },
+              "specific": { "comment": { "required": true } }
+            }
+            """.trimIndent(),
+        )
+        val props = MonitoringSchemas.parserPropertiesFusionnees(schema)
+        val comment = props.getValue("comment")
+        assertEquals("textarea", comment.typeWidget) // vient du generic
+        assertEquals("Remarque", comment.label)
+        assertTrue(comment.obligatoire)               // surchargé par specific
+        assertTrue(comment.enSpecific)                // présent dans specific → marqué
+    }
+
+    @Test
+    fun champ_uniquement_generic_non_marque_specific() {
+        val schema = JSONObject("""{"generic":{"a":{"type_widget":"text"}},"specific":{}}""")
+        val a = MonitoringSchemas.parserPropertiesFusionnees(schema).getValue("a")
+        assertFalse(a.enSpecific)
+    }
+
+    @Test
+    fun required_dynamique_parse_en_expression_pas_en_booleen() {
+        // Cas réel (Point écoute avifaune) : champs végétation requis SEULEMENT au passage 2.
+        // Avant : optBoolean("required") rendait false → jamais obligatoires dans l'app
+        // alors que le web les exige.
+        val schema = JSONObject(
+            """
+            {
+              "generic": {},
+              "specific": {
+                "st_veg_lign_16_32": {
+                  "type_widget": "number",
+                  "required": "({value}) => value.num_passage == 2"
+                },
+                "num_passage": { "type_widget": "select", "required": true }
+              }
+            }
+            """.trimIndent(),
+        )
+        val props = MonitoringSchemas.parserPropertiesFusionnees(schema)
+        val veg = props.getValue("st_veg_lign_16_32")
+        assertFalse(veg.obligatoire, "pas obligatoire statiquement")
+        assertEquals(
+            "({value}) => value.num_passage == 2", veg.obligatoireExpr, "l'expression doit être transportée")
+        val passage = props.getValue("num_passage")
+        assertTrue(passage.obligatoire, "required booléen inchangé")
+        assertEquals(null, passage.obligatoireExpr)
+    }
+
+    @Test
+    fun champ_specific_sans_widget_infere_via_type_util() {
+        // Cas réel : un protocole ne déclare en specific que `type_util: date` sans type_widget.
+        val schema = JSONObject("""{"generic":{},"specific":{"date_obs":{"type_util":"date"}}}""")
+        val p = MonitoringSchemas.parserPropertiesFusionnees(schema).getValue("date_obs")
+        assertEquals("date", p.typeWidget)
+        assertTrue(p.enSpecific)
+    }
+
+    @Test
+    fun repli_sur_bloc_properties_quand_ni_generic_ni_specific() {
+        val schema = JSONObject("""{"properties":{"nom":{"type_widget":"text","label":"Nom"}}}""")
+        val props = MonitoringSchemas.parserPropertiesFusionnees(schema)
+        assertEquals("Nom", props.getValue("nom").label)
+    }
+
+    @Test
+    fun schema_vide_renvoie_map_vide() {
+        assertTrue(MonitoringSchemas.parserPropertiesFusionnees(JSONObject("{}")).isEmpty())
+    }
+}

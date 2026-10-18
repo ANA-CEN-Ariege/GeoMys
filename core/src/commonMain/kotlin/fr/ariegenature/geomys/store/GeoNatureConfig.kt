@@ -19,8 +19,7 @@
 // Porté de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/store/GeoNatureConfig.kt) :
 // SharedPreferences remplacées par multiplatform-settings (mêmes clés, mêmes défauts), MdpChiffre
 // par CoffreMotDePasse, org.json par son portage. Retirés : le nettoyage des anciens coffres
-// Android (sans objet, GeoMys Common ne reprend pas les données) ; additionalFieldsOcctaxJsonActif
-// attend OcctaxFieldsConfig.
+// Android (sans objet, GeoMys Common ne reprend pas les données).
 
 package fr.ariegenature.geomys.store
 
@@ -290,8 +289,11 @@ class GeoNatureConfig(private val prefs: Settings, private val coffre: CoffreMot
      *  repli sur `settings.input.date.enable_end_date` si le serveur n'expose pas form_fields. */
     val dateFinVisible: Boolean get() = champFormVisible("date_max") && (formFieldsJson.isNotBlank() || dateAvecFin)
 
-    // additionalFieldsOcctaxJsonActif (GeoNatureConfig.kt:296-300 sous Android) arrive avec
-    // OcctaxFieldsConfig, dont il dépend.
+    /** Cache des champs additionnels Occtax filtré par le flag serveur `additional_fields` du
+     *  settings : renvoie "" (donc aucun champ additionnel rendu) si le serveur les désactive. À
+     *  utiliser dans tous les contextes d'AFFICHAGE des champs additionnels. */
+    val additionalFieldsOcctaxJsonActif: String
+        get() = if (OcctaxFieldsConfig.afficherChampsAdditionnels(settingsOcctaxJson)) additionalFieldsOcctaxJson else ""
 
     /** false quand le dernier test de connexion a détecté une version GeoNature inférieure
      *  à la minimale supportée ([fr.ariegenature.geomys.network.VERSION_GEONATURE_MINIMALE]).

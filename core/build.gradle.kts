@@ -28,6 +28,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
+            implementation(libs.atomicfu)
             implementation(libs.kermit)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.datetime)

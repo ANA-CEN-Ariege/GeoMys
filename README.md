@@ -4,11 +4,13 @@ Application de saisie naturaliste pour GeoNature, pour Android **et** iOS, const
 
 GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IOS. Elle a sa propre identité, et peut donc cohabiter avec elles sur un même téléphone. Elle n'en reprend pas les données.
 
-**État : socle (lot 0).** L'application affiche un accueil provisoire. Le portage des fonctions de GeoMys-Android suit l'inventaire [`INVENTAIRE.md`](INVENTAIRE.md) (§ 10, ordre de portage).
+**État : lots 0 à 2.** Le socle, les fondations (lot 1) et la synchro des référentiels (lot 2) sont portés. L'application affiche encore des écrans provisoires : le lot 5, qui vient ensuite, les remplace par les écrans de GeoMys-Android reproduits à l'identique. Le portage suit l'inventaire [`INVENTAIRE.md`](INVENTAIRE.md) (§ 10, ordre de portage).
 
 **Prototype carte.** Le bouton « Prototype carte » de l'accueil ouvre l'écran d'essais MapLibre, avec ses fonds, le MBTiles, le hors-ligne, le cap et les sommets déplaçables. Son bilan est dans [`PROTOTYPE-CARTE.md`](PROTOTYPE-CARTE.md), et ses outils dans `outils/prototype-carte/`.
 
 **Connexion GeoNature.** Le bouton « Connexion GeoNature » vérifie la connexion et l'authentification sur un serveur (lot 1). Le bilan du lot est dans [`LOT-1.md`](LOT-1.md).
+
+**Synchro des référentiels.** La synchro complète de GeoMys-Android (« Recharger les données ») est portée, sans écran pour l'instant : on la lance par le paramètre `action=synchroniser`. Le bilan du lot est dans [`LOT-2.md`](LOT-2.md).
 
 **Mesure mémoire TaxRef.** Le bouton « Mesure mémoire TaxRef » mesure ce que coûte un référentiel TaxRef chargé en mémoire comme dans GeoMys-Android. Son bilan est dans [`MESURE-TAXREF.md`](MESURE-TAXREF.md).
 
@@ -78,6 +80,8 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 | Ktor (client) | 3.6.0 |
 | Kermit (journaux) | 2.2.0 |
 | multiplatform-settings | 1.3.0 |
+| atomicfu | 0.33.0 |
+| AndroidX Core (Android, notification de synchro) | 1.18.0 |
 | okio | 3.18.2 |
 | AGP | 9.1.1 |
 | Gradle | 9.3.1 |
@@ -87,6 +91,7 @@ AGP et Gradle sont les mêmes que dans GeoMys-Android. Toutes les versions sont 
 ## Règles du portage
 
 - **GeoMys-Android et GeoMys-IOS sont des sources en lecture seule.** On copie, on ne modifie jamais.
+- **Les écrans reprennent ceux de GeoMys-Android** au plus près : interfaces, styles, placement des éléments et fonctionnalités (décision 15 de l'inventaire).
 - **Chaque fichier porté indique son commit d'origine**, dans un commentaire d'en-tête et dans `inventaire/index-fichiers.tsv` (colonnes `commit_reference` et `statut_portage`).
 
 ## Licence

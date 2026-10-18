@@ -5,6 +5,9 @@ android-compileSdk = "37"
 android-minSdk = "24"
 android-targetSdk = "36"
 androidx-activity = "1.13.0"
+# Déjà résolue par androidx-activity : déclarée pour le service au premier plan (NotificationCompat).
+androidx-core = "1.18.0"
+atomicfu = "0.33.0"
 compose-multiplatform = "1.12.2"
 # material3 de Compose Multiplatform suit sa propre numérotation (version associée à CMP 1.12).
 compose-material3 = "1.12.0-alpha03"
@@ -21,6 +24,8 @@ multiplatform-settings = "1.3.0"
 
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity" }
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
+atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "atomicfu" }
 compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "compose-multiplatform" }
 compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "compose-multiplatform" }
 compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "compose-material3" }

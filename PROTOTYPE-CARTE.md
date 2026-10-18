@@ -6,7 +6,7 @@ L'inventaire (`INVENTAIRE.md` § 5) faisait de la carte le point critique du por
 
 **Verdict : MapLibre via maplibre-compose est retenu pour GeoMys Common.**
 - Quatre points sur cinq fonctionnent, dont le plus risqué, le glisser des sommets.
-- Le cinquième, le User-Agent, ne se règle pas comme prévu, mais un contournement existe (§ 2).
+- Le cinquième, le User-Agent, ne se réglait pas comme prévu : le contournement prévu a été mis en place au lot 1 (§ 2).
 - Le glisser des sommets est confirmé au doigt sur les deux téléphones, et la rotation selon le cap est fluide sur téléphone après correction (§ 3).
 
 ## 1. Résultats
@@ -16,7 +16,7 @@ L'inventaire (`INVENTAIRE.md` § 5) faisait de la carte le point critique du por
 | 1 | **Glisser un sommet**, forme redessinée en direct | ✅ émulateur et Galaxy A12 | ✅ iPhone 16 | `docs/prototype-carte/android-2-sommet-glisse.png`, puis essai au doigt sur les deux téléphones |
 | 2 | **Fond MBTiles** embarqué | ✅ | ✅ | `android-3-mbtiles.png`, `ios-3-mbtiles.png` |
 | 3 | **Zone hors-ligne** : téléchargement, puis affichage sans réseau | ✅ | ✅ | `android-4-hors-ligne-serveur-coupe.png`, `ios-4a-…`, `ios-4b-…` |
-| 4 | **User-Agent** des requêtes de tuiles | ❌ pas appliqué | ❌ pas appliqué, mais l'appli est identifiée | journaux du serveur de test (§ 2) |
+| 4 | **User-Agent** des requêtes de tuiles | ❌ pas appliqué ; ✅ depuis le lot 1, tuiles servies par l'appli | idem | journaux du serveur de test (§ 2) |
 | 5 | **Cap** et carte qui tourne avec | ✅ | ✅ iPhone 16, rotation fluide après correction (§ 1.4) | `android-5-cap.jpg`, puis essai sur téléphone |
 
 Fonds en ligne (Plan IGN, photos IGN, OSM) : ✅ sur les deux plateformes (`android-1-plan-ign.jpg`, `ios-1-plan-ign.jpg`).
@@ -95,6 +95,22 @@ Sur iOS, MapLibre compose lui-même un User-Agent qui contient le nom et la vers
   - **signaler l'anomalie** au projet maplibre-compose. Ce serait une démarche publique : je ne l'ai pas faite sans ton accord.
 - **Suivi.** Le commentaire de `ConfigurationCarte.kt` rappelle de revérifier à chaque montée de version.
 
+**Résolu au lot 1, par la première piste.** `ui/…/carte/TuilesHttp.kt` télécharge lui-même, avec Ktor, les tuiles d'OpenStreetMap (et celles du serveur de test).
+- Il passe par la forme générale du fournisseur de ressources, `MapResourceProvider(accepts, load)`. Celle-ci reçoit les requêtes de la carte, avec l'ETag et les dates de la version en cache, et rend les octets avec leurs informations de cache, ou une réponse 304.
+- Le cache de MapLibre continue donc de fonctionner.
+- L'intercepteur, sans effet, a été retiré.
+
+Vérifié le 18 octobre sur l'émulateur Android et le simulateur iOS :
+
+| | User-Agent reçu par le serveur de test |
+|---|---|
+| Android | `GeoMysCommon/0.1.0 (Android 17)`, au lieu de `MapLibreNative/1.0` |
+| iOS | `GeoMysCommon/0.1.0 (iOS 26.5)` |
+
+- Les tuiles s'affichent normalement.
+- Le téléchargement d'une zone hors-ligne passe par le même chemin : 149 tuiles, statut `Complete`, toutes les requêtes avec ce User-Agent.
+- Le fond OpenStreetMap réel s'affiche sur les deux plateformes.
+
 ## 3. Vérifications à la main
 
 1. **Glisser un sommet** : ✅ confirmé au doigt le 18 octobre, sur le Galaxy A12 et sur l'iPhone 16.
@@ -126,7 +142,7 @@ xcrun simctl launch <appareil> fr.ariegenature.geomys.common \
   -ecran prototype-carte -fond serveur-test -action hors-ligne
 ```
 
-**Joindre le Mac depuis les appareils.** L'émulateur Android joint le Mac par `10.0.2.2`, le simulateur iOS par `localhost`. Le HTTP en clair n'est autorisé que vers ces adresses locales : `androidApp/src/debug/res/xml/reseau_debug.xml` en version debug, et `NSAllowsLocalNetworking` sur iOS.
+**Joindre le Mac depuis les appareils.** L'émulateur Android joint le Mac par `10.0.2.2`, le simulateur iOS par `localhost`. Le HTTP en clair est autorisé comme dans les applis d'origine : partout sous Android (`androidApp/src/main/res/xml/network_security_config.xml`, copié de GeoMys-Android au lot 2), vers les adresses locales seulement sous iOS (`NSAllowsLocalNetworking`, comme GeoMys-IOS).
 
 ## 5. Ce qui reste du prototype dans le code
 

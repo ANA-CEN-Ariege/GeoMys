@@ -19,9 +19,34 @@
 package fr.ariegenature.geomys.store
 
 import com.russhwolf.settings.NSUserDefaultsSettings
-import com.russhwolf.settings.Settings
+import fr.ariegenature.geomys.store.io.RacinesStockage
+import okio.FileSystem
+import okio.Path
+import okio.Path.Companion.toPath
+import okio.SYSTEM
+import platform.Foundation.NSApplicationSupportDirectory
+import platform.Foundation.NSCachesDirectory
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSSearchPathDirectory
+import platform.Foundation.NSURL
 import platform.Foundation.NSUserDefaults
+import platform.Foundation.NSUserDomainMask
 
-/** Les réglages GeoNature de l'appli : une suite NSUserDefaults `gn_config`, l'équivalent du
- *  fichier SharedPreferences de GeoMys-Android. */
-fun reglagesGeoNature(): Settings = NSUserDefaultsSettings(NSUserDefaults(suiteName = "gn_config"))
+/** Les réglages de l'appli : une suite NSUserDefaults par nom, l'équivalent des fichiers
+ *  SharedPreferences de GeoMys-Android. */
+fun fabriqueReglages(): FabriqueReglages = FabriqueReglages { nom -> NSUserDefaultsSettings(NSUserDefaults(suiteName = nom)) }
+
+/** Application Support (données à garder, sauvegardées par défaut) et Caches (que le système peut
+ *  vider) : les équivalents de `filesDir` et `cacheDir`. */
+fun racinesStockage(): RacinesStockage {
+    val fichiers = dossierSysteme(NSApplicationSupportDirectory)
+    val cache = dossierSysteme(NSCachesDirectory)
+    FileSystem.SYSTEM.createDirectories(fichiers)
+    FileSystem.SYSTEM.createDirectories(cache)
+    return RacinesStockage(fichiers, cache)
+}
+
+private fun dossierSysteme(type: NSSearchPathDirectory): Path {
+    val url = NSFileManager.defaultManager.URLsForDirectory(type, NSUserDomainMask).first() as NSURL
+    return requireNotNull(url.path) { "dossier système introuvable : $type" }.toPath()
+}

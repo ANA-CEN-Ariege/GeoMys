@@ -18,6 +18,8 @@
 
 package fr.ariegenature.geomys.common
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -46,10 +48,25 @@ class MainActivity : ComponentActivity() {
             version = packageManager.getPackageInfo(packageName, 0).versionName ?: "?",
             plateforme = "Android ${Build.VERSION.RELEASE}",
         )
+        createNotificationChannel()
         ConfigurationCarte.initialiser(infos)
         // Paramètres d'essai : adb shell am start … --es ecran prototype-carte --es fond serveur-test
         val lancement = CLES_LANCEMENT.mapNotNull { cle -> intent.getStringExtra(cle)?.let { cle to it } }.toMap()
-        val services = servicesGeoNature(applicationContext)
+        val services = servicesGeoNature(applicationContext, ExecutionLongueAndroid(applicationContext))
         setContent { GeoMysApp(infos, services, lancement) }
+    }
+
+    /** Canal de la notification de synchro, comme MainActivity de GeoMys-Android (celui du suivi
+     *  GPS viendra avec le tracé). */
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val canalSync = NotificationChannel(
+            SyncForegroundService.CHANNEL_ID,
+            "Synchronisation",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "Chargement des données GeoNature en arrière-plan"
+        }
+        getSystemService(NotificationManager::class.java).createNotificationChannel(canalSync)
     }
 }

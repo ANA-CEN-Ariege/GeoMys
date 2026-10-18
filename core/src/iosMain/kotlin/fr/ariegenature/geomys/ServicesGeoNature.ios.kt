@@ -20,14 +20,20 @@ package fr.ariegenature.geomys
 
 import fr.ariegenature.geomys.network.http.ClientsGeoNature
 import fr.ariegenature.geomys.network.http.moteurHttpPlateforme
+import fr.ariegenature.geomys.plateforme.ExecutionLongueIos
 import fr.ariegenature.geomys.store.CoffreKeychain
-import fr.ariegenature.geomys.store.GeoNatureConfig
-import fr.ariegenature.geomys.store.reglagesGeoNature
+import fr.ariegenature.geomys.store.fabriqueReglages
+import fr.ariegenature.geomys.store.racinesStockage
 
 private val services: ServicesGeoNature by lazy {
     ServicesGeoNature(
-        config = GeoNatureConfig(reglagesGeoNature(), CoffreKeychain()),
-        clients = ClientsGeoNature(moteurHttpPlateforme(), moteurHttpPlateforme(ecriture = true)),
+        Socle(
+            racines = racinesStockage(),
+            reglages = fabriqueReglages(),
+            coffre = CoffreKeychain(),
+            clients = ClientsGeoNature(moteurHttpPlateforme(), moteurHttpPlateforme(ecriture = true)),
+            executionLongue = ExecutionLongueIos(),
+        ),
     )
 }
 

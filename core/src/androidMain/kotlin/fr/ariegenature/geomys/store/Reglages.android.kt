@@ -19,9 +19,16 @@
 package fr.ariegenature.geomys.store
 
 import android.content.Context
-import com.russhwolf.settings.Settings
 import com.russhwolf.settings.SharedPreferencesSettings
+import fr.ariegenature.geomys.store.io.RacinesStockage
+import okio.Path.Companion.toOkioPath
 
-/** Les réglages GeoNature de l'appli : les SharedPreferences `gn_config`, comme GeoMys-Android. */
-fun reglagesGeoNature(context: Context): Settings =
-    SharedPreferencesSettings(context.applicationContext.getSharedPreferences("gn_config", Context.MODE_PRIVATE))
+/** Les réglages de l'appli : un fichier SharedPreferences par nom, comme GeoMys-Android. */
+fun fabriqueReglages(context: Context): FabriqueReglages {
+    val appli = context.applicationContext
+    return FabriqueReglages { nom -> SharedPreferencesSettings(appli.getSharedPreferences(nom, Context.MODE_PRIVATE)) }
+}
+
+/** `filesDir` et `cacheDir`, comme GeoMys-Android. */
+fun racinesStockage(context: Context): RacinesStockage =
+    RacinesStockage(context.filesDir.toOkioPath(), context.cacheDir.toOkioPath())

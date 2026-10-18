@@ -155,10 +155,11 @@ L'écran provisoire « Connexion GeoNature » (bouton de l'accueil) appelle `Ver
 
 ## 9. Reste à faire
 
-- **Le User-Agent des tuiles OSM** (`PROTOTYPE-CARTE.md` § 2), prévu « au lot 1, quand Ktor sera en place ».
-  - maplibre-compose 0.20.0 permet de servir soi-même n'importe quelle requête de la carte : `MapResourceProvider(accepts, load)`, avec ETag, dates et réponse 304.
-  - Avec Ktor, on maîtrise alors le User-Agent. À brancher et à essayer avec la carte.
 - **Pour les lots suivants** : les stores réels (SortieStore, OccHabStore, OutboxMonitoring) avec leurs règles `accepter`, et un User-Agent propre à l'appli pour les appels GeoNature (aujourd'hui `ktor-client`).
+
+**Fait après le commit du lot :** le User-Agent des tuiles OSM, prévu « au lot 1, quand Ktor sera en place » (`PROTOTYPE-CARTE.md` § 2).
+- L'appli télécharge elle-même les tuiles OSM avec Ktor (`ui/…/carte/TuilesHttp.kt`), en gardant le cache de MapLibre.
+- Elles partent avec `GeoMysCommon/<version> (<système>)` sur Android comme sur iOS, téléchargement hors-ligne compris.
 
 ## 10. Outils ajoutés
 

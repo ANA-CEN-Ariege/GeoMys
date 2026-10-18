@@ -24,6 +24,7 @@ package fr.ariegenature.geomys.store.io
 
 import fr.ariegenature.geomys.journal.Journal
 import fr.ariegenature.geomys.plateforme.synchroniserSurDisque
+import okio.BufferedSink
 import okio.FileSystem
 import okio.IOException
 import okio.Path
@@ -51,9 +52,13 @@ class FichierAtomique(
     /** Écrit [contenu] durablement. Rend false si la persistance a échoué (disque plein, E/S…) :
      *  l'appelant DOIT le vérifier pour une création, sinon la saisie que l'utilisateur croit
      *  enregistrée n'existe nulle part. */
-    fun ecrire(contenu: String): Boolean = try {
+    fun ecrire(contenu: String): Boolean = ecrire { writeUtf8(contenu) }
+
+    /** Comme [ecrire], le contenu étant produit en flux par [ecrivain] : un gros fichier (le cache
+     *  TaxRef) n'est jamais construit en entier en mémoire. */
+    fun ecrire(ecrivain: BufferedSink.() -> Unit): Boolean = try {
         systeme.createDirectories(dossier)
-        systeme.write(temporaire) { writeUtf8(contenu) }
+        systeme.write(temporaire) { ecrivain() }
         // Sans fsync, une coupure d'alimentation brutale peut valider le renommage sans les
         // blocs de données : fichier cible vide ou tronqué.
         synchroniser(temporaire)
@@ -67,6 +72,7 @@ class FichierAtomique(
         true
     } catch (e: Exception) {
         Journal.w(nom, "sauvegarder ECHEC : ${e.message}", e)
+        runCatching { systeme.delete(temporaire) }
         false
     }
 

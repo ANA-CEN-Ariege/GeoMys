@@ -1,100 +1,100 @@
-fichier	lignes	tests	categorie	traits	cibles
-AdditionalFieldVisibiliteTest.kt	93	7	COMMUN direct		network/AdditionalFields.kt
-AdditionalFieldsChargerTest.kt	115	3	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines	monitoring/form/ValidationExpr.kt network/AdditionalFields.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt
-AdditionalFieldsParsingTest.kt	69	3	COMMUN apres adaptation (API JVM)	gson	network/AdditionalFields.kt ui/saisie/AdditionalFieldsRenderer.kt
-AdditionalFieldsServerParsingTest.kt	113	8	COMMUN apres adaptation (API JVM)	orgjson	network/AdditionalFields.kt
-AnaEvalTest.kt	496	45	COMMUN direct		util/AnaEval.kt
-AplatirProprietesTest.kt	64	4	COMMUN apres adaptation (API JVM)	orgjson	network/MonitoringObjets.kt
-BuildOccurrenceTest.kt	125	9	COMMUN direct		model/Models.kt network/GeoNatureUpload.kt
-CacheCorruptionTest.kt	164	7	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs,gson,fichiers	model/Models.kt network/SyncRunner.kt store/NomenclatureCache.kt store/OutboxMonitoring.kt store/SortieStore.kt
-ChampsTaxonTest.kt	57	3	STOCKAGE (Context/prefs a abstraire)	prefs	model/Models.kt store/NomenclatureCache.kt store/OcctaxFieldsConfig.kt store/TaxRefCache.kt ui/saisie/ChampsTaxon.kt
-ChangeRulesTest.kt	228	15	COMMUN direct		monitoring/form/ChangeRules.kt monitoring/form/ValidationExpr.kt
-ChangementDeGroupeTest.kt	114	3	ANDROID (vues/plateforme)	robolectric,context,fichiers,vues	model/Models.kt network/GeoNatureUpload.kt network/TaxRefService.kt store/GeoNatureConfig.kt ui/SaisieObservationFragment.kt ui/SaisieRapideFragment.kt ui/saisie/PreferencesSaisie.kt ui/saisie/TaxRefLookup.kt
-ChargerModulesTest.kt	114	4	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines	monitoring/form/ValidationExpr.kt network/MonitoringApi.kt store/GeoNatureConfig.kt store/MonitoringCache.kt
-CollisionCdNomTest.kt	110	9	COMMUN direct		
-CompatibiliteServeurTest.kt	200	8	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines	monitoring/form/ValidationExpr.kt network/CompatibiliteServeur.kt network/GeoNatureAuth.kt network/GeoNatureSync.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt
-ConstruireGeometrieTest.kt	82	6	COMMUN direct		network/GeoNatureUpload.kt
-DatalistHorsLigneTest.kt	103	2	ANDROID (vues/plateforme)	robolectric,context,mockwebserver,coroutines,vues	network/GeoNatureAuth.kt network/MonitoringApi.kt store/GeoNatureConfig.kt store/MonitoringCache.kt ui/NouvelleVisiteFragment.kt
-DateHeureDefautTest.kt	61	4	COMMUN direct		util/DateHeureDefaut.kt
-DefautsPariteLot2Test.kt	213	7	ANDROID (vues/plateforme)	robolectric,context,fichiers,vues	model/Models.kt model/OccHab.kt store/MbtilesStore.kt store/OccHabStore.kt ui/AccueilFragment.kt ui/SaisieRapideFragment.kt ui/TraceFragment.kt
-DefautsPortageIosTest.kt	158	5	ANDROID (vues/plateforme)	robolectric,context,fichiers,vues,livedata	location/LocationTracker.kt model/Models.kt store/MonitoringCache.kt ui/ConfigGeoNatureFragment.kt ui/TraceFragment.kt
-EcritureIndexEnEchecTest.kt	187	9	STOCKAGE (Context/prefs a abstraire)	robolectric,context,fichiers	model/Models.kt network/GeoNatureSync.kt store/TaxRefCache.kt
-EmpreinteExhaustiviteTest.kt	118	2	STOCKAGE (Context/prefs a abstraire)	robolectric,jvm_misc	model/OccHab.kt
-EnvoiOccHabTest.kt	166	7	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs,coroutines	model/OccHab.kt network/EnvoiOccHab.kt network/GNErreur.kt network/OccHabUpload.kt store/GeoNatureConfig.kt store/OccHabStore.kt
-EnvoiReleveAntiDoublonTest.kt	230	5	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines,concurrence	model/Models.kt monitoring/form/ValidationExpr.kt network/EnvoiSortie.kt network/GeoNatureUpload.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt store/SortieStore.kt
-EnvoiSortieConcurrenceTest.kt	205	3	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines,concurrence	model/Models.kt monitoring/form/ValidationExpr.kt network/EnvoiSortie.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt store/SortieStore.kt
-EnvoiSortiePreMarquageTest.kt	181	2	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines	model/Models.kt monitoring/form/ValidationExpr.kt network/EnvoiSortie.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt store/SortieStore.kt
-EstTypeSaisieTest.kt	81	5	COMMUN direct		model/Models.kt network/MonitoringSync.kt store/OcctaxFieldsConfig.kt ui/NouvelleVisiteFragment.kt
-ExtraireDefautTest.kt	76	7	COMMUN apres adaptation (API JVM)	orgjson	network/AdditionalFields.kt
-ExtraireNomHeuristiqueTest.kt	63	6	COMMUN direct		network/MonitoringObjets.kt
-FiabiliteEnvoiTest.kt	101	4	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs	model/Models.kt network/GNErreur.kt store/PictoCache.kt store/SortieStore.kt
-FilArianeTest.kt	74	5	COMMUN direct		ui/FilAriane.kt
-FondCartePersistanceTest.kt	69	4	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs	ui/MapUtils.kt
-FondCarteTest.kt	42	2	COMMUN direct		ui/MapUtils.kt
-FormatGeometrieTest.kt	78	7	COMMUN apres adaptation (API JVM)	orgjson	network/MonitoringObjets.kt ui/SaisiesEnAttenteFragment.kt
-FormulaireRendererTest.kt	384	15	ANDROID (vues/plateforme)	robolectric,context,coroutines,vues	monitoring/form/EditableField.kt monitoring/form/FormulaireRenderer.kt store/TaxRefCache.kt ui/NouvelleVisiteFragment.kt ui/SaisiesEnAttenteFragment.kt
-GeoJsonCoordsTest.kt	75	4	STOCKAGE (Context/prefs a abstraire)	robolectric,osmdroid	util/GeoJsonCoords.kt
-GeoNatureAuthTest.kt	93	4	RESEAU (MockWebServer -> Ktor MockEngine)	mockwebserver	monitoring/form/ValidationExpr.kt network/GeoNatureAuth.kt
-GeoNatureBrowseTest.kt	453	18	RESEAU (MockWebServer -> Ktor MockEngine)	context,prefs,mockwebserver,gson,fichiers,coroutines	monitoring/form/ValidationExpr.kt network/GNErreur.kt network/GeoNatureAuth.kt network/GeoNatureBrowse.kt store/GeoNatureConfig.kt ui/MapUtils.kt
-GeoNatureConfigTest.kt	160	11	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs	store/GeoNatureConfig.kt
-GeoNatureUploadEnvoyerTest.kt	379	13	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines,concurrence	model/Models.kt monitoring/form/ValidationExpr.kt network/GNErreur.kt network/GeoNatureUpload.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt
-GeoNatureUploadReseauDegradeTest.kt	248	9	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines,concurrence	model/Models.kt monitoring/form/ValidationExpr.kt network/GNErreur.kt network/GeoNatureUpload.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt store/RelevesOrphelins.kt
-GpxUtilsTest.kt	92	5	COMMUN direct		gpx/GpxUtils.kt model/Models.kt
-GroupesEtRegnoPlanteTest.kt	62	2	STOCKAGE (Context/prefs a abstraire)	robolectric,context	model/Models.kt store/NomenclatureCache.kt store/TaxRefCache.kt ui/saisie/ChampsTaxon.kt
-GsonRoundTripTest.kt	227	3	FORMAT (Gson -> kotlinx.serialization)	gson	model/Models.kt model/OccHab.kt network/SyncRunner.kt store/OccHabStore.kt store/OutboxMonitoring.kt store/SortieStore.kt
-HiddenExprTest.kt	329	30	COMMUN direct		monitoring/form/HiddenExpr.kt
-HumaniserErreurReseauTest.kt	61	5	COMMUN direct		network/GNErreur.kt
-IndexParGroupeTest.kt	90	3	COMMUN direct		model/Models.kt network/GeoNatureSync.kt
-InvalidationServeurTest.kt	86	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context	network/GeoNatureUpload.kt network/InvalidationCaches.kt store/NomenclatureCache.kt
-JsonDepuisMapTest.kt	60	4	COMMUN apres adaptation (API JVM)	orgjson	network/GeoNatureUpload.kt
-ListeIncompleteTest.kt	161	6	ANDROID (vues/plateforme)	robolectric,context,fichiers,vues	network/GeoNatureSync.kt store/GeoNatureConfig.kt store/TaxRefCache.kt ui/ConfigGeoNatureFragment.kt
-LocationTrackerTest.kt	101	2	ANDROID (vues/plateforme)	robolectric,context,location,jvm_misc	location/LocationTracker.kt model/Models.kt
-LotCAuditTest.kt	89	4	STOCKAGE (Context/prefs a abstraire)	robolectric	model/OccHab.kt network/GeoNatureUpload.kt util/AnaEval.kt
-MbtilesStoreTest.kt	111	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context,fichiers	store/MbtilesStore.kt store/NidificationOiseaux.kt
-MediaImportTest.kt	89	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context,fichiers	ui/MediaImport.kt
-MediasMonitoringReconciliationTest.kt	192	4	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,fichiers,coroutines	monitoring/form/ValidationExpr.kt network/GeoNatureUpload.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt
-MonitoringApiParsingTest.kt	127	13	COMMUN apres adaptation (API JVM)	orgjson	network/MonitoringModules.kt network/MonitoringSchemas.kt
-MonitoringCacheLabelTest.kt	90	6	STOCKAGE (Context/prefs a abstraire)	robolectric,context	network/MonitoringObjets.kt store/MonitoringCache.kt
-MonitoringDatalistDatasetTest.kt	130	2	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines	monitoring/form/ValidationExpr.kt network/MonitoringApi.kt store/GeoNatureConfig.kt
-MonitoringEnvoiTest.kt	164	3	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,orgjson,coroutines	monitoring/form/ValidationExpr.kt network/GNErreur.kt network/MonitoringDatalists.kt network/MonitoringEnvoi.kt store/GeoNatureConfig.kt store/MonitoringCache.kt
-NomenclatureCacheTest.kt	106	7	STOCKAGE (Context/prefs a abstraire)	robolectric,context	store/NomenclatureCache.kt
-OccHabAntiDoublonTest.kt	259	10	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,orgjson,coroutines	model/OccHab.kt monitoring/form/ValidationExpr.kt network/GNErreur.kt network/OccHabUpload.kt store/GeoNatureConfig.kt
-OccHabEmpriseStableTest.kt	63	2	ANDROID (vues/plateforme)	fichiers,vues	ui/OccHabCarteFragment.kt ui/StationsServeurOverlay.kt
-OccHabParserTest.kt	400	11	STOCKAGE (Context/prefs a abstraire)	robolectric,orgjson,concurrence,jvm_misc	network/OccHabApi.kt util/AnaEval.kt
-OccHabPolygoneTrouTest.kt	276	16	STOCKAGE (Context/prefs a abstraire)	robolectric,osmdroid	model/OccHab.kt network/GeoNatureUpload.kt network/OccHabApi.kt ui/MapUtils.kt ui/OccHabViewModel.kt util/GeoJsonCoords.kt
-OccHabRechercheHabitatTest.kt	102	5	STOCKAGE (Context/prefs a abstraire)	robolectric,context	network/HabitatService.kt store/HabitatCache.kt
-OccHabSaisieStoreTest.kt	270	15	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs	model/OccHab.kt store/OccHabStore.kt
-OccHabSommetAimanteIndependantTest.kt	55	2	ANDROID (vues/plateforme)	fichiers,vues	ui/EditeurGeometrie.kt ui/OccHabCarteFragment.kt util/TopologiePolygone.kt
-OccHabStoreRoundTripTest.kt	176	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs,jvm_misc	model/OccHab.kt store/OccHabStore.kt
-OccHabViewModelTest.kt	184	9	STOCKAGE (Context/prefs a abstraire)	robolectric,gson,jvm_misc	model/OccHab.kt ui/OccHabViewModel.kt
-OcctaxFieldsConfigTest.kt	79	6	COMMUN direct		store/OcctaxFieldsConfig.kt
-OutboxEnvoiTest.kt	549	25	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,gson,fichiers,coroutines,concurrence,jvm_misc	monitoring/form/ValidationExpr.kt network/OutboxEnvoi.kt network/SyncRunner.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt store/OutboxMonitoring.kt
-OutboxMonitoringTest.kt	143	9	STOCKAGE (Context/prefs a abstraire)	robolectric,context,gson	network/SyncRunner.kt store/OutboxMonitoring.kt
-OutboxRoundTripTest.kt	132	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context,jvm_misc	network/SyncRunner.kt store/OutboxMonitoring.kt
-PertesEtDoublonsEnvoiTest.kt	366	11	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines	model/Models.kt monitoring/form/ValidationExpr.kt network/EnvoiSortie.kt network/GNErreur.kt network/GeoNatureUpload.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt store/RelevesOrphelins.kt store/SortieStore.kt
-PictoCacheTest.kt	275	21	RESEAU (MockWebServer -> Ktor MockEngine)	mockwebserver,fichiers,jvm_misc	monitoring/form/ValidationExpr.kt store/PictoCache.kt
-PictoMonitoringTest.kt	69	6	COMMUN direct		ui/PictoMonitoring.kt
-ProposeEgaleAccepteTest.kt	168	7	ANDROID (vues/plateforme)	robolectric,context,fichiers,coroutines,vues	TaxRefLocal.kt model/Models.kt network/GeoNatureUpload.kt network/TaxRefService.kt store/GeoNatureConfig.kt store/TaxRefCache.kt ui/SaisieObservationFragment.kt ui/SaisieRapideFragment.kt
-PurgeRechargementApresMajTest.kt	141	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context,fichiers	model/OccHab.kt network/HabitatService.kt network/SyncRunner.kt store/CachesSynchronises.kt store/HabitatCache.kt store/StationsServeurCache.kt ui/MapUtils.kt
-RechargementRequisTest.kt	105	4	STOCKAGE (Context/prefs a abstraire)	robolectric,context	network/SyncRunner.kt store/CachesSynchronises.kt store/GeoNatureConfig.kt store/HabitatCache.kt store/MonitoringCache.kt store/NomenclatureCache.kt store/PictoCache.kt store/TaxRefCache.kt ui/ConfigGeoNatureFragment.kt
-ResolutionDansListeTest.kt	246	15	STOCKAGE (Context/prefs a abstraire)	robolectric,context	TaxRefLocal.kt store/TaxRefCache.kt
-ResolutionParGroupeTest.kt	142	6	STOCKAGE (Context/prefs a abstraire)	robolectric,context	network/GeoNatureSync.kt network/TaxRefService.kt store/TaxRefCache.kt
-ResolutionPurementLocaleTest.kt	122	4	ANDROID (vues/plateforme)	robolectric,context,orgjson,fichiers,coroutines,vues,jvm_misc	model/Models.kt monitoring/form/FormulaireRenderer.kt network/GeoNatureUpload.kt network/HttpClient.kt network/TaxRefService.kt store/GeoNatureConfig.kt store/TaxRefCache.kt ui/SaisieObservationFragment.kt ui/SaisieRapideFragment.kt
-ResumeOutboxTest.kt	130	5	COMMUN direct		network/SyncRunner.kt store/OutboxMonitoring.kt ui/SaisiesEnAttenteFragment.kt
-SchemaFusionTest.kt	136	9	COMMUN apres adaptation (API JVM)	orgjson	network/MonitoringSchemas.kt
-SortieStoreNormalisationTest.kt	114	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs,gson,fichiers	model/Models.kt network/GeoNatureUpload.kt store/SortieStore.kt ui/TraceViewModel.kt
-SortieStoreTest.kt	112	7	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs,gson	model/Models.kt store/SortieStore.kt
-StationServeurCacheApresEnvoiTest.kt	180	6	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs,coroutines	model/OccHab.kt network/EnvoiOccHab.kt network/GNErreur.kt network/OccHabUpload.kt store/GeoNatureConfig.kt store/OccHabStore.kt store/StationsServeurCache.kt
-StationsServeurCacheTest.kt	236	13	STOCKAGE (Context/prefs a abstraire)	robolectric,context,gson,fichiers,jvm_misc	model/OccHab.kt network/InvalidationCaches.kt store/CachesSynchronises.kt store/NidificationOiseaux.kt store/StationsServeurCache.kt
-StoreConcurrenceTest.kt	98	2	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs,concurrence	model/Models.kt store/JsonCollectionStore.kt store/OutboxMonitoring.kt store/SortieStore.kt
-SubstituerVariablesModuleTest.kt	89	5	COMMUN apres adaptation (API JVM)	orgjson	network/MonitoringSchemas.kt
-SuggestionPorteSonCdNomTest.kt	166	8	ANDROID (vues/plateforme)	robolectric,context,fichiers,vues	TaxRefLocal.kt model/Models.kt store/TaxRefCache.kt ui/SaisieObservationFragment.kt ui/SaisieRapideFragment.kt
-TaxRefCacheTest.kt	199	15	STOCKAGE (Context/prefs a abstraire)	robolectric,context,concurrence	store/TaxRefCache.kt
-TaxRefServiceVoixTest.kt	81	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context,coroutines	network/GeoNatureUpload.kt network/TaxRefService.kt store/TaxRefCache.kt
-TaxRefSyncPaginationTest.kt	148	4	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines	model/Models.kt monitoring/form/ValidationExpr.kt network/GeoNatureSync.kt network/SyncRunner.kt store/GeoNatureConfig.kt store/TaxRefCache.kt
-TaxonSansCleTest.kt	150	8	STOCKAGE (Context/prefs a abstraire)	robolectric,context,fichiers	TaxRefLocal.kt model/Models.kt network/GeoNatureSync.kt store/TaxRefCache.kt
-TopologiePolygoneTest.kt	79	4	STOCKAGE (Context/prefs a abstraire)	robolectric,osmdroid	util/TopologiePolygone.kt
-TraceViewModelReleveTest.kt	75	2	STOCKAGE (Context/prefs a abstraire)	robolectric,context	GeoMysApplication.kt model/Models.kt ui/TraceViewModel.kt
-ValidationExprTest.kt	136	17	COMMUN direct		monitoring/form/FormulaireRenderer.kt monitoring/form/ValidationExpr.kt
-VersionApresEcritureGroupesTest.kt	104	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context	TaxRefLocal.kt model/Models.kt store/TaxRefCache.kt
-WidgetMappingTest.kt	125	9	COMMUN direct		monitoring/form/EditableField.kt monitoring/form/WidgetMapping.kt network/MonitoringApi.kt
+fichier	lignes	tests	categorie	traits	cibles	statut_portage
+AdditionalFieldVisibiliteTest.kt	93	7	COMMUN direct		network/AdditionalFields.kt	porté (lot 2, model/AdditionalFieldVisibiliteTest.kt)
+AdditionalFieldsChargerTest.kt	115	3	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines	monitoring/form/ValidationExpr.kt network/AdditionalFields.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt	porté (lot 2, network/AdditionalFieldsChargerTest.kt)
+AdditionalFieldsParsingTest.kt	69	3	COMMUN apres adaptation (API JVM)	gson	network/AdditionalFields.kt ui/saisie/AdditionalFieldsRenderer.kt	porté (lot 2, model/AdditionalFieldsParsingTest.kt)
+AdditionalFieldsServerParsingTest.kt	113	8	COMMUN apres adaptation (API JVM)	orgjson	network/AdditionalFields.kt	porté (lot 2, network/AdditionalFieldsServerParsingTest.kt)
+AnaEvalTest.kt	496	45	COMMUN direct		util/AnaEval.kt	porté (lot 2, util/AnaEvalTest.kt)
+AplatirProprietesTest.kt	64	4	COMMUN apres adaptation (API JVM)	orgjson	network/MonitoringObjets.kt	porté (lot 2, network/AplatirProprietesTest.kt)
+BuildOccurrenceTest.kt	125	9	COMMUN direct		model/Models.kt network/GeoNatureUpload.kt	à faire
+CacheCorruptionTest.kt	164	7	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs,gson,fichiers	model/Models.kt network/SyncRunner.kt store/NomenclatureCache.kt store/OutboxMonitoring.kt store/SortieStore.kt	partiel (lot 1, partie OutboxMonitoring : store/io/StoreFichierJsonTest.kt ; le reste avec les stores)
+ChampsTaxonTest.kt	57	3	STOCKAGE (Context/prefs a abstraire)	prefs	model/Models.kt store/NomenclatureCache.kt store/OcctaxFieldsConfig.kt store/TaxRefCache.kt ui/saisie/ChampsTaxon.kt	à faire
+ChangeRulesTest.kt	228	15	COMMUN direct		monitoring/form/ChangeRules.kt monitoring/form/ValidationExpr.kt	à faire
+ChangementDeGroupeTest.kt	114	3	ANDROID (vues/plateforme)	robolectric,context,fichiers,vues	model/Models.kt network/GeoNatureUpload.kt network/TaxRefService.kt store/GeoNatureConfig.kt ui/SaisieObservationFragment.kt ui/SaisieRapideFragment.kt ui/saisie/PreferencesSaisie.kt ui/saisie/TaxRefLookup.kt	à faire
+ChargerModulesTest.kt	114	4	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines	monitoring/form/ValidationExpr.kt network/MonitoringApi.kt store/GeoNatureConfig.kt store/MonitoringCache.kt	porté (lot 2, network/ChargerModulesTest.kt)
+CollisionCdNomTest.kt	110	9	COMMUN direct			porté (lot 2, network/CollisionCdNomTest.kt)
+CompatibiliteServeurTest.kt	200	8	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines	monitoring/form/ValidationExpr.kt network/CompatibiliteServeur.kt network/GeoNatureAuth.kt network/GeoNatureSync.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt	porté (lot 2, network/CompatibiliteServeurTest.kt)
+ConstruireGeometrieTest.kt	82	6	COMMUN direct		network/GeoNatureUpload.kt	à faire
+DatalistHorsLigneTest.kt	103	2	ANDROID (vues/plateforme)	robolectric,context,mockwebserver,coroutines,vues	network/GeoNatureAuth.kt network/MonitoringApi.kt store/GeoNatureConfig.kt store/MonitoringCache.kt ui/NouvelleVisiteFragment.kt	porté (lot 2, network/DatalistHorsLigneTest.kt)
+DateHeureDefautTest.kt	61	4	COMMUN direct		util/DateHeureDefaut.kt	porté (lot 1, util/DateHeureDefautTest.kt)
+DefautsPariteLot2Test.kt	213	7	ANDROID (vues/plateforme)	robolectric,context,fichiers,vues	model/Models.kt model/OccHab.kt store/MbtilesStore.kt store/OccHabStore.kt ui/AccueilFragment.kt ui/SaisieRapideFragment.kt ui/TraceFragment.kt	à faire
+DefautsPortageIosTest.kt	158	5	ANDROID (vues/plateforme)	robolectric,context,fichiers,vues,livedata	location/LocationTracker.kt model/Models.kt store/MonitoringCache.kt ui/ConfigGeoNatureFragment.kt ui/TraceFragment.kt	à faire
+EcritureIndexEnEchecTest.kt	187	9	STOCKAGE (Context/prefs a abstraire)	robolectric,context,fichiers	model/Models.kt network/GeoNatureSync.kt store/TaxRefCache.kt	porté (lot 2, store/EcritureIndexEnEchecTest.kt)
+EmpreinteExhaustiviteTest.kt	118	2	STOCKAGE (Context/prefs a abstraire)	robolectric,jvm_misc	model/OccHab.kt	à faire
+EnvoiOccHabTest.kt	166	7	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs,coroutines	model/OccHab.kt network/EnvoiOccHab.kt network/GNErreur.kt network/OccHabUpload.kt store/GeoNatureConfig.kt store/OccHabStore.kt	à faire
+EnvoiReleveAntiDoublonTest.kt	230	5	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines,concurrence	model/Models.kt monitoring/form/ValidationExpr.kt network/EnvoiSortie.kt network/GeoNatureUpload.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt store/SortieStore.kt	à faire
+EnvoiSortieConcurrenceTest.kt	205	3	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines,concurrence	model/Models.kt monitoring/form/ValidationExpr.kt network/EnvoiSortie.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt store/SortieStore.kt	à faire
+EnvoiSortiePreMarquageTest.kt	181	2	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines	model/Models.kt monitoring/form/ValidationExpr.kt network/EnvoiSortie.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt store/SortieStore.kt	à faire
+EstTypeSaisieTest.kt	81	5	COMMUN direct		model/Models.kt network/MonitoringSync.kt store/OcctaxFieldsConfig.kt ui/NouvelleVisiteFragment.kt	porté (lot 2, network/EstTypeSaisieTest.kt, sans les deux cas d'écran)
+ExtraireDefautTest.kt	76	7	COMMUN apres adaptation (API JVM)	orgjson	network/AdditionalFields.kt	porté (lot 2, network/ExtraireDefautTest.kt)
+ExtraireNomHeuristiqueTest.kt	63	6	COMMUN direct		network/MonitoringObjets.kt	porté (lot 2, network/ExtraireNomHeuristiqueTest.kt)
+FiabiliteEnvoiTest.kt	101	4	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs	model/Models.kt network/GNErreur.kt store/PictoCache.kt store/SortieStore.kt	à faire
+FilArianeTest.kt	74	5	COMMUN direct		ui/FilAriane.kt	à faire
+FondCartePersistanceTest.kt	69	4	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs	ui/MapUtils.kt	à faire
+FondCarteTest.kt	42	2	COMMUN direct		ui/MapUtils.kt	à faire
+FormatGeometrieTest.kt	78	7	COMMUN apres adaptation (API JVM)	orgjson	network/MonitoringObjets.kt ui/SaisiesEnAttenteFragment.kt	porté (lot 2, network/FormatGeometrieTest.kt)
+FormulaireRendererTest.kt	384	15	ANDROID (vues/plateforme)	robolectric,context,coroutines,vues	monitoring/form/EditableField.kt monitoring/form/FormulaireRenderer.kt store/TaxRefCache.kt ui/NouvelleVisiteFragment.kt ui/SaisiesEnAttenteFragment.kt	à faire
+GeoJsonCoordsTest.kt	75	4	STOCKAGE (Context/prefs a abstraire)	robolectric,osmdroid	util/GeoJsonCoords.kt	à faire
+GeoNatureAuthTest.kt	93	4	RESEAU (MockWebServer -> Ktor MockEngine)	mockwebserver	monitoring/form/ValidationExpr.kt network/GeoNatureAuth.kt	porté (lot 1, network/GeoNatureAuthTest.kt, quatre cas, complétés)
+GeoNatureBrowseTest.kt	453	18	RESEAU (MockWebServer -> Ktor MockEngine)	context,prefs,mockwebserver,gson,fichiers,coroutines	monitoring/form/ValidationExpr.kt network/GNErreur.kt network/GeoNatureAuth.kt network/GeoNatureBrowse.kt store/GeoNatureConfig.kt ui/MapUtils.kt	porté (lot 2, network/GeoNatureBrowseTest.kt)
+GeoNatureConfigTest.kt	160	11	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs	store/GeoNatureConfig.kt	porté (lot 1, store/GeoNatureConfigTest.kt)
+GeoNatureUploadEnvoyerTest.kt	379	13	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines,concurrence	model/Models.kt monitoring/form/ValidationExpr.kt network/GNErreur.kt network/GeoNatureUpload.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt	à faire
+GeoNatureUploadReseauDegradeTest.kt	248	9	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines,concurrence	model/Models.kt monitoring/form/ValidationExpr.kt network/GNErreur.kt network/GeoNatureUpload.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt store/RelevesOrphelins.kt	à faire
+GpxUtilsTest.kt	92	5	COMMUN direct		gpx/GpxUtils.kt model/Models.kt	à faire
+GroupesEtRegnoPlanteTest.kt	62	2	STOCKAGE (Context/prefs a abstraire)	robolectric,context	model/Models.kt store/NomenclatureCache.kt store/TaxRefCache.kt ui/saisie/ChampsTaxon.kt	à faire
+GsonRoundTripTest.kt	227	3	FORMAT (Gson -> kotlinx.serialization)	gson	model/Models.kt model/OccHab.kt network/SyncRunner.kt store/OccHabStore.kt store/OutboxMonitoring.kt store/SortieStore.kt	porté (lot 1, model/AllerRetourJsonTest.kt)
+HiddenExprTest.kt	329	30	COMMUN direct		monitoring/form/HiddenExpr.kt	à faire
+HumaniserErreurReseauTest.kt	61	5	COMMUN direct		network/GNErreur.kt	porté (lot 1, network/HumaniserErreurReseauTest.kt)
+IndexParGroupeTest.kt	90	3	COMMUN direct		model/Models.kt network/GeoNatureSync.kt	porté (lot 2, network/IndexParGroupeTest.kt)
+InvalidationServeurTest.kt	86	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context	network/GeoNatureUpload.kt network/InvalidationCaches.kt store/NomenclatureCache.kt	porté (lot 2, network/InvalidationServeurTest.kt)
+JsonDepuisMapTest.kt	60	4	COMMUN apres adaptation (API JVM)	orgjson	network/GeoNatureUpload.kt	à faire
+ListeIncompleteTest.kt	161	6	ANDROID (vues/plateforme)	robolectric,context,fichiers,vues	network/GeoNatureSync.kt store/GeoNatureConfig.kt store/TaxRefCache.kt ui/ConfigGeoNatureFragment.kt	porté (lot 2, store/ListeIncompleteTest.kt, garde d'écran reportée au lot 5)
+LocationTrackerTest.kt	101	2	ANDROID (vues/plateforme)	robolectric,context,location,jvm_misc	location/LocationTracker.kt model/Models.kt	à faire
+LotCAuditTest.kt	89	4	STOCKAGE (Context/prefs a abstraire)	robolectric	model/OccHab.kt network/GeoNatureUpload.kt util/AnaEval.kt	à faire
+MbtilesStoreTest.kt	111	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context,fichiers	store/MbtilesStore.kt store/NidificationOiseaux.kt	à faire
+MediaImportTest.kt	89	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context,fichiers	ui/MediaImport.kt	à faire
+MediasMonitoringReconciliationTest.kt	192	4	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,fichiers,coroutines	monitoring/form/ValidationExpr.kt network/GeoNatureUpload.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt	à faire
+MonitoringApiParsingTest.kt	127	13	COMMUN apres adaptation (API JVM)	orgjson	network/MonitoringModules.kt network/MonitoringSchemas.kt	porté (lot 2, network/MonitoringApiParsingTest.kt)
+MonitoringCacheLabelTest.kt	90	6	STOCKAGE (Context/prefs a abstraire)	robolectric,context	network/MonitoringObjets.kt store/MonitoringCache.kt	porté (lot 2, network/MonitoringCacheLabelTest.kt)
+MonitoringDatalistDatasetTest.kt	130	2	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines	monitoring/form/ValidationExpr.kt network/MonitoringApi.kt store/GeoNatureConfig.kt	porté (lot 2, network/MonitoringDatalistDatasetTest.kt)
+MonitoringEnvoiTest.kt	164	3	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,orgjson,coroutines	monitoring/form/ValidationExpr.kt network/GNErreur.kt network/MonitoringDatalists.kt network/MonitoringEnvoi.kt store/GeoNatureConfig.kt store/MonitoringCache.kt	à faire
+NomenclatureCacheTest.kt	106	7	STOCKAGE (Context/prefs a abstraire)	robolectric,context	store/NomenclatureCache.kt	porté (lot 2, store/NomenclatureCacheTest.kt)
+OccHabAntiDoublonTest.kt	259	10	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,orgjson,coroutines	model/OccHab.kt monitoring/form/ValidationExpr.kt network/GNErreur.kt network/OccHabUpload.kt store/GeoNatureConfig.kt	à faire
+OccHabEmpriseStableTest.kt	63	2	ANDROID (vues/plateforme)	fichiers,vues	ui/OccHabCarteFragment.kt ui/StationsServeurOverlay.kt	à faire
+OccHabParserTest.kt	400	11	STOCKAGE (Context/prefs a abstraire)	robolectric,orgjson,concurrence,jvm_misc	network/OccHabApi.kt util/AnaEval.kt	porté (lot 2, network/OccHabParserTest.kt)
+OccHabPolygoneTrouTest.kt	276	16	STOCKAGE (Context/prefs a abstraire)	robolectric,osmdroid	model/OccHab.kt network/GeoNatureUpload.kt network/OccHabApi.kt ui/MapUtils.kt ui/OccHabViewModel.kt util/GeoJsonCoords.kt	à faire
+OccHabRechercheHabitatTest.kt	102	5	STOCKAGE (Context/prefs a abstraire)	robolectric,context	network/HabitatService.kt store/HabitatCache.kt	porté (lot 2, store/OccHabRechercheHabitatTest.kt)
+OccHabSaisieStoreTest.kt	270	15	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs	model/OccHab.kt store/OccHabStore.kt	à faire
+OccHabSommetAimanteIndependantTest.kt	55	2	ANDROID (vues/plateforme)	fichiers,vues	ui/EditeurGeometrie.kt ui/OccHabCarteFragment.kt util/TopologiePolygone.kt	à faire
+OccHabStoreRoundTripTest.kt	176	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs,jvm_misc	model/OccHab.kt store/OccHabStore.kt	à faire
+OccHabViewModelTest.kt	184	9	STOCKAGE (Context/prefs a abstraire)	robolectric,gson,jvm_misc	model/OccHab.kt ui/OccHabViewModel.kt	à faire
+OcctaxFieldsConfigTest.kt	79	6	COMMUN direct		store/OcctaxFieldsConfig.kt	porté (lot 2, store/OcctaxFieldsConfigTest.kt)
+OutboxEnvoiTest.kt	549	25	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,gson,fichiers,coroutines,concurrence,jvm_misc	monitoring/form/ValidationExpr.kt network/OutboxEnvoi.kt network/SyncRunner.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt store/OutboxMonitoring.kt	à faire
+OutboxMonitoringTest.kt	143	9	STOCKAGE (Context/prefs a abstraire)	robolectric,context,gson	network/SyncRunner.kt store/OutboxMonitoring.kt	à faire
+OutboxRoundTripTest.kt	132	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context,jvm_misc	network/SyncRunner.kt store/OutboxMonitoring.kt	à faire
+PertesEtDoublonsEnvoiTest.kt	366	11	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines	model/Models.kt monitoring/form/ValidationExpr.kt network/EnvoiSortie.kt network/GNErreur.kt network/GeoNatureUpload.kt store/GeoNatureConfig.kt store/NomenclatureCache.kt store/RelevesOrphelins.kt store/SortieStore.kt	à faire
+PictoCacheTest.kt	275	21	RESEAU (MockWebServer -> Ktor MockEngine)	mockwebserver,fichiers,jvm_misc	monitoring/form/ValidationExpr.kt store/PictoCache.kt	porté (lot 2, store/PictoCacheTest.kt)
+PictoMonitoringTest.kt	69	6	COMMUN direct		ui/PictoMonitoring.kt	à faire
+ProposeEgaleAccepteTest.kt	168	7	ANDROID (vues/plateforme)	robolectric,context,fichiers,coroutines,vues	TaxRefLocal.kt model/Models.kt network/GeoNatureUpload.kt network/TaxRefService.kt store/GeoNatureConfig.kt store/TaxRefCache.kt ui/SaisieObservationFragment.kt ui/SaisieRapideFragment.kt	porté (lot 2, ProposeEgaleAccepteTest.kt)
+PurgeRechargementApresMajTest.kt	141	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context,fichiers	model/OccHab.kt network/HabitatService.kt network/SyncRunner.kt store/CachesSynchronises.kt store/HabitatCache.kt store/StationsServeurCache.kt ui/MapUtils.kt	porté (lot 2, store/PurgeRechargementApresMajTest.kt)
+RechargementRequisTest.kt	105	4	STOCKAGE (Context/prefs a abstraire)	robolectric,context	network/SyncRunner.kt store/CachesSynchronises.kt store/GeoNatureConfig.kt store/HabitatCache.kt store/MonitoringCache.kt store/NomenclatureCache.kt store/PictoCache.kt store/TaxRefCache.kt ui/ConfigGeoNatureFragment.kt	porté (lot 2, store/RechargementRequisTest.kt)
+ResolutionDansListeTest.kt	246	15	STOCKAGE (Context/prefs a abstraire)	robolectric,context	TaxRefLocal.kt store/TaxRefCache.kt	porté (lot 2, store/ResolutionDansListeTest.kt)
+ResolutionParGroupeTest.kt	142	6	STOCKAGE (Context/prefs a abstraire)	robolectric,context	network/GeoNatureSync.kt network/TaxRefService.kt store/TaxRefCache.kt	porté (lot 2, store/ResolutionParGroupeTest.kt)
+ResolutionPurementLocaleTest.kt	122	4	ANDROID (vues/plateforme)	robolectric,context,orgjson,fichiers,coroutines,vues,jvm_misc	model/Models.kt monitoring/form/FormulaireRenderer.kt network/GeoNatureUpload.kt network/HttpClient.kt network/TaxRefService.kt store/GeoNatureConfig.kt store/TaxRefCache.kt ui/SaisieObservationFragment.kt ui/SaisieRapideFragment.kt	porté (lot 2, network/ResolutionPurementLocaleTest.kt)
+ResumeOutboxTest.kt	130	5	COMMUN direct		network/SyncRunner.kt store/OutboxMonitoring.kt ui/SaisiesEnAttenteFragment.kt	à faire
+SchemaFusionTest.kt	136	9	COMMUN apres adaptation (API JVM)	orgjson	network/MonitoringSchemas.kt	porté (lot 2, network/SchemaFusionTest.kt)
+SortieStoreNormalisationTest.kt	114	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs,gson,fichiers	model/Models.kt network/GeoNatureUpload.kt store/SortieStore.kt ui/TraceViewModel.kt	à faire
+SortieStoreTest.kt	112	7	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs,gson	model/Models.kt store/SortieStore.kt	à faire
+StationServeurCacheApresEnvoiTest.kt	180	6	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs,coroutines	model/OccHab.kt network/EnvoiOccHab.kt network/GNErreur.kt network/OccHabUpload.kt store/GeoNatureConfig.kt store/OccHabStore.kt store/StationsServeurCache.kt	à faire
+StationsServeurCacheTest.kt	236	13	STOCKAGE (Context/prefs a abstraire)	robolectric,context,gson,fichiers,jvm_misc	model/OccHab.kt network/InvalidationCaches.kt store/CachesSynchronises.kt store/NidificationOiseaux.kt store/StationsServeurCache.kt	porté (lot 2, store/StationsServeurCacheTest.kt)
+StoreConcurrenceTest.kt	98	2	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs,concurrence	model/Models.kt store/JsonCollectionStore.kt store/OutboxMonitoring.kt store/SortieStore.kt	porté (lot 1, store/io/StoreFichierJsonTest.kt)
+SubstituerVariablesModuleTest.kt	89	5	COMMUN apres adaptation (API JVM)	orgjson	network/MonitoringSchemas.kt	porté (lot 2, network/SubstituerVariablesModuleTest.kt)
+SuggestionPorteSonCdNomTest.kt	166	8	ANDROID (vues/plateforme)	robolectric,context,fichiers,vues	TaxRefLocal.kt model/Models.kt store/TaxRefCache.kt ui/SaisieObservationFragment.kt ui/SaisieRapideFragment.kt	porté (lot 2, SuggestionPorteSonCdNomTest.kt)
+TaxRefCacheTest.kt	199	15	STOCKAGE (Context/prefs a abstraire)	robolectric,context,concurrence	store/TaxRefCache.kt	porté (lot 2, store/TaxRefCacheTest.kt)
+TaxRefServiceVoixTest.kt	81	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context,coroutines	network/GeoNatureUpload.kt network/TaxRefService.kt store/TaxRefCache.kt	porté (lot 2, TaxRefServiceVoixTest.kt)
+TaxRefSyncPaginationTest.kt	148	4	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines	model/Models.kt monitoring/form/ValidationExpr.kt network/GeoNatureSync.kt network/SyncRunner.kt store/GeoNatureConfig.kt store/TaxRefCache.kt	porté (lot 2, network/TaxRefSyncPaginationTest.kt)
+TaxonSansCleTest.kt	150	8	STOCKAGE (Context/prefs a abstraire)	robolectric,context,fichiers	TaxRefLocal.kt model/Models.kt network/GeoNatureSync.kt store/TaxRefCache.kt	porté (lot 2, store/TaxonSansCleTest.kt)
+TopologiePolygoneTest.kt	79	4	STOCKAGE (Context/prefs a abstraire)	robolectric,osmdroid	util/TopologiePolygone.kt	à faire
+TraceViewModelReleveTest.kt	75	2	STOCKAGE (Context/prefs a abstraire)	robolectric,context	GeoMysApplication.kt model/Models.kt ui/TraceViewModel.kt	à faire
+ValidationExprTest.kt	136	17	COMMUN direct		monitoring/form/FormulaireRenderer.kt monitoring/form/ValidationExpr.kt	à faire
+VersionApresEcritureGroupesTest.kt	104	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context	TaxRefLocal.kt model/Models.kt store/TaxRefCache.kt	porté (lot 2, VersionApresEcritureGroupesTest.kt)
+WidgetMappingTest.kt	125	9	COMMUN direct		monitoring/form/EditableField.kt monitoring/form/WidgetMapping.kt network/MonitoringApi.kt	à faire

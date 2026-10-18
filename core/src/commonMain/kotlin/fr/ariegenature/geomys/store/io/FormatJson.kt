@@ -18,6 +18,8 @@
 
 package fr.ariegenature.geomys.store.io
 
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
 /** Le format JSON des fichiers de l'appli (saisies, files d'envoi, caches). Il reproduit ce que
@@ -34,4 +36,16 @@ val JSON_STOCKAGE: Json = Json {
     explicitNulls = false
     coerceInputValues = true
     encodeDefaults = true
+}
+
+/** [liste] en JSON de stockage, pour les caches JSON des réglages (`Gson.toJson` sous Android). */
+fun <T> listeVersJson(serialiseur: KSerializer<T>, liste: List<T>): String =
+    JSON_STOCKAGE.encodeToString(ListSerializer(serialiseur), liste)
+
+/** La liste d'un cache JSON des réglages ; vide si [json] est vide ou illisible. */
+fun <T> listeDepuisJson(serialiseur: KSerializer<T>, json: String): List<T> {
+    if (json.isEmpty()) return emptyList()
+    return try {
+        JSON_STOCKAGE.decodeFromString(ListSerializer(serialiseur), json)
+    } catch (_: Exception) { emptyList() }
 }

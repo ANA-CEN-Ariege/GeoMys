@@ -45,6 +45,7 @@ kotlin {
 dependencies {
     implementation(projects.ui)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.core.ktx)
     // Moteur de rendu de la carte MapLibre. OpenGL plutôt que Vulkan : compatible avec plus
     // d'appareils (minSdk 24) et avec l'émulateur.
     runtimeOnly(libs.maplibre.compose.runtime.opengl.android)

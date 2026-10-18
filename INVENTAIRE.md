@@ -344,11 +344,11 @@ Ils sont signalés pour décision : les corriger dans GeoMys-Android, qui reste 
 | # | Constat | Références | Statut |
 |---|---|---|---|
 | 1 | En saisie mono-taxon, la naturalité et les champs `occExtraJson` (statut source, floutage, preuves) renvoyés par Caractérisation ne sont jamais lus ni posés sur l'observation : ils sont perdus. | `CaracterisationFragment.kt:228-251` ; aucune lecture dans `SaisieRapideFragment.kt` | vérifié |
-| 2 | R8 renomme les champs de `kotlin.Pair` (`a`/`b` jusqu'en 1.4.2, `f`/`g` depuis la 1.4.3). Le cache Gson `gn_cache_add_fields_occtax` devient donc illisible après chaque changement de mapping, jusqu'à la synchro suivante. | `mappings/mapping-1.4.7.txt` (`kotlin.Pair -> mf0`) ; `AdditionalFieldDef.nomenclatureOptions` | vérifié |
+| 2 | R8 renomme les champs de `kotlin.Pair` (`a`/`b` jusqu'en 1.4.2, `f`/`g` depuis la 1.4.3). Le cache Gson `gn_cache_add_fields_occtax` devient donc illisible après chaque changement de mapping, jusqu'à la synchro suivante. | `mappings/mapping-1.4.7.txt` (`kotlin.Pair -> mf0`) ; `AdditionalFieldDef.nomenclatureOptions` | vérifié ; disparaît dans GeoMys Common (lot 2 : kotlinx-serialization, sans réflexion) |
 | 3 | `HabitatCache.kt` contient un caractère NUL littéral : grep et d'autres outils prennent le fichier pour un binaire. | `store/HabitatCache.kt:100` | vérifié |
 | 4 | La date des « Détails communs » vaut toujours l'heure d'ouverture du dialogue, et elle écrase une date a posteriori armée ensuite. iOS ne pose la date que si elle a été modifiée. | `DetailsReleveDialog.kt:373-375, 481-490` ; `SaisieObservationFragment.kt:285-306` | à confirmer |
 | 5 | Le total d'individus diffère selon l'écran : tous les dénombrements dans le relevé, le seul dénombrement n° 0 dans les listes. | `SaisieObservationFragment.kt:405` contre `ObservationsFragment.kt:50`, `SortiesFragment.kt:292`, `SortieDetailFragment.kt:127` | à confirmer |
-| 6 | Hors-ligne, une `IOException` levée par la synchro des settings OccTax (appel lancé hors de tout try) annule toute la phase A de « Recharger les données ». | `SyncRunner.kt:140-143` ; `GeoNatureSync.kt:557` | à confirmer |
+| 6 | Hors-ligne, une `IOException` levée par la synchro des settings OccTax (appel lancé hors de tout try) annule toute la phase A de « Recharger les données ». | `SyncRunner.kt:140-143` ; `GeoNatureSync.kt:557` | **confirmé le 18 octobre** : reproduit fidèlement par GeoMys Common sur l'A12 et l'iPhone (lot 2, `LOT-2.md` § 7) ; seulement quand aucune session n'est en cache |
 | 7 | « Continuer la saisie » ouvre toujours la carte multi-taxons, même pour une sortie saisie en mono. | `SortiesFragment.kt:111-117` | à confirmer |
 | 8 | Le téléchargement de zones contourne la politique d'osmdroid et télécharge en masse des tuiles openstreetmap.org, contrairement à la politique d'usage d'OSM. L'attribution des fonds n'est jamais affichée. | `ui/MapUtils.kt:106-110, 132, 187, 196` | à confirmer |
 | 9 | La carte Monitoring dessine les trous des polygones comme des polygones pleins superposés. | `CarteGeometrieFragment.kt:312-317` | à confirmer |
@@ -420,14 +420,16 @@ GeoMys-Common/
 
 Chaque lot suit le même cycle : il porte son code depuis le commit Android noté, porte ou écrit ses tests, et compile et tourne sur Android **et** iOS avant d'être clos.
 
+**Ordre** : le lot 5 passe juste après le lot 2 (choix du 18 octobre, avec la décision 15) ; viennent ensuite les lots 3 et 4.
+
 | Lot | Contenu | Tests | Critère de sortie |
 |---|---|---|---|
 | 0 | Squelette Gradle (core, ui, androidApp, iosApp). **Prototype carte** (§ 5). Mesure mémoire de TaxRef sur iPhone. Vérification avant de pousser | premier test commun (`CompatibiliteServeur`) | **fait le 18 octobre** : squelette, prototype carte ([`PROTOTYPE-CARTE.md`](PROTOTYPE-CARTE.md)), mesure mémoire ([`MESURE-TAXREF.md`](MESURE-TAXREF.md)). Pas d'intégration continue (décision du 18 octobre) : la vérification se fait en local, par `outils/verifier.sh` |
 | 1 | Fondations : modèles `@Serializable`, `JsonCompat`, stockage atomique et quarantaine, verrous, dates, UUID, logs, coffre, client Ktor et authentification | T1, T2, aller-retour JSON | connexion et authentification sur un serveur GeoNature de test. **Fait le 18 octobre** ([`LOT-1.md`](LOT-1.md)) : connexion et authentification réussies sur un vrai serveur GeoNature 2.17.5, depuis le Galaxy A12 et l'iPhone 16 |
-| 2 | Référentiels et synchro : TaxRef (index et stockage), nomenclatures, JDD, listes, observateurs, HABREF, Monitoring (modules, schémas, objets, datalists), `SyncRunner`, `ExecutionLongue` | T3, T4 (synchro) | synchro complète sur un serveur de test, en ligne et hors-ligne |
+| 2 | Référentiels et synchro : TaxRef (index et stockage), nomenclatures, JDD, listes, observateurs, HABREF, Monitoring (modules, schémas, objets, datalists), `SyncRunner`, `ExecutionLongue` | T3, T4 (synchro) | synchro complète sur un serveur de test, en ligne et hors-ligne. **Fait le 18 octobre** ([`LOT-2.md`](LOT-2.md)) : synchro complète sur le GeoNature 2.17.5 depuis le Galaxy A12 (223 s) et l'iPhone 16 (77 s), 100 474 taxons ; hors ligne, données relues et synchro qui échoue sans rien effacer |
 | 3 | Envois : OccTax (anti-doublon, médias, orphelins), file Monitoring, OccHab | T4 (envois et réseau dégradé) | tous les scénarios anti-doublon passent |
 | 4 | Moteur de formulaires : `FormulaireEtat`, champ taxon, champs additionnels | tests du moteur | mêmes valeurs envoyées qu'Android |
-| 5 | UI socle : thème sombre, navigation typée, composants (fil d'Ariane, messages, dialogues, listes à recherche), Accueil, Paramètres | gardes textuelles de Paramètres réécrites | configuration et synchro depuis l'UI |
+| 5 | UI socle : thème sombre, navigation typée, composants (fil d'Ariane, messages, dialogues, listes à recherche), Accueil, Paramètres, reproduits à l'identique des écrans Android (décision 15) | gardes textuelles de Paramètres réécrites | configuration et synchro depuis l'UI |
 | 6 | OccTax : carte multi, saisie mono, relevé, dénombrement, caractérisation, détails, Mes saisies, détail d'une sortie, GPX | gardes textuelles OccTax réécrites | recette terrain OccTax |
 | 7 | Monitoring : Suivis, détail, fiche, nouvelle visite, Mes visites, carte des géométries | FormulaireRendererTest réécrit | recette terrain Monitoring |
 | 8 | OccHab : carte d'édition (point dur), station, habitat, Mes stations | tests de l'éditeur (modèle : `OccHabEditeurTests` iOS) | recette terrain OccHab |
@@ -447,13 +449,14 @@ Chaque lot suit le même cycle : il porte son code depuis le commit Android not�
 7. **Concurrence.** API `suspend` protégées par `Mutex` pour les stores, puisque tous leurs appelants seront réécrits (ViewModels) ; atomicfu seulement pour les caches en mémoire. Recommandé. **Appliqué au lot 1** (`JsonCollectionStore`, `GeoNatureAuth`) ; atomicfu n'a pas été nécessaire.
 8. **Stockage.** Garder des fichiers JSON pour un portage fidèle, en sortant les saisies des SharedPreferences. Pour TaxRef, rester en JSON au départ, et passer à SQLite seulement si la mesure mémoire sur iPhone l'impose.
    - **Tranché pour TaxRef le 18 octobre : JSON.** La mesure sur iPhone n'impose pas SQLite ([`MESURE-TAXREF.md`](MESURE-TAXREF.md)).
-   - Deux conditions : déclarer `largeHeap` sur Android comme GeoMys-Android, et charger TaxRef en arrière-plan et à la demande.
-9. **`http://` sur iOS.** Le refuser (statu quo iOS), ou ouvrir une exception ATS ?
+   - Deux conditions : déclarer `largeHeap` sur Android comme GeoMys-Android, et charger TaxRef en arrière-plan et à la demande. `largeHeap` est déclaré depuis le lot 2.
+9. **`http://` sur iOS.** Le refuser (statu quo iOS), ou ouvrir une exception ATS ? En attendant : sous iOS, le statu quo de GeoMys-IOS (`NSAllowsLocalNetworking`, réseau local seulement) ; sous Android, depuis le lot 2, le `network_security_config` de GeoMys-Android (HTTP autorisé partout).
 10. **Chaînes.** Garder le français en dur dans le code commun, comme aujourd'hui (portage plus fidèle et plus rapide), ou externaliser les quelque 1 200 libellés dans `composeResources` ?
 11. **Restauration après la mort du processus.** Des brouillons sauvegardés automatiquement dans le code commun, qui fonctionnent sur les deux OS, plutôt que `SavedStateHandle`. Recommandé.
-12. **Synchro en arrière-plan sur iOS.** `beginBackgroundTask` et écran maintenu allumé dans un premier temps ; `BGContinuedProcessingTask` (iOS 26) à prototyper.
+12. **Synchro en arrière-plan sur iOS.** `beginBackgroundTask` et écran maintenu allumé dans un premier temps ; `BGContinuedProcessingTask` (iOS 26) à prototyper. **Appliqué au lot 2** (`ExecutionLongue`), avec la notification de GeoMys-Android côté Android.
 13. **Tuiles OSM.** Les exclure du téléchargement de zones.
 14. **Distribution Android.** APK de test ou piste interne Play ? La mise à jour intégrée par GitHub n'est utile que si l'APK est distribué hors Play.
+15. ~~Fidélité des écrans~~. **Tranché le 18 octobre** : l'appli reprend le plus fidèlement possible les écrans de GeoMys-Android (interfaces, styles, placement des éléments) et ses fonctionnalités. Chaque écran des lots 5 à 9 se construit depuis son layout XML, ses styles, couleurs, dimensions et textes. Les écrans des lots 0 et 1 (accueil, connexion, prototype carte, mesure TaxRef) étaient des prototypes : le lot 5 les remplace. Les éléments système suivent aussi l'original (notification de synchro, canal, icône).
 
 ---
 

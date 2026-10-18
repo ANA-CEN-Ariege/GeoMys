@@ -19,9 +19,13 @@
 package fr.ariegenature.geomys.ui.carte
 
 import fr.ariegenature.geomys.InfosApp
+import fr.ariegenature.geomys.network.http.moteurHttpPlateforme
+import io.ktor.client.HttpClient
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.UserAgent
 import kotlin.concurrent.Volatile
 import org.maplibre.compose.map.DefaultMapRuntime
-import org.maplibre.compose.resource.MapRequestInterceptor
+import org.maplibre.compose.resource.MapResourceLoad
 import org.maplibre.compose.resource.MapResourceProvider
 
 /** Réglages globaux de MapLibre, à appliquer une fois au démarrage, avant la première carte
@@ -29,6 +33,9 @@ import org.maplibre.compose.resource.MapResourceProvider
 object ConfigurationCarte {
 
     private const val SCHEMA = "geomys"
+
+    /** Le serveur de tuiles d'OpenStreetMap (FondCarte.OSM). */
+    private const val HOTE_OSM = "tile.openstreetmap.org"
 
     /** Style du serveur de tuiles local du prototype (voir PrototypeCarteScreen). */
     const val ID_STYLE_TEST_LOCAL = "test-local"
@@ -55,19 +62,32 @@ object ConfigurationCarte {
         ))
 
         // Les serveurs de tuiles (OSM en particulier) demandent un User-Agent qui identifie
-        // l'application. ATTENTION : sans effet avec maplibre-compose 0.20.0. Le prototype carte
-        // (PROTOTYPE-CARTE.md) a montré qu'aucun en-tête de l'intercepteur ne part, ni sur Android
-        // (le moteur envoie « MapLibreNative/1.0 ») ni sur iOS (« GeoMysCommon/<version>
-        // MapLibreNative/… », composé par MapLibre à partir du bundle). Gardé pour le jour où la
-        // bibliothèque l'appliquera : à revérifier à chaque montée de version.
+        // l'application. L'intercepteur de maplibre-compose 0.20.0 n'applique aucun en-tête
+        // (PROTOTYPE-CARTE.md § 2) : l'appli télécharge donc elle-même les tuiles de ces serveurs
+        // (TuilesHttp), avec son User-Agent. Celles du serveur de test passent par le même chemin,
+        // ce qui permet de vérifier les en-têtes reçus.
         val userAgent = "GeoMysCommon/${infos.version} (${infos.plateforme})"
+        val tuiles = TuilesHttp(
+            client = HttpClient(moteurHttpPlateforme()) {
+                expectSuccess = false
+                install(HttpTimeout)
+                install(UserAgent) { agent = userAgent }
+            },
+            hotes = setOf(HOTE_OSM, hoteServeurTest(infos)),
+        )
         DefaultMapRuntime.configure {
-            requestInterceptor = MapRequestInterceptor(headers = { mapOf("User-Agent" to userAgent) })
-            resourceProvider = MapResourceProvider(scheme = SCHEMA) { requete ->
-                val id = requete.url.substringAfter("$SCHEMA://styles/").substringBefore(".json")
-                val style = styles[id] ?: error("Style inconnu : ${requete.url}")
-                style.encodeToByteArray()
-            }
+            resourceProvider = MapResourceProvider(
+                accepts = { requete -> requete.url.startsWith("$SCHEMA://") || tuiles.accepte(requete) },
+                load = { requete ->
+                    if (requete.url.startsWith("$SCHEMA://")) {
+                        val id = requete.url.substringAfter("$SCHEMA://styles/").substringBefore(".json")
+                        val style = styles[id] ?: error("Style inconnu : ${requete.url}")
+                        MapResourceLoad.Bytes(style.encodeToByteArray(), null, false, null, null)
+                    } else {
+                        tuiles.charger(requete)
+                    }
+                },
+            )
         }
     }
 

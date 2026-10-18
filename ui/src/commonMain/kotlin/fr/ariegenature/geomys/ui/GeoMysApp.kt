@@ -19,12 +19,15 @@
 package fr.ariegenature.geomys.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import fr.ariegenature.geomys.InfosApp
 import fr.ariegenature.geomys.ServicesGeoNature
+import fr.ariegenature.geomys.outils.resumeDonnees
+import fr.ariegenature.geomys.outils.synchroniserEnJournalisant
 import fr.ariegenature.geomys.ui.accueil.AccueilScreen
 import fr.ariegenature.geomys.ui.carte.prototype.PrototypeCarteScreen
 import fr.ariegenature.geomys.ui.connexion.ConnexionScreen
@@ -36,10 +39,18 @@ import fr.ariegenature.geomys.ui.theme.GeoMysTheme
  *  [lancement] : paramètres de lancement pour les essais automatisés (le simulateur iOS ne sait
  *  pas simuler de toucher) : `ecran=prototype-carte`, `fond=<id>`, `zoom=<n>`, `action=hors-ligne` ;
  *  `ecran=mesure-taxref`, `action=preparer`, `taxons=<n>` ou `action=mesurer`, `lecture=flux|chaine` ;
- *  `ecran=connexion`, `url=<url>`, `login=<identifiant>`, `mdp=<mot de passe>`, `action=tester`.
+ *  `ecran=connexion`, `url=<url>`, `login=<identifiant>`, `mdp=<mot de passe>`, `action=tester` ;
+ *  `action=synchroniser` ou `action=etat-donnees` (essai du lot 2, sans écran : DiagnosticSynchro).
  *  Passés en extras d'intent sur Android, en arguments `-cle valeur` sur iOS. */
 @Composable
 fun GeoMysApp(infos: InfosApp, services: ServicesGeoNature, lancement: Map<String, String> = emptyMap()) {
+    // Essai du lot 2 : synchro complète, ou état des données hors ligne, écrits dans le journal.
+    LaunchedEffect(Unit) {
+        when (lancement["action"]) {
+            "synchroniser" -> services.synchroniserEnJournalisant(::println)
+            "etat-donnees" -> println(services.resumeDonnees())
+        }
+    }
     GeoMysTheme {
         // Navigation provisoire, en attendant navigation-compose (lot 5).
         var ecran by remember {

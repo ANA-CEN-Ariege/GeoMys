@@ -1,6 +1,6 @@
 fichier	source_set	zone	lignes	lignes_code	categorie	complexite_ui	commit_reference	statut_portage
 GeoMysApplication.kt	main	2-stockage-modeles-utils.md	83	44	MIXTE		cdd5196	à faire
-TaxRefLocal.kt	main	2-stockage-modeles-utils.md	270	161	COMMUN-ADAPTÉ		cdd5196	à faire
+TaxRefLocal.kt	main	2-stockage-modeles-utils.md	270	161	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
 gpx/GpxUtils.kt	main	2-stockage-modeles-utils.md	207	165	COMMUN-ADAPTÉ		cdd5196	à faire
 location/LocationForegroundService.kt	main	2-stockage-modeles-utils.md	115	75	PLATEFORME		cdd5196	à faire
 location/LocationTracker.kt	main	2-stockage-modeles-utils.md	179	118	MIXTE		cdd5196	à faire
@@ -13,58 +13,58 @@ monitoring/form/FormulaireRenderer.kt	main	3-formulaires-monitoring.md	1395	974	
 monitoring/form/HiddenExpr.kt	main	3-formulaires-monitoring.md	244	142	COMMUN-ADAPTÉ		cdd5196	à faire
 monitoring/form/ValidationExpr.kt	main	3-formulaires-monitoring.md	106	47	COMMUN-ADAPTÉ		cdd5196	à faire
 monitoring/form/WidgetMapping.kt	main	3-formulaires-monitoring.md	196	94	COMMUN		cdd5196	à faire
-network/AdditionalFields.kt	main	1-reseau-sync.md	345	235	COMMUN-ADAPTÉ		cdd5196	à faire
+network/AdditionalFields.kt	main	1-reseau-sync.md	345	235	COMMUN-ADAPTÉ		cdd5196	porté (lot 2, modèles dans model/AdditionalFields.kt)
 network/CompatibiliteServeur.kt	main	1-reseau-sync.md	55	16	COMMUN		cdd5196	porté (lot 0)
 network/EnvoiOccHab.kt	main	1-reseau-sync.md	208	115	COMMUN-ADAPTÉ		cdd5196	à faire
 network/EnvoiSortie.kt	main	1-reseau-sync.md	249	151	COMMUN-ADAPTÉ		cdd5196	à faire
 network/GNErreur.kt	main	1-reseau-sync.md	87	51	COMMUN-ADAPTÉ		cdd5196	porté (lot 1)
 network/GeoNatureAuth.kt	main	1-reseau-sync.md	299	184	COMMUN-ADAPTÉ		cdd5196	porté (lot 1)
-network/GeoNatureBrowse.kt	main	1-reseau-sync.md	543	409	COMMUN-ADAPTÉ		cdd5196	à faire
-network/GeoNatureSync.kt	main	1-reseau-sync.md	693	453	COMMUN-ADAPTÉ		cdd5196	à faire
+network/GeoNatureBrowse.kt	main	1-reseau-sync.md	543	409	COMMUN-ADAPTÉ		cdd5196	porté (lot 2, modèles dans model/Referentiels.kt et model/ObsExplorer.kt)
+network/GeoNatureSync.kt	main	1-reseau-sync.md	693	453	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
 network/GeoNatureUpload.kt	main	1-reseau-sync.md	1461	987	COMMUN-ADAPTÉ		cdd5196	à faire
-network/HabitatService.kt	main	1-reseau-sync.md	93	50	COMMUN-ADAPTÉ		cdd5196	à faire
+network/HabitatService.kt	main	1-reseau-sync.md	93	50	COMMUN-ADAPTÉ		cdd5196	porté (lot 2, HabitatSuggestion dans model/)
 network/HttpClient.kt	main	1-reseau-sync.md	102	53	COMMUN-ADAPTÉ		cdd5196	porté (lot 1, network/http/ClientsGeoNature.kt)
-network/InvalidationCaches.kt	main	1-reseau-sync.md	45	8	COMMUN		cdd5196	à faire
+network/InvalidationCaches.kt	main	1-reseau-sync.md	45	8	COMMUN		cdd5196	porté (lot 2, sans les caches de l'envoi)
 network/JsonResponse.kt	main	1-reseau-sync.md	38	10	COMMUN-ADAPTÉ		cdd5196	porté (lot 1)
-network/MonitoringApi.kt	main	1-reseau-sync.md	283	117	COMMUN		cdd5196	à faire
-network/MonitoringDatalists.kt	main	1-reseau-sync.md	393	252	COMMUN-ADAPTÉ		cdd5196	à faire
+network/MonitoringApi.kt	main	1-reseau-sync.md	283	117	COMMUN		cdd5196	porté (lot 2)
+network/MonitoringDatalists.kt	main	1-reseau-sync.md	393	252	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
 network/MonitoringEnvoi.kt	main	1-reseau-sync.md	317	186	COMMUN-ADAPTÉ		cdd5196	à faire
-network/MonitoringModules.kt	main	1-reseau-sync.md	284	154	COMMUN-ADAPTÉ		cdd5196	à faire
-network/MonitoringObjets.kt	main	1-reseau-sync.md	348	264	COMMUN-ADAPTÉ		cdd5196	à faire
-network/MonitoringSchemas.kt	main	1-reseau-sync.md	593	432	COMMUN-ADAPTÉ		cdd5196	à faire
-network/MonitoringSync.kt	main	1-reseau-sync.md	233	132	COMMUN		cdd5196	à faire
-network/OccHabApi.kt	main	1-reseau-sync.md	506	357	COMMUN-ADAPTÉ		cdd5196	à faire
+network/MonitoringModules.kt	main	1-reseau-sync.md	284	154	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
+network/MonitoringObjets.kt	main	1-reseau-sync.md	348	264	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
+network/MonitoringSchemas.kt	main	1-reseau-sync.md	593	432	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
+network/MonitoringSync.kt	main	1-reseau-sync.md	233	132	COMMUN		cdd5196	porté (lot 2)
+network/OccHabApi.kt	main	1-reseau-sync.md	506	357	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
 network/OccHabUpload.kt	main	1-reseau-sync.md	313	191	COMMUN-ADAPTÉ		cdd5196	à faire
 network/OutboxEnvoi.kt	main	1-reseau-sync.md	521	324	COMMUN-ADAPTÉ		cdd5196	à faire
-network/SyncRunner.kt	main	1-reseau-sync.md	346	215	COMMUN-ADAPTÉ		cdd5196	à faire
-network/TaxRefService.kt	main	1-reseau-sync.md	154	81	COMMUN		cdd5196	à faire
-store/CachesSynchronises.kt	main	2-stockage-modeles-utils.md	92	24	COMMUN-ADAPTÉ		cdd5196	à faire
+network/SyncRunner.kt	main	1-reseau-sync.md	346	215	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
+network/TaxRefService.kt	main	1-reseau-sync.md	154	81	COMMUN		cdd5196	porté (lot 2)
+store/CachesSynchronises.kt	main	2-stockage-modeles-utils.md	92	24	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
 store/GeoNatureConfig.kt	main	2-stockage-modeles-utils.md	450	227	COMMUN-ADAPTÉ		cdd5196	porté en partie (lot 1 ; reste additionalFieldsOcctaxJsonActif)
-store/HabitatCache.kt	main	2-stockage-modeles-utils.md	196	116	COMMUN-ADAPTÉ		cdd5196	à faire
+store/HabitatCache.kt	main	2-stockage-modeles-utils.md	196	116	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
 store/JsonCollectionStore.kt	main	2-stockage-modeles-utils.md	119	54	COMMUN-ADAPTÉ		cdd5196	porté (lot 1, store/io/)
 store/MapTileCache.kt	main	2-stockage-modeles-utils.md	128	73	ABANDON		cdd5196	à faire
 store/MbtilesStore.kt	main	2-stockage-modeles-utils.md	145	86	MIXTE		cdd5196	à faire
 store/MdpChiffre.kt	main	2-stockage-modeles-utils.md	156	97	PLATEFORME		cdd5196	porté (lot 1 ; trousseau iOS : CoffreKeychain)
 store/MediasOrphelins.kt	main	2-stockage-modeles-utils.md	85	36	COMMUN-ADAPTÉ		cdd5196	à faire
-store/MonitoringCache.kt	main	2-stockage-modeles-utils.md	133	50	COMMUN-ADAPTÉ		cdd5196	à faire
+store/MonitoringCache.kt	main	2-stockage-modeles-utils.md	133	50	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
 store/NidificationOiseaux.kt	main	2-stockage-modeles-utils.md	93	44	COMMUN-ADAPTÉ		cdd5196	à faire
-store/NomenclatureCache.kt	main	2-stockage-modeles-utils.md	165	99	COMMUN-ADAPTÉ		cdd5196	à faire
+store/NomenclatureCache.kt	main	2-stockage-modeles-utils.md	165	99	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
 store/OccHabStore.kt	main	2-stockage-modeles-utils.md	348	223	COMMUN-ADAPTÉ		cdd5196	à faire
-store/OcctaxFieldsConfig.kt	main	2-stockage-modeles-utils.md	339	230	COMMUN-ADAPTÉ		cdd5196	à faire
+store/OcctaxFieldsConfig.kt	main	2-stockage-modeles-utils.md	339	230	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
 store/OutboxMonitoring.kt	main	2-stockage-modeles-utils.md	290	151	COMMUN-ADAPTÉ		cdd5196	porté en partie (lot 1 : SaisieEnAttente, écriture durable)
-store/PictoCache.kt	main	2-stockage-modeles-utils.md	183	95	COMMUN-ADAPTÉ		cdd5196	à faire
+store/PictoCache.kt	main	2-stockage-modeles-utils.md	183	95	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
 store/RelevesOrphelins.kt	main	2-stockage-modeles-utils.md	59	28	COMMUN-ADAPTÉ		cdd5196	à faire
 store/SortieStore.kt	main	2-stockage-modeles-utils.md	293	176	COMMUN-ADAPTÉ		cdd5196	à faire
-store/StationsServeurCache.kt	main	2-stockage-modeles-utils.md	179	76	COMMUN-ADAPTÉ		cdd5196	à faire
-store/TaxRefCache.kt	main	2-stockage-modeles-utils.md	1029	675	COMMUN-ADAPTÉ		cdd5196	à faire
-sync/SyncForegroundService.kt	main	1-reseau-sync.md	136	85	PLATEFORME		cdd5196	à faire
+store/StationsServeurCache.kt	main	2-stockage-modeles-utils.md	179	76	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
+store/TaxRefCache.kt	main	2-stockage-modeles-utils.md	1029	675	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
+sync/SyncForegroundService.kt	main	1-reseau-sync.md	136	85	PLATEFORME		cdd5196	porté (lot 2, androidApp, via ExecutionLongue)
 ui/AccueilFragment.kt	main	6-ui-transversale-ressources-build.md	328	224	UI	M	cdd5196	à faire
 ui/AlerteStockage.kt	main	6-ui-transversale-ressources-build.md	47	15	UI	S	cdd5196	à faire
 ui/CacheManagerFragment.kt	main	5-occhab-cartes.md	754	588	UI	L	cdd5196	à faire
 ui/CaracterisationFragment.kt	main	4-saisie-occtax.md	261	194	MIXTE		cdd5196	à faire
 ui/CarteGeometrieFragment.kt	main	5-occhab-cartes.md	538	397	UI	M	cdd5196	à faire
 ui/CompassView.kt	main	5-occhab-cartes.md	114	78	UI	S	cdd5196	à faire
-ui/ConfigGeoNatureFragment.kt	main	6-ui-transversale-ressources-build.md	984	673	MIXTE		cdd5196	à faire
+ui/ConfigGeoNatureFragment.kt	main	6-ui-transversale-ressources-build.md	984	673	MIXTE		cdd5196	à faire (configurationComplete portée au lot 2 : store/ConfigurationComplete.kt)
 ui/Couleurs.kt	main	6-ui-transversale-ressources-build.md	80	27	UI	S	cdd5196	à faire
 ui/DenombrementFragment.kt	main	4-saisie-occtax.md	449	335	MIXTE		cdd5196	à faire
 ui/DetailsReleveDialog.kt	main	4-saisie-occtax.md	716	555	MIXTE		cdd5196	à faire
@@ -113,7 +113,7 @@ ui/saisie/SpeechToTextHelper.kt	main	3-formulaires-monitoring.md	168	119	PLATEFO
 ui/saisie/TaxRefLookup.kt	main	3-formulaires-monitoring.md	177	114	MIXTE	S	cdd5196	à faire
 ui/saisie/TaxonPalette.kt	main	3-formulaires-monitoring.md	79	47	UI	S	cdd5196	à faire
 ui/saisie/TaxonSelector.kt	main	3-formulaires-monitoring.md	71	44	UI	S	cdd5196	à faire
-util/AnaEval.kt	main	2-stockage-modeles-utils.md	474	294	COMMUN-ADAPTÉ		cdd5196	à faire
+util/AnaEval.kt	main	2-stockage-modeles-utils.md	474	294	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
 util/DateAffichage.kt	main	2-stockage-modeles-utils.md	40	9	COMMUN		cdd5196	porté (lot 1)
 util/DateHeureDefaut.kt	main	2-stockage-modeles-utils.md	40	10	COMMUN-ADAPTÉ		cdd5196	porté (lot 1)
 util/GeoJsonCoords.kt	main	2-stockage-modeles-utils.md	108	60	COMMUN-ADAPTÉ		cdd5196	à faire
