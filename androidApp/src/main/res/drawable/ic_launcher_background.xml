@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fond de l'icône ADAPTATIVE : dégradé du logo GeoMys, en drawable vectoriel (net à
+     toute résolution). Couleurs sondées sur le master Images/logo_geomys.png :
+     haut-gauche #65DCB6 → bas-droit #009086 (angle 315°).
+     Remplace le gabarit Android par défaut (grille verte du template) resté en place
+     depuis la création du projet — le design complet vivait alors, à tort, dans la
+     couche foreground (bords baveux une fois masqué par le launcher).
+     Le MOTIF (foreground) est généré depuis le master vectorisé
+     Images/logo_geomys_motif.svg — c'est LE fichier à retoucher pour toute évolution
+     du logo (les mipmaps n'en sont que des rendus). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:type="linear"
+        android:angle="315"
+        android:startColor="#65DCB6"
+        android:endColor="#009086" />
+</shape>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Repris de GeoMys-Android : dégradé diagonal du haut-gauche (#14402E) vers le bas-droite (#0D264C). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:angle="315"
+        android:endColor="#FF0D264C"
+        android:startColor="#FF14402E"
+        android:type="linear" />
+</shape>

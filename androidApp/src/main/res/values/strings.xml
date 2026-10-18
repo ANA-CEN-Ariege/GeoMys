@@ -1,0 +1,4 @@
+<resources>
+    <!-- Nom sous l'icône. Le nom affiché dans l'appli est dans ui/src/commonMain/composeResources/values/strings.xml. -->
+    <string name="app_name">GeoMys Common</string>
+</resources>
