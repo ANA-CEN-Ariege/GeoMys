@@ -33,5 +33,16 @@ struct ContentView: View {
     var body: some View {
         ComposeView()
             .ignoresSafeArea()
+            // Le dégradé de fond des écrans (accueil_top → accueil_bottom), repeint sous la vue
+            // Compose : il apparaît autour des contrôles UIKit intégrés, qui sinon montreraient du noir.
+            .background(
+                LinearGradient(
+                    colors: [Color(red: 0x14 / 255, green: 0x40 / 255, blue: 0x2E / 255),
+                             Color(red: 0x0D / 255, green: 0x26 / 255, blue: 0x4C / 255)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+            )
     }
 }

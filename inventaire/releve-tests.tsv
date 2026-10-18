@@ -47,7 +47,7 @@ HumaniserErreurReseauTest.kt	61	5	COMMUN direct		network/GNErreur.kt	porté (lot
 IndexParGroupeTest.kt	90	3	COMMUN direct		model/Models.kt network/GeoNatureSync.kt	porté (lot 2, network/IndexParGroupeTest.kt)
 InvalidationServeurTest.kt	86	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context	network/GeoNatureUpload.kt network/InvalidationCaches.kt store/NomenclatureCache.kt	porté (lot 2, network/InvalidationServeurTest.kt)
 JsonDepuisMapTest.kt	60	4	COMMUN apres adaptation (API JVM)	orgjson	network/GeoNatureUpload.kt	à faire
-ListeIncompleteTest.kt	161	6	ANDROID (vues/plateforme)	robolectric,context,fichiers,vues	network/GeoNatureSync.kt store/GeoNatureConfig.kt store/TaxRefCache.kt ui/ConfigGeoNatureFragment.kt	porté (lot 2, store/ListeIncompleteTest.kt, garde d'écran reportée au lot 5)
+ListeIncompleteTest.kt	161	6	ANDROID (vues/plateforme)	robolectric,context,fichiers,vues	network/GeoNatureSync.kt store/GeoNatureConfig.kt store/TaxRefCache.kt ui/ConfigGeoNatureFragment.kt	porté (lot 2, store/ListeIncompleteTest.kt ; garde d'écran au lot 5 : store/GardeParametresTest.kt, tests JVM, et le bandeau dans store/ParametresGeoNatureTest.kt)
 LocationTrackerTest.kt	101	2	ANDROID (vues/plateforme)	robolectric,context,location,jvm_misc	location/LocationTracker.kt model/Models.kt	à faire
 LotCAuditTest.kt	89	4	STOCKAGE (Context/prefs a abstraire)	robolectric	model/OccHab.kt network/GeoNatureUpload.kt util/AnaEval.kt	à faire
 MbtilesStoreTest.kt	111	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context,fichiers	store/MbtilesStore.kt store/NidificationOiseaux.kt	à faire

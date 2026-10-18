@@ -2,11 +2,4 @@
     <!-- Nom affiché dans l'appli. Le nom sous l'icône est défini à part : androidApp/src/main/res/values/strings.xml
          (Android) et iosApp/Configuration/Config.xcconfig, APP_DISPLAY_NAME (iOS). -->
     <string name="app_name">GeoMys Common</string>
-    <string name="logo_description">Logo GeoMys</string>
-    <string name="accueil_sous_titre">Socle commun Android et iOS, en construction</string>
-    <string name="accueil_version">Version %1$s · %2$s</string>
-    <string name="accueil_geonature_min">Pour GeoNature %1$s ou plus récent</string>
-    <string name="accueil_connexion">Connexion GeoNature</string>
-    <string name="accueil_prototype_carte">Prototype carte</string>
-    <string name="accueil_mesure_taxref">Mesure mémoire TaxRef</string>
 </resources>

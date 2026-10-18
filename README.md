@@ -4,15 +4,17 @@ Application de saisie naturaliste pour GeoNature, pour Android **et** iOS, const
 
 GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IOS. Elle a sa propre identité, et peut donc cohabiter avec elles sur un même téléphone. Elle n'en reprend pas les données.
 
-**État : lots 0 à 2.** Le socle, les fondations (lot 1) et la synchro des référentiels (lot 2) sont portés. L'application affiche encore des écrans provisoires : le lot 5, qui vient ensuite, les remplace par les écrans de GeoMys-Android reproduits à l'identique. Le portage suit l'inventaire [`INVENTAIRE.md`](INVENTAIRE.md) (§ 10, ordre de portage).
+**État : lots 0 à 2, et 5.** Le socle, les fondations (lot 1), la synchro des référentiels (lot 2) et le socle des écrans (lot 5) sont portés. L'Accueil et les Paramètres reprennent GeoMys-Android ; sous iOS, ils prennent les styles de GeoMys-IOS. Les écrans des lots suivants (saisies, Suivis, OccHab, Explorer, cartes) ouvrent pour l'instant un écran d'attente. Le portage suit l'inventaire [`INVENTAIRE.md`](INVENTAIRE.md) (§ 10, ordre de portage).
 
-**Prototype carte.** Le bouton « Prototype carte » de l'accueil ouvre l'écran d'essais MapLibre, avec ses fonds, le MBTiles, le hors-ligne, le cap et les sommets déplaçables. Son bilan est dans [`PROTOTYPE-CARTE.md`](PROTOTYPE-CARTE.md), et ses outils dans `outils/prototype-carte/`.
+**Écrans.** L'Accueil et les Paramètres (connexion, « Charger les données », sélections par défaut) sont ceux du lot 5. Une configuration incomplète ouvre les Paramètres au lancement, comme dans GeoMys-Android. Le bilan du lot, dont les deux allures des composants, est dans [`LOT-5.md`](LOT-5.md).
 
-**Connexion GeoNature.** Le bouton « Connexion GeoNature » vérifie la connexion et l'authentification sur un serveur (lot 1). Le bilan du lot est dans [`LOT-1.md`](LOT-1.md).
+**Connexion GeoNature.** « Tester la connexion », dans les Paramètres, vérifie la connexion et l'authentification sur un serveur (lot 1). Le bilan du lot est dans [`LOT-1.md`](LOT-1.md).
 
-**Synchro des référentiels.** La synchro complète de GeoMys-Android (« Recharger les données ») est portée, sans écran pour l'instant : on la lance par le paramètre `action=synchroniser`. Le bilan du lot est dans [`LOT-2.md`](LOT-2.md).
+**Synchro des référentiels.** La synchro complète de GeoMys-Android se lance par « Charger les données », dans les Paramètres, ou sans écran par le paramètre `action=synchroniser`. Le bilan du lot est dans [`LOT-2.md`](LOT-2.md).
 
-**Mesure mémoire TaxRef.** Le bouton « Mesure mémoire TaxRef » mesure ce que coûte un référentiel TaxRef chargé en mémoire comme dans GeoMys-Android. Son bilan est dans [`MESURE-TAXREF.md`](MESURE-TAXREF.md).
+**Prototypes du lot 0.** Ils ne s'ouvrent plus que par paramètre de lancement :
+- `ecran=prototype-carte` : l'écran d'essais MapLibre, avec ses fonds, le MBTiles, le hors-ligne, le cap et les sommets déplaçables. Bilan dans [`PROTOTYPE-CARTE.md`](PROTOTYPE-CARTE.md), outils dans `outils/prototype-carte/` ;
+- `ecran=mesure-taxref` : ce que coûte un référentiel TaxRef chargé en mémoire comme dans GeoMys-Android. Bilan dans [`MESURE-TAXREF.md`](MESURE-TAXREF.md).
 
 ## Structure
 
@@ -23,7 +25,7 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 | `androidApp/` | Application Android : `MainActivity`, manifeste, icônes. |
 | `iosApp/` | Projet Xcode de l'application iOS, qui affiche l'interface Compose. |
 | `outils/` | Outils de développement : la vérification avant de pousser (`verifier.sh`), les attendus d'org.json tirés des sources d'Android (`reference-org-json/`), un GeoNature simulé pour l'authentification (`geonature-simule/`), le serveur de tuiles et le générateur de MBTiles de test (`prototype-carte/`). |
-| `licences/` | Texte des licences des codes repris d'autres projets (Apache 2.0 pour org.json). |
+| `licences/` | Texte des licences des codes repris d'autres projets (Apache 2.0 pour org.json et les icônes de Material Components). |
 | `docs/` | Captures et documents annexes. |
 | `INVENTAIRE.md`, `inventaire/` | Inventaire de ce qui est partageable dans GeoMys-Android, et suivi du portage. |
 
@@ -75,6 +77,8 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 | Kotlin | 2.4.21 |
 | Compose Multiplatform | 1.12.2 |
 | maplibre-compose (carte) | 0.20.0 |
+| Navigation Compose (JetBrains) | 2.10.0-rc01 |
+| Lifecycle ViewModel et Runtime Compose (JetBrains) | 2.11.0 |
 | kotlinx-serialization | 1.11.0 |
 | kotlinx-datetime | 0.8.0 |
 | Ktor (client) | 3.6.0 |
@@ -91,7 +95,7 @@ AGP et Gradle sont les mêmes que dans GeoMys-Android. Toutes les versions sont 
 ## Règles du portage
 
 - **GeoMys-Android et GeoMys-IOS sont des sources en lecture seule.** On copie, on ne modifie jamais.
-- **Les écrans reprennent ceux de GeoMys-Android** au plus près : interfaces, styles, placement des éléments et fonctionnalités (décision 15 de l'inventaire).
+- **Les écrans reprennent ceux de GeoMys-Android** au plus près : interfaces, styles, placement des éléments et fonctionnalités. Sous iOS, ils prennent les styles de GeoMys-IOS ; les éléments, textes et comportements restent ceux d'Android (décision 15 de l'inventaire, [`LOT-5.md`](LOT-5.md) § 2).
 - **Chaque fichier porté indique son commit d'origine**, dans un commentaire d'en-tête et dans `inventaire/index-fichiers.tsv` (colonnes `commit_reference` et `statut_portage`).
 
 ## Licence

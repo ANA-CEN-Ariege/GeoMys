@@ -5,6 +5,8 @@ plugins {
     alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    // Routes de navigation typées (@Serializable).
+    alias(libs.plugins.kotlinxSerialization)
 }
 
 // Écrans Compose Multiplatform, communs à Android et iOS. Sur iOS, ce module produit le
@@ -45,7 +47,14 @@ kotlin {
             implementation(libs.compose.components.resources)
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.lifecycle.runtime.compose)
+            implementation(libs.lifecycle.viewmodel.compose)
             implementation(libs.maplibre.compose)
+            implementation(libs.navigation.compose)
+        }
+        androidMain.dependencies {
+            // Demande de permission (notification de la synchro, Android 13 et suivants).
+            implementation(libs.androidx.activity.compose)
         }
     }
 }

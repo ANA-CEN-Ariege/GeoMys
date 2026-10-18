@@ -40,6 +40,7 @@ import fr.ariegenature.geomys.store.HabitatCacheStore
 import fr.ariegenature.geomys.store.MonitoringCache
 import fr.ariegenature.geomys.store.NomenclatureCache
 import fr.ariegenature.geomys.store.PictoCache
+import fr.ariegenature.geomys.store.PreferencesGeoMys
 import fr.ariegenature.geomys.store.StationsServeurCache
 import fr.ariegenature.geomys.store.TaxRefCache
 
@@ -52,6 +53,7 @@ class ServicesGeoNature(val socle: Socle) {
     private val fichiers = socle.racines.fichiers
 
     val config = GeoNatureConfig(socle.reglages.reglages("gn_config"), socle.coffre)
+    val preferences = PreferencesGeoMys(socle.reglages.reglages("GeoMys_prefs"))
     val auth = GeoNatureAuth(clients)
     val verificationConnexion = VerificationConnexion(auth, clients)
 

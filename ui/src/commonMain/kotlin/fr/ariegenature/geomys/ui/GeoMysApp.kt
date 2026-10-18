@@ -28,20 +28,20 @@ import fr.ariegenature.geomys.InfosApp
 import fr.ariegenature.geomys.ServicesGeoNature
 import fr.ariegenature.geomys.outils.resumeDonnees
 import fr.ariegenature.geomys.outils.synchroniserEnJournalisant
-import fr.ariegenature.geomys.ui.accueil.AccueilScreen
 import fr.ariegenature.geomys.ui.carte.prototype.PrototypeCarteScreen
-import fr.ariegenature.geomys.ui.connexion.ConnexionScreen
+import fr.ariegenature.geomys.ui.composants.ZoneToasts
 import fr.ariegenature.geomys.ui.mesure.MesureTaxRefScreen
+import fr.ariegenature.geomys.ui.navigation.NavigationGeoMys
 import fr.ariegenature.geomys.ui.theme.GeoMysTheme
 
 /** Racine de l'interface, identique sur Android (MainActivity) et iOS (MainViewController).
  *
- *  [lancement] : paramètres de lancement pour les essais automatisés (le simulateur iOS ne sait
- *  pas simuler de toucher) : `ecran=prototype-carte`, `fond=<id>`, `zoom=<n>`, `action=hors-ligne` ;
- *  `ecran=mesure-taxref`, `action=preparer`, `taxons=<n>` ou `action=mesurer`, `lecture=flux|chaine` ;
- *  `ecran=connexion`, `url=<url>`, `login=<identifiant>`, `mdp=<mot de passe>`, `action=tester` ;
- *  `action=synchroniser` ou `action=etat-donnees` (essai du lot 2, sans écran : DiagnosticSynchro).
- *  Passés en extras d'intent sur Android, en arguments `-cle valeur` sur iOS. */
+ *  [lancement] : paramètres de lancement pour les essais (le simulateur iOS ne sait pas simuler de
+ *  toucher), passés en extras d'intent sur Android, en arguments `-cle valeur` sur iOS :
+ *  - `ecran=accueil` ou `ecran=parametres` : écran d'ouverture, sans ou avec Paramètres ;
+ *  - `ecran=prototype-carte`, `fond=<id>`, `zoom=<n>`, `action=hors-ligne` (lot 0) ;
+ *  - `ecran=mesure-taxref`, `action=preparer`, `taxons=<n>` ou `action=mesurer`, `lecture=flux|chaine` (lot 0) ;
+ *  - `action=synchroniser` ou `action=etat-donnees` : essai du lot 2, sans écran (DiagnosticSynchro). */
 @Composable
 fun GeoMysApp(infos: InfosApp, services: ServicesGeoNature, lancement: Map<String, String> = emptyMap()) {
     // Essai du lot 2 : synchro complète, ou état des données hors ligne, écrits dans le journal.
@@ -52,37 +52,26 @@ fun GeoMysApp(infos: InfosApp, services: ServicesGeoNature, lancement: Map<Strin
         }
     }
     GeoMysTheme {
-        // Navigation provisoire, en attendant navigation-compose (lot 5).
-        var ecran by remember {
-            mutableStateOf(Ecran.entries.firstOrNull { it.id == lancement["ecran"] } ?: Ecran.ACCUEIL)
-        }
-        when (ecran) {
-            Ecran.ACCUEIL -> AccueilScreen(
-                infos,
-                onPrototypeCarte = { ecran = Ecran.PROTOTYPE_CARTE },
-                onMesureTaxRef = { ecran = Ecran.MESURE_TAXREF },
-                onConnexion = { ecran = Ecran.CONNEXION },
-            )
-            Ecran.PROTOTYPE_CARTE -> PrototypeCarteScreen(
-                onRetour = { ecran = Ecran.ACCUEIL },
-                fondInitial = lancement["fond"],
-                zoomInitial = lancement["zoom"]?.toDoubleOrNull(),
-                telechargerAuDemarrage = lancement["action"] == "hors-ligne",
-            )
-            Ecran.MESURE_TAXREF -> MesureTaxRefScreen(
-                onRetour = { ecran = Ecran.ACCUEIL },
-                action = lancement["action"],
-                taxons = lancement["taxons"]?.toIntOrNull(),
-                lecture = lancement["lecture"],
-            )
-            Ecran.CONNEXION -> ConnexionScreen(services, onRetour = { ecran = Ecran.ACCUEIL }, lancement = lancement)
+        ZoneToasts {
+            // Les prototypes du lot 0 ne s'ouvrent que par paramètre de lancement.
+            var prototype by remember { mutableStateOf(lancement["ecran"]?.takeIf { it in PROTOTYPES }) }
+            when (prototype) {
+                "prototype-carte" -> PrototypeCarteScreen(
+                    onRetour = { prototype = null },
+                    fondInitial = lancement["fond"],
+                    zoomInitial = lancement["zoom"]?.toDoubleOrNull(),
+                    telechargerAuDemarrage = lancement["action"] == "hors-ligne",
+                )
+                "mesure-taxref" -> MesureTaxRefScreen(
+                    onRetour = { prototype = null },
+                    action = lancement["action"],
+                    taxons = lancement["taxons"]?.toIntOrNull(),
+                    lecture = lancement["lecture"],
+                )
+                else -> NavigationGeoMys(infos, services, ecranInitial = lancement["ecran"])
+            }
         }
     }
 }
 
-private enum class Ecran(val id: String) {
-    ACCUEIL("accueil"),
-    PROTOTYPE_CARTE("prototype-carte"),
-    MESURE_TAXREF("mesure-taxref"),
-    CONNEXION("connexion"),
-}
+private val PROTOTYPES = setOf("prototype-carte", "mesure-taxref")

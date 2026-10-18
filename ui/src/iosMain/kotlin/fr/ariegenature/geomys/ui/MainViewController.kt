@@ -18,6 +18,7 @@
 
 package fr.ariegenature.geomys.ui
 
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.window.ComposeUIViewController
 import fr.ariegenature.geomys.InfosApp
 import fr.ariegenature.geomys.servicesGeoNature
@@ -27,13 +28,16 @@ import platform.Foundation.NSProcessInfo
 import platform.UIKit.UIDevice
 import platform.UIKit.UIViewController
 
-/** Point d'entrée iOS, appelé par ContentView.swift (iosApp). */
+/** Point d'entrée iOS, appelé par ContentView.swift (iosApp). La vue Compose n'est pas opaque : les
+ *  contrôles UIKit intégrés (l'interrupteur de l'accueil) sont placés sous le canevas, dans une
+ *  découpe transparente, et laissent voir autour d'eux le dégradé que la vue SwiftUI peint dessous. */
+@OptIn(ExperimentalComposeUiApi::class)
 fun MainViewController(): UIViewController {
     val infos = infosIos()
     ConfigurationCarte.initialiser(infos)
     val lancement = parametresLancement()
     val services = servicesGeoNature()
-    return ComposeUIViewController { GeoMysApp(infos, services, lancement) }
+    return ComposeUIViewController(configure = { opaque = false }) { GeoMysApp(infos, services, lancement) }
 }
 
 /** Paramètres d'essai passés en arguments `-cle valeur`, par exemple :

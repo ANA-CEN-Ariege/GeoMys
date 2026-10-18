@@ -58,14 +58,14 @@ store/SortieStore.kt	main	2-stockage-modeles-utils.md	293	176	COMMUN-ADAPTÉ		cd
 store/StationsServeurCache.kt	main	2-stockage-modeles-utils.md	179	76	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
 store/TaxRefCache.kt	main	2-stockage-modeles-utils.md	1029	675	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
 sync/SyncForegroundService.kt	main	1-reseau-sync.md	136	85	PLATEFORME		cdd5196	porté (lot 2, androidApp, via ExecutionLongue)
-ui/AccueilFragment.kt	main	6-ui-transversale-ressources-build.md	328	224	UI	M	cdd5196	à faire
+ui/AccueilFragment.kt	main	6-ui-transversale-ressources-build.md	328	224	UI	M	cdd5196	porté (lot 5 : ui/accueil/AccueilScreen.kt ; écrans d'attente pour les destinations des lots 6 à 9)
 ui/AlerteStockage.kt	main	6-ui-transversale-ressources-build.md	47	15	UI	S	cdd5196	à faire
 ui/CacheManagerFragment.kt	main	5-occhab-cartes.md	754	588	UI	L	cdd5196	à faire
 ui/CaracterisationFragment.kt	main	4-saisie-occtax.md	261	194	MIXTE		cdd5196	à faire
 ui/CarteGeometrieFragment.kt	main	5-occhab-cartes.md	538	397	UI	M	cdd5196	à faire
 ui/CompassView.kt	main	5-occhab-cartes.md	114	78	UI	S	cdd5196	à faire
-ui/ConfigGeoNatureFragment.kt	main	6-ui-transversale-ressources-build.md	984	673	MIXTE		cdd5196	à faire (configurationComplete portée au lot 2 : store/ConfigurationComplete.kt)
-ui/Couleurs.kt	main	6-ui-transversale-ressources-build.md	80	27	UI	S	cdd5196	à faire
+ui/ConfigGeoNatureFragment.kt	main	6-ui-transversale-ressources-build.md	984	673	MIXTE		cdd5196	porté (lot 5 : ui/parametres ; règles dans store/ReglesSelectionOcctax.kt et store/ParametresGeoNature.kt)
+ui/Couleurs.kt	main	6-ui-transversale-ressources-build.md	80	27	UI	S	cdd5196	porté (lot 5 : ui/theme/GeoMysTheme.kt, CouleursGeoMys)
 ui/DenombrementFragment.kt	main	4-saisie-occtax.md	449	335	MIXTE		cdd5196	à faire
 ui/DetailsReleveDialog.kt	main	4-saisie-occtax.md	716	555	MIXTE		cdd5196	à faire
 ui/DetailsReleveFragment.kt	main	4-saisie-occtax.md	113	72	UI		cdd5196	à faire
@@ -73,14 +73,14 @@ ui/EditeurGeometrie.kt	main	5-occhab-cartes.md	374	235	MIXTE		cdd5196	à faire
 ui/EnvoiGroupeUi.kt	main	4-saisie-occtax.md	128	93	MIXTE		cdd5196	à faire
 ui/ExplorerFragment.kt	main	5-occhab-cartes.md	556	454	UI	L	cdd5196	à faire
 ui/FicheObjetFragment.kt	main	3-formulaires-monitoring.md	729	557	UI	L	cdd5196	à faire
-ui/FilAriane.kt	main	6-ui-transversale-ressources-build.md	267	156	MIXTE		cdd5196	à faire
+ui/FilAriane.kt	main	6-ui-transversale-ressources-build.md	267	156	MIXTE		cdd5196	porté en partie (lot 5 : appliquerBandeauNavigation dans ui/composants/FilAriane.kt ; le fil des Suivis attend le lot 7)
 ui/IconesEditionCarte.kt	main	5-occhab-cartes.md	81	42	UI	S	cdd5196	à faire
-ui/Insets.kt	main	6-ui-transversale-ressources-build.md	99	61	ABANDON		cdd5196	à faire
-ui/MainActivity.kt	main	6-ui-transversale-ressources-build.md	140	80	MIXTE		cdd5196	à faire
+ui/Insets.kt	main	6-ui-transversale-ressources-build.md	99	61	ABANDON		cdd5196	abandonné (lot 5 : WindowInsets de Compose)
+ui/MainActivity.kt	main	6-ui-transversale-ressources-build.md	140	80	MIXTE		cdd5196	porté en partie (lot 2 : canal de notification ; lot 5 : redirection vers Paramètres dans ui/navigation)
 ui/MapCompassController.kt	main	5-occhab-cartes.md	116	76	PLATEFORME		cdd5196	à faire
 ui/MapUtils.kt	main	5-occhab-cartes.md	282	188	MIXTE		cdd5196	à faire
 ui/MediaImport.kt	main	6-ui-transversale-ressources-build.md	141	95	PLATEFORME		cdd5196	à faire
-ui/Navigation.kt	main	6-ui-transversale-ressources-build.md	42	15	ABANDON		cdd5196	à faire
+ui/Navigation.kt	main	6-ui-transversale-ressources-build.md	42	15	ABANDON		cdd5196	abandonné (lot 5 : routes typées de navigation-compose)
 ui/NouvelleVisiteFragment.kt	main	3-formulaires-monitoring.md	1363	901	MIXTE	XL	cdd5196	à faire
 ui/ObservationsFragment.kt	main	4-saisie-occtax.md	222	175	MIXTE		cdd5196	à faire
 ui/OccHabCarteFragment.kt	main	5-occhab-cartes.md	966	601	UI	XL	cdd5196	à faire
@@ -101,7 +101,7 @@ ui/StationsServeurOverlay.kt	main	5-occhab-cartes.md	393	249	MIXTE		cdd5196	à f
 ui/StationsSessionOverlay.kt	main	5-occhab-cartes.md	161	105	MIXTE		cdd5196	à faire
 ui/SuiviDetailFragment.kt	main	3-formulaires-monitoring.md	420	313	UI	M	cdd5196	à faire
 ui/SuivisFragment.kt	main	3-formulaires-monitoring.md	209	154	UI	S	cdd5196	à faire
-ui/TaxonsListeFragment.kt	main	6-ui-transversale-ressources-build.md	190	128	UI	S	cdd5196	à faire
+ui/TaxonsListeFragment.kt	main	6-ui-transversale-ressources-build.md	190	128	UI	S	cdd5196	porté (lot 5 : ui/parametres/TaxonsListeScreen.kt, store/ListeTaxons.kt ; mode « par liste » seulement)
 ui/TraceFragment.kt	main	4-saisie-occtax.md	1226	898	MIXTE		cdd5196	à faire
 ui/TraceViewModel.kt	main	4-saisie-occtax.md	301	168	COMMUN-ADAPTÉ		cdd5196	à faire
 ui/saisie/AdditionalFieldsRenderer.kt	main	3-formulaires-monitoring.md	340	249	MIXTE	M	cdd5196	à faire
