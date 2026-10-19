@@ -6,13 +6,13 @@ location/LocationForegroundService.kt	main	2-stockage-modeles-utils.md	115	75	PL
 location/LocationTracker.kt	main	2-stockage-modeles-utils.md	179	118	MIXTE		cdd5196	à faire
 model/Models.kt	main	2-stockage-modeles-utils.md	184	80	COMMUN-ADAPTÉ		cdd5196	porté (lot 1)
 model/OccHab.kt	main	2-stockage-modeles-utils.md	289	122	COMMUN-ADAPTÉ		cdd5196	porté (lot 1)
-monitoring/form/ChangeRules.kt	main	3-formulaires-monitoring.md	254	153	COMMUN		cdd5196	à faire
-monitoring/form/EditableField.kt	main	3-formulaires-monitoring.md	123	38	COMMUN		cdd5196	à faire
-monitoring/form/ExpressionScanner.kt	main	3-formulaires-monitoring.md	93	60	COMMUN		cdd5196	à faire
-monitoring/form/FormulaireRenderer.kt	main	3-formulaires-monitoring.md	1395	974	MIXTE	XL	cdd5196	à faire
-monitoring/form/HiddenExpr.kt	main	3-formulaires-monitoring.md	244	142	COMMUN-ADAPTÉ		cdd5196	à faire
-monitoring/form/ValidationExpr.kt	main	3-formulaires-monitoring.md	106	47	COMMUN-ADAPTÉ		cdd5196	à faire
-monitoring/form/WidgetMapping.kt	main	3-formulaires-monitoring.md	196	94	COMMUN		cdd5196	à faire
+monitoring/form/ChangeRules.kt	main	3-formulaires-monitoring.md	254	153	COMMUN		cdd5196	porté (lot 4)
+monitoring/form/EditableField.kt	main	3-formulaires-monitoring.md	123	38	COMMUN		cdd5196	porté (lot 4)
+monitoring/form/ExpressionScanner.kt	main	3-formulaires-monitoring.md	93	60	COMMUN		cdd5196	porté (lot 4)
+monitoring/form/FormulaireRenderer.kt	main	3-formulaires-monitoring.md	1395	974	MIXTE	XL	cdd5196	porté en partie (lot 4 : état, règles et champ espèce dans monitoring/form/FormulaireEtat.kt, FormatsDate.kt et ChampTaxon.kt ; widgets au lot 7)
+monitoring/form/HiddenExpr.kt	main	3-formulaires-monitoring.md	244	142	COMMUN-ADAPTÉ		cdd5196	porté (lot 4)
+monitoring/form/ValidationExpr.kt	main	3-formulaires-monitoring.md	106	47	COMMUN-ADAPTÉ		cdd5196	porté (lot 4)
+monitoring/form/WidgetMapping.kt	main	3-formulaires-monitoring.md	196	94	COMMUN		cdd5196	porté (lot 4)
 network/AdditionalFields.kt	main	1-reseau-sync.md	345	235	COMMUN-ADAPTÉ		cdd5196	porté (lot 2, modèles dans model/AdditionalFields.kt)
 network/CompatibiliteServeur.kt	main	1-reseau-sync.md	55	16	COMMUN		cdd5196	porté (lot 0)
 network/EnvoiOccHab.kt	main	1-reseau-sync.md	208	115	COMMUN-ADAPTÉ		cdd5196	porté (lot 3)
@@ -81,7 +81,7 @@ ui/MapCompassController.kt	main	5-occhab-cartes.md	116	76	PLATEFORME		cdd5196	à
 ui/MapUtils.kt	main	5-occhab-cartes.md	282	188	MIXTE		cdd5196	à faire
 ui/MediaImport.kt	main	6-ui-transversale-ressources-build.md	141	95	PLATEFORME		cdd5196	à faire
 ui/Navigation.kt	main	6-ui-transversale-ressources-build.md	42	15	ABANDON		cdd5196	abandonné (lot 5 : routes typées de navigation-compose)
-ui/NouvelleVisiteFragment.kt	main	3-formulaires-monitoring.md	1363	901	MIXTE	XL	cdd5196	à faire
+ui/NouvelleVisiteFragment.kt	main	3-formulaires-monitoring.md	1363	901	MIXTE	XL	cdd5196	porté en partie (lot 4 : valeurs d'une visite dans monitoring/form/ValeursFormulaire.kt ; écran au lot 7)
 ui/ObservationsFragment.kt	main	4-saisie-occtax.md	222	175	MIXTE		cdd5196	à faire
 ui/OccHabCarteFragment.kt	main	5-occhab-cartes.md	966	601	UI	XL	cdd5196	à faire
 ui/OccHabDetailsDialog.kt	main	5-occhab-cartes.md	588	424	UI	L	cdd5196	à faire
@@ -104,11 +104,11 @@ ui/SuivisFragment.kt	main	3-formulaires-monitoring.md	209	154	UI	S	cdd5196	à fa
 ui/TaxonsListeFragment.kt	main	6-ui-transversale-ressources-build.md	190	128	UI	S	cdd5196	porté (lot 5 : ui/parametres/TaxonsListeScreen.kt, store/ListeTaxons.kt ; mode « par liste » seulement)
 ui/TraceFragment.kt	main	4-saisie-occtax.md	1226	898	MIXTE		cdd5196	à faire
 ui/TraceViewModel.kt	main	4-saisie-occtax.md	301	168	COMMUN-ADAPTÉ		cdd5196	à faire
-ui/saisie/AdditionalFieldsRenderer.kt	main	3-formulaires-monitoring.md	340	249	MIXTE	M	cdd5196	à faire
+ui/saisie/AdditionalFieldsRenderer.kt	main	3-formulaires-monitoring.md	340	249	MIXTE	M	cdd5196	porté en partie (lot 4 : valeurs, encodage et champs requis dans saisie/ChampsAdditionnels.kt ; widgets au lot 6)
 ui/saisie/ChampsTaxon.kt	main	3-formulaires-monitoring.md	57	24	COMMUN		cdd5196	à faire
 ui/saisie/OcctaxFieldsRenderer.kt	main	3-formulaires-monitoring.md	193	125	MIXTE	S	cdd5196	à faire
 ui/saisie/PreferencesSaisie.kt	main	3-formulaires-monitoring.md	52	24	COMMUN-ADAPTÉ		cdd5196	à faire
-ui/saisie/SpeciesAutocomplete.kt	main	3-formulaires-monitoring.md	132	96	MIXTE	S	cdd5196	à faire
+ui/saisie/SpeciesAutocomplete.kt	main	3-formulaires-monitoring.md	132	96	MIXTE	S	cdd5196	porté en partie (lot 4 : filtre dans saisie/Suggestions.kt ; liste déroulante aux lots 6 et 7)
 ui/saisie/SpeechToTextHelper.kt	main	3-formulaires-monitoring.md	168	119	PLATEFORME		cdd5196	à faire
 ui/saisie/TaxRefLookup.kt	main	3-formulaires-monitoring.md	177	114	MIXTE	S	cdd5196	à faire
 ui/saisie/TaxonPalette.kt	main	3-formulaires-monitoring.md	79	47	UI	S	cdd5196	à faire

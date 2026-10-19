@@ -112,6 +112,7 @@ class ResolutionPurementLocaleTest {
     // Gardes textuelles d'Android non portées (elles lisaient les sources) :
     // - le_service_taxref_ne_contient_plus_aucun_appel_reseau : TaxRefService ne reçoit plus aucun
     //   client HTTP (TaxRefService(taxRef, taxRefLocal)), le compilateur le garantit ;
-    // - aucun_chemin_de_saisie_n_ecrit_dans_le_cache_taxref : deviendra un test de comportement
-    //   avec les écrans de saisie communs (INVENTAIRE.md § 7.3).
+    // - aucun_chemin_de_saisie_n_ecrit_dans_le_cache_taxref : devient un test de comportement. Pour
+    //   le formulaire des Suivis, c'est ChampTaxonTest.le_champ_espece_n_ecrit_jamais_dans_le_cache
+    //   (lot 4) ; pour les écrans OccTax, il viendra avec eux (inventaire/7-tests.md § 7.3).
 }

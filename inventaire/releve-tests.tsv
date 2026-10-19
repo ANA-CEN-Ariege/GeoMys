@@ -8,7 +8,7 @@ AplatirProprietesTest.kt	64	4	COMMUN apres adaptation (API JVM)	orgjson	network/
 BuildOccurrenceTest.kt	125	9	COMMUN direct		model/Models.kt network/GeoNatureUpload.kt	porté (lot 3, network/BuildOccurrenceTest.kt)
 CacheCorruptionTest.kt	164	7	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs,gson,fichiers	model/Models.kt network/SyncRunner.kt store/NomenclatureCache.kt store/OutboxMonitoring.kt store/SortieStore.kt	porté (lot 1 sur une file de test, store/io/StoreFichierJsonTest.kt ; lot 3 sur les vrais stores, store/CacheCorruptionTest.kt)
 ChampsTaxonTest.kt	57	3	STOCKAGE (Context/prefs a abstraire)	prefs	model/Models.kt store/NomenclatureCache.kt store/OcctaxFieldsConfig.kt store/TaxRefCache.kt ui/saisie/ChampsTaxon.kt	à faire
-ChangeRulesTest.kt	228	15	COMMUN direct		monitoring/form/ChangeRules.kt monitoring/form/ValidationExpr.kt	à faire
+ChangeRulesTest.kt	228	15	COMMUN direct		monitoring/form/ChangeRules.kt monitoring/form/ValidationExpr.kt	porté (lot 4, monitoring/form/ChangeRulesTest.kt)
 ChangementDeGroupeTest.kt	114	3	ANDROID (vues/plateforme)	robolectric,context,fichiers,vues	model/Models.kt network/GeoNatureUpload.kt network/TaxRefService.kt store/GeoNatureConfig.kt ui/SaisieObservationFragment.kt ui/SaisieRapideFragment.kt ui/saisie/PreferencesSaisie.kt ui/saisie/TaxRefLookup.kt	à faire
 ChargerModulesTest.kt	114	4	RESEAU (MockWebServer -> Ktor MockEngine)	robolectric,context,mockwebserver,coroutines	monitoring/form/ValidationExpr.kt network/MonitoringApi.kt store/GeoNatureConfig.kt store/MonitoringCache.kt	porté (lot 2, network/ChargerModulesTest.kt)
 CollisionCdNomTest.kt	110	9	COMMUN direct			porté (lot 2, network/CollisionCdNomTest.kt)
@@ -32,7 +32,7 @@ FilArianeTest.kt	74	5	COMMUN direct		ui/FilAriane.kt	à faire
 FondCartePersistanceTest.kt	69	4	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs	ui/MapUtils.kt	à faire
 FondCarteTest.kt	42	2	COMMUN direct		ui/MapUtils.kt	à faire
 FormatGeometrieTest.kt	78	7	COMMUN apres adaptation (API JVM)	orgjson	network/MonitoringObjets.kt ui/SaisiesEnAttenteFragment.kt	porté (lot 2, network/FormatGeometrieTest.kt)
-FormulaireRendererTest.kt	384	15	ANDROID (vues/plateforme)	robolectric,context,coroutines,vues	monitoring/form/EditableField.kt monitoring/form/FormulaireRenderer.kt store/TaxRefCache.kt ui/NouvelleVisiteFragment.kt ui/SaisiesEnAttenteFragment.kt	à faire
+FormulaireRendererTest.kt	384	15	ANDROID (vues/plateforme)	robolectric,context,coroutines,vues	monitoring/form/EditableField.kt monitoring/form/FormulaireRenderer.kt store/TaxRefCache.kt ui/NouvelleVisiteFragment.kt ui/SaisiesEnAttenteFragment.kt	partiel (lot 4, monitoring/form/FormulaireEtatTest.kt : 14 cas sur 15 ; le cas de mise en page avec l'écran, lot 7)
 GeoJsonCoordsTest.kt	75	4	STOCKAGE (Context/prefs a abstraire)	robolectric,osmdroid	util/GeoJsonCoords.kt	à faire
 GeoNatureAuthTest.kt	93	4	RESEAU (MockWebServer -> Ktor MockEngine)	mockwebserver	monitoring/form/ValidationExpr.kt network/GeoNatureAuth.kt	porté (lot 1, network/GeoNatureAuthTest.kt, quatre cas, complétés)
 GeoNatureBrowseTest.kt	453	18	RESEAU (MockWebServer -> Ktor MockEngine)	context,prefs,mockwebserver,gson,fichiers,coroutines	monitoring/form/ValidationExpr.kt network/GNErreur.kt network/GeoNatureAuth.kt network/GeoNatureBrowse.kt store/GeoNatureConfig.kt ui/MapUtils.kt	porté (lot 2, network/GeoNatureBrowseTest.kt)
@@ -42,7 +42,7 @@ GeoNatureUploadReseauDegradeTest.kt	248	9	RESEAU (MockWebServer -> Ktor MockEngi
 GpxUtilsTest.kt	92	5	COMMUN direct		gpx/GpxUtils.kt model/Models.kt	à faire
 GroupesEtRegnoPlanteTest.kt	62	2	STOCKAGE (Context/prefs a abstraire)	robolectric,context	model/Models.kt store/NomenclatureCache.kt store/TaxRefCache.kt ui/saisie/ChampsTaxon.kt	à faire
 GsonRoundTripTest.kt	227	3	FORMAT (Gson -> kotlinx.serialization)	gson	model/Models.kt model/OccHab.kt network/SyncRunner.kt store/OccHabStore.kt store/OutboxMonitoring.kt store/SortieStore.kt	porté (lot 1, model/AllerRetourJsonTest.kt)
-HiddenExprTest.kt	329	30	COMMUN direct		monitoring/form/HiddenExpr.kt	à faire
+HiddenExprTest.kt	329	30	COMMUN direct		monitoring/form/HiddenExpr.kt	porté (lot 4, monitoring/form/HiddenExprTest.kt)
 HumaniserErreurReseauTest.kt	61	5	COMMUN direct		network/GNErreur.kt	porté (lot 1, network/HumaniserErreurReseauTest.kt)
 IndexParGroupeTest.kt	90	3	COMMUN direct		model/Models.kt network/GeoNatureSync.kt	porté (lot 2, network/IndexParGroupeTest.kt)
 InvalidationServeurTest.kt	86	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context	network/GeoNatureUpload.kt network/InvalidationCaches.kt store/NomenclatureCache.kt	porté (lot 2, network/InvalidationServeurTest.kt)
@@ -79,7 +79,7 @@ PurgeRechargementApresMajTest.kt	141	3	STOCKAGE (Context/prefs a abstraire)	robo
 RechargementRequisTest.kt	105	4	STOCKAGE (Context/prefs a abstraire)	robolectric,context	network/SyncRunner.kt store/CachesSynchronises.kt store/GeoNatureConfig.kt store/HabitatCache.kt store/MonitoringCache.kt store/NomenclatureCache.kt store/PictoCache.kt store/TaxRefCache.kt ui/ConfigGeoNatureFragment.kt	porté (lot 2, store/RechargementRequisTest.kt)
 ResolutionDansListeTest.kt	246	15	STOCKAGE (Context/prefs a abstraire)	robolectric,context	TaxRefLocal.kt store/TaxRefCache.kt	porté (lot 2, store/ResolutionDansListeTest.kt)
 ResolutionParGroupeTest.kt	142	6	STOCKAGE (Context/prefs a abstraire)	robolectric,context	network/GeoNatureSync.kt network/TaxRefService.kt store/TaxRefCache.kt	porté (lot 2, store/ResolutionParGroupeTest.kt)
-ResolutionPurementLocaleTest.kt	122	4	ANDROID (vues/plateforme)	robolectric,context,orgjson,fichiers,coroutines,vues,jvm_misc	model/Models.kt monitoring/form/FormulaireRenderer.kt network/GeoNatureUpload.kt network/HttpClient.kt network/TaxRefService.kt store/GeoNatureConfig.kt store/TaxRefCache.kt ui/SaisieObservationFragment.kt ui/SaisieRapideFragment.kt	porté (lot 2, network/ResolutionPurementLocaleTest.kt)
+ResolutionPurementLocaleTest.kt	122	4	ANDROID (vues/plateforme)	robolectric,context,orgjson,fichiers,coroutines,vues,jvm_misc	model/Models.kt monitoring/form/FormulaireRenderer.kt network/GeoNatureUpload.kt network/HttpClient.kt network/TaxRefService.kt store/GeoNatureConfig.kt store/TaxRefCache.kt ui/SaisieObservationFragment.kt ui/SaisieRapideFragment.kt	porté (lot 2, network/ResolutionPurementLocaleTest.kt ; garde du formulaire des Suivis au lot 4 : monitoring/form/ChampTaxonTest.kt ; garde des écrans OccTax au lot 6)
 ResumeOutboxTest.kt	130	5	COMMUN direct		network/SyncRunner.kt store/OutboxMonitoring.kt ui/SaisiesEnAttenteFragment.kt	à faire (lot 7, avec « Mes visites », où vit resumeOutbox)
 SchemaFusionTest.kt	136	9	COMMUN apres adaptation (API JVM)	orgjson	network/MonitoringSchemas.kt	porté (lot 2, network/SchemaFusionTest.kt)
 SortieStoreNormalisationTest.kt	114	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context,prefs,gson,fichiers	model/Models.kt network/GeoNatureUpload.kt store/SortieStore.kt ui/TraceViewModel.kt	porté (lot 3, store/SortieStoreNormalisationTest.kt)
@@ -95,6 +95,6 @@ TaxRefSyncPaginationTest.kt	148	4	RESEAU (MockWebServer -> Ktor MockEngine)	robo
 TaxonSansCleTest.kt	150	8	STOCKAGE (Context/prefs a abstraire)	robolectric,context,fichiers	TaxRefLocal.kt model/Models.kt network/GeoNatureSync.kt store/TaxRefCache.kt	porté (lot 2, store/TaxonSansCleTest.kt)
 TopologiePolygoneTest.kt	79	4	STOCKAGE (Context/prefs a abstraire)	robolectric,osmdroid	util/TopologiePolygone.kt	à faire
 TraceViewModelReleveTest.kt	75	2	STOCKAGE (Context/prefs a abstraire)	robolectric,context	GeoMysApplication.kt model/Models.kt ui/TraceViewModel.kt	à faire
-ValidationExprTest.kt	136	17	COMMUN direct		monitoring/form/FormulaireRenderer.kt monitoring/form/ValidationExpr.kt	à faire
+ValidationExprTest.kt	136	17	COMMUN direct		monitoring/form/FormulaireRenderer.kt monitoring/form/ValidationExpr.kt	porté (lot 4, monitoring/form/ValidationExprTest.kt)
 VersionApresEcritureGroupesTest.kt	104	3	STOCKAGE (Context/prefs a abstraire)	robolectric,context	TaxRefLocal.kt model/Models.kt store/TaxRefCache.kt	porté (lot 2, VersionApresEcritureGroupesTest.kt)
-WidgetMappingTest.kt	125	9	COMMUN direct		monitoring/form/EditableField.kt monitoring/form/WidgetMapping.kt network/MonitoringApi.kt	à faire
+WidgetMappingTest.kt	125	9	COMMUN direct		monitoring/form/EditableField.kt monitoring/form/WidgetMapping.kt network/MonitoringApi.kt	porté (lot 4, monitoring/form/WidgetMappingTest.kt)

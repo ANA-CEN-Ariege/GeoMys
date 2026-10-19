@@ -4,7 +4,7 @@ Application de saisie naturaliste pour GeoNature, pour Android **et** iOS, const
 
 GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IOS. Elle a sa propre identité, et peut donc cohabiter avec elles sur un même téléphone. Elle n'en reprend pas les données.
 
-**État : lots 0 à 3, et 5.** Le socle, les fondations (lot 1), la synchro des référentiels (lot 2), les envois (lot 3) et le socle des écrans (lot 5) sont portés. L'Accueil et les Paramètres reprennent GeoMys-Android ; sous iOS, ils prennent les styles de GeoMys-IOS. Les écrans des lots suivants (saisies, Suivis, OccHab, Explorer, cartes) ouvrent pour l'instant un écran d'attente. Le portage suit l'inventaire [`INVENTAIRE.md`](INVENTAIRE.md) (§ 10, ordre de portage).
+**État : lots 0 à 5.** Le socle, les fondations (lot 1), la synchro des référentiels (lot 2), les envois (lot 3), le moteur de formulaires (lot 4) et le socle des écrans (lot 5) sont portés. L'Accueil et les Paramètres reprennent GeoMys-Android ; sous iOS, ils prennent les styles de GeoMys-IOS. Les écrans des lots suivants (saisies, Suivis, OccHab, Explorer, cartes) ouvrent pour l'instant un écran d'attente. Le portage suit l'inventaire [`INVENTAIRE.md`](INVENTAIRE.md) (§ 10, ordre de portage).
 
 **Écrans.** L'Accueil et les Paramètres (connexion, « Charger les données », sélections par défaut) sont ceux du lot 5. Une configuration incomplète ouvre les Paramètres au lancement, comme dans GeoMys-Android. Le bilan du lot, dont les deux allures des composants, est dans [`LOT-5.md`](LOT-5.md).
 
@@ -13,6 +13,8 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 **Synchro des référentiels.** La synchro complète de GeoMys-Android se lance par « Charger les données », dans les Paramètres, ou sans écran par le paramètre `action=synchroniser`. Le bilan du lot est dans [`LOT-2.md`](LOT-2.md).
 
 **Envois.** Le moteur d'envoi de GeoMys-Android est porté, avec ses protections anti-doublon : OccTax, file des Suivis, OccHab, et les trois stores de saisie. Les écrans qui le déclencheront viennent avec les lots 6 à 8. Le bilan du lot est dans [`LOT-3.md`](LOT-3.md).
+
+**Formulaires.** Le moteur des formulaires de GeoMys-Android est porté : formulaire des Suivis (règles `hidden`, `change` et `required` conditionnel, bornes, champ espèce), valeurs d'une visite, champs additionnels OccTax. Les écrans qui l'afficheront viennent avec les lots 6 et 7. Le bilan du lot est dans [`LOT-4.md`](LOT-4.md).
 
 **Prototypes du lot 0.** Ils ne s'ouvrent plus que par paramètre de lancement :
 - `ecran=prototype-carte` : l'écran d'essais MapLibre, avec ses fonds, le MBTiles, le hors-ligne, le cap et les sommets déplaçables. Bilan dans [`PROTOTYPE-CARTE.md`](PROTOTYPE-CARTE.md), outils dans `outils/prototype-carte/` ;
