@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import fr.ariegenature.geomys.InfosApp
 import fr.ariegenature.geomys.ServicesGeoNature
 import fr.ariegenature.geomys.outils.ajouterReferentielsEssai
+import fr.ariegenature.geomys.outils.ajouterMonitoringEssai
 import fr.ariegenature.geomys.outils.ajouterSortiesEssai
 import fr.ariegenature.geomys.outils.ajouterTaxRefEssai
 import fr.ariegenature.geomys.outils.resumeDonnees
@@ -48,7 +49,9 @@ import fr.ariegenature.geomys.ui.theme.GeoMysTheme
  *  - `ecran=mes-saisies`, `action=sorties-essai` : essais du lot 6 (sorties fictives, SortiesEssai) ;
  *  - `action=taxref-essai` : essai du lot 6, un petit référentiel à la place du cache (TaxRefEssai) ;
  *  - `action=referentiels-essai` : essai du lot 6, jeux de données, observateurs et champs de relevé
- *    fictifs (ReferentielsEssai). */
+ *    fictifs (ReferentielsEssai) ;
+ *  - `ecran=suivis`, `action=monitoring-essai` : essais du lot 7, protocoles, sites, visites et
+ *    observations fictifs dans le cache des Suivis (MonitoringEssai). */
 @Composable
 fun GeoMysApp(infos: InfosApp, services: ServicesGeoNature, lancement: Map<String, String> = emptyMap()) {
     LaunchedEffect(Unit) {
@@ -61,6 +64,7 @@ fun GeoMysApp(infos: InfosApp, services: ServicesGeoNature, lancement: Map<Strin
             "sorties-essai" -> services.ajouterSortiesEssai()
             "taxref-essai" -> services.ajouterTaxRefEssai()
             "referentiels-essai" -> services.ajouterReferentielsEssai()
+            "monitoring-essai" -> services.ajouterMonitoringEssai()
         }
     }
     GeoMysTheme {

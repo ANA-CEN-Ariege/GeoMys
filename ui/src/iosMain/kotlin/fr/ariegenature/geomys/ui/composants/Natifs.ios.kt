@@ -52,6 +52,7 @@ import platform.CoreGraphics.CGSizeMake
 import platform.Foundation.NSSelectorFromString
 import platform.UIKit.UIActivityIndicatorView
 import platform.UIKit.accessibilityLabel
+import platform.UIKit.UIActivityIndicatorViewStyleLarge
 import platform.UIKit.UIActivityIndicatorViewStyleMedium
 import platform.UIKit.UIAlertAction
 import platform.UIKit.UIAlertActionStyleCancel
@@ -184,16 +185,16 @@ actual fun Interrupteur(coche: Boolean, onChange: (Boolean) -> Unit, modifier: M
  *  cinquième pour `.controlSize(.small)`. Posée au-dessus du canevas : son fond reste transparent
  *  sur les boutons colorés. */
 @Composable
-actual fun IndicateurActivite(couleur: Color, modifier: Modifier, tailleAndroid: Float, petitIos: Boolean) {
+actual fun IndicateurActivite(couleur: Color, modifier: Modifier, tailleAndroid: Float, petitIos: Boolean, grandIos: Boolean) {
     UIKitView(
         factory = {
-            UIActivityIndicatorView(activityIndicatorStyle = UIActivityIndicatorViewStyleMedium).apply {
+            UIActivityIndicatorView(activityIndicatorStyle = if (grandIos) UIActivityIndicatorViewStyleLarge else UIActivityIndicatorViewStyleMedium).apply {
                 color = couleur.versUIColor()
                 if (petitIos) transform = CGAffineTransformMakeScale(0.8, 0.8)
                 startAnimating()
             }
         },
-        modifier = modifier.size(20.dp).semantics { contentDescription = "Chargement" },
+        modifier = modifier.size(if (grandIos) 37.dp else 20.dp).semantics { contentDescription = "Chargement" },
         update = { it.color = couleur.versUIColor() },
         properties = UIKitInteropProperties(interactionMode = null, placedAsOverlay = true),
     )

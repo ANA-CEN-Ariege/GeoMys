@@ -135,6 +135,16 @@ class ServicesGeoNature(val socle: Socle) {
     val monitoring = MonitoringApi(monitoringModules, monitoringSchemas, monitoringObjets, monitoringDatalists)
     val monitoringSync = MonitoringSync(auth, monitoring, monitoringDatalists, pictos)
 
+    /** Le picto d'un protocole (`chargerImagePicto` de SuivisFragment) : celui du cache disque,
+     *  sinon téléchargé. La session déjà en cache sert si elle est encore fraîche ; un picto ne
+     *  déclenche aucune connexion (sans session, le téléchargement part sans authentification).
+     *  Rend son chemin, pour l'interface ; null si le protocole n'a pas d'image. */
+    suspend fun cheminPicto(moduleCode: String, modulePicto: String?): String? {
+        val base = config.urlServeur
+        val session = auth.sessionEnCache(base.trim().trimEnd('/'), config.login)
+        return pictos.fichierOuTelecharger(base, moduleCode, modulePicto, session?.first, session?.third)?.toString()
+    }
+
     // Envois : OccTax (relevés, occurrences, médias), file des Suivis, OccHab.
     val upload = GeoNatureUpload(auth, clients, nomenclatures, geoNatureSync, relevesOrphelins, socle.systeme, dossierMedias)
     val envoiSortie = EnvoiSortie(upload, sortieStore)

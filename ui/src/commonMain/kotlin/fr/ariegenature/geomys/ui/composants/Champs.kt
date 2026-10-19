@@ -50,6 +50,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,11 +72,13 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -551,5 +554,19 @@ private fun <T> SelectionIos(
                 Text("Aucun résultat", fontSize = 13.sp, color = CouleursGeoMys.blanc70, modifier = Modifier.padding(vertical = 4.dp))
             }
         }
+    }
+}
+
+/** La valeur du champ pour [texte] : la frappe garde son curseur ; un texte posé par l'écran (choix
+ *  dans la liste, dictée) met le curseur à la fin, comme `setText` puis `setSelection(length)`. Le
+ *  second élément reçoit les changements, et n'appelle [onTexte] que si le texte change. */
+@Composable
+internal fun rememberValeurChamp(texte: String, onTexte: (String) -> Unit): Pair<TextFieldValue, (TextFieldValue) -> Unit> {
+    var etat by remember { mutableStateOf(TextFieldValue(texte, TextRange(texte.length))) }
+    val valeur = if (etat.text == texte) etat else TextFieldValue(texte, TextRange(texte.length))
+    SideEffect { if (valeur !== etat) etat = valeur }
+    return valeur to { nouvelle ->
+        etat = nouvelle
+        if (nouvelle.text != texte) onTexte(nouvelle.text)
     }
 }

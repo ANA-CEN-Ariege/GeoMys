@@ -56,7 +56,7 @@ actual fun Interrupteur(coche: Boolean, onChange: (Boolean) -> Unit, modifier: M
 /** ProgressBar indéterminée du thème Material : un arc de 4/48 de la boîte, teinté
  *  colorControlActivated (l'orange de GeoMys en mode nuit), extrémités carrées. */
 @Composable
-actual fun IndicateurActivite(couleur: Color, modifier: Modifier, tailleAndroid: Float, petitIos: Boolean) {
+actual fun IndicateurActivite(couleur: Color, modifier: Modifier, tailleAndroid: Float, petitIos: Boolean, grandIos: Boolean) {
     Box(modifier.size(tailleAndroid.dp), contentAlignment = Alignment.Center) {
         CircularProgressIndicator(
             modifier = Modifier.size((tailleAndroid * 42f / 48f).dp),

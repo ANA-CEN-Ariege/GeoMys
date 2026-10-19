@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -33,6 +34,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -136,4 +138,24 @@ fun Pastille(couleur: Color, modifier: Modifier = Modifier, taille: Dp = 10.dp) 
 fun SeparateurIos(modifier: Modifier = Modifier) {
     val epaisseur = with(LocalDensity.current) { 1f.toDp() }
     Box(modifier.fillMaxWidth().height(epaisseur).background(Color(0x99545458)))
+}
+
+/** Progression d'envoi INLINE (« Mes saisies », « Mes visites ») : ProgressBar de 24 dp et message
+ *  12 sp sous Android ; `ProgressView` réduit teinté en jaune clair et message 12 pt blanc 70 % sous
+ *  iOS. [margeAndroid] : retrait du bord, celui de la liste de l'écran. */
+@Composable
+fun ProgressionEnvoi(texte: String, margeAndroid: Dp = 16.dp) {
+    if (estIos) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IndicateurActivite(CouleursGeoMys.jauneClair, petitIos = true)
+            Text(texte, fontSize = 12.sp, color = CouleursGeoMys.blanc70)
+        }
+    } else {
+        IndicateurActivite(CouleursGeoMys.orange, Modifier.padding(start = margeAndroid, top = 8.dp), tailleAndroid = 24f)
+        Text(texte, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(top = 4.dp).padding(horizontal = margeAndroid))
+    }
 }

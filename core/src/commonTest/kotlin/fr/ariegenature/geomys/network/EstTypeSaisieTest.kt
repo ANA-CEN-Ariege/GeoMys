@@ -17,11 +17,12 @@
  */
 
 // Porté de GeoMys-Android @ cdd5196 (app/src/test/java/fr/ariegenature/geomys/EstTypeSaisieTest.kt) :
-// JUnit remplacé par kotlin.test ; sans les deux cas sur estObjetDeNiveauVisite, une fonction
-// des écrans.
+// JUnit remplacé par kotlin.test ; estObjetDeNiveauVisite, fonction du paquet ui d'Android, est dans
+// monitoring/NouvelleVisite (lot 7).
 
 package fr.ariegenature.geomys.network
 
+import fr.ariegenature.geomys.monitoring.NouvelleVisite.estObjetDeNiveauVisite
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -53,6 +54,29 @@ class EstTypeSaisieTest {
             .forEach { assertFalse(MonitoringSync.estTypeSaisie(it), "'$it' ne devrait pas être une saisie") }
     }
 
-    // Les deux cas sur estObjetDeNiveauVisite (paquet ui d'Android) viendront avec les écrans
-    // Monitoring communs.
+    // ── Niveau d'un objet monitoring (décision terrain 2026-09-03) ─────────────────────
+    // Objet de niveau VISITE = placé directement sous le protocole (visite, transect,
+    // pelouse…). Pilote DEUX comportements qui doivent rester cohérents : l'enregistrement
+    // incomplet (autorisé sur eux seuls — champs connus à la fin) et le compteur de
+    // « Mes visites » (qui ne totalise qu'eux, pas les espèces).
+
+    @Test
+    fun objet_rattache_a_un_site_est_de_niveau_visite() {
+        assertTrue(estObjetDeNiveauVisite("site"))
+        assertTrue(estObjetDeNiveauVisite("sites_group"))
+        // Sans parent connu (route ancienne) : on reste sur le cas courant = une visite.
+        assertTrue(estObjetDeNiveauVisite(null))
+        assertTrue(estObjetDeNiveauVisite(""))
+        assertTrue(estObjetDeNiveauVisite("   "))
+    }
+
+    @Test
+    fun saisie_d_espece_n_est_pas_de_niveau_visite() {
+        // Parent = une saisie (la visite) ⇒ l'objet courant est une observation : ni
+        // enregistrable incomplet, ni compté comme une visite.
+        listOf("visite", "visit", "VISITE", " visites ", "releve", "occurrence")
+            .forEach {
+                assertFalse(estObjetDeNiveauVisite(it), "un objet enfant de « $it » n'est pas de niveau visite")
+            }
+    }
 }

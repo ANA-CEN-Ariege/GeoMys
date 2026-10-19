@@ -62,6 +62,7 @@ import fr.ariegenature.geomys.model.WidgetType
 import fr.ariegenature.geomys.saisie.ChampsAdditionnels
 import fr.ariegenature.geomys.saisie.EtatChampsAdditionnels
 import fr.ariegenature.geomys.ui.composants.ClavierNombresEtPonctuation
+import fr.ariegenature.geomys.ui.composants.ClavierNumeriqueSigne
 import fr.ariegenature.geomys.ui.composants.GRIS_TITRE_CHAMP
 import fr.ariegenature.geomys.ui.composants.Interrupteur
 import fr.ariegenature.geomys.ui.composants.ListeDeroulante
@@ -141,16 +142,19 @@ private fun ChampAdditionnelAndroid(def: AdditionalFieldDef, etat: EtatChampsAdd
                     Checkbox(etat.cases(nom).firstOrNull() == true, { etat.cocher(nom, it); relire() }, colors = couleursCase)
                 }
             }
-            else -> OutlinedTextField(
-                value = etat.texte(nom),
-                onValueChange = { etat.saisirTexte(nom, it); relire() },
-                modifier = Modifier.fillMaxWidth(),
-                label = etat.indication(def)?.let { { Text(it) } },
-                textStyle = styleSaisieMaterial(),
-                singleLine = def.widget != WidgetType.TEXTAREA,
-                minLines = if (def.widget == WidgetType.TEXTAREA) 2 else 1,
-                keyboardOptions = if (def.widget == WidgetType.NUMBER) KeyboardOptions(keyboardType = KeyboardType.Decimal) else KeyboardOptions.Default,
-            )
+            // Nombre : le clavier signé et décimal d'AdditionalFieldsRenderer.
+            else -> ClavierNumeriqueSigne {
+                OutlinedTextField(
+                    value = etat.texte(nom),
+                    onValueChange = { etat.saisirTexte(nom, it); relire() },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = etat.indication(def)?.let { { Text(it) } },
+                    textStyle = styleSaisieMaterial(),
+                    singleLine = def.widget != WidgetType.TEXTAREA,
+                    minLines = if (def.widget == WidgetType.TEXTAREA) 2 else 1,
+                    keyboardOptions = if (def.widget == WidgetType.NUMBER) KeyboardOptions(keyboardType = KeyboardType.Decimal) else KeyboardOptions.Default,
+                )
+            }
         }
         def.description?.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 11.sp, color = GRIS_TITRE_CHAMP) }
     }

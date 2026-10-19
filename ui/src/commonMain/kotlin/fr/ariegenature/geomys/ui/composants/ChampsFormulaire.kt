@@ -83,7 +83,7 @@ fun ChampLibelle(
  *    marges remplacées par 8 dp sous le texte (`setPadding(0, 0, 0, 8 dp)` des dialogues), sans
  *    hauteur minimale ;
  *  - iOS : `ChampTexteSaisie` de GeoMys-IOS (texte blanc sur blanc 8 %, coins de 8 pt), de
- *    [lignesMin] à [lignesMax] lignes.
+ *    [lignesMin] à [lignesMax] lignes ; sous Android, [lignesMaxAndroid] au plus (`setLines`).
  *  [indication] : le texte d'invite du champ vide. [interactions] : pour suivre le focus et les
  *  touchers. */
 @Composable
@@ -98,6 +98,7 @@ fun ChampTexteFormulaire(
     compactAndroid: Boolean = false,
     indication: String? = null,
     lignesMax: Int = Int.MAX_VALUE,
+    lignesMaxAndroid: Int = Int.MAX_VALUE,
     interactions: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
     val alignement = if (centre) TextAlign.Center else TextAlign.Start
@@ -146,6 +147,7 @@ fun ChampTexteFormulaire(
                 onValueChange = onChange,
                 singleLine = uneLigne,
                 minLines = lignesMin,
+                maxLines = if (uneLigne) 1 else lignesMaxAndroid,
                 textStyle = style,
                 cursorBrush = SolidColor(CouleursGeoMys.orange),
                 keyboardOptions = clavier,

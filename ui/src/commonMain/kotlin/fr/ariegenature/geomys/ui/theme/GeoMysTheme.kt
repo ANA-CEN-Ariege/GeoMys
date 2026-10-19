@@ -70,6 +70,8 @@ object CouleursGeoMys {
     val holoRougeFonce = Color(0xFFCC0000)
     /** android.R.color.holo_orange_dark : avertissements de Paramètres. */
     val holoOrangeFonce = Color(0xFFFF8800)
+    /** android.R.color.darker_gray : textes secondaires des écrans des Suivis. */
+    val grisFonce = Color(0xFFAAAAAA)
 }
 
 /** Thème Material 3 sombre de Material Components 1.12 (mêmes valeurs que les défauts de Compose),

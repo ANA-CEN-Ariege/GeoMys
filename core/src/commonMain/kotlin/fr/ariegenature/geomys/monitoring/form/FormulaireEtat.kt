@@ -35,6 +35,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Clock
 
 /**
  * L'état d'un formulaire dynamique des Suivis : les valeurs des [champs], ce qui en dérive (champs
@@ -615,6 +618,25 @@ class FormulaireEtat(
      *  (« Choisir une date… »). */
     fun affichageDateHeure(code: String): String? = (saisies[code] as? Saisie.DateHeure)?.affichage
 
+    /** Le jour et l'heure sur lesquels s'ouvrent les sélecteurs d'un champ DATE, TIME ou DATETIME :
+     *  ceux de sa valeur, sinon maintenant (le `Calendar.getInstance()` des sélecteurs d'Android). */
+    fun selectionDateHeure(code: String): SelectionDateHeure {
+        val maintenant = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        val valeur = valeurDateHeure(code)
+        return when (fieldsParCode[code]?.viewType) {
+            ViewType.DATE -> valeur?.let { FormatsDate.lireDate(it) }?.let {
+                SelectionDateHeure(it.year, it.month.ordinal + 1, it.day, maintenant.hour, maintenant.minute)
+            }
+            ViewType.TIME -> valeur?.let { FormatsDate.lireHeure(it) }?.let { (h, m) ->
+                SelectionDateHeure(maintenant.year, maintenant.month.ordinal + 1, maintenant.day, h, m)
+            }
+            ViewType.DATETIME -> valeur?.let { FormatsDate.lireDateHeure(it) }?.let {
+                SelectionDateHeure(it.year, it.month.ordinal + 1, it.day, it.hour, it.minute)
+            }
+            else -> null
+        } ?: SelectionDateHeure(maintenant.year, maintenant.month.ordinal + 1, maintenant.day, maintenant.hour, maintenant.minute)
+    }
+
     /** L'option choisie d'un SELECT ou le bouton coché d'un RADIO, -1 si aucun. */
     fun indexChoisi(code: String): Int = when (val s = saisies[code]) {
         is Saisie.Choix -> s.index
@@ -842,3 +864,6 @@ class FormulaireEtat(
             if (d == d.toLong().toDouble()) d.toLong().toString() else d.toString()
     }
 }
+
+/** Un jour et une heure pour les sélecteurs de date et d'heure ([mois] de 1 à 12). */
+data class SelectionDateHeure(val annee: Int, val mois: Int, val jour: Int, val heure: Int, val minute: Int)

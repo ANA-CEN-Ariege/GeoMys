@@ -36,14 +36,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import fr.ariegenature.geomys.monitoring.FIL_TYPE_ACCUEIL
+import fr.ariegenature.geomys.monitoring.FilSegment
 import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.ui.ressources.ic_home
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
@@ -51,6 +56,90 @@ import org.jetbrains.compose.resources.painterResource
 
 /** Séparateur des niveaux du fil, identique dans les deux applis (`FIL_SEPARATEUR`). */
 const val FIL_SEPARATEUR = " › "
+
+/** Fil d'Ariane cliquable des Suivis : « 🏠 › Monitoring › Protocole › Site ». Chaque ancêtre
+ *  remonte à son niveau : [onNiveau] reçoit le fil tronqué au niveau touché. [dernierCliquable] :
+ *  faux quand le dernier niveau est l'écran courant (une fiche), vrai quand tous sont des
+ *  ancêtres (formulaire de nouvelle visite). Rien si [segments] est vide.
+ *  - Android : `appliquerFilAriane` (pastille de `view_bandeau_saisie` en pleine largeur, liens
+ *    jaune clair sans soulignement, maison de 2,1 fois le texte) ;
+ *  - iOS : `FilAriane` de GeoMys-IOS (bande noire à 25 %, niveaux demi-gras, cliquables en jaune,
+ *    le dernier en blanc). */
+@Composable
+fun FilArianeSuivis(
+    segments: List<FilSegment>,
+    dernierCliquable: Boolean,
+    onNiveau: (List<FilSegment>) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (segments.isEmpty()) return
+    val ios = estIos
+    val texte = buildAnnotatedString {
+        segments.forEachIndexed { i, seg ->
+            if (i > 0) {
+                if (ios) withStyle(SpanStyle(color = CouleursGeoMys.blanc70, fontWeight = FontWeight.Normal)) { append(FIL_SEPARATEUR) }
+                else append(FIL_SEPARATEUR)
+            }
+            if (seg.type == FIL_TYPE_ACCUEIL) {
+                appendInlineContent("maison", "Accueil")
+                return@forEachIndexed
+            }
+            val cible = segments.subList(0, i + 1).toList()
+            if (i < segments.lastIndex || dernierCliquable) {
+                withLink(LinkAnnotation.Clickable("fil-$i", TextLinkStyles(SpanStyle(color = CouleursGeoMys.jauneClair))) { onNiveau(cible) }) {
+                    append(seg.label)
+                }
+            } else if (ios) {
+                withStyle(SpanStyle(color = Color.White)) { append(seg.label) }
+            } else {
+                append(seg.label)
+            }
+        }
+    }
+    val accueil = segments.firstOrNull { it.type == FIL_TYPE_ACCUEIL }?.let { listOf(it) }
+    if (ios) {
+        val maison = 13f * 1.68f
+        val icone = InlineTextContent(Placeholder(maison.sp, maison.sp, PlaceholderVerticalAlign.TextCenter)) {
+            Box(Modifier.fillMaxSize().clickable(onClickLabel = "Accueil") { accueil?.let(onNiveau) }, contentAlignment = Alignment.Center) {
+                SymboleSf("house.fill", maison, listOf(CouleursGeoMys.jauneClair))
+            }
+        }
+        Text(
+            texte,
+            inlineContent = mapOf("maison" to icone),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = modifier
+                .fillMaxWidth()
+                .background(Color.Black.copy(alpha = 0.25f))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        )
+    } else {
+        val couleurs = MaterialTheme.colorScheme
+        val maison = 13f * 2.10f
+        val icone = InlineTextContent(Placeholder(maison.sp, maison.sp, PlaceholderVerticalAlign.Bottom)) {
+            Image(
+                painterResource(Res.drawable.ic_home),
+                contentDescription = "Accueil",
+                colorFilter = ColorFilter.tint(CouleursGeoMys.jauneClair),
+                modifier = Modifier.fillMaxSize().clickable { accueil?.let(onNiveau) },
+            )
+        }
+        val forme = RoundedCornerShape(12.dp)
+        Text(
+            texte,
+            inlineContent = mapOf("maison" to icone),
+            color = couleurs.onSurfaceVariant,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = modifier
+                .fillMaxWidth()
+                .shadow(6.dp, forme)
+                .background(couleurs.surfaceVariant, forme)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+        )
+    }
+}
 
 /** Bandeau de navigation des écrans ouverts depuis l'accueil : « 🏠 › [libelle] », la maison
  *  ramenant à l'accueil.

@@ -9,7 +9,7 @@ model/OccHab.kt	main	2-stockage-modeles-utils.md	289	122	COMMUN-ADAPTÉ		cdd5196
 monitoring/form/ChangeRules.kt	main	3-formulaires-monitoring.md	254	153	COMMUN		cdd5196	porté (lot 4)
 monitoring/form/EditableField.kt	main	3-formulaires-monitoring.md	123	38	COMMUN		cdd5196	porté (lot 4)
 monitoring/form/ExpressionScanner.kt	main	3-formulaires-monitoring.md	93	60	COMMUN		cdd5196	porté (lot 4)
-monitoring/form/FormulaireRenderer.kt	main	3-formulaires-monitoring.md	1395	974	MIXTE	XL	cdd5196	porté en partie (lot 4 : état, règles et champ espèce dans monitoring/form/FormulaireEtat.kt, FormatsDate.kt et ChampTaxon.kt ; widgets au lot 7)
+monitoring/form/FormulaireRenderer.kt	main	3-formulaires-monitoring.md	1395	974	MIXTE	XL	cdd5196	porté (lot 4 : état, règles et champ espèce dans monitoring/form/FormulaireEtat.kt, FormatsDate.kt et ChampTaxon.kt ; lot 7 : widgets dans ui/suivis/FormulaireMonitoring.kt et ui/composants/ChampDateMonitoring.kt)
 monitoring/form/HiddenExpr.kt	main	3-formulaires-monitoring.md	244	142	COMMUN-ADAPTÉ		cdd5196	porté (lot 4)
 monitoring/form/ValidationExpr.kt	main	3-formulaires-monitoring.md	106	47	COMMUN-ADAPTÉ		cdd5196	porté (lot 4)
 monitoring/form/WidgetMapping.kt	main	3-formulaires-monitoring.md	196	94	COMMUN		cdd5196	porté (lot 4)
@@ -62,7 +62,7 @@ ui/AccueilFragment.kt	main	6-ui-transversale-ressources-build.md	328	224	UI	M	cd
 ui/AlerteStockage.kt	main	6-ui-transversale-ressources-build.md	47	15	UI	S	cdd5196	porté (lot 6 : ui/composants/AlerteStockage.kt)
 ui/CacheManagerFragment.kt	main	5-occhab-cartes.md	754	588	UI	L	cdd5196	à faire
 ui/CaracterisationFragment.kt	main	4-saisie-occtax.md	261	194	MIXTE		cdd5196	porté (lot 6 : ui/occtax/CaracterisationScreen.kt et CaracterisationViewModel.kt ; règles dans occtax/FormulairesEspece.kt)
-ui/CarteGeometrieFragment.kt	main	5-occhab-cartes.md	538	397	UI	M	cdd5196	à faire
+ui/CarteGeometrieFragment.kt	main	5-occhab-cartes.md	538	397	UI	M	cdd5196	porté (lot 7 : ui/suivis/CarteSuiviScreen.kt et CarteSuiviViewModel.kt ; géométries, cadrage et actions dans monitoring/CarteSuivis.kt)
 ui/CompassView.kt	main	5-occhab-cartes.md	114	78	UI	S	cdd5196	porté (lot 6 : ui/carte/Boussole.kt)
 ui/ConfigGeoNatureFragment.kt	main	6-ui-transversale-ressources-build.md	984	673	MIXTE		cdd5196	porté (lot 5 : ui/parametres ; règles dans store/ReglesSelectionOcctax.kt et store/ParametresGeoNature.kt)
 ui/Couleurs.kt	main	6-ui-transversale-ressources-build.md	80	27	UI	S	cdd5196	porté (lot 5 : ui/theme/GeoMysTheme.kt, CouleursGeoMys)
@@ -72,8 +72,8 @@ ui/DetailsReleveFragment.kt	main	4-saisie-occtax.md	113	72	UI		cdd5196	porté (l
 ui/EditeurGeometrie.kt	main	5-occhab-cartes.md	374	235	MIXTE		cdd5196	à faire
 ui/EnvoiGroupeUi.kt	main	4-saisie-occtax.md	128	93	MIXTE		cdd5196	porté (lot 6 : boucle et textes dans envoi/EnvoiGroupe.kt ; bouton et dialogues dans ui/occtax/MesSaisiesScreen.kt)
 ui/ExplorerFragment.kt	main	5-occhab-cartes.md	556	454	UI	L	cdd5196	à faire
-ui/FicheObjetFragment.kt	main	3-formulaires-monitoring.md	729	557	UI	L	cdd5196	à faire
-ui/FilAriane.kt	main	6-ui-transversale-ressources-build.md	267	156	MIXTE		cdd5196	porté en partie (lot 5 : appliquerBandeauNavigation dans ui/composants/FilAriane.kt ; le fil des Suivis attend le lot 7)
+ui/FicheObjetFragment.kt	main	3-formulaires-monitoring.md	729	557	UI	L	cdd5196	porté (lot 7 : ui/suivis/FicheObjetScreen.kt et FicheObjetViewModel.kt ; éléments de la fiche dans monitoring/FicheObjet.kt)
+ui/FilAriane.kt	main	6-ui-transversale-ressources-build.md	267	156	MIXTE		cdd5196	porté (lot 5 : appliquerBandeauNavigation dans ui/composants/FilAriane.kt ; lot 7 : le fil des Suivis dans monitoring/FilSuivis.kt et FilArianeSuivis, ui/composants/FilAriane.kt)
 ui/IconesEditionCarte.kt	main	5-occhab-cartes.md	81	42	UI	S	cdd5196	à faire
 ui/Insets.kt	main	6-ui-transversale-ressources-build.md	99	61	ABANDON		cdd5196	abandonné (lot 5 : WindowInsets de Compose)
 ui/MainActivity.kt	main	6-ui-transversale-ressources-build.md	140	80	MIXTE		cdd5196	porté en partie (lot 2 : canal de notification ; lot 5 : redirection vers Paramètres dans ui/navigation ; lot 6 : sortie du flux de saisie, DESTINATIONS_SAISIE dans ui/navigation)
@@ -81,7 +81,7 @@ ui/MapCompassController.kt	main	5-occhab-cartes.md	116	76	PLATEFORME		cdd5196	po
 ui/MapUtils.kt	main	5-occhab-cartes.md	282	188	MIXTE		cdd5196	porté en partie (lot 6 : fonds et leur mémorisation dans carte/FondsCarte.kt, sources de tuiles dans ui/carte/SourcesFonds.kt, carte dans ui/carte/CarteGeoMys.kt ; MBTiles et téléchargement de zones au lot 9)
 ui/MediaImport.kt	main	6-ui-transversale-ressources-build.md	141	95	PLATEFORME		cdd5196	porté (lot 6 : ui/composants/Medias.kt, Medias.android.kt et Medias.ios.kt)
 ui/Navigation.kt	main	6-ui-transversale-ressources-build.md	42	15	ABANDON		cdd5196	abandonné (lot 5 : routes typées de navigation-compose)
-ui/NouvelleVisiteFragment.kt	main	3-formulaires-monitoring.md	1363	901	MIXTE	XL	cdd5196	porté en partie (lot 4 : valeurs d'une visite dans monitoring/form/ValeursFormulaire.kt ; écran au lot 7)
+ui/NouvelleVisiteFragment.kt	main	3-formulaires-monitoring.md	1363	901	MIXTE	XL	cdd5196	porté (lot 4 : valeurs d'une visite dans monitoring/form/ValeursFormulaire.kt ; lot 7 : ui/suivis/NouvelleVisiteScreen.kt et NouvelleVisiteViewModel.kt ; préparation, textes et suites dans monitoring/NouvelleVisite.kt)
 ui/ObservationsFragment.kt	main	4-saisie-occtax.md	222	175	MIXTE		cdd5196	porté (lot 6 : ui/occtax/ObservationsScreen.kt ; textes dans occtax/ListeObservations.kt, regroupement dans occtax/Releve.kt)
 ui/OccHabCarteFragment.kt	main	5-occhab-cartes.md	966	601	UI	XL	cdd5196	à faire
 ui/OccHabDetailsDialog.kt	main	5-occhab-cartes.md	588	424	UI	L	cdd5196	à faire
@@ -90,17 +90,17 @@ ui/OccHabStationFragment.kt	main	5-occhab-cartes.md	242	161	UI	S	cdd5196	à fair
 ui/OccHabStationsFragment.kt	main	5-occhab-cartes.md	284	218	UI	M	cdd5196	à faire
 ui/OccHabViewModel.kt	main	5-occhab-cartes.md	297	152	COMMUN-ADAPTÉ		cdd5196	à faire
 ui/PhotoCapture.kt	main	6-ui-transversale-ressources-build.md	44	13	PLATEFORME		cdd5196	porté (lot 6 : ui/composants/Medias.android.kt)
-ui/PictoMonitoring.kt	main	3-formulaires-monitoring.md	78	50	COMMUN		cdd5196	à faire
+ui/PictoMonitoring.kt	main	3-formulaires-monitoring.md	78	50	COMMUN		cdd5196	porté (lot 7 : monitoring/PictoMonitoring.kt)
 ui/PileAnnulationGeometrie.kt	main	5-occhab-cartes.md	73	28	COMMUN		cdd5196	à faire
 ui/SaisieObservationFragment.kt	main	4-saisie-occtax.md	1053	774	MIXTE		cdd5196	porté (lot 6 : ui/occtax/SaisieReleveScreen.kt, SaisieReleveViewModel.kt, ChampEspece.kt et EtatChampEspece.kt ; relevé dans occtax/ReleveEnCours.kt)
 ui/SaisieRapideFragment.kt	main	4-saisie-occtax.md	1285	999	MIXTE		d72b8da	porté (lot 6 : ui/occtax/SaisieMonoScreen.kt et SaisieMonoViewModel.kt ; série dans occtax/SaisieMono.kt)
-ui/SaisiesEnAttenteFragment.kt	main	4-saisie-occtax.md	888	632	MIXTE		cdd5196	à faire (lot 7 : relève des Suivis)
+ui/SaisiesEnAttenteFragment.kt	main	4-saisie-occtax.md	888	632	MIXTE		cdd5196	porté (lot 7 : ui/suivis/MesVisitesScreen.kt et MesVisitesViewModel.kt ; arbre, résumé et textes dans monitoring/MesVisites.kt)
 ui/SortieDetailFragment.kt	main	4-saisie-occtax.md	333	254	UI		cdd5196	porté (lot 6 : ui/occtax/SortieDetailScreen.kt et SortieDetailViewModel.kt ; carte dans occtax/AffichageSortie.kt)
 ui/SortiesFragment.kt	main	4-saisie-occtax.md	405	313	MIXTE		cdd5196	porté (lot 6 : ui/occtax/MesSaisiesScreen.kt et MesSaisiesViewModel.kt ; règles dans occtax/MesSaisies.kt)
 ui/StationsServeurOverlay.kt	main	5-occhab-cartes.md	393	249	MIXTE		cdd5196	à faire
 ui/StationsSessionOverlay.kt	main	5-occhab-cartes.md	161	105	MIXTE		cdd5196	à faire
-ui/SuiviDetailFragment.kt	main	3-formulaires-monitoring.md	420	313	UI	M	cdd5196	à faire
-ui/SuivisFragment.kt	main	3-formulaires-monitoring.md	209	154	UI	S	cdd5196	à faire
+ui/SuiviDetailFragment.kt	main	3-formulaires-monitoring.md	420	313	UI	M	cdd5196	porté (lot 7 : ui/suivis/SuiviDetailScreen.kt et SuiviDetailViewModel.kt ; libellés et tris dans monitoring/AffichageSuivis.kt)
+ui/SuivisFragment.kt	main	3-formulaires-monitoring.md	209	154	UI	S	cdd5196	porté (lot 7 : ui/suivis/SuivisScreen.kt et SuivisViewModel.kt ; textes dans monitoring/ListeProtocoles.kt)
 ui/TaxonsListeFragment.kt	main	6-ui-transversale-ressources-build.md	190	128	UI	S	cdd5196	porté (lot 5 : ui/parametres/TaxonsListeScreen.kt, store/ListeTaxons.kt ; mode « par liste » seulement)
 ui/TraceFragment.kt	main	4-saisie-occtax.md	1226	898	MIXTE		cdd5196	porté (lot 6 : ui/occtax/SaisieMultiScreen.kt et SaisieMultiViewModel.kt ; calculs dans occtax/CarteSaisie.kt, fin de saisie dans occtax/FinSaisie.kt)
 ui/TraceViewModel.kt	main	4-saisie-occtax.md	301	168	COMMUN-ADAPTÉ		cdd5196	porté (lot 6 : occtax/SessionSaisieOcctax.kt, tenue par ui/occtax/SessionSaisieViewModel.kt)

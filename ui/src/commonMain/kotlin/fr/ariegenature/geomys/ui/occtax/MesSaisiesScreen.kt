@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -41,7 +42,6 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
-import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -75,9 +75,9 @@ import fr.ariegenature.geomys.ui.composants.BoutonTexte
 import fr.ariegenature.geomys.ui.composants.BoutonVert
 import fr.ariegenature.geomys.ui.composants.DialogueAlerte
 import fr.ariegenature.geomys.ui.composants.DialogueElements
-import fr.ariegenature.geomys.ui.composants.IndicateurActivite
 import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.OngletsListe
+import fr.ariegenature.geomys.ui.composants.ProgressionEnvoi
 import fr.ariegenature.geomys.ui.composants.Statistique
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.composants.rememberSelecteurGpx
@@ -226,25 +226,6 @@ fun MesSaisiesScreen(
             onFermer = vm::fermerInformation,
         )
         AlerteEchecEcriture(vm.echecEcritureImport, vm::fermerEchecEcriture, MesSaisiesViewModel.CONSIGNE_IMPORT)
-    }
-}
-
-/** Progression d'envoi INLINE : ProgressBar de 24 dp et message 12 sp sous Android ; `ProgressView`
- *  réduit teinté en jaune clair et message 12 pt blanc 70 % sous iOS. */
-@Composable
-private fun ProgressionEnvoi(texte: String) {
-    if (estIos) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IndicateurActivite(CouleursGeoMys.jauneClair, petitIos = true)
-            Text(texte, fontSize = 12.sp, color = CouleursGeoMys.blanc70)
-        }
-    } else {
-        IndicateurActivite(CouleursGeoMys.orange, Modifier.padding(start = 16.dp, top = 8.dp), tailleAndroid = 24f)
-        Text(texte, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().padding(top = 4.dp).padding(horizontal = 16.dp))
     }
 }
 

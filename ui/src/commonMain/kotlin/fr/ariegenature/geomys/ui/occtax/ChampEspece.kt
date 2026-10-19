@@ -42,7 +42,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,7 +63,6 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
@@ -80,6 +78,7 @@ import fr.ariegenature.geomys.ui.composants.PopupListeAndroid
 import fr.ariegenature.geomys.ui.composants.SeparateurIos
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.estIos
+import fr.ariegenature.geomys.ui.composants.rememberValeurChamp
 import fr.ariegenature.geomys.ui.composants.styleSaisieIos
 import fr.ariegenature.geomys.ui.composants.styleSaisieMaterial
 import fr.ariegenature.geomys.ui.ressources.Res
@@ -123,20 +122,6 @@ private fun texteStatut(statut: TaxRefStatut, synchroEnCours: Boolean, ios: Bool
     // Une synchro réécrit le cache pendant une quinzaine de secondes : dire « rechargez les
     // données » à quelqu'un qui recharge n'aide pas.
     TaxRefStatut.PasDeDonnees -> if (synchroEnCours) "Chargement des données en cours…" else "Pas de données — rechargez les données"
-}
-
-/** La valeur du champ pour [texte] : la frappe garde son curseur ; un texte posé par l'écran (choix
- *  dans la liste, dictée) met le curseur à la fin, comme `setText` puis `setSelection(length)`. Le
- *  second élément reçoit les changements, et n'appelle [onTexte] que si le texte change. */
-@Composable
-private fun rememberValeurChamp(texte: String, onTexte: (String) -> Unit): Pair<TextFieldValue, (TextFieldValue) -> Unit> {
-    var etat by remember { mutableStateOf(TextFieldValue(texte, TextRange(texte.length))) }
-    val valeur = if (etat.text == texte) etat else TextFieldValue(texte, TextRange(texte.length))
-    SideEffect { if (valeur !== etat) etat = valeur }
-    return valeur to { nouvelle ->
-        etat = nouvelle
-        if (nouvelle.text != texte) onTexte(nouvelle.text)
-    }
 }
 
 @OptIn(ExperimentalComposeUiApi::class)

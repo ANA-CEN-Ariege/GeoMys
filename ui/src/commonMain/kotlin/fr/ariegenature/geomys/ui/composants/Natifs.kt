@@ -56,13 +56,15 @@ expect fun Interrupteur(
 
 /** Indicateur d'activité indéterminé : ProgressBar d'Android dans une boîte de [tailleAndroid] dp
  *  (le cercle occupe 42/48 de la boîte, comme le drawable Material), `ProgressView` de SwiftUI
- *  (UIActivityIndicatorView) sous iOS, réduit si [petitIos] (`.controlSize(.small)`). */
+ *  (UIActivityIndicatorView) sous iOS, réduit si [petitIos] (`.controlSize(.small)`), agrandi si
+ *  [grandIos] (`.controlSize(.large)`). */
 @Composable
 expect fun IndicateurActivite(
     couleur: Color,
     modifier: Modifier = Modifier,
     tailleAndroid: Float = 48f,
     petitIos: Boolean = false,
+    grandIos: Boolean = false,
 )
 
 /** Un bouton d'alerte système. [annulation] : le rôle `.cancel` de SwiftUI ; [destructif] : le rôle

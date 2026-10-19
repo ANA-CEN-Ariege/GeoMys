@@ -17,13 +17,14 @@
 
 # Vérification locale, à lancer avant de pousser : elle tient lieu d'intégration continue.
 #   1. compile l'appli Android (APK de debug) ;
-#   2. lance les tests communs, sur la JVM et sur un simulateur iOS, et ceux des écrans sur la JVM ;
+#   2. lance les tests communs, sur la JVM et sur un simulateur iOS, et ceux des écrans sur la JVM
+#      (règles) et sur le simulateur (mise en page) ;
 #   3. compile l'appli iOS pour le simulateur.
 #
 # Usage : outils/verifier.sh [--sans-ios] [--simulateur=<UDID>]
 #   --sans-ios           sans Xcode : APK Android et tests sur la JVM seulement.
 #   --simulateur=<UDID>  les tests iOS sur ce simulateur plutôt que sur celui que choisit le plugin
-#                        Kotlin (propriété geomys.simulateur de core/build.gradle.kts).
+#                        Kotlin (propriété geomys.simulateur de core/ et ui/build.gradle.kts).
 #
 # Les tests iOS tournent sur un simulateur démarré sans écran puis arrêté par Gradle ;
 # un simulateur déjà ouvert n'est pas touché. Le build iOS ne vise aucun simulateur précis.
@@ -49,8 +50,9 @@ debut=$SECONDS
 etape() { printf '\n\033[1;36m== %s\033[0m\n' "$1"; }
 
 if [ "$avec_ios" -eq 1 ]; then
-    etape "Android : APK de debug ; tests communs sur la JVM et le simulateur iOS ; tests des écrans"
-    ./gradlew :androidApp:assembleDebug :core:allTests :ui:testAndroidHostTest ${simulateur:+"$simulateur"} --console=plain --quiet
+    etape "Android : APK de debug ; tests communs et tests des écrans, sur la JVM et le simulateur iOS"
+    ./gradlew :androidApp:assembleDebug :core:allTests :ui:testAndroidHostTest :ui:iosSimulatorArm64Test \
+        ${simulateur:+"$simulateur"} --console=plain --quiet
 
     etape "iOS : appli pour le simulateur"
     xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug \

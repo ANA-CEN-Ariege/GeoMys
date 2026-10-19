@@ -19,6 +19,7 @@
 package fr.ariegenature.geomys.ui.composants
 
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PlatformImeOptions
@@ -29,3 +30,8 @@ actual val ClavierNombresEtPonctuation: KeyboardOptions = KeyboardOptions(
     keyboardType = KeyboardType.Text,
     platformImeOptions = PlatformImeOptions { keyboardType(UIKeyboardTypeNumbersAndPunctuation) },
 )
+
+@Composable
+actual fun ClavierNumeriqueSigne(contenu: @Composable () -> Unit) {
+    contenu()
+}

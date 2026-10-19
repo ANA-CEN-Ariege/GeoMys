@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimulatorTest
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -65,7 +66,19 @@ kotlin {
             implementation(libs.multiplatform.settings.test)
             implementation(libs.okio)
         }
+        // La mise en page des écrans se vérifie sur un simulateur iOS (tests Compose sans fenêtre).
+        iosTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.compose.uiTest)
+            implementation(libs.multiplatform.settings.test)
+            implementation(libs.okio)
+        }
     }
+}
+
+// Le simulateur des tests iOS, comme pour core : `-Pgeomys.simulateur=<UDID>` en impose un.
+providers.gradleProperty("geomys.simulateur").orNull?.let { udid ->
+    tasks.withType<KotlinNativeSimulatorTest>().configureEach { device.set(udid) }
 }
 
 compose.resources {

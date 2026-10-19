@@ -351,11 +351,13 @@ Ils sont signalés pour décision : les corriger dans GeoMys-Android, qui reste 
 | 6 | Hors-ligne, une `IOException` levée par la synchro des settings OccTax (appel lancé hors de tout try) annule toute la phase A de « Recharger les données ». | `SyncRunner.kt:140-143` ; `GeoNatureSync.kt:557` | **confirmé le 18 octobre** : reproduit fidèlement par GeoMys Common sur l'A12 et l'iPhone (lot 2, `LOT-2.md` § 7) ; seulement quand aucune session n'est en cache |
 | 7 | « Continuer la saisie » ouvre toujours la carte multi-taxons, même pour une sortie saisie en mono. | `SortiesFragment.kt:111-117` | confirmé au portage et reproduit (lot 6) ; à trancher |
 | 8 | Le téléchargement de zones contourne la politique d'osmdroid et télécharge en masse des tuiles openstreetmap.org, contrairement à la politique d'usage d'OSM. L'attribution des fonds n'est jamais affichée. | `ui/MapUtils.kt:106-110, 132, 187, 196` | à confirmer |
-| 9 | La carte Monitoring dessine les trous des polygones comme des polygones pleins superposés. | `CarteGeometrieFragment.kt:312-317` | à confirmer |
+| 9 | La carte Monitoring dessine les trous des polygones comme des polygones pleins superposés. | `CarteGeometrieFragment.kt:312-317` | confirmé au portage ; **non reproduit** (lot 7 : trous rendus en creux, comme GeoMys-IOS, [`LOT-7.md`](LOT-7.md) § 5) |
 | 10 | L'Explorer affiche « 12 mois » en dur, alors que la profondeur d'historique vient du serveur. | `ExplorerFragment.kt:392, 490` | à confirmer |
 | 11 | Deux écritures simultanées de la même clé du cache Monitoring partagent le même fichier `.tmp`. | `store/MonitoringCache.kt` | à confirmer |
 | 12 | La permission `WRITE_EXTERNAL_STORAGE` n'est utilisée nulle part. | `AndroidManifest.xml` | à confirmer |
 | 13 | Les tests JVM ne tournent pas sur l'org.json d'Android mais sur JSON-java, dont le comportement diffère. | `app/build.gradle.kts` (`org.json:json:20240303`) | à confirmer |
+| 14 | Après « Enregistrer + suivante », la ligne « Sur : … — Protocole : … » disparaît : le rechargement du formulaire la vide sans la reposer. | `NouvelleVisiteFragment.kt:281-287, 1211` | relevé au portage et reproduit (lot 7, [`LOT-7.md`](LOT-7.md) § 5) ; à trancher |
+| 15 | Un ajout de photos seul ne compte pas comme une modification : la référence du formulaire intact garde la liste des photos, que l'ajout modifie en place. « Terminer » et Retour quittent alors sans proposer d'enregistrer, et les photos ajoutées sont perdues. | `FormulaireRenderer.kt:607, 1285-1286, 1350` ; `NouvelleVisiteFragment.kt:302-303, 403, 650` | relevé au portage et reproduit (lot 7) ; à trancher |
 
 S'y ajoutent du code mort et quelques commentaires ou documents périmés. Par exemple, le README décrit encore la « topologie partagée » entre polygones, retirée le 18 octobre. Ils sont listés dans les fichiers de zone.
 
@@ -385,6 +387,8 @@ GeoMys-Common remplacera les deux applications : il faut une seule règle par su
 | Clavier numérique | décimales et négatifs possibles | `numberPad` : ni décimale ni signe moins (défaut iOS) | Android |
 
 **Au lot 6.** Les sujets OccTax suivent la proposition : pas de passerelle multi → mono, GPS arrêté en quittant les sept écrans de saisie, clavier numérique d'Android (champs additionnels : signe moins et virgule, sous iOS par le clavier chiffres et ponctuation). La date des « Détails communs » et le nord de la boussole reproduisent Android en attendant la décision ([`LOT-6.md`](LOT-6.md) § 6).
+
+**Au lot 7.** Les sujets Monitoring reproduisent Android en attendant la décision : la liste des protocoles interroge le serveur à chaque ouverture, le cache prenant le relais hors ligne ; un jeu de données seul est choisi d'office, et `id_digitiser` est posé à l'envoi. Le clavier des champs nombre suit la proposition : signé sous Android, chiffres et ponctuation sous iOS ([`LOT-7.md`](LOT-7.md) § 2 et 5).
 
 ---
 
@@ -433,7 +437,7 @@ Chaque lot suit le même cycle : il porte son code depuis le commit Android not�
 | 4 | Moteur de formulaires : `FormulaireEtat`, champ taxon, champs additionnels | tests du moteur | mêmes valeurs envoyées qu'Android. **Fait le 19 octobre** ([`LOT-4.md`](LOT-4.md)) : 85 cas portés de GeoMys-Android et 54 écrits pour le portage, verts sur la JVM et le simulateur iOS ; comparaison sur un vrai serveur avec les écrans des lots 6 et 7 |
 | 5 | UI socle : thème sombre, navigation typée, composants (fil d'Ariane, messages, dialogues, listes à recherche), Accueil, Paramètres, à l'identique des écrans Android, avec les styles de GeoMys-IOS sous iOS (décision 15) | gardes textuelles de Paramètres réécrites | configuration et synchro depuis l'UI. **Fait le 18 octobre** ([`LOT-5.md`](LOT-5.md)) : configuration et synchro depuis l'interface sur le Galaxy A12 et l'iPhone 16, allure de GeoMys-Android et de GeoMys-IOS validée |
 | 6 | OccTax : carte multi, saisie mono, relevé, dénombrement, caractérisation, détails, Mes saisies, détail d'une sortie, GPX | gardes textuelles OccTax réécrites | recette terrain OccTax. **Porté le 19 octobre** ([`LOT-6.md`](LOT-6.md)) : écrans essayés sur l'émulateur et le simulateur, gardes OccTax réécrites, tests verts sur la JVM et le simulateur iOS ; la recette terrain reste à faire sur le Galaxy A12 et l'iPhone 16 |
-| 7 | Monitoring : Suivis, détail, fiche, nouvelle visite, Mes visites, carte des géométries | dernier cas de FormulaireRendererTest, la mise en page (les 14 autres sont réécrits au lot 4) | recette terrain Monitoring |
+| 7 | Monitoring : Suivis, détail, fiche, nouvelle visite, Mes visites, carte des géométries | dernier cas de FormulaireRendererTest, la mise en page (les 14 autres sont réécrits au lot 4) | recette terrain Monitoring. **Porté le 19 octobre** ([`LOT-7.md`](LOT-7.md)) : écrans essayés sur l'émulateur et le simulateur, dernier cas de FormulaireRendererTest porté (premier test de mise en page, sur le simulateur iOS), tests verts sur la JVM et le simulateur iOS ; recette terrain en cours sur le Galaxy A12 et l'iPhone 16, premiers essais sans remarque |
 | 8 | OccHab : carte d'édition (point dur), station, habitat, Mes stations | tests de l'éditeur (modèle : `OccHabEditeurTests` iOS) | recette terrain OccHab |
 | 9 | Explorer, Maps Manager (hors-ligne, MBTiles) | — | — |
 | 10 | Distribution : APK de test ou piste interne Play pour Android, TestFlight pour iOS | recette sur appareils réels | première version distribuée aux testeurs |

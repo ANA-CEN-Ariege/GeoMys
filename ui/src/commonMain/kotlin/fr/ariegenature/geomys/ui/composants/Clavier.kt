@@ -19,8 +19,15 @@
 package fr.ariegenature.geomys.ui.composants
 
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.Composable
 
 /** Clavier chiffres et ponctuation (`.numbersAndPunctuation` des champs nombre de GeoMys-IOS) : le
  *  signe moins et la virgule, que le pavé décimal d'iOS n'a pas. Sous Android, qui n'a pas ce
  *  clavier, le clavier texte. */
 expect val ClavierNombresEtPonctuation: KeyboardOptions
+
+/** Le drapeau `TYPE_NUMBER_FLAG_SIGNED` des champs nombre de GeoMys-Android, que les types de
+ *  clavier de Compose ne posent pas : sans lui, des claviers Android n'offrent pas le signe moins.
+ *  Il s'ajoute à chaque champ numérique de [contenu]. Sous iOS, rien. */
+@Composable
+expect fun ClavierNumeriqueSigne(contenu: @Composable () -> Unit)

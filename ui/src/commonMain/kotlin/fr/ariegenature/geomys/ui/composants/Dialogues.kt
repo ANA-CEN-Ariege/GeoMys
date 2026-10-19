@@ -27,6 +27,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,23 +37,25 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.displayCutout
-import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -61,11 +64,20 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -78,14 +90,23 @@ import fr.ariegenature.geomys.ui.theme.FormeContinue
  *  - Android : AlertDialog d'AppCompat sous le thème Material 3 de GeoMys-Android (carte gris 800
  *    aux coins de 2 dp, titre 20 sp medium, message 16 sp, boutons texte bleus, voile à 32 %).
  *  - iOS : alerte système, comme `.alert` de SwiftUI dans GeoMys-IOS.
+ *  [annulable] faux (`setCancelable(false)`) : ni le voile ni Retour ne la ferment, seulement ses
+ *  boutons (une alerte d'iOS ne se ferme jamais autrement).
  *  À poser en dernier dans la racine de l'écran : sous Android, la carte couvre tout l'écran. */
 @Composable
-fun DialogueAlerte(visible: Boolean, titre: String, message: String, boutons: List<BoutonAlerte>, onFermer: () -> Unit) {
+fun DialogueAlerte(
+    visible: Boolean,
+    titre: String,
+    message: String,
+    boutons: List<BoutonAlerte>,
+    onFermer: () -> Unit,
+    annulable: Boolean = true,
+) {
     if (estIos) {
         AlerteSysteme(visible, titre, message, boutons, onFermer)
         return
     }
-    CoucheDialogueAndroid(visible, onFermer) {
+    CoucheDialogueAndroid(visible, if (annulable) onFermer else ({})) {
         Text(
             titre,
             fontSize = 20.sp,
@@ -356,6 +377,178 @@ fun DialogueChoixUnique(
             }
         }
         BarreBoutonsAndroid(listOf(BoutonAlerte("Annuler", annulation = true)), onFermer)
+    }
+}
+
+/** Choix de plusieurs [options] (le champ « Observateurs » d'une visite), [coches] cochées à
+ *  l'ouverture ; « Valider » rend les options cochées à [onValider], « Annuler » ne change rien.
+ *  - Android : AlertDialog d'AppCompat avec `setMultiChoiceItems` (case de 18 dp, orange cochée,
+ *    texte 18 sp, lignes de 48 dp), « Annuler » et « Valider » ;
+ *  - iOS : la feuille de GeoMys-IOS (`SelectMultipleSheet`) : barre de navigation au titre en ligne,
+ *    « Annuler » à gauche, « Valider » demi-gras à droite, liste groupée aux cases SF vertes. */
+@Composable
+fun DialogueChoixMultiple(
+    visible: Boolean,
+    titre: String,
+    options: List<String>,
+    coches: Set<Int>,
+    onValider: (Set<Int>) -> Unit,
+    onFermer: () -> Unit,
+) {
+    // La sélection en cours, reprise à chaque ouverture.
+    var courante by remember(visible, coches) { mutableStateOf(coches) }
+    val basculer: (Int) -> Unit = { i -> courante = if (i in courante) courante - i else courante + i }
+    if (estIos) {
+        FeuilleChoixMultipleIos(visible, titre, options, courante, basculer, onValider = { onValider(courante) }, onFermer)
+        return
+    }
+    CoucheDialogueAndroid(visible, onFermer) {
+        Text(
+            titre,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 18.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+            options.forEachIndexed { i, option ->
+                val cochee = i in courante
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .clickable { basculer(i) }
+                        .padding(horizontal = 24.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    // listChoiceIndicatorMultiple : carré de 18 dp, plein d'orange (colorControlActivated) si coché.
+                    CaseACocherAndroid(cochee)
+                    Spacer(Modifier.width(20.dp))
+                    Text(option, fontSize = 18.sp, color = Color.White)
+                }
+            }
+        }
+        BarreBoutonsAndroid(
+            listOf(BoutonAlerte("Annuler", annulation = true), BoutonAlerte("Valider") { onValider(courante) }),
+            onFermer,
+        )
+    }
+}
+
+/** `abc_btn_check_material` : carré de 18 dp au trait de 2 dp aux coins de 2 dp ; coché, plein
+ *  d'orange avec la coche blanche. */
+@Composable
+private fun CaseACocherAndroid(cochee: Boolean) {
+    val bord = MaterialTheme.colorScheme.onSurfaceVariant
+    Canvas(Modifier.size(18.dp)) {
+        val trait = 2.dp.toPx()
+        val coin = CornerRadius(2.dp.toPx())
+        if (cochee) {
+            drawRoundRect(CouleursGeoMys.orange, cornerRadius = coin)
+            val u = size.width / 18f
+            val coche = Path().apply {
+                moveTo(4f * u, 9.5f * u)
+                lineTo(7.5f * u, 13f * u)
+                lineTo(14f * u, 5.5f * u)
+            }
+            drawPath(coche, Color.White, style = Stroke(width = trait, cap = StrokeCap.Square))
+        } else {
+            drawRoundRect(bord, topLeft = Offset(trait / 2, trait / 2), size = Size(size.width - trait, size.height - trait), cornerRadius = coin, style = Stroke(trait))
+        }
+    }
+}
+
+/** La feuille de choix multiple de GeoMys-IOS : montée du bas sous la barre d'état, coins de 10 pt,
+ *  fond groupé élevé du mode sombre ; lignes de la liste groupée sur #2C2C2E, cases
+ *  `checkmark.square.fill` vertes ou `square` grises de 20 pt. */
+@Composable
+private fun FeuilleChoixMultipleIos(
+    visible: Boolean,
+    titre: String,
+    options: List<String>,
+    courante: Set<Int>,
+    basculer: (Int) -> Unit,
+    onValider: () -> Unit,
+    onFermer: () -> Unit,
+) {
+    if (visible) RetourSysteme(onRetour = onFermer)
+    AnimatedVisibility(visible, enter = fadeIn(tween(300)), exit = fadeOut(tween(250))) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.4f))
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onFermer),
+        )
+    }
+    AnimatedVisibility(
+        visible,
+        enter = slideInVertically(tween(450, easing = PresentationIos)) { it },
+        exit = slideOutVertically(tween(350, easing = PresentationIos)) { it },
+    ) {
+        val forme = RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)
+        Column(
+            Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(top = 10.dp)
+                .background(Color(0xFF1C1C1E), forme)
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
+        ) {
+            Box(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 16.dp)) {
+                BoutonIos(onFermer, Modifier.align(Alignment.CenterStart), opaciteAppui = 0.3f) {
+                    Text("Annuler", fontSize = 17.sp, color = CouleursGeoMys.jauneClair)
+                }
+                Text(
+                    titre,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.align(Alignment.Center).padding(horizontal = 96.dp),
+                )
+                BoutonIos({ onValider(); onFermer() }, Modifier.align(Alignment.CenterEnd), opaciteAppui = 0.3f) {
+                    Text("Valider", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = CouleursGeoMys.jauneClair)
+                }
+            }
+            Column(
+                Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+            ) {
+                Column(Modifier.fillMaxWidth().background(Color(0xFF2C2C2E), FormeContinue(10.dp))) {
+                    LignesChoixMultipleIos(options, courante, basculer)
+                }
+            }
+        }
+    }
+}
+
+/** Les lignes de la liste groupée de [FeuilleChoixMultipleIos]. */
+@Composable
+private fun LignesChoixMultipleIos(options: List<String>, courante: Set<Int>, basculer: (Int) -> Unit) {
+    options.forEachIndexed { i, option ->
+        val cochee = i in courante
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { basculer(i) }
+                .padding(horizontal = 16.dp, vertical = 11.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SymboleSf(
+                if (cochee) "checkmark.square.fill" else "square",
+                20f,
+                listOf(if (cochee) CouleursGeoMys.vert else Color(0x99EBEBF5)),
+            )
+            Text(option, fontSize = 17.sp, color = Color.White)
+        }
+        if (i < options.lastIndex) SeparateurIos(Modifier.padding(start = 16.dp))
     }
 }
 

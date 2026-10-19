@@ -82,6 +82,27 @@ import fr.ariegenature.geomys.ui.occtax.SortieDetailViewModel
 import fr.ariegenature.geomys.ui.parametres.ParametresScreen
 import fr.ariegenature.geomys.ui.parametres.ParametresViewModel
 import fr.ariegenature.geomys.ui.parametres.TaxonsListeScreen
+import fr.ariegenature.geomys.monitoring.FIL_TYPE_ACCUEIL
+import fr.ariegenature.geomys.monitoring.FIL_TYPE_MODULE
+import fr.ariegenature.geomys.monitoring.FIL_TYPE_SUIVIS
+import fr.ariegenature.geomys.monitoring.FilSegment
+import fr.ariegenature.geomys.monitoring.decoderFil
+import fr.ariegenature.geomys.monitoring.encoderFil
+import fr.ariegenature.geomys.monitoring.filRacineSuivis
+import fr.ariegenature.geomys.ui.suivis.FicheObjetScreen
+import fr.ariegenature.geomys.ui.suivis.CarteSuiviScreen
+import fr.ariegenature.geomys.ui.suivis.CarteSuiviViewModel
+import fr.ariegenature.geomys.ui.suivis.FicheObjetViewModel
+import fr.ariegenature.geomys.ui.suivis.MesVisitesScreen
+import fr.ariegenature.geomys.ui.suivis.MesVisitesViewModel
+import fr.ariegenature.geomys.ui.suivis.NouvelleVisiteScreen
+import fr.ariegenature.geomys.ui.suivis.NouvelleVisiteViewModel
+import fr.ariegenature.geomys.ui.suivis.OuvertureNouvelleVisite
+import fr.ariegenature.geomys.ui.suivis.SuiviDetailScreen
+import fr.ariegenature.geomys.ui.suivis.SuiviDetailViewModel
+import fr.ariegenature.geomys.ui.suivis.SuivisScreen
+import fr.ariegenature.geomys.ui.suivis.SuivisViewModel
+import fr.ariegenature.geomys.ui.suivis.resultat
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 
@@ -156,11 +177,61 @@ data class RouteDenombrement(val index: Int, val mono: Boolean = false)
 @Serializable
 data class RouteTaxonsListe(val idListe: Int, val nomListe: String)
 
+/** « Monitoring » : les protocoles de suivi du serveur. */
+@Serializable
+data object RouteSuivis
+
+/** Détail d'un protocole de suivi : ses sites (ou groupes de sites). Unique dans la pile : le fil
+ *  d'Ariane y remonte. */
+@Serializable
+data class RouteSuiviDetail(val moduleCode: String)
+
+/** Fiche d'un objet de suivi (site, visite, observation…) ; [fil] : le fil d'Ariane encodé
+ *  (`encoderFil`), dont le dernier niveau est l'objet lui-même. */
+@Serializable
+data class RouteFicheObjet(val moduleCode: String, val objectType: String, val id: Int, val fil: String = "")
+
+/** Nouvelle saisie des Suivis (visite, observation…) sous un parent serveur ([parentId]) ou local
+ *  ([parentUuidLocal]), ou saisie en attente rouverte ([editUuid]) : les arguments de
+ *  `nouvelleVisiteFragment` (cf. [OuvertureNouvelleVisite]) ; [fil] encodé (`encoderFil`). */
+@Serializable
+data class RouteNouvelleVisite(
+    val moduleCode: String,
+    val parentObjectType: String = "",
+    val parentId: Int = -1,
+    val titreSite: String = "",
+    val editUuid: String = "",
+    val fil: String = "",
+    val childObjectType: String = "",
+    val parentUuidLocal: String = "",
+    val modeCompletion: Boolean = false,
+    val messageEphemere: String = "",
+) {
+    fun ouverture() = OuvertureNouvelleVisite(
+        moduleCode, parentObjectType, parentId, titreSite, editUuid, decoderFil(fil), childObjectType, parentUuidLocal, modeCompletion, messageEphemere,
+    )
+}
+
+private fun OuvertureNouvelleVisite.route() = RouteNouvelleVisite(
+    moduleCode, parentObjectType, parentId, titreSite, editUuid, encoderFil(fil), childObjectType, parentUuidLocal, modeCompletion, messageEphemere,
+)
+
+/** Carte des géométries d'un objet de suivi et de ses enfants ([objectType] « module » : les sites
+ *  du protocole) ; [titre] : son nom, en badge ; [fil] encodé, dont il est le dernier niveau. */
+@Serializable
+data class RouteCarteSuivi(val moduleCode: String, val objectType: String, val id: Int, val titre: String = "", val fil: String = "")
+
+/** « Mes visites » : la file d'envoi des Suivis. */
+@Serializable
+data object RouteMesVisites
+
 /** Écran que le portage n'a pas encore atteint : [titre] et le [lot] qui l'apportera. */
 @Serializable
 data class RouteAVenir(val titre: String, val lot: String)
 
-private const val LOT_MONITORING = "lot 7 (Monitoring)"
+
+/** Le protocole des essais d'affichage du lot 7 (MonitoringEssai). */
+private const val PROTOCOLE_ESSAI = "stom_ariege"
 private const val LOT_OCCHAB = "lot 8 (OccHab)"
 private const val LOT_CARTES = "lot 9 (Explorer, cartes)"
 
@@ -181,6 +252,24 @@ private fun NavHostController.naviguerDepuis(depuis: NavBackStackEntry, route: A
     if (depuis.lifecycle.currentState == Lifecycle.State.RESUMED) navigate(route, options)
 }
 
+/** Un niveau du fil d'Ariane des Suivis touché (le dernier de [cible]) : `naviguerVersFil` de
+ *  GeoMys-Android.
+ *  - Accueil, liste des protocoles, protocole : on y remonte s'il est dans la pile, sinon on
+ *    l'ouvre (le détail d'un protocole y est unique) ;
+ *  - objet : sa fiche, en repliant d'un coup les niveaux au-dessus du détail du protocole quand il
+ *    est présent ; sinon la fiche s'empile (édition depuis les saisies en attente). */
+private fun NavHostController.naviguerVersFil(moduleCode: String, cible: List<FilSegment>) {
+    val seg = cible.last()
+    when (seg.type) {
+        FIL_TYPE_ACCUEIL -> if (!popBackStack(RouteAccueil, inclusive = false)) navigate(RouteAccueil)
+        FIL_TYPE_SUIVIS -> if (!popBackStack<RouteSuivis>(inclusive = false)) navigate(RouteSuivis)
+        FIL_TYPE_MODULE -> if (!popBackStack<RouteSuiviDetail>(inclusive = false)) navigate(RouteSuiviDetail(moduleCode))
+        else -> navigate(RouteFicheObjet(moduleCode, seg.type, seg.id, encoderFil(cible))) {
+            popUpTo<RouteSuiviDetail> { inclusive = false }
+        }
+    }
+}
+
 /** La pile des écrans, posée sur l'accueil.
  *  - Transitions : aucune sous Android (le nav_graph de GeoMys-Android n'en déclare pas) ; celles
  *    d'une NavigationStack sous iOS (glissement latéral avec voile), par défaut dans navigation-compose.
@@ -196,7 +285,13 @@ private fun NavHostController.naviguerDepuis(depuis: NavBackStackEntry, route: A
  *    « details-releve » et « details-communs » le nouveau relevé et la carte, leur dialogue de détails
  *    ouvert, « details-intercale » l'écran des champs du relevé intercalé avant ses espèces,
  *    « observations-essai » la liste des relevés de la plus récente saisie non envoyée, « saisie-mono » la
- *    saisie mono-taxon, « saisie-mono-carte » sa carte, démarrée sur le Merle noir (référentiel d'essai). */
+ *    saisie mono-taxon, « saisie-mono-carte » sa carte, démarrée sur le Merle noir (référentiel d'essai) ;
+ *    essais du lot 7 : « suivis » la liste des protocoles, « suivi-detail » le détail du protocole d'essai
+ *    STOM Ariège (`action=monitoring-essai`), « fiche-objet » la fiche de son site Col de Port,
+ *    « nouvelle-visite » une visite de ce site (« nouvelle-visite-observateurs » : le choix des
+ *    observateurs ouvert), « nouvelle-observation » une observation de sa visite en attente d'envoi
+ *    (chaîne de saisies), « mes-visites » la file d'envoi des Suivis, « carte-site » la carte du Col de Port,
+ *    « carte-mares » celle du protocole d'essai des mares (polygones, dont un à trou). */
 @Composable
 fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial: String? = null) {
     val nav = rememberNavController()
@@ -205,6 +300,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
     // Essai d'affichage : le dialogue des détails ouvert d'emblée (le simulateur iOS ne touche pas).
     var essaiDetails by remember { mutableStateOf(ecranInitial == "details-releve" || ecranInitial == "details-communs") }
     var essaiMonoCarte by remember { mutableStateOf(ecranInitial == "saisie-mono-carte") }
+    var essaiObservateurs by remember { mutableStateOf(ecranInitial == "nouvelle-visite-observateurs") }
     // La session de saisie OccTax, partagée par tous les écrans du flux comme le TraceViewModel
     // (`activityViewModels()`) de GeoMys-Android : elle vit au-dessus du graphe.
     val sessionSaisie = viewModel { SessionSaisieViewModel(services) }
@@ -223,12 +319,43 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
         val ouvrirParametres = when (ecranInitial) {
             "accueil", "mes-saisies", "detail-saisie", "saisie-multi", "saisie-suivante", "reprise-saisie", "releve-essai", "releve-nouveau",
             "caracterisation-essai", "denombrement-essai", "details-releve", "details-communs", "details-intercale",
-            "observations-essai", "saisie-mono", "saisie-mono-carte" -> false
+            "observations-essai", "saisie-mono", "saisie-mono-carte", "suivis", "suivi-detail", "fiche-objet",
+            "nouvelle-visite", "nouvelle-visite-observateurs", "nouvelle-observation", "mes-visites", "carte-site", "carte-mares" -> false
             "parametres" -> true
             else -> !configurationComplete(services.config, services.taxRef)
         }
         if (ouvrirParametres) nav.navigate(RouteParametres)
+        val essaisSuivis = setOf(
+            "suivis", "suivi-detail", "fiche-objet", "nouvelle-visite", "nouvelle-visite-observateurs", "nouvelle-observation", "carte-site", "carte-mares",
+        )
+        if (ecranInitial in essaisSuivis) nav.navigate(RouteSuivis)
+        if (ecranInitial == "carte-mares") {
+            resultat { services.monitoring.chargerModules(services.config) }
+            nav.navigate(RouteCarteSuivi("mares_ana", "module", 102, "Suivi des mares", encoderFil(filRacineSuivis("Suivi des mares"))))
+        }
+        if (ecranInitial in essaisSuivis - "suivis" - "carte-mares") {
+            // Le détail lit le protocole dans la liste chargée : on la charge d'abord.
+            resultat { services.monitoring.chargerModules(services.config) }
+            nav.navigate(RouteSuiviDetail(PROTOCOLE_ESSAI))
+        }
+        if (ecranInitial in essaisSuivis - "suivis" - "suivi-detail" - "carte-mares") {
+            val fil = filRacineSuivis("STOM Ariège") + FilSegment("site", 501, "Col de Port")
+            nav.navigate(RouteFicheObjet(PROTOCOLE_ESSAI, "site", 501, encoderFil(fil)))
+            if (ecranInitial == "carte-site") nav.navigate(RouteCarteSuivi(PROTOCOLE_ESSAI, "site", 501, "Col de Port", encoderFil(fil)))
+            if (ecranInitial == "nouvelle-visite" || ecranInitial == "nouvelle-visite-observateurs") {
+                nav.navigate(RouteNouvelleVisite(PROTOCOLE_ESSAI, "site", 501, "Col de Port", fil = encoderFil(fil), childObjectType = "visit"))
+            }
+            if (ecranInitial == "nouvelle-observation") {
+                nav.navigate(
+                    RouteNouvelleVisite(
+                        PROTOCOLE_ESSAI, "visit", titreSite = "Visite (local)", fil = encoderFil(fil),
+                        childObjectType = "observation", parentUuidLocal = "essai-visite-col-de-port",
+                    ),
+                )
+            }
+        }
         if (ecranInitial == "mes-saisies" || ecranInitial == "detail-saisie") nav.navigate(RouteMesSaisies)
+        if (ecranInitial == "mes-visites") nav.navigate(RouteMesVisites)
         if (ecranInitial == "detail-saisie") services.sortieStore.charger().firstOrNull()?.let { nav.navigate(RouteSortieDetail(it.id)) }
         if (ecranInitial == "saisie-multi" || ecranInitial == "saisie-suivante" || ecranInitial == "details-communs") {
             sessionSaisie.demarrerSaisieSuivante = ecranInitial == "saisie-suivante"
@@ -299,6 +426,97 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
         composable<RouteTaxonsListe> { entree ->
             val route = entree.toRoute<RouteTaxonsListe>()
             TaxonsListeScreen(services, route.idListe, route.nomListe, onRetour = { nav.popBackStack() })
+        }
+        composable<RouteSuivis> { entree ->
+            val vm = viewModel { SuivisViewModel(services) }
+            SuivisScreen(
+                vm,
+                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onDetail = { m -> nav.naviguerDepuis(entree, RouteSuiviDetail(m.moduleCode)) },
+                onCarte = { m ->
+                    nav.naviguerDepuis(entree, RouteCarteSuivi(m.moduleCode, "module", m.idModule, m.moduleLabel, encoderFil(filRacineSuivis(m.moduleLabel))))
+                },
+                onAttente = { nav.naviguerDepuis(entree, RouteMesVisites) },
+            )
+        }
+        composable<RouteSuiviDetail> { entree ->
+            val route = entree.toRoute<RouteSuiviDetail>()
+            val vm = viewModel { SuiviDetailViewModel(services, route.moduleCode) }
+            SuiviDetailScreen(
+                vm,
+                onNiveau = { cible -> nav.naviguerVersFil(route.moduleCode, cible) },
+                onFiche = { l -> nav.naviguerDepuis(entree, RouteFicheObjet(route.moduleCode, l.type, l.id, encoderFil(vm.filDe(l)))) },
+                onCarte = { l -> nav.naviguerDepuis(entree, RouteCarteSuivi(route.moduleCode, l.type, l.id, l.nom, encoderFil(vm.filDe(l)))) },
+                onNouvelle = { l ->
+                    nav.naviguerDepuis(
+                        entree,
+                        RouteNouvelleVisite(
+                            route.moduleCode, l.type, l.id, l.nom, fil = encoderFil(vm.filDe(l)), childObjectType = l.saisieEnfant.orEmpty(),
+                        ),
+                    )
+                },
+            )
+        }
+        composable<RouteFicheObjet> { entree ->
+            val route = entree.toRoute<RouteFicheObjet>()
+            if (route.id <= 0) {
+                LaunchedEffect(Unit) { nav.popBackStack() }
+                return@composable
+            }
+            val vm = viewModel { FicheObjetViewModel(services, route.moduleCode, route.objectType, route.id, decoderFil(route.fil)) }
+            FicheObjetScreen(
+                vm,
+                onNiveau = { cible -> nav.naviguerVersFil(route.moduleCode, cible) },
+                onFiche = { e -> nav.naviguerDepuis(entree, RouteFicheObjet(route.moduleCode, e.type, e.id, encoderFil(e.fil))) },
+                onCarte = { e -> nav.naviguerDepuis(entree, RouteCarteSuivi(route.moduleCode, e.type, e.id, e.nom, encoderFil(e.fil))) },
+                onNouvelle = { n ->
+                    nav.naviguerDepuis(
+                        entree,
+                        RouteNouvelleVisite(
+                            route.moduleCode, n.parentObjectType, n.parentId, n.titreSite, fil = encoderFil(n.fil),
+                            childObjectType = n.childObjectType, parentUuidLocal = n.parentUuidLocal.orEmpty(),
+                        ),
+                    )
+                },
+            )
+        }
+        composable<RouteCarteSuivi> { entree ->
+            val route = entree.toRoute<RouteCarteSuivi>()
+            val vm = viewModel { CarteSuiviViewModel(services, route.moduleCode, route.objectType, route.id, route.titre, decoderFil(route.fil)) }
+            CarteSuiviScreen(
+                vm,
+                onNiveau = { cible -> nav.naviguerVersFil(route.moduleCode, cible) },
+                onFiche = { type, id, fil -> nav.naviguerDepuis(entree, RouteFicheObjet(route.moduleCode, type, id, encoderFil(fil))) },
+                onNouvelleSaisie = { o -> nav.naviguerDepuis(entree, o.route()) },
+            )
+        }
+        composable<RouteMesVisites> { entree ->
+            val vm = viewModel { MesVisitesViewModel(services) }
+            MesVisitesScreen(
+                vm,
+                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onEditer = { o -> nav.naviguerDepuis(entree, o.route()) },
+            )
+        }
+        composable<RouteNouvelleVisite> { entree ->
+            val route = entree.toRoute<RouteNouvelleVisite>()
+            val vm = viewModel { NouvelleVisiteViewModel(services, route.ouverture()) }
+            // Essai d'affichage : le choix des observateurs ouvert d'emblée (le simulateur iOS ne touche pas).
+            val choixInitial = remember { if (essaiObservateurs) "observers" else null }
+            if (essaiObservateurs) LaunchedEffect(vm) { essaiObservateurs = false }
+            // Le formulaire suivant ou la fiche du parent REMPLACENT celui-ci : « retour » ramène au fil.
+            NouvelleVisiteScreen(
+                vm,
+                onNiveau = { cible -> nav.naviguerVersFil(vm.moduleCodeCourant, cible) },
+                onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
+                onRemplacer = { o -> nav.navigate(o.route()) { popUpTo<RouteNouvelleVisite> { inclusive = true } } },
+                onFiche = { f ->
+                    nav.navigate(RouteFicheObjet(f.moduleCode, f.objectType, f.id, encoderFil(f.fil))) {
+                        popUpTo<RouteNouvelleVisite> { inclusive = true }
+                    }
+                },
+                choixMultipleInitial = choixInitial,
+            )
         }
         composable<RouteMesSaisies> {
             val vm = viewModel { MesSaisiesViewModel(services) }
@@ -593,13 +811,13 @@ private fun EcranAccueil(infos: InfosApp, services: ServicesGeoNature, sessionSa
                 val ecranReleve = ChampsAdditionnels.aDesChampsReleveRequisSansDefaut(config.additionalFieldsOcctaxJsonActif, config.idDataset.toIntOrNull())
                 nav.navigate(if (ecranReleve) RouteDetailsReleve(mono = true) else RouteSaisieMono())
             },
-            monitoring = { aVenir("Monitoring", LOT_MONITORING) },
+            monitoring = { nav.navigate(RouteSuivis) },
             occhab = { aVenir("OccHab", LOT_OCCHAB) },
             parametres = { nav.navigate(RouteParametres) },
             menu = { entree ->
                 when (entree) {
                     EntreeMenuAccueil.MES_SAISIES -> nav.navigate(RouteMesSaisies)
-                    EntreeMenuAccueil.MES_VISITES -> aVenir("Mes visites", LOT_MONITORING)
+                    EntreeMenuAccueil.MES_VISITES -> nav.navigate(RouteMesVisites)
                     EntreeMenuAccueil.MES_STATIONS -> aVenir("Mes stations", LOT_OCCHAB)
                     EntreeMenuAccueil.EXPLORER -> aVenir("Explorer", LOT_CARTES)
                     EntreeMenuAccueil.MAPS_MANAGER -> aVenir("Maps Manager", LOT_CARTES)

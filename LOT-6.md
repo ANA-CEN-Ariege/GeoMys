@@ -67,7 +67,7 @@ Ce que chaque plateforme fait elle-même (`expect`/`actual`) :
 | Confirmation d'une observation (mono) | vibration de 60 ms | retour haptique moyen (`UIImpactFeedbackGenerator`) |
 | GPX | partage par intention ; import par le sélecteur de documents | feuille de partage ; `UIDocumentPickerViewController` |
 | Suivi GPS | `LocationManager` (GPS et réseau, 2 s, 5 m) ; service au premier plan « suivi GPS actif » pendant une trace | `CLLocationManager` (5 m) ; positions en arrière-plan le temps d'une trace |
-| Champ nombre des champs additionnels | pavé décimal | clavier chiffres et ponctuation, comme GeoMys-IOS (le pavé décimal d'iOS n'a pas le signe moins) |
+| Champ nombre des champs additionnels | pavé décimal (signé depuis le lot 7, comme dans GeoMys-Android : [`LOT-7.md`](LOT-7.md) § 7) | clavier chiffres et ponctuation, comme GeoMys-IOS (le pavé décimal d'iOS n'a pas le signe moins) |
 
 **La carte.** Une seule carte MapLibre (maplibre-compose) remplace osmdroid et MapKit. Elle prend l'allure de chacun pour ce qu'elle dessine elle-même :
 - point de position et cercle de précision : bleu translucide d'osmdroid sous Android, `#007AFF` à 15 % sous iOS ;
