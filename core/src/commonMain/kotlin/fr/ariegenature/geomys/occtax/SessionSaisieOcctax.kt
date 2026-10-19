@@ -102,8 +102,16 @@ class SessionSaisieOcctax(
     var detailsCommuns: DetailsReleveResult? = null
         private set
 
+    /** La saisie en cours est mono-taxon : posé par l'écran d'entrée du flux (saisie mono ou carte
+     *  multi-taxons), retenu par la sortie à sa création ([Sortie.saisieMono]). */
+    var saisieMono = false
+
+    /** La date commune n'est retenue que MODIFIÉE : elle arme alors la saisie a posteriori, qui la
+     *  transmet aux nouveaux relevés. Validée telle quelle, elle n'était que l'heure d'ouverture du
+     *  dialogue, que GeoMys-Android imposait à tous les relevés suivants, par-dessus une date a
+     *  posteriori armée ensuite (défaut n° 4 de l'inventaire) : on garde alors la date retenue. */
     fun definirDetailsCommuns(res: DetailsReleveResult) {
-        detailsCommuns = res
+        detailsCommuns = if (res.dateModifiee) res else res.copy(dateDebut = detailsCommuns?.dateDebut, dateFin = detailsCommuns?.dateFin)
     }
 
     /** Jeu de données de la SORTIE en cours = celui des relevés déjà enregistrés (tous les relevés
@@ -212,7 +220,7 @@ class SessionSaisieOcctax(
             ecritures.trySend {
                 val existante = sortieStore.charger().firstOrNull { it.id == id }
                 if (existante?.envoyeGeoNature != true) {
-                    val base = existante ?: Sortie(id = id)
+                    val base = existante ?: Sortie(id = id, saisieMono = saisieMono)
                     val ok = sortieStore.remplacer(
                         id,
                         base.copy(observations = obs, pointsParcours = parcours, distanceTotale = distance),
@@ -221,7 +229,7 @@ class SessionSaisieOcctax(
                 }
             }
         } else {
-            val nouvelle = Sortie(observations = obs, pointsParcours = parcours, distanceTotale = distance)
+            val nouvelle = Sortie(observations = obs, pointsParcours = parcours, distanceTotale = distance, saisieMono = saisieMono)
             // Id fixé même sur échec : la prochaine tentative passera par remplacer (upsert), pas par
             // un nouvel ajout (qui créerait un doublon si l'écriture repart).
             sortieEnEditionId = nouvelle.id

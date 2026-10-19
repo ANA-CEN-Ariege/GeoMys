@@ -44,8 +44,8 @@ import androidx.compose.ui.viewinterop.UIKitView
 import fr.ariegenature.geomys.monitoring.form.SelectionDateHeure
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.readValue
 import kotlinx.cinterop.useContents
+import platform.CoreGraphics.CGSizeMake
 import platform.Foundation.NSCalendar
 import platform.Foundation.NSCalendarUnitDay
 import platform.Foundation.NSCalendarUnitHour
@@ -55,11 +55,11 @@ import platform.Foundation.NSCalendarUnitYear
 import platform.Foundation.NSDate
 import platform.Foundation.NSDateComponents
 import platform.UIKit.UIAction
+import platform.UIKit.UIControlContentHorizontalAlignmentLeading
 import platform.UIKit.UIControlEventValueChanged
 import platform.UIKit.UIDatePicker
 import platform.UIKit.UIDatePickerMode
 import platform.UIKit.UIDatePickerStyle
-import platform.UIKit.UILayoutFittingCompressedSize
 
 /** Fond des pastilles de UIDatePicker compact (tertiarySystemFill du mode sombre). */
 private val FOND_PASTILLE = Color(0x3D767680)
@@ -106,6 +106,9 @@ actual fun ChampDateMonitoring(
             UIDatePicker().apply {
                 preferredDatePickerStyle = UIDatePickerStyle.UIDatePickerStyleCompact
                 tintColor = CouleursGeoMys.jauneClair.versUIColor()
+                // Pastilles à gauche, sous le libellé, comme le DatePicker de GeoMys-IOS : le sélecteur
+                // prend toute la largeur (ci-dessous) et calerait sinon son contenu à droite.
+                contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeading
                 addAction(
                     UIAction.actionWithHandler { action ->
                         val selecteur = action?.sender as? UIDatePicker ?: return@actionWithHandler
@@ -124,7 +127,10 @@ actual fun ChampDateMonitoring(
                 ModeDateHeure.DATE_HEURE -> UIDatePickerMode.UIDatePickerModeDateAndTime
             }
             versNSDate(initiale)?.let { selecteur.setDate(it, animated = false) }
-            selecteur.systemLayoutSizeFittingSize(UILayoutFittingCompressedSize.readValue()).useContents { taille = DpSize(width.dp, height.dp) }
+            // Sans taille intrinsèque, le sélecteur rend la largeur proposée : il prend toute la largeur
+            // offerte. À sa taille compressée, plus étroite d'un tiers de point que « 28 mai 2026 », il
+            // passait au format court (« 28/05/2026 ») et décalait sa pastille, selon les jours.
+            selecteur.sizeThatFits(CGSizeMake(1000.0, 1000.0)).useContents { taille = DpSize(width.dp, height.dp) }
         },
         properties = UIKitInteropProperties(
             interactionMode = UIKitInteropInteractionMode.NonCooperative,

@@ -41,7 +41,8 @@ import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
  *  le futur ; [onChange] reçoit le nouvel instant.
  *  - Android : cases au contour gris de 6 dp (« dd/MM/yyyy », « HH:mm », 15 sp), qui ouvrent
  *    DatePickerDialog et TimePickerDialog (24 h) ;
- *  - iOS : UIDatePicker compact (le `DatePicker` de SwiftUI), sur [fondIos] : la vue native est sous
+ *  - iOS : UIDatePicker compact (le `DatePicker` de SwiftUI), sur toute la largeur offerte (dans une
+ *    rangée : `Modifier.weight`), ses pastilles à gauche, sur [fondIos] : la vue native est sous
  *    la toile de Compose, qui la laisse voir à travers une découpe ; sans fond, c'est celui de la
  *    fenêtre qui paraîtrait autour des pastilles. */
 @Composable

@@ -37,20 +37,20 @@ import androidx.compose.ui.viewinterop.UIKitInteropProperties
 import androidx.compose.ui.viewinterop.UIKitView
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.readValue
 import kotlinx.cinterop.useContents
+import platform.CoreGraphics.CGSizeMake
 import platform.Foundation.NSDate
 import platform.Foundation.dateWithTimeIntervalSince1970
 import platform.Foundation.timeIntervalSince1970
 import platform.UIKit.UIAction
+import platform.UIKit.UIControlContentHorizontalAlignmentLeading
 import platform.UIKit.UIControlEventValueChanged
 import platform.UIKit.UIDatePicker
 import platform.UIKit.UIDatePickerMode
 import platform.UIKit.UIDatePickerStyle
-import platform.UIKit.UILayoutFittingCompressedSize
 
 /** `UIDatePicker` compact, celui du `DatePicker` de SwiftUI, teinté jaune clair comme toute
- *  l'interface de GeoMys-IOS ; la vue prend la taille que le sélecteur demande. */
+ *  l'interface de GeoMys-IOS ; la vue prend toute la largeur offerte, ses pastilles à gauche. */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 actual fun ChampDateHeure(millis: Long, heures: Boolean, onChange: (Long) -> Unit, modifier: Modifier, fondIos: Color) {
@@ -61,6 +61,9 @@ actual fun ChampDateHeure(millis: Long, heures: Boolean, onChange: (Long) -> Uni
             UIDatePicker().apply {
                 preferredDatePickerStyle = UIDatePickerStyle.UIDatePickerStyleCompact
                 tintColor = CouleursGeoMys.jauneClair.versUIColor()
+                // Pastilles à gauche, comme le DatePicker de GeoMys-IOS : le sélecteur prend toute la
+                // largeur (ci-dessous) et calerait sinon son contenu à droite.
+                contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeading
                 addAction(
                     UIAction.actionWithHandler { action ->
                         val selecteur = action?.sender as? UIDatePicker ?: return@actionWithHandler
@@ -76,8 +79,9 @@ actual fun ChampDateHeure(millis: Long, heures: Boolean, onChange: (Long) -> Uni
             selecteur.datePickerMode = if (heures) UIDatePickerMode.UIDatePickerModeDateAndTime else UIDatePickerMode.UIDatePickerModeDate
             selecteur.maximumDate = NSDate() // pas de date future
             selecteur.setDate(NSDate.dateWithTimeIntervalSince1970(millis / 1000.0), animated = false)
-            // Hors fenêtre, intrinsicContentSize ne vaut rien encore : on fait calculer la taille.
-            selecteur.systemLayoutSizeFittingSize(UILayoutFittingCompressedSize.readValue()).useContents { taille = DpSize(width.dp, height.dp) }
+            // Sans taille intrinsèque, le sélecteur rend la largeur proposée : il prend toute la largeur
+            // offerte. À sa taille compressée, il passait au format court (« 28/05/2026 ») selon les jours.
+            selecteur.sizeThatFits(CGSizeMake(1000.0, 1000.0)).useContents { taille = DpSize(width.dp, height.dp) }
         },
         properties = UIKitInteropProperties(
             interactionMode = UIKitInteropInteractionMode.NonCooperative,

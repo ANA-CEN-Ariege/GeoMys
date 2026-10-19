@@ -44,7 +44,8 @@ expect fun SymboleSf(
 )
 
 /** Interrupteur : MaterialSwitch de GeoMys-Android, `Toggle` (UISwitch) de GeoMys-IOS teinté
- *  [teinteIos] (bleu primaire, vert sur les écrans de saisie). */
+ *  [teinteIos] (bleu primaire, vert sur les écrans de saisie). [fondIos] : la couleur de la ligne
+ *  qui le porte, peinte derrière lui (sinon, ses coins laissent voir ce qui est sous l'écran). */
 @Composable
 expect fun Interrupteur(
     coche: Boolean,
@@ -52,6 +53,7 @@ expect fun Interrupteur(
     modifier: Modifier = Modifier,
     description: String? = null,
     teinteIos: Color = CouleursGeoMys.primaire,
+    fondIos: Color = Color.Unspecified,
 )
 
 /** Indicateur d'activité indéterminé : ProgressBar d'Android dans une boîte de [tailleAndroid] dp

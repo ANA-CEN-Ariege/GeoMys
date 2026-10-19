@@ -46,8 +46,9 @@ enum class ModeDateHeure(
  *  - Android : TextView de 16 sp aux marges de 8 × 12 dp, contour gris translucide de 1 dp aux coins
  *    de 8 dp, l'invite en couleur secondaire ; le toucher ouvre DatePickerDialog, TimePickerDialog
  *    (24 h), ou l'un puis l'autre ;
- *  - iOS : `UIDatePicker` compact (le `DatePicker` de SwiftUI) teinté jaune clair ; vide, l'invite
- *    d'Android dans la même pastille, que toucher remplit de maintenant. */
+ *  - iOS : `UIDatePicker` compact (le `DatePicker` de SwiftUI) teinté jaune clair, sur toute la largeur,
+ *    ses pastilles à gauche ; vide, l'invite d'Android dans la même pastille, que toucher remplit de
+ *    maintenant. */
 @Composable
 expect fun ChampDateMonitoring(
     mode: ModeDateHeure,

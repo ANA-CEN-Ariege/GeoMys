@@ -106,7 +106,7 @@ fun MesSaisiesScreen(
     vm: MesSaisiesViewModel,
     onAccueil: () -> Unit,
     onDetail: (String) -> Unit,
-    onContinuer: (String) -> Unit,
+    onContinuer: (Sortie) -> Unit,
 ) {
     val ios = estIos
     val toasts = LocalToasts.current
@@ -180,7 +180,7 @@ fun MesSaisiesScreen(
                             onDetail = { onDetail(sortie.id) },
                             onListe = { vm.listerEspeces(sortie) },
                             onEnvoyer = { vm.envoyer(sortie) },
-                            onContinuer = { onContinuer(sortie.id) },
+                            onContinuer = { onContinuer(sortie) },
                             onSupprimer = { vm.demanderSuppression(sortie) },
                         )
                     }

@@ -619,7 +619,7 @@ private fun DialogueObservationsIci(vm: SaisieMonoViewModel) {
                 Image(painterResource(taxon.icone), null, colorFilter = ColorFilter.tint(taxon.couleur), modifier = Modifier.size(22.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(obs.espece, fontSize = 15.sp, color = Color.White)
-                    Text("${FormatDate.heure(obs.date)} · ${obs.nombre} ind.", fontSize = 12.sp, color = CouleursGeoMys.blanc70)
+                    Text("${FormatDate.heure(obs.date)} · ${obs.totalIndividus} ind.", fontSize = 12.sp, color = CouleursGeoMys.blanc70)
                 }
                 SymboleSf("square.and.pencil", 17f, listOf(CouleursGeoMys.primaire))
             }

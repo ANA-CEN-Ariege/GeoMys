@@ -1,0 +1,146 @@
+/*
+ * GeoMys-Common — application de saisie naturaliste pour GeoNature, Android et iOS.
+ * Copyright (C) 2026 ANA - CEN Ariège
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+// Les lignes d'un `Form` groupé de SwiftUI, sous l'allure de GeoMys-IOS : choix en menu (Picker
+// `.menu`), champ de texte, nombre, texte. À poser dans une [SectionIos] ; le filet entre deux lignes
+// est [SeparateurIos]. Le libellé d'un champ est au-dessus de lui, comme sous Android (demande du
+// 19 octobre), et non à côté comme dans GeoMys-IOS.
+
+package fr.ariegenature.geomys.ui.composants
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
+
+/** Une ligne de formulaire : 44 pt au moins, marges de 16 × 11 pt. */
+@Composable
+internal fun LigneIos(modifier: Modifier = Modifier, contenu: @Composable () -> Unit) {
+    Box(
+        modifier.fillMaxWidth().defaultMinSize(minHeight = 44.dp).padding(horizontal = 16.dp, vertical = 11.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) { contenu() }
+}
+
+/** Picker en menu : [libelle] au-dessus, en blanc 70 % (rien s'il est vide), puis la valeur choisie
+ *  et les chevrons à droite, en secondaire ; le toucher ouvre le menu du système. */
+@Composable
+internal fun LigneChoixIos(libelle: String, options: List<String>, selection: Int, onChoix: (Int) -> Unit) {
+    LigneIos {
+        Box(Modifier.fillMaxWidth()) {
+            ContenuLigneChoixIos(libelle, options.getOrNull(selection).orEmpty())
+            MenuSysteme(options, selection, onChoix, Modifier.matchParentSize())
+        }
+    }
+}
+
+/** Ce que montre la ligne de choix, sous son menu. Une valeur trop longue pour la ligne finit en
+ *  « … », les chevrons restent visibles. */
+@Composable
+internal fun ContenuLigneChoixIos(libelle: String, valeur: String) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (libelle.isNotEmpty()) Text(libelle, fontSize = 17.sp, color = CouleursGeoMys.blanc70)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                valeur,
+                fontSize = 17.sp,
+                color = SECONDAIRE_FEUILLE_IOS,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Spacer(Modifier.width(4.dp))
+            SymboleSf("chevron.up.chevron.down", 13f, listOf(SECONDAIRE_FEUILLE_IOS))
+        }
+    }
+}
+
+/** Champ de texte d'une ligne : nu, invite [indication] en gris, de [lignesMin] à [lignesMax]
+ *  lignes (une seule si [lignesMax] vaut 1) ; [titre] au-dessus, en blanc 70 %. */
+@Composable
+internal fun LigneTexteIos(
+    valeur: String,
+    onChange: (String) -> Unit,
+    indication: String,
+    lignesMin: Int = 1,
+    lignesMax: Int = 1,
+    clavier: KeyboardOptions = KeyboardOptions.Default,
+    titre: String? = null,
+) {
+    LigneIos {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (titre != null) Text(titre, fontSize = 17.sp, color = CouleursGeoMys.blanc70)
+            ChampNuIos(valeur, onChange, indication, lignesMin, lignesMax, clavier)
+        }
+    }
+}
+
+@Composable
+private fun ChampNuIos(valeur: String, onChange: (String) -> Unit, indication: String, lignesMin: Int, lignesMax: Int, clavier: KeyboardOptions) {
+    BasicTextField(
+        value = valeur,
+        onValueChange = onChange,
+        singleLine = lignesMax == 1,
+        minLines = lignesMin,
+        maxLines = lignesMax,
+        textStyle = styleSaisieIos,
+        cursorBrush = SolidColor(CouleursGeoMys.jauneClair),
+        keyboardOptions = clavier,
+        modifier = Modifier.fillMaxWidth(),
+        decorationBox = { champ ->
+            Box {
+                if (valeur.isEmpty()) Text(indication, style = styleSaisieIos.copy(color = INVITE_IOS))
+                champ()
+            }
+        },
+    )
+}
+
+/** Nombre : [libelle] au-dessus, en blanc 70 %, puis le champ (invite « — »). */
+@Composable
+internal fun LigneNombreIos(libelle: String, valeur: String, onChange: (String) -> Unit, clavier: KeyboardOptions = ClavierNombresEtPonctuation) {
+    LigneTexteIos(valeur, onChange, "—", clavier = clavier, titre = libelle)
+}
+
+/** Un texte sur une ligne, [couleur] blanc par défaut ; [titre] au-dessus, en blanc 70 %. */
+@Composable
+internal fun LigneTexteSeulIos(texte: String, titre: String? = null, couleur: Color = Color.White, taille: Float = 17f) {
+    LigneIos {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (titre != null) Text(titre, fontSize = 17.sp, color = CouleursGeoMys.blanc70)
+            Text(texte, fontSize = taille.sp, color = couleur)
+        }
+    }
+}

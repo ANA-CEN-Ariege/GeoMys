@@ -30,7 +30,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
-import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -175,7 +174,7 @@ class ContratValeursTest {
     }
 
     @Test
-    fun medias_liste_jamais_null_et_suivie_par_les_lectures() = runTest {
+    fun medias_liste_jamais_null_et_copiee_a_chaque_lecture() = runTest {
         val etat = formulaire(
             EditableField("photos", ViewType.MEDIA, "A"),
             EditableField("ancien", ViewType.MEDIA, "B", value = "file:///a.jpg"),
@@ -184,9 +183,10 @@ class ContratValeursTest {
         assertEquals(emptyList<String>(), avant["photos"], "aucune photo : liste vide, pas null")
         assertEquals(listOf("file:///a.jpg"), avant["ancien"])
         etat.ajouterMedias("photos", listOf("file:///b.jpg", ""))
-        // Comme le tag d'Android : la lecture rend la liste du champ elle-même.
-        assertSame(avant["photos"], etat.lireValeurs()["photos"])
-        assertEquals(listOf("file:///b.jpg"), avant["photos"])
+        // Comme le tag d'Android depuis e69543d : une lecture rend une copie, que les ajouts suivants
+        // ne touchent pas.
+        assertEquals(emptyList<String>(), avant["photos"])
+        assertEquals(listOf("file:///b.jpg"), etat.lireValeurs()["photos"])
         etat.retirerMedia("photos", "file:///b.jpg")
         assertEquals(emptyList<String>(), etat.lireValeurs()["photos"])
     }

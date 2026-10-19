@@ -16,17 +16,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// Porté de GeoMys-Android @ cdd5196 (app/src/test/java/fr/ariegenature/geomys/OccHabPolygoneTrouTest.kt),
-// cas 1 à 12 : lecture depuis le serveur, renvoi et empreinte. Robolectric retiré, JUnit remplacé par
-// kotlin.test. Les sommets se comptent dans le JSON lui-même : GeoJsonCoords.parse et parseAnneaux,
-// qui le lisaient en GeoPoint d'osmdroid, viendront avec la carte. Les quatre derniers cas
-// (GeoJsonCoords.formatAnneaux, airePolygoneM2, OccHabViewModel) suivront avec la carte d'édition
-// OccHab (lot 8).
+// Porté de GeoMys-Android @ cdd5196 (app/src/test/java/fr/ariegenature/geomys/OccHabPolygoneTrouTest.kt) :
+// lecture depuis le serveur, renvoi et empreinte (cas 1 à 12, lot 3), puis anneaux, surface nette et
+// géométrie de la session (les quatre derniers, lot 8, avec la carte d'édition OccHab). Robolectric
+// retiré, JUnit remplacé par kotlin.test, GeoPoint par LatLon, OccHabViewModel par SessionOccHab.
 
 package fr.ariegenature.geomys.network
 
+import fr.ariegenature.geomys.geo.LatLon
+import fr.ariegenature.geomys.geo.airePolygoneM2
 import fr.ariegenature.geomys.json.JSONArray
 import fr.ariegenature.geomys.model.OccHabStation
+import fr.ariegenature.geomys.occhab.SessionOccHab
+import fr.ariegenature.geomys.util.GeoJsonCoords
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -214,5 +216,63 @@ class OccHabPolygoneTrouTest {
             geometryTrousJson = "[[[2,2],[4,2],[4,4]]]")
         val b = a.copy(geometryTrousJson = "[[[2.0,2.0],[4.0,2.0],[4.0,4.0]]]")
         assertEquals(a.empreinteContenu(), b.empreinteContenu())
+    }
+
+    @Test
+    fun anneaux_round_trip_et_null_si_aucun_trou() {
+        val anneaux = listOf(
+            listOf(LatLon(42.0, 1.0), LatLon(42.0, 1.1), LatLon(42.1, 1.1)),
+            listOf(LatLon(43.0, 2.0), LatLon(43.0, 2.1), LatLon(43.1, 2.1)),
+        )
+        val json = GeoJsonCoords.formatAnneaux(anneaux)
+        val relus = GeoJsonCoords.parseAnneaux(json)
+        assertEquals(2, relus.size)
+        assertEquals(3, relus[0].size)
+        assertEquals(42.0, relus[0][0].latitude, 1e-9)
+        assertEquals(1.0, relus[0][0].longitude, 1e-9)
+        assertEquals(43.1, relus[1][2].latitude, 1e-9)
+        // Aucun trou = champ ABSENT (jamais un tableau vide) : le polygone est plein.
+        assertNull(GeoJsonCoords.formatAnneaux(emptyList()))
+        assertNull(GeoJsonCoords.formatAnneaux(listOf(emptyList())))
+        assertTrue(GeoJsonCoords.parseAnneaux(null).isEmpty())
+        assertTrue(GeoJsonCoords.parseAnneaux("{pas du json").isEmpty())
+    }
+
+    // ── Surface : aire NETTE (parité ST_Area côté serveur) ──
+
+    @Test
+    fun surface_deduit_les_trous() {
+        // Carré ~1° de côté, trou de ~0,5° → l'aire nette vaut environ les 3/4 de la brute.
+        val ext = listOf(LatLon(42.0, 1.0), LatLon(42.0, 2.0), LatLon(43.0, 2.0), LatLon(43.0, 1.0))
+        val trou = listOf(LatLon(42.2, 1.2), LatLon(42.2, 1.7), LatLon(42.7, 1.7), LatLon(42.7, 1.2))
+        val brute = airePolygoneM2(ext)
+        val nette = airePolygoneM2(ext, listOf(trou))
+        assertTrue(nette < brute, "le trou est déduit")
+        assertEquals(brute - airePolygoneM2(trou), nette, 1.0)
+        assertEquals(brute, airePolygoneM2(ext, emptyList()), 1e-6, "sans trou = aire brute")
+    }
+
+    @Test
+    fun surface_jamais_negative() {
+        val ext = listOf(LatLon(42.0, 1.0), LatLon(42.0, 1.1), LatLon(42.1, 1.1))
+        val trouEnorme = listOf(LatLon(40.0, 0.0), LatLon(40.0, 5.0), LatLon(45.0, 5.0))
+        assertEquals(0.0, airePolygoneM2(ext, listOf(trouEnorme)), 1e-9)
+    }
+
+    // ── Session : trous conservés à l'édition, purgés au redessin ──
+
+    @Test
+    fun definir_geometrie_conserve_ou_purge_les_trous() {
+        val vm = SessionOccHab()
+        val trous = "[[[2,2],[4,2],[4,4]]]"
+        vm.definirGeometrie("Polygon", 5.0, 5.0, "[[0,0],[10,0],[10,10]]", trous)
+        assertEquals(trous, vm.station.geometryTrousJson)
+        // Redessin (tracé neuf) : aucun trou transmis → la station repart PLEINE.
+        vm.definirGeometrie("Polygon", 1.0, 1.0, "[[0,0],[1,0],[1,1]]", null)
+        assertNull(vm.station.geometryTrousJson)
+        // Bascule en Point : les trous n'ont plus de sens.
+        vm.definirGeometrie("Polygon", 5.0, 5.0, "[[0,0],[10,0],[10,10]]", trous)
+        vm.definirGeometrie("Point", 42.9, 1.4, null)
+        assertNull(vm.station.geometryTrousJson)
     }
 }

@@ -142,7 +142,7 @@ La synchro se lance sans écran, par un paramètre caché : `action=synchroniser
 - les deux appareils relisent exactement les mêmes données ;
 - une synchro lancée sans réseau échoue aussitôt (« Chargement interrompu : UnknownHostException… » sur l'A12, l'équivalent `NSURLErrorDomain -1009` sur l'iPhone) et n'efface rien.
 
-**Le message hors ligne est celui de GeoMys-Android.** La lecture de la configuration Occtax s'authentifie hors de son `try` : appli fraîchement lancée, l'erreur réseau remonte au filet final. Avec une session encore en cache (moins de 5 minutes après une synchro), les étapes échouent une à une et le compte-rendu les énumère (`SyncRunnerTest`). C'est le défaut n° 6 du § 8.2 de l'inventaire, qu'on tenait pour « à confirmer » : il l'est. Sa correction attend la décision 5 (corriger les défauts Android dans GeoMys-Common, dans GeoMys-Android, ou dans les deux).
+**Le message hors ligne est celui de GeoMys-Android.** La lecture de la configuration Occtax s'authentifie hors de son `try` : appli fraîchement lancée, l'erreur réseau remonte au filet final. Avec une session encore en cache (moins de 5 minutes après une synchro), les étapes échouent une à une et le compte-rendu les énumère (`SyncRunnerTest`). C'est le défaut n° 6 du § 8.2 de l'inventaire, qu'on tenait pour « à confirmer » : il l'est. Il est corrigé au lot 8, la décision 5 tranchée : hors ligne, chaque étape échoue désormais à son tour, sans rien effacer ([`LOT-8.md`](LOT-8.md) § 5).
 
 `configuration_complete=false` est attendu : aucun jeu de données, liste ni observateur n'est encore choisi. Ce sera le rôle de l'écran Paramètres.
 

@@ -16,8 +16,9 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// Porté de GeoMys-Android @ cdd5196 (app/src/test/java/fr/ariegenature/geomys/FormulaireRendererTest.kt) :
-// réécrit contre l'état commun du formulaire. Les saisies dans les vues deviennent les saisies de
+// Porté de GeoMys-Android @ cdd5196 (app/src/test/java/fr/ariegenature/geomys/FormulaireRendererTest.kt), et
+// le cas qu'y ajoute e69543d (un ajout de photos seul est une modification) : réécrit contre l'état commun
+// du formulaire. Les saisies dans les vues deviennent les saisies de
 // l'état (saisirTexte…), le Looper de Robolectric le planificateur de runTest, la barre rouge du
 // mode complétion la liste barresRouges. Le cas « la barre est accolée au champ, pas au libellé »,
 // qui vérifie la mise en page, suivra avec l'écran (lot 7).
@@ -31,6 +32,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -54,6 +56,19 @@ class FormulaireEtatTest {
     fun nettoyer() = t.nettoyer()
 
     private fun TestScope.formulaire(champs: List<EditableField>) = FormulaireEtat(champs, taxRef, backgroundScope)
+
+    /** N'ajouter QUE des photos est une modification : la lecture des valeurs rendait la liste du
+     *  champ elle-même, partagée avec la référence prise après le rendu, et la comparaison
+     *  « formulaire modifié ? » comparait la liste avec elle-même. « Terminer » et le retour
+     *  quittaient donc sans proposer d'enregistrer, et les photos étaient perdues. */
+    @Test
+    fun ajouter_une_photo_compte_comme_une_modification() = runTest {
+        val etat = formulaire(listOf(EditableField("photos", ViewType.MEDIA, "Photos")))
+        val apresRendu = etat.lireValeurs()
+        etat.ajouterMedias("photos", listOf("file:///tmp/photo.jpg"))
+        assertNotEquals(apresRendu, etat.lireValeurs(), "ajouter une photo doit compter comme une modification du formulaire")
+        assertEquals(listOf("file:///tmp/photo.jpg"), etat.lireValeurs()["photos"])
+    }
 
     @Test
     fun lecture_typee_des_valeurs_rendues() = runTest {

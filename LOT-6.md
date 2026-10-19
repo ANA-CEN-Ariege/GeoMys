@@ -111,6 +111,8 @@ Sous Android, l'état et les règles vivaient dans les Fragments, leurs vues et 
 - « Continuer la saisie » ouvre toujours la carte multi, même pour une saisie mono (n° 7) ;
 - la boussole suit le nord magnétique (§ 8.3, à trancher).
 
+Les défauts n° 4, 5 et 7 sont corrigés depuis, au lot 8 ([`LOT-8.md`](LOT-8.md) § 5).
+
 **Particularités d'Android reproduites :**
 - au retour d'un sous-écran, la palette revient au groupe de la première espèce du relevé ;
 - « Détails du relevé » n'enregistre qu'au prochain changement de la liste des espèces, ou à la coche : un retour système les perd ;
@@ -217,7 +219,7 @@ Restent les cinq gardes d'OccHab (lot 8).
 
 - **La recette terrain** (§ 8), et avec elle les premiers envois réels depuis les écrans (`LOT-3.md`).
 - **À trancher** :
-  - les défauts d'Android reproduits (§ 6 ; inventaire, § 8.2, n° 4, 5 et 7) ;
+  - ~~les défauts d'Android reproduits~~ (§ 6 ; inventaire, § 8.2, n° 4, 5 et 7) : corrigés au lot 8 ;
   - le nord de la boussole (§ 8.3) ;
   - la mort du processus sous Android (§ 6).
 - **Lot 7** : les Suivis, dont « Saisies en attente » et le champ espèce de leur formulaire, qui reprendra la liste déroulante de ce lot.

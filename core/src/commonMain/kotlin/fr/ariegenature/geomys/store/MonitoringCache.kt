@@ -58,6 +58,11 @@ class MonitoringCache(private val dir: Path, private val systeme: FileSystem = F
     private val memoire = HashMap<String, String>()
     private val verrouMemoire = SynchronizedObject()
 
+    /** Les écritures se suivent : le fichier temporaire d'une clé porte un nom fixe, et deux
+     *  écritures simultanées de la même clé se le partageaient (défaut n° 11 de l'inventaire,
+     *  présent dans GeoMys-Android). */
+    private val verrouEcriture = SynchronizedObject()
+
     /** Incrémenté à chaque mutation ([setJson]/[vider]) : un getJson qui a lu le disque AVANT la
      *  mutation détecte le changement et renonce à mémoïser sa valeur (devenue périmée). */
     @Volatile private var generation = 0
@@ -93,7 +98,7 @@ class MonitoringCache(private val dir: Path, private val systeme: FileSystem = F
      *  sauvegarde (cohérent avec TaxRefCache). */
     fun setJson(name: String, json: String) {
         try {
-            FichierAtomique(systeme, fichier(name), "MonitoringCache").ecrire(json)
+            synchronized(verrouEcriture) { FichierAtomique(systeme, fichier(name), "MonitoringCache").ecrire(json) }
             // INVALIDE l'entrée mémoire au lieu de la peupler : la synchro (qui écrit tout)
             // ne doit pas charger la RAM ; le prochain getJson relira le disque et mémoïsera
             // à la demande. generation++ d'abord, pour qu'un getJson concurrent qui a lu

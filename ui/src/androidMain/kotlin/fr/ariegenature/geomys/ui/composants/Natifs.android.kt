@@ -45,7 +45,7 @@ actual fun SymboleSf(
 /** MaterialSwitch de Material Components 1.12 : le Switch Material 3 de Compose suit la même
  *  spécification (piste 52 × 32 dp, couleurs primary / outline du thème). */
 @Composable
-actual fun Interrupteur(coche: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier, description: String?, teinteIos: Color) {
+actual fun Interrupteur(coche: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier, description: String?, teinteIos: Color, fondIos: Color) {
     Switch(
         checked = coche,
         onCheckedChange = onChange,

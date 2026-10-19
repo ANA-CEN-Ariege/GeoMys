@@ -154,6 +154,7 @@ class SaisieMultiViewModel(
         // Écran d'entrée du flux multi-taxons : tous les écrans de saisie en aval affichent le même
         // bandeau « 🏠 › Saisie multi-taxons ».
         session.typeSaisieLabel = LIBELLE
+        session.saisieMono = false
     }
 
     /** À chaque affichage de la carte (onViewCreated + setupMap d'Android) : où l'ouvrir. Au retour

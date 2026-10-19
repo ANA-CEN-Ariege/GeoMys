@@ -24,7 +24,6 @@
 package fr.ariegenature.geomys.ui.occtax
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
@@ -38,16 +37,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -65,18 +61,12 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onInterceptKeyBeforeSoftKeyboard
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
@@ -90,31 +80,31 @@ import fr.ariegenature.geomys.saisie.EtatChampsAdditionnels
 import fr.ariegenature.geomys.store.NomenclatureCache
 import fr.ariegenature.geomys.store.OcctaxFieldsConfig
 import fr.ariegenature.geomys.store.champFormVisible
+import fr.ariegenature.geomys.ui.composants.BoutonCadreIos
 import fr.ariegenature.geomys.ui.composants.CaseDate
 import fr.ariegenature.geomys.ui.composants.ChampDateHeure
 import fr.ariegenature.geomys.ui.composants.ChampLibelle
 import fr.ariegenature.geomys.ui.composants.ChampTexteFormulaire
+import fr.ariegenature.geomys.ui.composants.DeroulantAndroid
 import fr.ariegenature.geomys.ui.composants.DialogueFormulaire
 import fr.ariegenature.geomys.ui.composants.GraisseSymbole
 import fr.ariegenature.geomys.ui.composants.INVITE_IOS
 import fr.ariegenature.geomys.ui.composants.IndicateurActivite
+import fr.ariegenature.geomys.ui.composants.LigneListeAndroid
+import fr.ariegenature.geomys.ui.composants.LigneMenuIos
 import fr.ariegenature.geomys.ui.composants.LocalToasts
-import fr.ariegenature.geomys.ui.composants.MenuSysteme
+import fr.ariegenature.geomys.ui.composants.ObservateursAndroid
 import fr.ariegenature.geomys.ui.composants.PopupListeAndroid
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.composants.styleSaisieIos
-import fr.ariegenature.geomys.ui.composants.styleSaisieMaterial
 import fr.ariegenature.geomys.ui.ressources.Res
-import fr.ariegenature.geomys.ui.ressources.mdc_fleche_bas
-import fr.ariegenature.geomys.ui.ressources.mdc_fleche_haut
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import fr.ariegenature.geomys.util.maintenantMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import org.jetbrains.compose.resources.painterResource
 
 /** Les saisies du dialogue « Détails du relevé », ouvert sur [donnees]. Un état neuf à chaque
  *  ouverture : « Annuler » n'écrit rien. [chercherHabitats] : la recherche HABREF, lancée dans
@@ -368,24 +358,7 @@ private fun ContenuAndroid(e: EtatDetailsReleve) {
         }
 
         TitreAndroid("Observateurs")
-        if (d.observateurs.isEmpty()) {
-            if (e.observateurs.isEmpty()) Text("—", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-            DeroulantAndroid("Ajouter un observateur", d.observateurs.map { it.second }, "", restaurer = false, onChoix = e::ajouterObservateur)
-        }
-        e.observateurs.forEach { (id, nom) ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(nom, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                Text(
-                    "✕",
-                    fontSize = 16.sp,
-                    color = erreur,
-                    modifier = Modifier
-                        .clickable(remember { MutableInteractionSource() }, indication = null) { e.retirerObservateur(id) }
-                        .padding(start = 12.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
-                )
-            }
-        }
+        ObservateursAndroid(d.observateurs, e.observateurs, e::ajouterObservateur, e::retirerObservateur)
 
         d.infos.forEach { (libelle, valeur) -> if (valeur.isNotBlank()) LigneLectureAndroid(libelle, valeur) }
 
@@ -443,85 +416,6 @@ private fun TitreAndroid(texte: String) {
 private fun LigneLectureAndroid(libelle: String, valeur: String) {
     Text(libelle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     Text(valeur, fontSize = 15.sp, modifier = Modifier.padding(bottom = 8.dp))
-}
-
-/** Le champ « menu déroulant » (champ_dropdown_releve.xml : TextInputLayout OutlinedBox
- *  ExposedDropdownMenu, 4 dp sous son titre). Toucher vide le texte et déroule toute la liste ; la
- *  frappe la filtre (accents et casse ignorés) ; un choix ferme le clavier. Refermée sans choix, la
- *  liste rend au champ le libellé choisi si [restaurer]. */
-@Composable
-private fun DeroulantAndroid(indication: String, libelles: List<String>, texteChoisi: String, restaurer: Boolean, onChoix: (Int) -> Unit) {
-    val focus = LocalFocusManager.current
-    val choisi by rememberUpdatedState(texteChoisi)
-    var texte by remember(texteChoisi) { mutableStateOf(texteChoisi) }
-    var ouvert by remember { mutableStateOf(false) }
-    var ancre by remember { mutableStateOf<Rect?>(null) }
-    val positions = remember(libelles, texte) { DetailsReleveFormulaire.filtrer(libelles, texte) }
-    val interactions = remember { MutableInteractionSource() }
-    LaunchedEffect(interactions) {
-        interactions.interactions.collect {
-            if (it is PressInteraction.Release) {
-                texte = ""
-                ouvert = true
-            }
-        }
-    }
-    fun fermer() {
-        ouvert = false
-        if (restaurer) texte = choisi
-    }
-    Box(Modifier.padding(top = 4.dp)) {
-        OutlinedTextField(
-            value = texte,
-            onValueChange = {
-                texte = it
-                // Seuil de 1 : la liste filtrée se déroule dès le premier caractère.
-                ouvert = it.isNotEmpty()
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .onGloballyPositioned { ancre = Rect(it.positionInWindow(), it.size.toSize()) }
-                .onFocusChanged { if (!it.isFocused && ouvert) fermer() }
-                .onInterceptKeyBeforeSoftKeyboard { touche ->
-                    if (touche.key != Key.Back || !ouvert) return@onInterceptKeyBeforeSoftKeyboard false
-                    if (touche.type == KeyEventType.KeyUp) fermer()
-                    true
-                },
-            label = { Text(indication) },
-            textStyle = styleSaisieMaterial(),
-            singleLine = true,
-            interactionSource = interactions,
-            trailingIcon = {
-                Icon(painterResource(if (ouvert) Res.drawable.mdc_fleche_haut else Res.drawable.mdc_fleche_bas), contentDescription = null)
-            },
-        )
-        val zone = ancre
-        if (ouvert && positions.isNotEmpty() && zone != null) {
-            PopupListeAndroid(zone, positions, onFermer = ::fermer) { i ->
-                LigneListeAndroid(libelles[i]) {
-                    ouvert = false
-                    texte = if (restaurer) libelles[i] else ""
-                    focus.clearFocus()
-                    onChoix(i)
-                }
-            }
-        }
-    }
-}
-
-/** Ligne de la liste d'un AutoCompleteTextView (`simple_dropdown_item_1line`). */
-@Composable
-private fun LigneListeAndroid(texte: String, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(48.dp)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp),
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        Text(texte, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
 }
 
 /** Habitat : MaterialAutoCompleteTextView souligné, « Rechercher un habitat… » ; la liste des
@@ -637,16 +531,14 @@ private fun ContenuIos(e: EtatDetailsReleve) {
 
     ChampLibelle(if (d.avecFin) "Date de début" else "Date du relevé") {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            ChampDateHeure(e.debut, d.heures, e::changerDebut)
-            Spacer(Modifier.weight(1f))
+            ChampDateHeure(e.debut, d.heures, e::changerDebut, Modifier.weight(1f))
             if (d.avecFin && !e.finActive) BoutonCadreIos("plus", CouleursGeoMys.jauneClair, "Ajouter une date de fin", e::ajouterFin)
         }
     }
     if (e.finActive) {
         ChampLibelle("Date de fin") {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                ChampDateHeure(e.fin, d.heures, e::changerFin)
-                Spacer(Modifier.weight(1f))
+                ChampDateHeure(e.fin, d.heures, e::changerFin, Modifier.weight(1f))
                 BoutonCadreIos("xmark", CouleursGeoMys.rougePastille, "Retirer la date de fin", e::retirerFin)
             }
         }
@@ -668,48 +560,6 @@ private fun ContenuIos(e: EtatDetailsReleve) {
     if (e.habitatVisible) ChampLibelle("Habitat") { ChampHabitatIos(e) }
 
     if (e.commentaireVisible) ChampLibelle("Commentaire") { ChampCommentaire(e) }
-}
-
-/** `ligneDeroulante` de DetailsReleveView : libellé (blanc 70 % pour une invite), chevron, fond
- *  blanc 8 % aux coins de 8 pt ; le toucher ouvre le menu du système. */
-@Composable
-private fun LigneMenuIos(texte: String, invite: Boolean, options: List<String>, selection: Int, onChoix: (Int) -> Unit) {
-    Box(Modifier.fillMaxWidth()) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-                .padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                texte,
-                fontSize = 17.sp,
-                color = if (invite) CouleursGeoMys.blanc70 else Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(8.dp))
-            SymboleSf("chevron.down", 12f, listOf(CouleursGeoMys.blanc70), graisse = GraisseSymbole.DEMI_GRASSE)
-        }
-        MenuSysteme(options, selection, onChoix, Modifier.matchParentSize())
-    }
-}
-
-/** Bouton « ＋ » / « ✕ » de la date de fin : symbole de 14 pt gras dans un cadre de 40 × 36 pt
- *  au filet de sa couleur à 60 %, coins de 8 pt. */
-@Composable
-private fun BoutonCadreIos(symbole: String, couleur: Color, description: String, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .size(40.dp, 36.dp)
-            .border(1.dp, couleur.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-            .clickable(remember { MutableInteractionSource() }, indication = null, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        SymboleSf(symbole, 14f, listOf(couleur), graisse = GraisseSymbole.GRASSE, description = description)
-    }
 }
 
 /** Habitat : `AutocompleteField` au style système de HabitatPicker (loupe, champ nu, roue pendant

@@ -102,6 +102,30 @@ class SessionSaisieOcctaxTest {
         assertEquals(43.0, sortie.observations.first().latitude)
     }
 
+    /** Défaut n° 7 de l'inventaire corrigé : une saisie mono se sait mono, pour que « Continuer la
+     *  saisie » la rouvre dans ce mode, avec les champs de relevé de sa dernière observation. */
+    @Test
+    fun une_saisie_mono_le_reste_et_se_continue_en_mono() = runTest {
+        val session = session()
+        session.saisieMono = true
+        session.ajouterObservation(obs("a").apply { additionalFieldsReleve = mapOf("meteo" to "beau") })
+        session.attendreEcritures()
+        val mono = store.charger().single()
+        assertTrue(mono.saisieMono)
+        assertEquals(mapOf("meteo" to "beau"), MesSaisies.additionnelsPourContinuerEnMono(mono))
+        // Reprise : la sortie garde son mode à chaque réécriture.
+        session.reprendreSortie(mono)
+        session.ajouterObservation(obs("b"))
+        session.attendreEcritures()
+        assertTrue(store.charger().single().saisieMono)
+        // Une saisie multi-taxons, elle, ne l'est pas.
+        val multi = session()
+        multi.saisieMono = false
+        multi.ajouterObservation(obs("c", releveId = "R"))
+        multi.attendreEcritures()
+        assertFalse(store.charger().first { s -> s.observations.any { it.id == "c" } }.saisieMono)
+    }
+
     @Test
     fun la_trace_part_avec_les_observations_et_la_saisie_videe_est_purgee() = runTest {
         val session = session()

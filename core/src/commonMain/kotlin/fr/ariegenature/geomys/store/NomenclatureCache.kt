@@ -66,6 +66,9 @@ class NomenclatureCache(private val prefs: Settings, private val taxRef: TaxRefC
         mem = data
     }
 
+    /** Ajoute (ou remplace) les valeurs de quelques types, en gardant les autres (essais). */
+    fun completer(data: Map<String, List<NomValeur>>) = setAll(charger() + data)
+
     fun get(type: String): List<NomValeur> = charger()[type] ?: emptyList()
 
     val estDisponible: Boolean get() = charger().isNotEmpty()

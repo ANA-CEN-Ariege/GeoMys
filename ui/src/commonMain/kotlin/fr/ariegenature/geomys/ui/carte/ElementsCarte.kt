@@ -40,29 +40,27 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import fr.ariegenature.geomys.geo.LatLon
 import fr.ariegenature.geomys.ui.composants.estIos
-import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.ui.ressources.ic_gps_blue_dot
 import fr.ariegenature.geomys.ui.ressources.ic_location_on
 import fr.ariegenature.geomys.ui.ressources.ic_pin_drop
-import org.jetbrains.compose.resources.DrawableResource
-import org.jetbrains.compose.resources.painterResource
-import org.maplibre.compose.map.MapState
-import org.maplibre.compose.expressions.dsl.const
-import org.maplibre.compose.layers.FillLayer
-import org.maplibre.compose.layers.LineLayer
-import org.maplibre.compose.overlay.MapOverlayScope
-import org.maplibre.compose.sources.GeoJsonData
-import org.maplibre.compose.sources.rememberGeoJsonSource
+import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -70,6 +68,15 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import org.jetbrains.compose.resources.DrawableResource
+import org.jetbrains.compose.resources.painterResource
+import org.maplibre.compose.expressions.dsl.const
+import org.maplibre.compose.layers.FillLayer
+import org.maplibre.compose.layers.LineLayer
+import org.maplibre.compose.map.MapState
+import org.maplibre.compose.overlay.MapOverlayScope
+import org.maplibre.compose.sources.GeoJsonData
+import org.maplibre.compose.sources.rememberGeoJsonSource
 
 /** Pointe de la goutte de GeoMys-IOS : y = 22 sur 24 dans l'icône. */
 val ANCRE_GOUTTE_IOS = BiasAlignment(0f, 2f * 22f / 24f - 1f)
@@ -148,9 +155,10 @@ fun MapOverlayScope.PointPosition(position: LatLon) {
 }
 
 /** Un marqueur qu'on déplace en le gardant appuyé puis en le faisant glisser, comme ceux d'osmdroid
- *  et de MapKit ; un toucher bref appelle [onClic]. Pendant le glisser, le marqueur suit le doigt et
- *  [onDeplacement] reçoit chaque position (forme redessinée en direct) ; [onFin] reçoit la position
- *  finale. [ancre] : point de l'icône posé sur la position. */
+ *  et de MapKit ; un toucher bref appelle [onClic]. [onDebut] annonce le glisser (`onMarkerDragStart`) ;
+ *  pendant le glisser, le marqueur suit le doigt et [onDeplacement] reçoit chaque position (forme
+ *  redessinée en direct) ; [onFin] reçoit la position finale. [ancre] : point de l'icône posé sur
+ *  la position. */
 @Composable
 fun MapOverlayScope.MarqueurDeplacable(
     etat: MapState,
@@ -161,6 +169,7 @@ fun MapOverlayScope.MarqueurDeplacable(
     teinte: Color? = null,
     description: String? = null,
     onClic: (() -> Unit)? = null,
+    onDebut: (() -> Unit)? = null,
     onDeplacement: ((LatLon) -> Unit)? = null,
     onFin: (LatLon) -> Unit,
 ) {
@@ -168,6 +177,7 @@ fun MapOverlayScope.MarqueurDeplacable(
     val affichee = glisse ?: position
     val positionCourante by rememberUpdatedState(affichee)
     val rappelClic by rememberUpdatedState(onClic)
+    val rappelDebut by rememberUpdatedState(onDebut)
     val rappelDeplacement by rememberUpdatedState(onDeplacement)
     val rappelFin by rememberUpdatedState(onFin)
     Image(
@@ -180,6 +190,7 @@ fun MapOverlayScope.MarqueurDeplacable(
             .pointerInput(Unit) { detectTapGestures(onTap = { rappelClic?.invoke() }) }
             .pointerInput(etat) {
                 detectDragGesturesAfterLongPress(
+                    onDragStart = { rappelDebut?.invoke() },
                     onDrag = { changement, ecart ->
                         changement.consume()
                         val depart = etat.screenLocationFromPosition(positionCourante.enPosition()) ?: return@detectDragGesturesAfterLongPress
@@ -201,13 +212,16 @@ fun MapOverlayScope.MarqueurDeplacable(
 
 /** Sommet d'une géométrie en cours de saisie ou d'un relevé repris :
  *  - Android : la goutte `ic_pin_drop` (24 dp, rouge), ancrée en bas au centre ;
- *  - iOS : la goutte rouge de GeoMys-IOS (`ic_location_on` évidée, 40 pt), pointe sur le sommet. */
+ *  - iOS : la goutte de GeoMys-IOS (`ic_location_on` évidée, 40 pt, [teinteIos]), pointe sur le sommet. */
 @Composable
 fun MapOverlayScope.SommetDeplacable(
     etat: MapState,
     position: LatLon,
     onDeplacement: (LatLon) -> Unit,
     onFin: (LatLon) -> Unit,
+    onDebut: (() -> Unit)? = null,
+    onClic: (() -> Unit)? = null,
+    teinteIos: Color = CouleursGeoMys.rougePastille,
 ) {
     val ios = estIos
     MarqueurDeplacable(
@@ -216,9 +230,36 @@ fun MapOverlayScope.SommetDeplacable(
         icone = if (ios) Res.drawable.ic_location_on else Res.drawable.ic_pin_drop,
         taille = if (ios) 40.dp else 24.dp,
         ancre = if (ios) ANCRE_GOUTTE_IOS else BiasAlignment(0f, 1f),
-        teinte = if (ios) CouleursGeoMys.rougePastille else null,
+        teinte = if (ios) teinteIos else null,
         description = "Sommet",
+        onClic = onClic,
+        onDebut = onDebut,
         onDeplacement = onDeplacement,
         onFin = onFin,
     )
+}
+
+/** La goutte de GeoMys-IOS sur les cartes (`PinLocationMarker`, `PinDropMarker`) : celle de
+ *  `ic_location_pin`, évidée en son centre et cerclée d'un trait blanc de [trait]. */
+internal class GoutteIos(private val couleur: Color, private val trait: Dp = 1.5.dp) : Painter() {
+    override val intrinsicSize: Size = Size.Unspecified
+
+    override fun DrawScope.onDraw() {
+        val sx = size.width / 24f
+        val sy = size.height / 24f
+        fun goutte() = Path().apply {
+            moveTo(12f * sx, 2f * sy)
+            cubicTo(8.13f * sx, 2f * sy, 5f * sx, 5.13f * sy, 5f * sx, 9f * sy)
+            cubicTo(5f * sx, 14.25f * sy, 12f * sx, 22f * sy, 12f * sx, 22f * sy)
+            cubicTo(12f * sx, 22f * sy, 19f * sx, 14.25f * sy, 19f * sx, 9f * sy)
+            cubicTo(19f * sx, 5.13f * sy, 15.87f * sx, 2f * sy, 12f * sx, 2f * sy)
+            close()
+        }
+        val evidee = goutte().apply {
+            addOval(Rect(9.5f * sx, 6.5f * sy, 14.5f * sx, 11.5f * sy))
+            fillType = PathFillType.EvenOdd
+        }
+        drawPath(evidee, couleur)
+        drawPath(goutte(), Color.White, style = Stroke(trait.toPx()))
+    }
 }

@@ -31,7 +31,7 @@ data class Releve(
 ) {
     val premier: Observation get() = observations.first()
     val date: Long get() = observations.minOf { it.date }
-    val totalIndividus: Int get() = observations.sumOf { it.nombre }
+    val totalIndividus: Int get() = observations.sumOf { it.totalIndividus }
 }
 
 /** Regroupe une liste d'obs par releveId. Préserve l'ordre — les obs sans releveId restent

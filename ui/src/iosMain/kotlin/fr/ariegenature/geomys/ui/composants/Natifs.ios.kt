@@ -30,6 +30,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -155,12 +156,17 @@ private class CibleInterrupteur(var onChange: (Boolean) -> Unit) : NSObject() {
 
 /** L'UISwitch de UIKit, comme le `Toggle` de SwiftUI, teinté du bleu primaire (`.tint(colorPrimary)`
  *  de GeoMys-IOS). Placé sous le canevas Compose (découpe transparente) : le dégradé de fond est
- *  repeint derrière par la vue SwiftUI hôte (iosApp), pour que ses coins arrondis restent justes. */
+ *  repeint derrière par la vue SwiftUI hôte (iosApp), pour que ses coins arrondis restent justes.
+ *  Sur une ligne de formulaire opaque, ce dégradé paraîtrait à travers la piste translucide de
+ *  l'interrupteur éteint et dans ses coins : [fondIos], la couleur de la ligne, est alors peinte
+ *  derrière lui. */
 @Composable
-actual fun Interrupteur(coche: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier, description: String?, teinteIos: Color) {
+actual fun Interrupteur(coche: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier, description: String?, teinteIos: Color, fondIos: Color) {
     val rappel by rememberUpdatedState(onChange)
     val cible = remember { CibleInterrupteur { rappel(it) } }
-    val (largeur, hauteur) = remember { UISwitch().intrinsicContentSize.useContents { width to height } }
+    // La taille où UIKit le dessine : sous iOS 26, 63 × 28 pt, quand sa taille intrinsèque annonce
+    // 61 pt de large ; à 61, le bout de la piste et du bouton était rogné.
+    val (largeur, hauteur) = remember { UISwitch().sizeThatFits(CGSizeMake(0.0, 0.0)).useContents { width to height } }
     UIKitView(
         factory = {
             UISwitch().apply {
@@ -171,7 +177,10 @@ actual fun Interrupteur(coche: Boolean, onChange: (Boolean) -> Unit, modifier: M
             }
         },
         modifier = modifier.size(largeur.dp, hauteur.dp),
-        update = { interrupteur -> if (interrupteur.isOn() != coche) interrupteur.setOn(coche, animated = true) },
+        update = { interrupteur ->
+            if (fondIos.isSpecified) interrupteur.backgroundColor = fondIos.versUIColor()
+            if (interrupteur.isOn() != coche) interrupteur.setOn(coche, animated = true)
+        },
         properties = UIKitInteropProperties(
             interactionMode = UIKitInteropInteractionMode.NonCooperative,
             isNativeAccessibilityEnabled = true,

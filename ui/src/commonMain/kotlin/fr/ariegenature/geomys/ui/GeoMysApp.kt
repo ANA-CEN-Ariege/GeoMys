@@ -28,6 +28,7 @@ import fr.ariegenature.geomys.InfosApp
 import fr.ariegenature.geomys.ServicesGeoNature
 import fr.ariegenature.geomys.outils.ajouterReferentielsEssai
 import fr.ariegenature.geomys.outils.ajouterMonitoringEssai
+import fr.ariegenature.geomys.outils.ajouterOccHabEssai
 import fr.ariegenature.geomys.outils.ajouterSortiesEssai
 import fr.ariegenature.geomys.outils.ajouterTaxRefEssai
 import fr.ariegenature.geomys.outils.resumeDonnees
@@ -51,7 +52,9 @@ import fr.ariegenature.geomys.ui.theme.GeoMysTheme
  *  - `action=referentiels-essai` : essai du lot 6, jeux de données, observateurs et champs de relevé
  *    fictifs (ReferentielsEssai) ;
  *  - `ecran=suivis`, `action=monitoring-essai` : essais du lot 7, protocoles, sites, visites et
- *    observations fictifs dans le cache des Suivis (MonitoringEssai). */
+ *    observations fictifs dans le cache des Suivis (MonitoringEssai) ;
+ *  - `ecran=occhab-carte`, `action=occhab-essai` : essais du lot 8, jeux de données, nomenclatures,
+ *    habitats et stations OccHab fictifs (OccHabEssai). */
 @Composable
 fun GeoMysApp(infos: InfosApp, services: ServicesGeoNature, lancement: Map<String, String> = emptyMap()) {
     LaunchedEffect(Unit) {
@@ -65,6 +68,7 @@ fun GeoMysApp(infos: InfosApp, services: ServicesGeoNature, lancement: Map<Strin
             "taxref-essai" -> services.ajouterTaxRefEssai()
             "referentiels-essai" -> services.ajouterReferentielsEssai()
             "monitoring-essai" -> services.ajouterMonitoringEssai()
+            "occhab-essai" -> services.ajouterOccHabEssai()
         }
     }
     GeoMysTheme {

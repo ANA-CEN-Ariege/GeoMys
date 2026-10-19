@@ -106,14 +106,16 @@ class SyncRunnerTest {
     }
 
     @Test
-    fun hors_ligne_au_demarrage_la_synchro_s_interrompt_sans_rien_effacer() = runTest {
+    fun hors_ligne_au_demarrage_chaque_etape_echoue_sans_rien_effacer() = runTest {
         configurer()
         t.serveur.routerGeoNatureComplet()
         s.synchro.executer()
 
-        // Appli relancée hors couverture : aucune session. Comme sous Android, la config Occtax
-        // s'authentifie hors de son try et l'erreur réseau remonte au filet final, constaté sur
-        // l'A12 et l'iPhone le 18 octobre (« Chargement interrompu : UnknownHostException… »).
+        // Appli relancée hors couverture : aucune session. Sous Android, la config Occtax
+        // s'authentifiait hors de son try et l'erreur réseau remontait au filet final (« Chargement
+        // interrompu : UnknownHostException… », constaté sur l'A12 et l'iPhone le 18 octobre :
+        // défaut n° 6 de l'inventaire). Corrigé : chaque étape échoue à son tour, comme avec une
+        // session en cache.
         t.serveur.router { panne() }
         t.redemarrer()
         s.synchro.executer()
@@ -121,7 +123,8 @@ class SyncRunnerTest {
         val fin = s.synchro.etat.value
         assertTrue(fin.termine)
         assertFalse(fin.succes)
-        assertTrue(fin.resume.orEmpty().startsWith("Chargement interrompu"), fin.resume)
+        assertTrue(fin.resume.orEmpty().startsWith("⚠ Chargement incomplet"), fin.resume)
+        assertTrue(fin.resume.orEmpty().contains("TaxRef"), fin.resume)
         verifierDonneesIntactes()
     }
 

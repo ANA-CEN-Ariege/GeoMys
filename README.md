@@ -4,7 +4,7 @@ Application de saisie naturaliste pour GeoNature, pour Android **et** iOS, const
 
 GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IOS. Elle a sa propre identité, et peut donc cohabiter avec elles sur un même téléphone. Elle n'en reprend pas les données.
 
-**État : lots 0 à 7.** Le socle, les fondations (lot 1), la synchro des référentiels (lot 2), les envois (lot 3), le moteur de formulaires (lot 4), le socle des écrans (lot 5), les écrans OccTax (lot 6) et ceux des Suivis (lot 7) sont portés ; la recette terrain d'OccTax reste à faire, celle des Suivis est commencée. Les écrans reprennent GeoMys-Android ; sous iOS, ils prennent les styles de GeoMys-IOS. Ceux des lots suivants (OccHab, Explorer, cartes) ouvrent pour l'instant un écran d'attente. Le portage suit l'inventaire [`INVENTAIRE.md`](INVENTAIRE.md) (§ 10, ordre de portage).
+**État : lots 0 à 8.** Le socle, les fondations (lot 1), la synchro des référentiels (lot 2), les envois (lot 3), le moteur de formulaires (lot 4), le socle des écrans (lot 5), les écrans OccTax (lot 6), ceux des Suivis (lot 7) et ceux d'OccHab (lot 8) sont portés ; les recettes terrain d'OccTax et d'OccHab restent à faire, celle des Suivis est commencée. Les écrans reprennent GeoMys-Android ; sous iOS, ils prennent les styles de GeoMys-IOS. Ceux du lot suivant (Explorer, cartes) ouvrent pour l'instant un écran d'attente. Les défauts de GeoMys-Android que le portage reproduisait sont corrigés ([`LOT-8.md`](LOT-8.md) § 5). Le portage suit l'inventaire [`INVENTAIRE.md`](INVENTAIRE.md) (§ 10, ordre de portage).
 
 **Écrans.** L'Accueil et les Paramètres (connexion, « Charger les données », sélections par défaut) sont ceux du lot 5. Une configuration incomplète ouvre les Paramètres au lancement, comme dans GeoMys-Android. Le bilan du lot, dont les deux allures des composants, est dans [`LOT-5.md`](LOT-5.md).
 
@@ -12,13 +12,15 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 
 **Synchro des référentiels.** La synchro complète de GeoMys-Android se lance par « Charger les données », dans les Paramètres, ou sans écran par le paramètre `action=synchroniser`. Le bilan du lot est dans [`LOT-2.md`](LOT-2.md).
 
-**Envois.** Le moteur d'envoi de GeoMys-Android est porté, avec ses protections anti-doublon : OccTax, file des Suivis, OccHab, et les trois stores de saisie. Les écrans OccTax et ceux des Suivis le déclenchent ; ceux d'OccHab viennent avec le lot 8. Le bilan du lot est dans [`LOT-3.md`](LOT-3.md).
+**Envois.** Le moteur d'envoi de GeoMys-Android est porté, avec ses protections anti-doublon : OccTax, file des Suivis, OccHab, et les trois stores de saisie. Les écrans OccTax, ceux des Suivis et ceux d'OccHab le déclenchent. Le bilan du lot est dans [`LOT-3.md`](LOT-3.md).
 
 **Formulaires.** Le moteur des formulaires de GeoMys-Android est porté : formulaire des Suivis (règles `hidden`, `change` et `required` conditionnel, bornes, champ espèce), valeurs d'une visite, champs additionnels OccTax. Les champs additionnels s'affichent dans les écrans OccTax, le formulaire des Suivis dans la nouvelle saisie du lot 7. Le bilan du lot est dans [`LOT-4.md`](LOT-4.md).
 
 **Saisies OccTax.** Les écrans de saisie de GeoMys-Android sont portés : carte multi-taxons et trace GPS, relevé, caractérisation, dénombrement avec photos et sons, détails du relevé, saisie mono-taxon, Mes saisies, détail d'une saisie, import et export GPX. Des paramètres de lancement les ouvrent sur des données d'essai, sur l'émulateur et le simulateur seulement. Le bilan du lot, avec la recette terrain à faire, est dans [`LOT-6.md`](LOT-6.md).
 
 **Suivis.** Les écrans des Suivis (Monitoring) de GeoMys-Android sont portés : liste des protocoles, détail d'un protocole, fiche d'un objet, nouvelle saisie et son formulaire, chaîne d'observations, Mes visites, carte des géométries. Le paramètre `action=monitoring-essai` charge des protocoles d'essai, sur l'émulateur et le simulateur seulement. Le bilan du lot, avec la recette terrain en cours, est dans [`LOT-7.md`](LOT-7.md).
+
+**OccHab.** Les écrans d'OccHab de GeoMys-Android sont portés : carte d'édition des stations (point, polygone et ses trous, aimantage, import d'une station du serveur), informations obligatoires et détails d'une station, habitats, Mes stations. Le paramètre `action=occhab-essai` charge des stations d'essai, sur l'émulateur et le simulateur seulement. Le bilan du lot, avec la recette terrain à faire, est dans [`LOT-8.md`](LOT-8.md).
 
 **Prototypes du lot 0.** Ils ne s'ouvrent plus que par paramètre de lancement :
 - `ecran=prototype-carte` : l'écran d'essais MapLibre, avec ses fonds, le MBTiles, le hors-ligne, le cap et les sommets déplaçables. Bilan dans [`PROTOTYPE-CARTE.md`](PROTOTYPE-CARTE.md), outils dans `outils/prototype-carte/` ;

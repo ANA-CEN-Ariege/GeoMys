@@ -99,13 +99,13 @@ object AffichageSortie {
         val heureReleve = FormatDate.heure(rep.dateDebutReleve ?: rep.date)
         return if (obsGroup.size == 1) {
             var sub = heureReleve
-            if (rep.nombre > 1) sub += " · ${rep.nombre} ind."
+            if (rep.totalIndividus > 1) sub += " · ${rep.totalIndividus} ind."
             if (rep.notes.isNotEmpty()) sub += " — ${rep.notes}"
             rep.espece to sub
         } else {
             // Une espèce par ligne : toute la liste s'affiche, même au-delà de 3 espèces.
             "${obsGroup.size} espèces · $heureReleve" to obsGroup.joinToString("\n") { o ->
-                val n = if (o.nombre > 1) " × ${o.nombre}" else ""
+                val n = if (o.totalIndividus > 1) " × ${o.totalIndividus}" else ""
                 val notes = if (o.notes.isNotEmpty()) " — ${o.notes}" else ""
                 "• ${o.espece}$n$notes"
             }

@@ -72,6 +72,8 @@ Elle vivait dans les Fragments ; elle devient des objets du socle, testés sans 
 - après « Enregistrer + suivante », la ligne de contexte « Sur : … — Protocole : … » disparaît (n° 14) ;
 - un ajout de photos seul ne compte pas comme une modification : « Terminer » et Retour quittent le formulaire sans demander, et les photos sont perdues (n° 15).
 
+Tous deux ont été corrigés depuis dans GeoMys-Android (`5b981f3`, `e69543d`) ; les corrections sont reportées au lot 8 ([`LOT-8.md`](LOT-8.md) § 7).
+
 **Défaut d'Android non reproduit :** les trous des polygones sont rendus en creux, comme sous GeoMys-IOS (n° 9).
 
 **Pas repris :**
@@ -140,13 +142,13 @@ Les oiseaux du référentiel d'essai du lot 6 (`action=taxref-essai`, à lancer 
 4. **Mes visites** : modification, suppression d'une observation, « Envoyer ce groupe », « Tout envoyer » ; une visite incomplète renvoyée vers son formulaire.
 5. **Côté serveur** : visites, observations et photos dans GeoNature, sans doublon.
 6. **Carte** d'un protocole à polygones, si le serveur en a.
-7. **Points à éprouver** : les défauts n° 14 et 15 (§ 5) ; le signe moins et la virgule des champs nombre, sur le clavier Samsung et sous iOS ; un formulaire hors ligne (datalists du cache, options « non rechargées »).
+7. **Points à éprouver** : les corrections des défauts n° 14 et 15 (§ 5, reportées au lot 8) ; le signe moins et la virgule des champs nombre, sur le clavier Samsung et sous iOS ; un formulaire hors ligne (datalists du cache, options « non rechargées »).
 
 ## 9. Reste à faire
 
 - **La fin de la recette terrain** (§ 8), avec celle du lot 6, et les premiers envois réels des Suivis depuis les écrans.
-- **À trancher** : les défauts n° 14 et 15 (§ 5) ; ceux du lot 6 ; la mort du processus sous Android.
-- **Lots 8 et 9** : OccHab, l'Explorer et les cartes.
+- **À trancher** : la mort du processus sous Android. Les défauts n° 14 et 15 sont corrigés (§ 5) ; ceux du lot 6 et le n° 11, au lot 8 ([`LOT-8.md`](LOT-8.md) § 5).
+- **Lots 8 et 9** : OccHab ([`LOT-8.md`](LOT-8.md)), l'Explorer et les cartes.
 
 ## 10. Outils
 

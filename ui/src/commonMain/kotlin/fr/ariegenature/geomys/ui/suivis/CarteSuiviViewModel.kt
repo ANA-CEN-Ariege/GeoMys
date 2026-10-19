@@ -32,9 +32,9 @@ import fr.ariegenature.geomys.ServicesGeoNature
 import fr.ariegenature.geomys.carte.FondChoisi
 import fr.ariegenature.geomys.carte.chargerFondChoisi
 import fr.ariegenature.geomys.carte.enregistrerFondChoisi
+import fr.ariegenature.geomys.geo.Emprise
 import fr.ariegenature.geomys.monitoring.ActionCarte
 import fr.ariegenature.geomys.monitoring.CarteSuivis
-import fr.ariegenature.geomys.monitoring.EmpriseCarte
 import fr.ariegenature.geomys.monitoring.FilSegment
 import fr.ariegenature.geomys.monitoring.ObjetCarte
 import fr.ariegenature.geomys.network.MonitoringApi.MonitoringEnfant
@@ -74,7 +74,7 @@ class CarteSuiviViewModel(
         private set
 
     /** Le cadrage, une fois les géométries connues. */
-    var emprise by mutableStateOf<EmpriseCarte?>(null)
+    var emprise by mutableStateOf<Emprise?>(null)
         private set
     var menu by mutableStateOf<ActionsObjet?>(null)
         private set

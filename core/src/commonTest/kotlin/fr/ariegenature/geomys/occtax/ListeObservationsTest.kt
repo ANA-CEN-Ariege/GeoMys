@@ -17,11 +17,14 @@
  */
 
 // Propre au portage : ces textes vivaient dans l'écran de GeoMys-Android @ cdd5196
-// (ui/ObservationsFragment.kt), sans test. Les attendus sont ceux de son code.
+// (ui/ObservationsFragment.kt), sans test. Les attendus sont ceux de son code, sauf le total d'individus
+// (défaut n° 5 de l'inventaire, corrigé).
 
 package fr.ariegenature.geomys.occtax
 
+import fr.ariegenature.geomys.model.Denombrement
 import fr.ariegenature.geomys.model.Observation
+import fr.ariegenature.geomys.model.Sortie
 import fr.ariegenature.geomys.store.io.mapDepuisJson
 import fr.ariegenature.geomys.store.io.mapVersJson
 import kotlin.test.Test
@@ -58,6 +61,24 @@ class ListeObservationsTest {
         assertEquals("Merle noir, Pic vert", ListeObservations.secondaire(multi))
         assertEquals("×3", ListeObservations.effectif(multi))
         assertEquals("2 espèces seront supprimées :\n• Merle noir\n• Pic vert", ListeObservations.messageSuppression(multi))
+    }
+
+    /** Défaut n° 5 de l'inventaire corrigé : le total d'individus additionne TOUS les
+     *  dénombrements, dans les listes comme dans le relevé (sous GeoMys-Android, les listes ne
+     *  comptaient que le n° 0). */
+    @Test
+    fun le_total_d_individus_additionne_tous_les_denombrements() {
+        val o = obs("a", "Merle noir", releveId = "r", nombre = 2).apply {
+            denombrementsAdditionnels = listOf(Denombrement(nombreMin = 3), Denombrement(nombreMin = 1))
+        }
+        assertEquals(6, o.totalIndividus)
+        val releve = listOf(o, obs("b", "Pie bavarde", releveId = "r")).grouperEnReleves().single()
+        assertEquals("×7", ListeObservations.effectif(releve))
+        val sortie = Sortie(observations = listOf(o))
+        assertEquals(listOf("Merle noir" to 6), MesSaisies.especesAgregees(sortie))
+        assertEquals("Merle noir", AffichageSortie.textes(listOf(o)).first)
+        assertEquals(true, AffichageSortie.textes(listOf(o)).second.contains("6 ind."))
+        assertEquals(true, CarteSaisie.optionsReleve(listOf(o, obs("b", "Pie bavarde"))).second.contains("Merle noir × 6"))
     }
 
     @Test

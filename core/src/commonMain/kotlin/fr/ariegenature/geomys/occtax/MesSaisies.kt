@@ -88,13 +88,19 @@ object MesSaisies {
         return "Supprimer la $descr ? Cette action est définitive."
     }
 
-    /** Les espèces de la saisie avec leur total d'individus (dénombrement n°0), par ordre
+    /** « Continuer la saisie » d'une saisie MONO-TAXON : elle se rouvre en mono (GeoMys-Android la
+     *  rouvrait toujours sur la carte multi-taxons, défaut n° 7 de l'inventaire), avec les champs
+     *  additionnels de relevé de sa dernière observation — l'écran intercalé ne repasse pas. */
+    fun additionnelsPourContinuerEnMono(sortie: Sortie): Map<String, String> =
+        sortie.observations.lastOrNull()?.additionalFieldsReleve.orEmpty()
+
+    /** Les espèces de la saisie avec leur total d'individus (tous les dénombrements), par ordre
      *  alphabétique ; le placeholder « relevé sans espèce » n'est pas une espèce. */
     fun especesAgregees(sortie: Sortie): List<Pair<String, Int>> =
         sortie.observations
             .filterNot { it.releveSansEspece }
             .groupBy { it.espece }
-            .map { (espece, obs) -> espece to obs.sumOf { it.nombre } }
+            .map { (espece, obs) -> espece to obs.sumOf { it.totalIndividus } }
             .sortedBy { it.first }
 
     /** « 3 espèces ». */

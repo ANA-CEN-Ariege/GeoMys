@@ -183,7 +183,12 @@ data class Observation(
      *  (audit 2026-09-14, R1-M1). Reste posé après un envoi partiel, ce qui permet de rattacher les
      *  observations restantes au relevé déjà créé au lieu d'en ouvrir un second. */
     var releveTente: Boolean = false,
-)
+) {
+    /** Le total d'individus : la somme des count_min de TOUS les dénombrements (n° 0 et suivants),
+     *  partout le même. Sous GeoMys-Android, les listes ne comptaient que le n° 0 alors que le
+     *  relevé les additionnait tous (défaut n° 5 de l'inventaire). */
+    val totalIndividus: Int get() = nombre + denombrementsAdditionnels.sumOf { it.nombreMin }
+}
 
 @Serializable
 data class Sortie(
@@ -194,6 +199,10 @@ data class Sortie(
     var distanceTotale: Double = 0.0,
     var envoyeGeoNature: Boolean = false,
     var estImportee: Boolean = false,
+    /** Saisie faite en mode MONO-TAXON : « Continuer la saisie » la rouvre dans ce mode. Faux pour
+     *  les sorties d'avant ce champ, que GeoMys-Android rouvrait toujours en multi-taxons (défaut
+     *  n° 7 de l'inventaire). */
+    var saisieMono: Boolean = false,
     /** Message du dernier ÉCHEC d'envoi GeoNature (humanisé). Null si jamais échoué ou si
      *  l'envoi a fini par réussir. Sert au marquage visuel (cadre rouge) dans « Mes saisies »
      *  pour qu'un échec ne passe pas inaperçu une fois le dialog d'erreur fermé. */

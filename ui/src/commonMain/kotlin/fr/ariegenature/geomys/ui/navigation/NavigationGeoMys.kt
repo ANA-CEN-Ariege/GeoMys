@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.lifecycle.Lifecycle
@@ -58,7 +59,19 @@ import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.occtax.MesSaisiesScreen
 import fr.ariegenature.geomys.ui.occtax.MesSaisiesViewModel
 import fr.ariegenature.geomys.network.TaxRefStatut
+import fr.ariegenature.geomys.occhab.detailsSessionParDefaut
+import fr.ariegenature.geomys.outils.CADRAGE_OCCHAB_ESSAI
+import fr.ariegenature.geomys.ui.occhab.CarteOccHabScreen
+import fr.ariegenature.geomys.ui.occhab.CarteOccHabViewModel
+import fr.ariegenature.geomys.ui.occhab.HabitatOccHabScreen
+import fr.ariegenature.geomys.ui.occhab.HabitatOccHabViewModel
+import fr.ariegenature.geomys.ui.occhab.MesStationsScreen
+import fr.ariegenature.geomys.ui.occhab.MesStationsViewModel
+import fr.ariegenature.geomys.ui.occhab.SessionOccHabViewModel
+import fr.ariegenature.geomys.ui.occhab.StationOccHabScreen
+import fr.ariegenature.geomys.ui.occhab.StationOccHabViewModel
 import fr.ariegenature.geomys.occtax.GeometrieFinale
+import fr.ariegenature.geomys.occtax.MesSaisies
 import fr.ariegenature.geomys.occtax.OuvertureReleve
 import fr.ariegenature.geomys.occtax.SaisieMono
 import fr.ariegenature.geomys.saisie.ChampsAdditionnels
@@ -103,6 +116,7 @@ import fr.ariegenature.geomys.ui.suivis.SuiviDetailViewModel
 import fr.ariegenature.geomys.ui.suivis.SuivisScreen
 import fr.ariegenature.geomys.ui.suivis.SuivisViewModel
 import fr.ariegenature.geomys.ui.suivis.resultat
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 
@@ -225,6 +239,22 @@ data class RouteCarteSuivi(val moduleCode: String, val objectType: String, val i
 @Serializable
 data object RouteMesVisites
 
+/** La carte OccHab : la session OccHab est posée avant d'y venir (nouvelle, ou saisie reprise). */
+@Serializable
+data object RouteOccHabCarte
+
+/** La station courante de la session OccHab : son résumé et ses habitats. */
+@Serializable
+data object RouteOccHabStation
+
+/** Le formulaire d'un habitat de la station courante ; [habitatId] null : un nouvel habitat. */
+@Serializable
+data class RouteOccHabHabitat(val habitatId: String? = null)
+
+/** « Mes stations » : les saisies OccHab du store. */
+@Serializable
+data object RouteMesStations
+
 /** Écran que le portage n'a pas encore atteint : [titre] et le [lot] qui l'apportera. */
 @Serializable
 data class RouteAVenir(val titre: String, val lot: String)
@@ -232,7 +262,9 @@ data class RouteAVenir(val titre: String, val lot: String)
 
 /** Le protocole des essais d'affichage du lot 7 (MonitoringEssai). */
 private const val PROTOCOLE_ESSAI = "stom_ariege"
-private const val LOT_OCCHAB = "lot 8 (OccHab)"
+/** La saisie OccHab d'essai à envoyer, et sa station polygonale (OccHabEssai). */
+private const val SAISIE_OCCHAB_ESSAI = "essai-occhab-a-envoyer"
+private const val STATION_OCCHAB_ESSAI = "essai-occhab-pelouse"
 private const val LOT_CARTES = "lot 9 (Explorer, cartes)"
 
 /** Les écrans du flux de saisie OccTax (DESTINATIONS_SAISIE de MainActivity). */
@@ -291,7 +323,13 @@ private fun NavHostController.naviguerVersFil(moduleCode: String, cible: List<Fi
  *    « nouvelle-visite » une visite de ce site (« nouvelle-visite-observateurs » : le choix des
  *    observateurs ouvert), « nouvelle-observation » une observation de sa visite en attente d'envoi
  *    (chaîne de saisies), « mes-visites » la file d'envoi des Suivis, « carte-site » la carte du Col de Port,
- *    « carte-mares » celle du protocole d'essai des mares (polygones, dont un à trou). */
+ *    « carte-mares » celle du protocole d'essai des mares (polygones, dont un à trou) ; essais du lot 8
+ *    (`action=occhab-essai`) : « occhab-carte » une nouvelle session OccHab (« occhab-infos » : ses
+ *    informations obligatoires ouvertes), « occhab-reprise » la reprise de la saisie d'essai à envoyer
+ *    (« occhab-edition » : sa station polygonale sélectionnée sur la carte),
+ *    « occhab-station » sa station polygonale (« occhab-details » : ses détails ouverts), « occhab-habitat »
+ *    le premier habitat de celle-ci, « occhab-habitat-nouveau » un nouvel habitat, « mes-stations » la
+ *    liste des saisies OccHab. */
 @Composable
 fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial: String? = null) {
     val nav = rememberNavController()
@@ -301,9 +339,15 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
     var essaiDetails by remember { mutableStateOf(ecranInitial == "details-releve" || ecranInitial == "details-communs") }
     var essaiMonoCarte by remember { mutableStateOf(ecranInitial == "saisie-mono-carte") }
     var essaiObservateurs by remember { mutableStateOf(ecranInitial == "nouvelle-visite-observateurs") }
+    var essaiInfosOccHab by remember { mutableStateOf(ecranInitial == "occhab-infos") }
+    var essaiEditionOccHab by remember { mutableStateOf(ecranInitial == "occhab-edition") }
+    var essaiDetailsStation by remember { mutableStateOf(ecranInitial == "occhab-details") }
     // La session de saisie OccTax, partagée par tous les écrans du flux comme le TraceViewModel
     // (`activityViewModels()`) de GeoMys-Android : elle vit au-dessus du graphe.
     val sessionSaisie = viewModel { SessionSaisieViewModel(services) }
+    // La session OccHab, partagée de même par la carte, la station, l'habitat et « Mes stations »
+    // (OccHabViewModel, `activityViewModels()`).
+    val sessionOccHab = viewModel { SessionOccHabViewModel(services) }
     // Quitter le flux de saisie DANS l'appli (et non passer en arrière-plan) : sur une vraie
     // transition saisie → hors saisie seulement.
     LaunchedEffect(nav) {
@@ -320,7 +364,9 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             "accueil", "mes-saisies", "detail-saisie", "saisie-multi", "saisie-suivante", "reprise-saisie", "releve-essai", "releve-nouveau",
             "caracterisation-essai", "denombrement-essai", "details-releve", "details-communs", "details-intercale",
             "observations-essai", "saisie-mono", "saisie-mono-carte", "suivis", "suivi-detail", "fiche-objet",
-            "nouvelle-visite", "nouvelle-visite-observateurs", "nouvelle-observation", "mes-visites", "carte-site", "carte-mares" -> false
+            "nouvelle-visite", "nouvelle-visite-observateurs", "nouvelle-observation", "mes-visites", "carte-site", "carte-mares",
+            "occhab-carte", "occhab-infos", "occhab-reprise", "occhab-edition", "occhab-station", "occhab-details", "occhab-habitat", "occhab-habitat-nouveau",
+            "mes-stations" -> false
             "parametres" -> true
             else -> !configurationComplete(services.config, services.taxRef)
         }
@@ -356,6 +402,27 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
         }
         if (ecranInitial == "mes-saisies" || ecranInitial == "detail-saisie") nav.navigate(RouteMesSaisies)
         if (ecranInitial == "mes-visites") nav.navigate(RouteMesVisites)
+        if (ecranInitial == "mes-stations") nav.navigate(RouteMesStations)
+        if (ecranInitial == "occhab-carte" || ecranInitial == "occhab-infos") {
+            sessionOccHab.session.demarrerSession(detailsSessionParDefaut(services.config))
+            sessionOccHab.session.dernierCadrageCarte = CADRAGE_OCCHAB_ESSAI
+            nav.navigate(RouteOccHabCarte)
+        }
+        if (ecranInitial in setOf("occhab-reprise", "occhab-edition", "occhab-station", "occhab-details", "occhab-habitat", "occhab-habitat-nouveau")) {
+            services.occHabStore.charger().firstOrNull { it.id == SAISIE_OCCHAB_ESSAI }?.let { saisie ->
+                val session = sessionOccHab.session
+                session.reprendreSaisie(saisie)
+                session.dernierCadrageCarte = CADRAGE_OCCHAB_ESSAI
+                nav.navigate(RouteOccHabCarte)
+                val station = saisie.stations.firstOrNull { it.id == STATION_OCCHAB_ESSAI }
+                if (ecranInitial != "occhab-reprise" && ecranInitial != "occhab-edition" && station != null) {
+                    session.reprendreStation(station)
+                    nav.navigate(RouteOccHabStation)
+                    if (ecranInitial == "occhab-habitat") nav.navigate(RouteOccHabHabitat(station.habitats.firstOrNull()?.id))
+                    if (ecranInitial == "occhab-habitat-nouveau") nav.navigate(RouteOccHabHabitat())
+                }
+            }
+        }
         if (ecranInitial == "detail-saisie") services.sortieStore.charger().firstOrNull()?.let { nav.navigate(RouteSortieDetail(it.id)) }
         if (ecranInitial == "saisie-multi" || ecranInitial == "saisie-suivante" || ecranInitial == "details-communs") {
             sessionSaisie.demarrerSaisieSuivante = ecranInitial == "saisie-suivante"
@@ -414,7 +481,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             if (ios) DefaultNavTransitions.popExitTransition(DefaultNavTransitions.exitTransition)(this) else ExitTransition.None
         },
     ) {
-        composable<RouteAccueil> { EcranAccueil(infos, services, sessionSaisie, nav) }
+        composable<RouteAccueil> { EcranAccueil(infos, services, sessionSaisie, sessionOccHab, nav) }
         composable<RouteParametres> {
             val vm = viewModel { ParametresViewModel(services) }
             ParametresScreen(
@@ -524,10 +591,17 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 vm,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
                 onDetail = { id -> nav.navigate(RouteSortieDetail(id)) },
-                onContinuer = { id ->
-                    // Recharger la sortie et recadrer la carte dessus, même déjà éditée dans la session.
-                    sessionSaisie.session.forcerRepriseAuProchainEcran()
-                    nav.navigate(RouteSaisieMulti(id))
+                onContinuer = { sortie ->
+                    if (sortie.saisieMono) {
+                        // Saisie mono-taxon : elle se rouvre en mono, reprise dans la session.
+                        sessionSaisie.session.reprendreSortie(sortie)
+                        val additionnels = MesSaisies.additionnelsPourContinuerEnMono(sortie)
+                        nav.navigate(RouteSaisieMono(additionnels.takeIf { it.isNotEmpty() }?.let(::mapVersJson)))
+                    } else {
+                        // Recharger la sortie et recadrer la carte dessus, même déjà éditée dans la session.
+                        sessionSaisie.session.forcerRepriseAuProchainEcran()
+                        nav.navigate(RouteSaisieMulti(sortie.id))
+                    }
                 },
             )
         }
@@ -724,6 +798,64 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 },
             )
         }
+        composable<RouteOccHabCarte> { entree ->
+            val vm = viewModel { CarteOccHabViewModel(services, sessionOccHab) }
+            // Essai d'affichage : les informations obligatoires ouvertes d'emblée (le simulateur iOS ne touche pas).
+            if (essaiInfosOccHab) {
+                LaunchedEffect(vm) {
+                    vm.ajouterStation()
+                    essaiInfosOccHab = false
+                }
+            }
+            // Essai d'affichage : la station polygonale d'essai sélectionnée, une fois dessinée.
+            if (essaiEditionOccHab) {
+                LaunchedEffect(vm) {
+                    snapshotFlow { vm.stationsLocales }.first { locales -> locales.any { it.id == STATION_OCCHAB_ESSAI } }
+                    vm.toucherStationLocale(STATION_OCCHAB_ESSAI)
+                    essaiEditionOccHab = false
+                }
+            }
+            CarteOccHabScreen(
+                vm,
+                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onStation = { nav.naviguerDepuis(entree, RouteOccHabStation) },
+            )
+        }
+        composable<RouteOccHabStation> { entree ->
+            val vm = viewModel { StationOccHabViewModel(services, sessionOccHab) }
+            // Essai d'affichage : les détails de la station ouverts d'emblée.
+            if (essaiDetailsStation) {
+                LaunchedEffect(vm) {
+                    vm.ouvrirDetails()
+                    essaiDetailsStation = false
+                }
+            }
+            StationOccHabScreen(
+                vm,
+                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onHabitat = { id -> nav.naviguerDepuis(entree, RouteOccHabHabitat(id)) },
+                // Carte VIERGE pour la station suivante, sans empiler les écrans précédents.
+                onCarteSuivante = { nav.navigate(RouteOccHabCarte) { popUpTo(RouteAccueil) { inclusive = false } } },
+            )
+        }
+        composable<RouteOccHabHabitat> { entree ->
+            val route = entree.toRoute<RouteOccHabHabitat>()
+            val vm = viewModel { HabitatOccHabViewModel(services, sessionOccHab, route.habitatId) }
+            HabitatOccHabScreen(
+                vm,
+                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                // Habitat validé : retour à la station (l'écran de l'habitat quitte la pile).
+                onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
+            )
+        }
+        composable<RouteMesStations> { entree ->
+            val vm = viewModel { MesStationsViewModel(services, sessionOccHab) }
+            MesStationsScreen(
+                vm,
+                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onCarte = { nav.naviguerDepuis(entree, RouteOccHabCarte) },
+            )
+        }
         composable<RouteAVenir> { entree ->
             val route = entree.toRoute<RouteAVenir>()
             EcranAVenir(route.titre, route.lot, onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) })
@@ -772,7 +904,13 @@ private fun lireEtatAccueil(infos: InfosApp, services: ServicesGeoNature): EtatA
 }
 
 @Composable
-private fun EcranAccueil(infos: InfosApp, services: ServicesGeoNature, sessionSaisie: SessionSaisieViewModel, nav: NavHostController) {
+private fun EcranAccueil(
+    infos: InfosApp,
+    services: ServicesGeoNature,
+    sessionSaisie: SessionSaisieViewModel,
+    sessionOccHab: SessionOccHabViewModel,
+    nav: NavHostController,
+) {
     var etat by remember { mutableStateOf(lireEtatAccueil(infos, services)) }
     val portee = rememberCoroutineScope()
     LifecycleResumeEffect(Unit) {
@@ -812,13 +950,18 @@ private fun EcranAccueil(infos: InfosApp, services: ServicesGeoNature, sessionSa
                 nav.navigate(if (ecranReleve) RouteDetailsReleve(mono = true) else RouteSaisieMono())
             },
             monitoring = { nav.navigate(RouteSuivis) },
-            occhab = { aVenir("OccHab", LOT_OCCHAB) },
+            occhab = {
+                // Nouvelle SESSION OccHab : détails (JDD, observateurs…) réinitialisés aux défauts
+                // serveur, JDD à saisir.
+                sessionOccHab.session.demarrerSession(detailsSessionParDefaut(services.config))
+                nav.navigate(RouteOccHabCarte)
+            },
             parametres = { nav.navigate(RouteParametres) },
             menu = { entree ->
                 when (entree) {
                     EntreeMenuAccueil.MES_SAISIES -> nav.navigate(RouteMesSaisies)
                     EntreeMenuAccueil.MES_VISITES -> nav.navigate(RouteMesVisites)
-                    EntreeMenuAccueil.MES_STATIONS -> aVenir("Mes stations", LOT_OCCHAB)
+                    EntreeMenuAccueil.MES_STATIONS -> nav.navigate(RouteMesStations)
                     EntreeMenuAccueil.EXPLORER -> aVenir("Explorer", LOT_CARTES)
                     EntreeMenuAccueil.MAPS_MANAGER -> aVenir("Maps Manager", LOT_CARTES)
                 }

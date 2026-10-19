@@ -51,15 +51,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathFillType
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -80,6 +73,7 @@ import fr.ariegenature.geomys.occtax.CadrageSortie
 import fr.ariegenature.geomys.ui.carte.BoutonCarte
 import fr.ariegenature.geomys.ui.carte.CarteGeoMys
 import fr.ariegenature.geomys.ui.carte.CerclePrecision
+import fr.ariegenature.geomys.ui.carte.GoutteIos
 import fr.ariegenature.geomys.ui.carte.PointPosition
 import fr.ariegenature.geomys.ui.carte.StyleBoutonCarte
 import fr.ariegenature.geomys.ui.carte.animerCamera
@@ -357,31 +351,6 @@ private fun collection(objets: List<ObjetCarte>, enfant: Boolean, filtre: (Geome
 }.toString()
 
 private fun coordonnee(p: LatLon) = JsonArray(listOf(JsonPrimitive(p.longitude), JsonPrimitive(p.latitude)))
-
-/** `PinLocationMarker` de GeoMys-IOS : la goutte de `ic_location_pin`, évidée en son centre et
- *  cerclée d'un trait blanc de 1,5 pt. */
-private class GoutteIos(private val couleur: Color) : Painter() {
-    override val intrinsicSize: Size = Size.Unspecified
-
-    override fun DrawScope.onDraw() {
-        val sx = size.width / 24f
-        val sy = size.height / 24f
-        fun goutte() = Path().apply {
-            moveTo(12f * sx, 2f * sy)
-            cubicTo(8.13f * sx, 2f * sy, 5f * sx, 5.13f * sy, 5f * sx, 9f * sy)
-            cubicTo(5f * sx, 14.25f * sy, 12f * sx, 22f * sy, 12f * sx, 22f * sy)
-            cubicTo(12f * sx, 22f * sy, 19f * sx, 14.25f * sy, 19f * sx, 9f * sy)
-            cubicTo(19f * sx, 5.13f * sy, 15.87f * sx, 2f * sy, 12f * sx, 2f * sy)
-            close()
-        }
-        val evidee = goutte().apply {
-            addOval(Rect(9.5f * sx, 6.5f * sy, 14.5f * sx, 11.5f * sy))
-            fillType = PathFillType.EvenOdd
-        }
-        drawPath(evidee, couleur)
-        drawPath(goutte(), Color.White, style = Stroke(1.5.dp.toPx()))
-    }
-}
 
 @Composable
 private fun Dialogues(vm: CarteSuiviViewModel) {

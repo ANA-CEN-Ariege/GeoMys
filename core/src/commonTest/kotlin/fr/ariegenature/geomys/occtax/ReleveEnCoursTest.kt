@@ -17,7 +17,8 @@
  */
 
 // Propre au portage : sous GeoMys-Android, ces règles vivaient dans SaisieObservationFragment, sans test.
-// Les attendus sont ceux de son code @ cdd5196.
+// Les attendus sont ceux de son code @ cdd5196, sauf la date des détails communs (défaut n° 4 de
+// l'inventaire, corrigé).
 
 package fr.ariegenature.geomys.occtax
 
@@ -150,6 +151,34 @@ class ReleveEnCoursTest {
         assertEquals(listOf("Bob"), avecCommuns.nomsObservateurs)
         assertEquals("commun", avecCommuns.commentaire)
         assertEquals(mapOf("b" to "2"), avecCommuns.additionnelsReleve)
+        assertEquals(1_600_000_000_000L, avecCommuns.dateDebut, "la date a posteriori n'est pas écrasée par les détails communs")
+    }
+
+    /** Défaut n° 4 de l'inventaire corrigé : la date des détails communs n'est retenue que
+     *  modifiée, et ne remplace jamais une date a posteriori plus récente. */
+    @Test
+    fun la_date_des_details_communs_n_est_retenue_que_modifiee() = runTest {
+        val session = session()
+        fun communs(date: Long, modifiee: Boolean) = DetailsReleveResult(
+            idDataset = 9, idsObservateurs = emptyList(), nomsObservateurs = emptyList(), additionnels = emptyMap(),
+            dateDebut = date, dateFin = date, dateModifiee = modifiee,
+        )
+        fun nouveau() = ReleveEnCours(session, config, OuvertureReleve(geometrie = polygone), null)
+        // Validés sans toucher à la date : l'heure d'ouverture du dialogue n'est pas retenue.
+        session.definirDetailsCommuns(communs(1_000L, modifiee = false))
+        assertNull(session.detailsCommuns?.dateDebut)
+        assertNull(nouveau().dateDebut, "le relevé garde sa propre date")
+        // Date commune modifiée : la saisie devient a posteriori (ce que fait la carte), les relevés
+        // en héritent.
+        session.definirDetailsCommuns(communs(2_000L, modifiee = true))
+        session.definirDateAPosteriori(2_000L, 2_000L)
+        assertEquals(2_000L, nouveau().dateDebut)
+        // Une date a posteriori armée ensuite (« Détails » d'un relevé) l'emporte.
+        session.definirDateAPosteriori(3_000L, 3_000L)
+        assertEquals(3_000L, nouveau().dateDebut)
+        // Rouverts et validés sans toucher à la date : la date commune retenue reste affichée.
+        session.definirDetailsCommuns(communs(9_999L, modifiee = false))
+        assertEquals(2_000L, session.detailsCommuns?.dateDebut)
     }
 
     @Test

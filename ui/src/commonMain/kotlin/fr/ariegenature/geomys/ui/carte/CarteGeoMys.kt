@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ariegenature.geomys.carte.FondCarte
@@ -81,27 +82,37 @@ fun FondChoisi.style(): BaseStyle = when (this) {
 /** Une carte des écrans de GeoMys : déplacement et zoom au doigt, sans rotation ni inclinaison
  *  (la rotation viendra du cap), sans logo, échelle ni boussole (osmdroid n'en montrait pas).
  *  [onClic] reçoit les touchers que rien d'autre n'a pris (couches cliquables, contenu Compose
- *  posé par [contenu]) ; il rend vrai s'il s'en est servi. [contenu] place des éléments Compose
- *  sur la carte (`Modifier.placedAt`). */
+ *  posé par [contenu]) ; il rend vrai s'il s'en est servi. [onAvantClic] reçoit chaque toucher
+ *  AVANT les couches cliquables, avec sa position à l'écran : rendre vrai le garde pour lui.
+ *  [contenu] place des éléments Compose sur la carte (`Modifier.placedAt`). */
 @Composable
 fun CarteGeoMys(
     etat: MapState,
     modifier: Modifier = Modifier,
     onClic: ((LatLon) -> Boolean)? = null,
+    onAvantClic: ((LatLon, DpOffset) -> Boolean)? = null,
     contenu: @Composable MapOverlayScope.() -> Unit = {},
 ) {
-    val interactions = remember(onClic) {
+    val interactions = remember(onClic, onAvantClic) {
         MapInteractions {
             camera {
                 rotate { enabled = false }
                 pitch { enabled = false }
             }
-            if (onClic != null) {
+            if (onClic != null || onAvantClic != null) {
                 callbacks {
                     click {
-                        onUnhandled { evenement: ClickEvent ->
-                            val p = evenement.position
-                            if (p != null && onClic(LatLon(p.latitude, p.longitude))) ClickResult.Consume else ClickResult.Pass
+                        if (onAvantClic != null) {
+                            onEvent { evenement: ClickEvent ->
+                                val p = evenement.position
+                                if (p != null && onAvantClic(LatLon(p.latitude, p.longitude), evenement.screenOffset)) ClickResult.Consume else ClickResult.Pass
+                            }
+                        }
+                        if (onClic != null) {
+                            onUnhandled { evenement: ClickEvent ->
+                                val p = evenement.position
+                                if (p != null && onClic(LatLon(p.latitude, p.longitude))) ClickResult.Consume else ClickResult.Pass
+                            }
                         }
                     }
                 }

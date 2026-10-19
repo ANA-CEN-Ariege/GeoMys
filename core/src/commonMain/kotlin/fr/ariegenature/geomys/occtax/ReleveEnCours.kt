@@ -290,7 +290,8 @@ class ReleveEnCours(
                 dateFin = session.dateFinReleveAPosteriori
             }
             // Détails COMMUNS de la saisie (« i » de la carte) : valeurs de départ, surchargeables par
-            // « Détails ». Les champs additionnels de l'écran intercalé priment.
+            // « Détails ». Les champs additionnels de l'écran intercalé priment. Leur date ne passe
+            // que par la saisie a posteriori, ci-dessus (défaut n° 4 de l'inventaire corrigé).
             session.detailsCommuns?.let { dc ->
                 idDataset = dc.idDataset
                 idsObservateurs = dc.idsObservateurs
@@ -300,8 +301,6 @@ class ReleveEnCours(
                 habitatLabel = dc.habitatLabel
                 typGrp = dc.typGrp
                 champsExtra = dc.champsExtra
-                dateDebut = dc.dateDebut
-                dateFin = dc.dateFin
                 if (additionnelsReleve.isEmpty()) additionnelsReleve = dc.additionnels
             }
         }

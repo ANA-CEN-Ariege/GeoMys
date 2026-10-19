@@ -171,10 +171,11 @@ class SaisieMono(
         return listOf(m.sexe, m.stadeVie, m.techniqueObs).filter { it.isNotEmpty() }.joinToString(" · ").ifEmpty { "Détails renseignés" }
     }
 
-    /** Le résumé du panneau de la carte : « <espèce> × N ». */
+    /** Le résumé du panneau de la carte : « <espèce> × N », N le total de tous les dénombrements
+     *  (défaut n° 5 de l'inventaire : GeoMys-Android n'y comptait que le n° 0). */
     fun resume(): String {
         val m = _modele.value
-        return "${m.espece.ifEmpty { m.taxon.nomSingulier }} × ${m.nombre}"
+        return "${m.espece.ifEmpty { m.taxon.nomSingulier }} × ${m.total}"
     }
 
     /** Sous le résumé : les codes du sexe et du stade, s'il y en a. */
@@ -196,7 +197,7 @@ class SaisieMono(
         fun compteur(n: Int): String = "$n obs. enregistrée${if (n > 1) "s" else ""}"
 
         /** La confirmation qui suit chaque « + ». */
-        fun confirmation(observation: Observation): String = "${observation.espece} × ${observation.nombre}"
+        fun confirmation(observation: Observation): String = "${observation.espece} × ${observation.totalIndividus}"
 
         /** Marqueur touché : les observations à 30 m au plus de [reference] (les points se
          *  superposent vite sur le terrain), la plus récente d'abord. */
@@ -209,7 +210,7 @@ class SaisieMono(
 
         /** « HH:mm  espèce · N ind. », et les notes en dessous. */
         fun ligneObservationIci(o: Observation): String {
-            val effectif = if (o.nombre > 1) " · ${o.nombre} ind." else ""
+            val effectif = if (o.totalIndividus > 1) " · ${o.totalIndividus} ind." else ""
             val notes = if (o.notes.isNotEmpty()) "\n   ${o.notes}" else ""
             return "${FormatDate.heure(o.date)}  ${o.espece}$effectif$notes"
         }

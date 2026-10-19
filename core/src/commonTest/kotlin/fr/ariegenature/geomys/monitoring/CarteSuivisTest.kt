@@ -22,6 +22,7 @@
 
 package fr.ariegenature.geomys.monitoring
 
+import fr.ariegenature.geomys.geo.Emprise
 import fr.ariegenature.geomys.geo.LatLon
 import fr.ariegenature.geomys.network.MonitoringApi.MonitoringSchemaObjet
 import kotlin.test.Test
@@ -61,9 +62,9 @@ class CarteSuivisTest {
     @Test
     fun cadrage_d_un_point_ou_d_une_emprise() {
         assertNull(CarteSuivis.emprise(emptyList()))
-        assertEquals(EmpriseCarte(41.998, 0.998, 42.002, 1.002), CarteSuivis.emprise(listOf(LatLon(42.0, 1.0))))
+        assertEquals(Emprise(41.998, 0.998, 42.002, 1.002), CarteSuivis.emprise(listOf(LatLon(42.0, 1.0))))
         // Points confondus : la boîte du premier.
-        assertEquals(EmpriseCarte(41.998, 0.998, 42.002, 1.002), CarteSuivis.emprise(listOf(LatLon(42.0, 1.0), LatLon(42.00001, 1.00001))))
+        assertEquals(Emprise(41.998, 0.998, 42.002, 1.002), CarteSuivis.emprise(listOf(LatLon(42.0, 1.0), LatLon(42.00001, 1.00001))))
         val e = CarteSuivis.emprise(listOf(LatLon(42.0, 1.0), LatLon(43.0, 2.0)))!!
         assertEquals(41.85, e.sud, 1e-9)
         assertEquals(2.15, e.est, 1e-9)

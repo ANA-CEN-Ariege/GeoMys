@@ -24,7 +24,9 @@
 
 package fr.ariegenature.geomys.monitoring
 
+import fr.ariegenature.geomys.geo.Emprise
 import fr.ariegenature.geomys.geo.LatLon
+import fr.ariegenature.geomys.geo.empriseZoomerSur
 import fr.ariegenature.geomys.json.JSONArray
 import fr.ariegenature.geomys.json.JSONObject
 import fr.ariegenature.geomys.network.MonitoringApi.MonitoringSchemaObjet
@@ -43,9 +45,6 @@ sealed interface GeometrieSuivi {
 /** Un objet de la carte : son identité (pour les actions au toucher) et ses géométries.
  *  [enfant] : un enfant de l'objet ouvert, dessiné dans un style plus discret. */
 data class ObjetCarte(val type: String, val id: Int, val label: String, val enfant: Boolean, val geometries: List<GeometrieSuivi>)
-
-/** Le cadrage de la carte. */
-data class EmpriseCarte(val sud: Double, val ouest: Double, val nord: Double, val est: Double)
 
 /** Une action proposée au toucher d'un objet. */
 sealed interface ActionCarte {
@@ -111,23 +110,8 @@ object CarteSuivis {
     }
 
     /** Le cadrage de [points] (`zoomerSur`) : leur emprise agrandie de 30 % ; pour un point seul (ou
-     *  des points confondus), une boîte de ±[DEMI_BOITE]° (≈ 440 m) autour de lui. */
-    fun emprise(points: List<LatLon>): EmpriseCarte? {
-        if (points.isEmpty()) return null
-        fun boite(p: LatLon) = EmpriseCarte(p.latitude - DEMI_BOITE, p.longitude - DEMI_BOITE, p.latitude + DEMI_BOITE, p.longitude + DEMI_BOITE)
-        if (points.size == 1) return boite(points[0])
-        val sud = points.minOf { it.latitude }
-        val nord = points.maxOf { it.latitude }
-        val ouest = points.minOf { it.longitude }
-        val est = points.maxOf { it.longitude }
-        if (nord - sud < 0.0001 && est - ouest < 0.0001) return boite(points[0])
-        val dLat = (nord - sud) * (AGRANDISSEMENT - 1) / 2
-        val dLon = (est - ouest) * (AGRANDISSEMENT - 1) / 2
-        return EmpriseCarte(sud - dLat, ouest - dLon, nord + dLat, est + dLon)
-    }
-
-    private const val DEMI_BOITE = 0.002
-    private const val AGRANDISSEMENT = 1.3
+     *  des points confondus), une boîte de ±0,002° (≈ 440 m) autour de lui. */
+    fun emprise(points: List<LatLon>): Emprise? = empriseZoomerSur(points, demiBoite = 0.002, agrandissement = 1.3)
 
     /** Les types dessinés sur la carte d'un protocole : ses types « macro » (enfants de `module`
      *  dans le schéma) présents ; sans eux, les types dont le parent n'est pas lui-même présent

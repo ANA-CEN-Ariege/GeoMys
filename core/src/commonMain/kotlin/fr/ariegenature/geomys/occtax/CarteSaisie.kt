@@ -167,7 +167,7 @@ object CarteSaisie {
     fun optionsReleve(observations: List<Observation>): Pair<String, String> {
         val premiere = observations.first()
         val especes = observations.joinToString("\n") { o ->
-            val n = if (o.nombre > 1) " × ${o.nombre}" else ""
+            val n = if (o.totalIndividus > 1) " × ${o.totalIndividus}" else ""
             val notes = if (o.notes.isNotEmpty()) " — ${o.notes}" else ""
             "• ${o.espece}$n$notes"
         }

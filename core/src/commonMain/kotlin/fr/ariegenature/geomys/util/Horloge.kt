@@ -19,7 +19,9 @@
 package fr.ariegenature.geomys.util
 
 import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
 
@@ -29,3 +31,8 @@ fun maintenantMillis(): Long = Clock.System.now().toEpochMilliseconds()
 
 /** Le mois courant (1 à 12) dans le fuseau du téléphone : `Calendar.MONTH + 1` dans GeoMys-Android. */
 fun moisCourant(): Int = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).month.number
+
+/** Minuit, heure du téléphone, du jour de [millis] : un `Calendar` remis à 0 h 0 min 0 s 0 ms dans
+ *  GeoMys-Android (dates des stations OccHab, des jours sans heure). */
+fun debutDuJour(millis: Long = maintenantMillis(), fuseau: TimeZone = TimeZone.currentSystemDefault()): Long =
+    Instant.fromEpochMilliseconds(millis).toLocalDateTime(fuseau).date.atStartOfDayIn(fuseau).toEpochMilliseconds()

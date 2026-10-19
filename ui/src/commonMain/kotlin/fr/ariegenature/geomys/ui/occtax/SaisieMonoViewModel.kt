@@ -141,6 +141,7 @@ class SaisieMonoViewModel(
     init {
         // Écran d'entrée du flux mono-taxons : les écrans en aval affichent le même bandeau.
         session.typeSaisieLabel = SaisieMono.LIBELLE
+        session.saisieMono = true
         // Le modèle suit le groupe de la palette.
         viewModelScope.launch { snapshotFlow { champ.taxon }.collect { saisie.choisirTaxon(it) } }
     }

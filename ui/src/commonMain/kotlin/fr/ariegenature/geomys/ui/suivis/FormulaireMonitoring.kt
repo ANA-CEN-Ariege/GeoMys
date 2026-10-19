@@ -517,19 +517,13 @@ private fun LigneChampIos(
             .padding(horizontal = 16.dp, vertical = 11.dp)
             .barreObligatoire(barre, CouleursGeoMys.holoRougeFonce, 3.dp, espace = 8.dp, arrondi = 1.5.dp),
     ) {
-        if (f.viewType == ViewType.CHECKBOX) {
-            // Toggle(libellé, isOn:) : le libellé est celui de l'interrupteur.
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(libelle(f, etat), fontSize = 17.sp, color = Color.White, modifier = Modifier.weight(1f))
-                Interrupteur(etat.cases(f.code).firstOrNull() == true, { etat.cocher(f.code, it) }, teinteIos = CouleursGeoMys.jauneClair)
-            }
-        } else {
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(libelle(f, etat), fontSize = 12.sp, color = SECONDAIRE_IOS)
-                ChampIos(f, etat, onAjouterPhotos, onChoixMultiple)
-                // L'aide d'Android (`definition` du schéma), que GeoMys-IOS n'affichait pas.
-                f.aide?.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp, fontStyle = FontStyle.Italic, color = SECONDAIRE_IOS) }
-            }
+        // Le libellé au-dessus du champ, comme sous Android, cases à cocher comprises (GeoMys-IOS en
+        // faisait le libellé de l'interrupteur, à côté de lui).
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(libelle(f, etat), fontSize = 12.sp, color = SECONDAIRE_IOS)
+            ChampIos(f, etat, onAjouterPhotos, onChoixMultiple)
+            // L'aide d'Android (`definition` du schéma), que GeoMys-IOS n'affichait pas.
+            f.aide?.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp, fontStyle = FontStyle.Italic, color = SECONDAIRE_IOS) }
         }
     }
 }
@@ -646,7 +640,12 @@ private fun ChampIos(f: EditableField, etat: FormulaireEtat, onAjouterPhotos: (S
                 }
             }
         }
-        ViewType.CHECKBOX -> Unit // ligne propre (LigneChampIos)
+        ViewType.CHECKBOX -> Interrupteur(
+            etat.cases(code).firstOrNull() == true,
+            { etat.cocher(code, it) },
+            teinteIos = CouleursGeoMys.jauneClair,
+            fondIos = FOND_LIGNE_FORMULAIRE_IOS,
+        )
         // MediaPickerView : nom du fichier en chasse fixe coupé au milieu, corbeille rouge.
         ViewType.MEDIA -> {
             val uris = etat.medias(code)

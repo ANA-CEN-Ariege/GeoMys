@@ -533,11 +533,14 @@ class GeoNatureSync(
     suspend fun synchroniserSettingsOcctax(config: GeoNatureConfig): Pair<Int, String> =
         withContext(Dispatchers.IO) {
             val base = config.urlServeur.trim().trimEnd('/')
-            // Endpoint public : on tente avec les éventuels identifiants, sans bloquer s'ils manquent.
-            val session = auth.loginAvecCookies(base, config.login, config.motDePasse)
-            val token = session?.first
-            val cookies = session?.third ?: ""
             try {
+                // Endpoint public : on tente avec les éventuels identifiants, sans bloquer s'ils
+                // manquent. DANS le try : hors ligne, le login relève l'erreur réseau, qui sortait
+                // de la synchro et interrompait toute la phase A de « Recharger les données »
+                // (défaut n° 6 de l'inventaire, présent dans GeoMys-Android).
+                val session = auth.loginAvecCookies(base, config.login, config.motDePasse)
+                val token = session?.first
+                val cookies = session?.third ?: ""
                 val reponse = clients.get("$base/api/gn_commons/t_mobile_apps", token, cookies, 15000)
                 if (reponse.status.value != 200)
                     return@withContext Pair(0, "t_mobile_apps HTTP ${reponse.status.value}")

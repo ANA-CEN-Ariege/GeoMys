@@ -70,12 +70,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.Layout
@@ -460,9 +463,8 @@ private fun CaseACocherAndroid(cochee: Boolean) {
     }
 }
 
-/** La feuille de choix multiple de GeoMys-IOS : montée du bas sous la barre d'état, coins de 10 pt,
- *  fond groupé élevé du mode sombre ; lignes de la liste groupée sur #2C2C2E, cases
- *  `checkmark.square.fill` vertes ou `square` grises de 20 pt. */
+/** La feuille de choix multiple de GeoMys-IOS : fond groupé élevé du mode sombre ; lignes de la liste
+ *  groupée sur #2C2C2E, cases `checkmark.square.fill` vertes ou `square` grises de 20 pt. */
 @Composable
 private fun FeuilleChoixMultipleIos(
     visible: Boolean,
@@ -473,13 +475,44 @@ private fun FeuilleChoixMultipleIos(
     onValider: () -> Unit,
     onFermer: () -> Unit,
 ) {
-    if (visible) RetourSysteme(onRetour = onFermer)
+    FeuilleIos(visible, titre, onAnnuler = onFermer, onValider = { onValider(); onFermer() }) {
+        Column(Modifier.fillMaxWidth().background(FOND_LIGNE_FEUILLE_IOS, FormeContinue(10.dp))) {
+            LignesChoixMultipleIos(options, courante, basculer)
+        }
+    }
+}
+
+/** Fond groupé élevé du mode sombre : celui d'une feuille. */
+private val FOND_FEUILLE_IOS = Color(0xFF1C1C1E)
+
+/** Lignes d'une liste groupée dans une feuille (secondarySystemGroupedBackground élevé). */
+internal val FOND_LIGNE_FEUILLE_IOS = Color(0xFF2C2C2E)
+
+/** `.secondary` d'iOS en mode sombre (secondaryLabel). */
+internal val SECONDAIRE_FEUILLE_IOS = Color(0x99EBEBF5)
+
+/** Une feuille de GeoMys-IOS (`.sheet` et sa `NavigationStack`) : montée du bas sous la barre
+ *  d'état, coins de 10 pt, barre de navigation (« Annuler » à gauche, titre demi-gras au centre,
+ *  « Valider » à droite, jaunes clairs), puis [contenu] défilant, à 16 pt des bords, sur [fond].
+ *  « Valider » ne ferme pas la feuille : l'écran la ferme si la saisie est acceptée. Toucher le
+ *  voile l'annule, sauf si elle n'est pas [annulable] (`interactiveDismissDisabled`). */
+@Composable
+internal fun FeuilleIos(
+    visible: Boolean,
+    titre: String,
+    onAnnuler: () -> Unit,
+    onValider: () -> Unit,
+    annulable: Boolean = true,
+    fond: Brush = SolidColor(FOND_FEUILLE_IOS),
+    contenu: @Composable ColumnScope.() -> Unit,
+) {
+    if (visible && annulable) RetourSysteme(onRetour = onAnnuler)
     AnimatedVisibility(visible, enter = fadeIn(tween(300)), exit = fadeOut(tween(250))) {
         Box(
             Modifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.4f))
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onFermer),
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { if (annulable) onAnnuler() },
         )
     }
     AnimatedVisibility(
@@ -493,11 +526,12 @@ private fun FeuilleChoixMultipleIos(
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(top = 10.dp)
-                .background(Color(0xFF1C1C1E), forme)
+                .clip(forme)
+                .background(fond)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
         ) {
             Box(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 16.dp)) {
-                BoutonIos(onFermer, Modifier.align(Alignment.CenterStart), opaciteAppui = 0.3f) {
+                BoutonIos(onAnnuler, Modifier.align(Alignment.CenterStart), opaciteAppui = 0.3f) {
                     Text("Annuler", fontSize = 17.sp, color = CouleursGeoMys.jauneClair)
                 }
                 Text(
@@ -507,9 +541,9 @@ private fun FeuilleChoixMultipleIos(
                     color = Color.White,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.align(Alignment.Center).padding(horizontal = 96.dp),
+                    modifier = Modifier.align(Alignment.Center).padding(horizontal = 72.dp),
                 )
-                BoutonIos({ onValider(); onFermer() }, Modifier.align(Alignment.CenterEnd), opaciteAppui = 0.3f) {
+                BoutonIos(onValider, Modifier.align(Alignment.CenterEnd), opaciteAppui = 0.3f) {
                     Text("Valider", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = CouleursGeoMys.jauneClair)
                 }
             }
@@ -517,14 +551,64 @@ private fun FeuilleChoixMultipleIos(
                 Modifier
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
-                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))
                     .padding(horizontal = 16.dp, vertical = 16.dp),
-            ) {
-                Column(Modifier.fillMaxWidth().background(Color(0xFF2C2C2E), FormeContinue(10.dp))) {
-                    LignesChoixMultipleIos(options, courante, basculer)
-                }
-            }
+                content = contenu,
+            )
         }
+    }
+}
+
+/** Une section d'un `Form` groupé de SwiftUI : son en-tête en capitales (13 pt, gris secondaire),
+ *  puis ses lignes sur [fond] aux coins continus de 10 pt. */
+@Composable
+internal fun SectionIos(titre: String?, modifier: Modifier = Modifier, fond: Color = FOND_LIGNE_FEUILLE_IOS, contenu: @Composable ColumnScope.() -> Unit) {
+    Column(modifier.fillMaxWidth()) {
+        if (titre != null) {
+            Text(titre.uppercase(), fontSize = 13.sp, color = SECONDAIRE_FEUILLE_IOS, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp))
+        }
+        Column(Modifier.fillMaxWidth().background(fond, FormeContinue(10.dp)), content = contenu)
+    }
+}
+
+/** Dialogue de saisie aux champs libres (« Détails de la station ») : un titre, un contenu
+ *  défilant, « Annuler » et « Valider ». « Valider » ne ferme pas le dialogue : l'écran le ferme si
+ *  la saisie est acceptée. [annulable] faux (`setCancelable(false)`) : ni le voile ni Retour ne
+ *  le ferment.
+ *  - Android : AlertDialog d'AppCompat dont la vue est fournie par l'écran (`setView` d'une
+ *    ScrollView), comme [DialogueAlerte] ;
+ *  - iOS : la feuille de GeoMys-IOS ([FeuilleIos]) sur le dégradé d'accueil. */
+@Composable
+fun DialogueFeuilleFormulaire(
+    visible: Boolean,
+    titre: String,
+    onAnnuler: () -> Unit,
+    onValider: () -> Unit,
+    annulable: Boolean = true,
+    contenu: @Composable ColumnScope.() -> Unit,
+) {
+    if (estIos) {
+        val degrade = Brush.linearGradient(listOf(CouleursGeoMys.fondHaut, CouleursGeoMys.fondBas), Offset.Zero, Offset.Infinite)
+        FeuilleIos(visible, titre, onAnnuler, onValider, annulable, degrade) {
+            Column(verticalArrangement = Arrangement.spacedBy(24.dp), content = contenu)
+        }
+        return
+    }
+    CoucheDialogueAndroid(visible, if (annulable) onAnnuler else ({})) {
+        Text(
+            titre,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 18.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), content = contenu)
+        BarreBoutonsAndroid(
+            listOf(BoutonAlerte("Annuler", annulation = true, action = onAnnuler), BoutonAlerte("Valider", action = onValider)),
+            onFermer = {},
+        )
     }
 }
 
@@ -549,6 +633,36 @@ private fun LignesChoixMultipleIos(options: List<String>, courante: Set<Int>, ba
             Text(option, fontSize = 17.sp, color = Color.White)
         }
         if (i < options.lastIndex) SeparateurIos(Modifier.padding(start = 16.dp))
+    }
+}
+
+/** Progression bloquante d'un envoi (« Envoi de la saisie vers GeoNature… ») : rien ne la ferme.
+ *  - Android : AlertDialog d'AppCompat non annulable, sa vue en ligne (ProgressBar puis le texte à
+ *    16 dp, marges de 20 dp) ;
+ *  - iOS : voile sombre, grand indicateur et texte blancs, comme l'envoi de la saisie multi-taxons. */
+@Composable
+fun DialogueProgression(visible: Boolean, texte: String) {
+    if (estIos) {
+        AnimatedVisibility(visible, enter = fadeIn(tween(150)), exit = fadeOut(tween(150))) {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color(0x88000000))
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
+                verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                IndicateurActivite(Color.White, grandIos = true)
+                Text(texte, color = Color.White, fontSize = 16.sp)
+            }
+        }
+        return
+    }
+    CoucheDialogueAndroid(visible, onFermer = {}) {
+        Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            IndicateurActivite(MaterialTheme.colorScheme.primary, tailleAndroid = 48f)
+            Text(texte, fontSize = 14.sp, modifier = Modifier.padding(start = 16.dp))
+        }
     }
 }
 

@@ -486,8 +486,10 @@ class FormulaireEtat(
      *  - SELECT, RADIO → la valeur de l'option, "" si aucune ;
      *  - SELECT_MULTIPLE, CHECKBOX_MULTIPLE → List<String>, null si vide ;
      *  - CHECKBOX → true, ou null (jamais false) ;
-     *  - MEDIA → la liste des URI (vide si aucune). C'est la liste du champ elle-même, comme le tag
-     *    d'Android : une copie lue plus tôt suit ses ajouts.
+     *  - MEDIA → une COPIE de la liste des URI (vide si aucune). Rendue telle quelle, la liste du
+     *    champ, modifiée en place à chaque photo, était partagée avec la référence prise après le
+     *    rendu : un ajout de photos seul ne comptait pas comme une modification (GeoMys-Android
+     *    `e69543d`).
      *
      *  Tous les champs y figurent, masqués compris : la valeur d'un champ masqué est conservée (cf.
      *  [lireValeursPourEnvoi]). */
@@ -513,7 +515,7 @@ class FormulaireEtat(
                 is Saisie.Cases -> f.values.filterIndexed { i, _ -> s.cochees[i] }.map { it.value }.takeIf { it.isNotEmpty() }
                 // Case non cochée = null (« non renseigné »), cochée = true.
                 is Saisie.Case -> if (s.cochee) true else null
-                is Saisie.Medias -> s.uris
+                is Saisie.Medias -> s.uris.toList()
             }
         }
         return out

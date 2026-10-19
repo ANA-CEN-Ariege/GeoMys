@@ -372,13 +372,11 @@ class NouvelleVisiteViewModel(
                 ),
             )
             // Saisie suivante sur le même parent : tout est repréparé (défauts, datalists, utilisateur
-            // connecté), sans rien garder de la précédente. Comme sous Android, le bandeau de contexte
-            // est vidé (seuls d'éventuels diagnostics reviennent). Le bouton reste grisé jusqu'au
-            // nouveau formulaire, pour qu'un second toucher n'enregistre pas deux fois la même saisie.
-            SuiteEnregistrement.Reinitialiser -> {
-                contexteDeBase = ""
-                chargerFormulaire()
-            }
+            // connecté), sans rien garder de la précédente. La ligne « Sur : … — Protocole : … » est
+            // reposée avec le nouveau formulaire, ses éventuels diagnostics à la suite (GeoMys-Android
+            // `5b981f3` : la purge du bandeau l'emportait). Le bouton reste grisé jusqu'au nouveau
+            // formulaire, pour qu'un second toucher n'enregistre pas deux fois la même saisie.
+            SuiteEnregistrement.Reinitialiser -> chargerFormulaire()
         }
     }
 }

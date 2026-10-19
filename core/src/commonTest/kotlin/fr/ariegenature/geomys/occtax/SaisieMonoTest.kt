@@ -122,12 +122,14 @@ class SaisieMonoTest {
             assertNull(obs.determinateur, "sans passage par la caractérisation, pas de déterminateur (comme Android)")
         }
         assertEquals(43.0 to 1.7, b.latitude to b.longitude)
-        assertEquals("Renard roux × 2", mono.resume())
+        // Total de tous les dénombrements (2 + 1), défaut n° 5 de l'inventaire corrigé : sous
+        // GeoMys-Android, le résumé et la confirmation n'affichaient que le n° 0 (« × 2 »).
+        assertEquals("Renard roux × 3", mono.resume())
         assertEquals("M", mono.resumeDetails())
         assertEquals("M", mono.indicateurDetails())
         assertEquals("2 obs. enregistrées", SaisieMono.compteur(2))
         assertEquals("1 obs. enregistrée", SaisieMono.compteur(1))
-        assertEquals("Renard roux × 2", SaisieMono.confirmation(a))
+        assertEquals("Renard roux × 3", SaisieMono.confirmation(a))
     }
 
     @Test
