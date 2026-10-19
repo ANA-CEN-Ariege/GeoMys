@@ -64,6 +64,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -71,8 +72,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import fr.ariegenature.geomys.carte.FondCarte
-import fr.ariegenature.geomys.carte.FondChoisi
 import fr.ariegenature.geomys.geo.LatLon
 import fr.ariegenature.geomys.occtax.CadrageReprise
 import fr.ariegenature.geomys.occtax.CarteSaisie
@@ -80,10 +79,12 @@ import fr.ariegenature.geomys.occtax.FinSaisie
 import fr.ariegenature.geomys.occtax.ModeGeom
 import fr.ariegenature.geomys.occtax.ReleveForme
 import fr.ariegenature.geomys.ui.carte.ANCRE_GOUTTE_IOS
+import fr.ariegenature.geomys.ui.carte.AttributionFond
 import fr.ariegenature.geomys.ui.carte.BoutonBoussole
 import fr.ariegenature.geomys.ui.carte.BoutonCarte
 import fr.ariegenature.geomys.ui.carte.CarteGeoMys
 import fr.ariegenature.geomys.ui.carte.CerclePrecision
+import fr.ariegenature.geomys.ui.carte.DialogueChoixFond
 import fr.ariegenature.geomys.ui.carte.MarqueurDeplacable
 import fr.ariegenature.geomys.ui.carte.PointPosition
 import fr.ariegenature.geomys.ui.carte.SommetDeplacable
@@ -91,7 +92,7 @@ import fr.ariegenature.geomys.ui.carte.StyleBoutonCarte
 import fr.ariegenature.geomys.ui.carte.SuiviCap
 import fr.ariegenature.geomys.ui.carte.animerCamera
 import fr.ariegenature.geomys.ui.carte.enPosition
-import fr.ariegenature.geomys.ui.carte.style
+import fr.ariegenature.geomys.ui.carte.rememberStyleFond
 import fr.ariegenature.geomys.ui.composants.AlerteEchecEcriture
 import fr.ariegenature.geomys.ui.composants.BandeauNavigation
 import fr.ariegenature.geomys.ui.composants.BoutonAlerte
@@ -100,7 +101,6 @@ import fr.ariegenature.geomys.ui.composants.BoutonMaterial
 import fr.ariegenature.geomys.ui.composants.BoutonPlein
 import fr.ariegenature.geomys.ui.composants.DialogueActions
 import fr.ariegenature.geomys.ui.composants.DialogueAlerte
-import fr.ariegenature.geomys.ui.composants.DialogueChoixUnique
 import fr.ariegenature.geomys.ui.composants.GraisseSymbole
 import fr.ariegenature.geomys.ui.composants.HAUTEUR_BANDEAU_IOS
 import fr.ariegenature.geomys.ui.composants.IndicateurActivite
@@ -225,15 +225,7 @@ fun SaisieMultiScreen(
             },
             onFermer = vm::fermerTerminer,
         )
-        val fonds = FondCarte.entries
-        DialogueChoixUnique(
-            visible = vm.choixFondVisible,
-            titre = "Fond de carte",
-            options = fonds.map { it.libelle },
-            selection = fonds.indexOfFirst { (vm.fond as? FondChoisi.EnLigne)?.fond == it },
-            onChoisir = { vm.choisirFond(FondChoisi.EnLigne(fonds[it])) },
-            onFermer = vm::fermerChoixFond,
-        )
+        DialogueChoixFond(vm.choixFondVisible, vm.fond, vm::choisirFond, vm::fermerChoixFond)
         val resultat = vm.resultatEnvoi
         DialogueAlerte(
             visible = resultat != null,
@@ -263,6 +255,7 @@ private fun EcranCarte(vm: SaisieMultiViewModel, onAccueil: () -> Unit) {
     val enCours by vm.tracker.estEnCours.collectAsState()
     val distance by vm.tracker.distanceTotale.collectAsState()
     val observations by vm.session.observations.collectAsState()
+    val densite = LocalDensity.current
     val haut = if (ios) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier.windowInsetsPadding(WindowInsets.statusBars)
     val bas = if (ios) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier.windowInsetsPadding(WindowInsets.navigationBars)
 
@@ -366,7 +359,10 @@ private fun EcranCarte(vm: SaisieMultiViewModel, onAccueil: () -> Unit) {
         // fragment_trace.xml ; sous iOS, la barre devient la pastille au-dessus des boutons.
         val infoVisible = enCours && vm.enregistrerTrace
         if (!ios && infoVisible) BarreInfo(distance, observations.size, Modifier.align(Alignment.BottomCenter).then(bas))
-        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().then(bas)) {
+        // La mention des données, au-dessus des commandes, entre les boutons.
+        var hautPanneau by remember { mutableStateOf(0.dp) }
+        AttributionFond(vm.fond, Modifier.align(Alignment.BottomCenter).padding(bottom = hautPanneau).padding(horizontal = 60.dp))
+        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { hautPanneau = with(densite) { it.height.toDp() } }.then(bas)) {
             if (vm.modePositionnement) {
                 PanneauValidation(vm) { vm.validerPosition(etat.cameraPosition.center.let { LatLon(it.latitude, it.longitude) }) }
             } else {
@@ -421,7 +417,7 @@ private fun CarteMulti(vm: SaisieMultiViewModel, ouverture: OuvertureCarte): Map
             )
         }
     }
-    val etat = rememberMapState(baseStyle = vm.fond.style(), initialCameraPosition = camera) {
+    val etat = rememberMapState(baseStyle = rememberStyleFond(vm.fond), initialCameraPosition = camera) {
         // Ordre d'osmdroid : formes des relevés tout en bas, puis la trace, puis la géométrie en cours.
         val surfaces = rememberGeoJsonSource(GeoJsonData.JsonString(formesGeoJson(formes.filter { it.type == "Polygon" }, ::sommetsDe, ferme = true)))
         val lignes = rememberGeoJsonSource(GeoJsonData.JsonString(formesGeoJson(formes.filter { it.type == "LineString" }, ::sommetsDe, ferme = false)))

@@ -3,10 +3,16 @@
          l'écran d'accueil, pour éviter un flash blanc. -->
     <style name="Theme.GeoMysCommon" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@drawable/bg_accueil</item>
-        <!-- Couleurs des dialogues du système (DatePickerDialog et TimePickerDialog des détails du
-             relevé) : colorPrimary et colorSecondary (orange) de Theme.GeoMys, qu'AppCompat recopie
-             dans android:colorPrimary et android:colorAccent sous GeoMys-Android. -->
+        <!-- Ce que les dialogues du système (DatePickerDialog et TimePickerDialog des détails du relevé,
+             AlertDialog du Maps Manager) lisent du thème de GeoMys-Android : colorPrimary et
+             colorSecondary (orange) de Theme.GeoMys, qu'AppCompat recopie dans android:colorPrimary et
+             android:colorAccent ; les couleurs de texte et le voile de Material 3. -->
         <item name="android:colorPrimary">#FF1B6CA8</item>
         <item name="android:colorAccent">#FFFF6D00</item>
+        <item name="android:textColorPrimary">@color/texte_principal</item>
+        <item name="android:textColorSecondary">@color/texte_secondaire</item>
+        <item name="android:textColorTertiary">@color/texte_secondaire</item>
+        <item name="android:textColorAlertDialogListItem">@color/texte_principal</item>
+        <item name="android:backgroundDimAmount">0.32</item>
     </style>
 </resources>

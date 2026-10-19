@@ -7,6 +7,8 @@ android-targetSdk = "36"
 androidx-activity = "1.13.0"
 # Déjà résolue par androidx-activity : déclarée pour le service au premier plan (NotificationCompat).
 androidx-core = "1.18.0"
+# Lecture des cartes MBTiles (des bases SQLite) : le SQLite du système, sous Android comme sous iOS.
+androidx-sqlite = "2.7.1"
 atomicfu = "0.33.0"
 compose-multiplatform = "1.12.2"
 # material3 de Compose Multiplatform suit sa propre numérotation (version associée à CMP 1.12).
@@ -28,6 +30,8 @@ navigation = "2.10.0-rc01"
 [libraries]
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
+androidx-sqlite = { module = "androidx.sqlite:sqlite", version.ref = "androidx-sqlite" }
+androidx-sqlite-framework = { module = "androidx.sqlite:sqlite-framework", version.ref = "androidx-sqlite" }
 atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "atomicfu" }
 compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "compose-multiplatform" }
 compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "compose-multiplatform" }

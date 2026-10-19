@@ -131,7 +131,7 @@ class CarteOccHabViewModel(
      *  point GPS ne recentre plus. */
     private var cadrageInitialFait = false
 
-    var fond by mutableStateOf(chargerFondChoisi(services.preferences) { false })
+    var fond by mutableStateOf(chargerFondChoisi(services.preferences, services.cartesMbtiles::existe))
         private set
     var choixFondVisible by mutableStateOf(false)
         private set

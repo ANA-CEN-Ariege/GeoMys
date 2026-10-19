@@ -54,8 +54,14 @@ import fr.ariegenature.geomys.ui.accueil.AccueilScreen
 import fr.ariegenature.geomys.ui.accueil.ActionsAccueil
 import fr.ariegenature.geomys.ui.accueil.EntreeMenuAccueil
 import fr.ariegenature.geomys.ui.accueil.EtatAccueil
-import fr.ariegenature.geomys.ui.avenir.EcranAVenir
+import fr.ariegenature.geomys.ui.cartes.MapsManagerScreen
+import fr.ariegenature.geomys.ui.cartes.MapsManagerViewModel
+import fr.ariegenature.geomys.ui.cartes.ZonesEssai
+import fr.ariegenature.geomys.ui.cartes.lancerEssaiMapsManager
 import fr.ariegenature.geomys.ui.composants.estIos
+import fr.ariegenature.geomys.ui.explorer.ExplorerEssai
+import fr.ariegenature.geomys.ui.explorer.ExplorerScreen
+import fr.ariegenature.geomys.ui.explorer.ExplorerViewModel
 import fr.ariegenature.geomys.ui.occtax.MesSaisiesScreen
 import fr.ariegenature.geomys.ui.occtax.MesSaisiesViewModel
 import fr.ariegenature.geomys.network.TaxRefStatut
@@ -255,9 +261,13 @@ data class RouteOccHabHabitat(val habitatId: String? = null)
 @Serializable
 data object RouteMesStations
 
-/** Écran que le portage n'a pas encore atteint : [titre] et le [lot] qui l'apportera. */
+/** L'Explorer ; [essai] : sur les observations fictives d'[ExplorerEssai], sans serveur. */
 @Serializable
-data class RouteAVenir(val titre: String, val lot: String)
+data class RouteExplorer(val essai: Boolean = false)
+
+/** Le Maps Manager ; [essai] : un essai d'affichage (`lancerEssaiMapsManager`). */
+@Serializable
+data class RouteMapsManager(val essai: String = "")
 
 
 /** Le protocole des essais d'affichage du lot 7 (MonitoringEssai). */
@@ -265,7 +275,6 @@ private const val PROTOCOLE_ESSAI = "stom_ariege"
 /** La saisie OccHab d'essai à envoyer, et sa station polygonale (OccHabEssai). */
 private const val SAISIE_OCCHAB_ESSAI = "essai-occhab-a-envoyer"
 private const val STATION_OCCHAB_ESSAI = "essai-occhab-pelouse"
-private const val LOT_CARTES = "lot 9 (Explorer, cartes)"
 
 /** Les écrans du flux de saisie OccTax (DESTINATIONS_SAISIE de MainActivity). */
 private val DESTINATIONS_SAISIE = listOf(
@@ -329,7 +338,9 @@ private fun NavHostController.naviguerVersFil(moduleCode: String, cible: List<Fi
  *    (« occhab-edition » : sa station polygonale sélectionnée sur la carte),
  *    « occhab-station » sa station polygonale (« occhab-details » : ses détails ouverts), « occhab-habitat »
  *    le premier habitat de celle-ci, « occhab-habitat-nouveau » un nouvel habitat, « mes-stations » la
- *    liste des saisies OccHab. */
+ *    liste des saisies OccHab ; essais du lot 9 : « explorer » l'Explorer (« explorer-essai » : sur des
+ *    observations fictives, près de Foix), « maps-manager » le Maps Manager (« maps-cartes » : la liste des
+ *    cartes MBTiles ouverte ; « maps-telechargement » : un téléchargement simulé, sans réseau, à 40 %). */
 @Composable
 fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial: String? = null) {
     val nav = rememberNavController()
@@ -366,7 +377,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             "observations-essai", "saisie-mono", "saisie-mono-carte", "suivis", "suivi-detail", "fiche-objet",
             "nouvelle-visite", "nouvelle-visite-observateurs", "nouvelle-observation", "mes-visites", "carte-site", "carte-mares",
             "occhab-carte", "occhab-infos", "occhab-reprise", "occhab-edition", "occhab-station", "occhab-details", "occhab-habitat", "occhab-habitat-nouveau",
-            "mes-stations" -> false
+            "mes-stations", "explorer", "explorer-essai", "maps-manager", "maps-cartes", "maps-telechargement" -> false
             "parametres" -> true
             else -> !configurationComplete(services.config, services.taxRef)
         }
@@ -403,6 +414,12 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
         if (ecranInitial == "mes-saisies" || ecranInitial == "detail-saisie") nav.navigate(RouteMesSaisies)
         if (ecranInitial == "mes-visites") nav.navigate(RouteMesVisites)
         if (ecranInitial == "mes-stations") nav.navigate(RouteMesStations)
+        if (ecranInitial == "explorer" || ecranInitial == "explorer-essai") nav.navigate(RouteExplorer(essai = ecranInitial == "explorer-essai"))
+        when (ecranInitial) {
+            "maps-manager" -> nav.navigate(RouteMapsManager())
+            "maps-cartes" -> nav.navigate(RouteMapsManager(essai = "cartes"))
+            "maps-telechargement" -> nav.navigate(RouteMapsManager(essai = "telechargement"))
+        }
         if (ecranInitial == "occhab-carte" || ecranInitial == "occhab-infos") {
             sessionOccHab.session.demarrerSession(detailsSessionParDefaut(services.config))
             sessionOccHab.session.dernierCadrageCarte = CADRAGE_OCCHAB_ESSAI
@@ -856,9 +873,24 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 onCarte = { nav.naviguerDepuis(entree, RouteOccHabCarte) },
             )
         }
-        composable<RouteAVenir> { entree ->
-            val route = entree.toRoute<RouteAVenir>()
-            EcranAVenir(route.titre, route.lot, onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) })
+        composable<RouteExplorer> { entree ->
+            val route = entree.toRoute<RouteExplorer>()
+            val vm = viewModel {
+                if (route.essai) {
+                    ExplorerViewModel(services, source = { ExplorerEssai.observations(it) }, configure = true, departImpose = ExplorerEssai.DEPART)
+                } else {
+                    ExplorerViewModel(services)
+                }
+            }
+            ExplorerScreen(vm, onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) })
+        }
+        composable<RouteMapsManager> { entree ->
+            val route = entree.toRoute<RouteMapsManager>()
+            val vm = viewModel {
+                if (route.essai == "telechargement") MapsManagerViewModel(services, zones = ZonesEssai()) else MapsManagerViewModel(services)
+            }
+            if (route.essai.isNotEmpty()) LaunchedEffect(vm) { lancerEssaiMapsManager(vm, route.essai) }
+            MapsManagerScreen(vm, onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) })
         }
     }
 }
@@ -931,7 +963,6 @@ private fun EcranAccueil(
         onPauseOrDispose { comptage.cancel() }
     }
     val liens = LocalUriHandler.current
-    val aVenir = { titre: String, lot: String -> nav.navigate(RouteAVenir(titre, lot)) }
     AccueilScreen(
         etat,
         ActionsAccueil(
@@ -962,8 +993,8 @@ private fun EcranAccueil(
                     EntreeMenuAccueil.MES_SAISIES -> nav.navigate(RouteMesSaisies)
                     EntreeMenuAccueil.MES_VISITES -> nav.navigate(RouteMesVisites)
                     EntreeMenuAccueil.MES_STATIONS -> nav.navigate(RouteMesStations)
-                    EntreeMenuAccueil.EXPLORER -> aVenir("Explorer", LOT_CARTES)
-                    EntreeMenuAccueil.MAPS_MANAGER -> aVenir("Maps Manager", LOT_CARTES)
+                    EntreeMenuAccueil.EXPLORER -> nav.navigate(RouteExplorer())
+                    EntreeMenuAccueil.MAPS_MANAGER -> nav.navigate(RouteMapsManager())
                 }
             },
             enregistrerTrace = { actif ->

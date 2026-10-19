@@ -21,6 +21,7 @@
 
 package fr.ariegenature.geomys.ui.composants
 
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -33,6 +34,7 @@ import java.io.InputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okio.source
 
 @Composable
 actual fun rememberSelecteurGpx(tailleMax: Long, onChoisi: (FichierChoisi) -> Unit): () -> Unit {
@@ -71,4 +73,23 @@ private fun lireBorne(input: InputStream, max: Long): ByteArray? {
         out.write(buf, 0, n)
     }
     return out.toByteArray()
+}
+
+/** Repris de GeoMys-Android @ cdd5196 (CacheManagerFragment.importMbtilesLauncher, MbtilesStore.nomDepuisUri) :
+ *  tous les types, les .mbtiles n'ayant pas de type MIME enregistré ; le nom affiché par le fournisseur du
+ *  document, à défaut le dernier segment de son URI. */
+@Composable
+actual fun rememberSelecteurCarte(onChoisi: (FluxChoisi?) -> Unit): () -> Unit {
+    val contexte = LocalContext.current
+    val rappel by rememberUpdatedState(onChoisi)
+    val lanceur = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val resolveur = contexte.contentResolver
+        val nom = runCatching {
+            resolveur.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+        }.getOrNull() ?: uri.lastPathSegment
+        val flux = runCatching { resolveur.openInputStream(uri) }.getOrNull()
+        rappel(flux?.let { FluxChoisi(it.source(), nom) })
+    }
+    return { lanceur.launch(arrayOf("*/*")) }
 }

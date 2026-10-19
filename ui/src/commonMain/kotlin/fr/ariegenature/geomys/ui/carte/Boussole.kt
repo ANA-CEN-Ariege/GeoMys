@@ -34,6 +34,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -60,6 +62,7 @@ import kotlin.math.abs
 import kotlin.math.min
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.nanoseconds
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 import org.maplibre.compose.camera.CameraAnimation
 import org.maplibre.compose.camera.CameraMoveReason
@@ -136,6 +139,21 @@ private val TRIANGLE_HAUT = GenericShape { taille, _ ->
     lineTo(taille.width, taille.height)
     lineTo(0f, taille.height)
     close()
+}
+
+/** Le cap de l'appareil, en degrés depuis le nord, à chaque mesure du capteur ; nul avant la
+ *  première (simulateur, émulateur sans magnétomètre). L'Explorer en oriente l'aiguille de sa
+ *  boussole, sans faire tourner la carte. */
+@Composable
+fun rememberCapAppareil(): Double? {
+    val fournisseurCap = rememberDefaultHeadingProvider()
+    val cap by produceState<Double?>(null, fournisseurCap) {
+        fournisseurCap.updates(HeadingRequest { minimumInterval = Duration.ZERO })
+            // Capteur refusé par le système : l'aiguille reste au nord.
+            .catch { }
+            .collect { mesure -> value = (mesure.bearing - Bearing.North).inDegrees }
+    }
+    return cap
 }
 
 /** Commande de cap appliquée sans transition. */

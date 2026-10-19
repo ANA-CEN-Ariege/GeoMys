@@ -61,8 +61,6 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
-import fr.ariegenature.geomys.carte.FondCarte
-import fr.ariegenature.geomys.carte.FondChoisi
 import fr.ariegenature.geomys.geo.LatLon
 import fr.ariegenature.geomys.monitoring.ActionCarte
 import fr.ariegenature.geomys.monitoring.CarteSuivis
@@ -70,20 +68,22 @@ import fr.ariegenature.geomys.monitoring.FilSegment
 import fr.ariegenature.geomys.monitoring.GeometrieSuivi
 import fr.ariegenature.geomys.monitoring.ObjetCarte
 import fr.ariegenature.geomys.occtax.CadrageSortie
+import fr.ariegenature.geomys.ui.carte.AttributionFond
 import fr.ariegenature.geomys.ui.carte.BoutonCarte
 import fr.ariegenature.geomys.ui.carte.CarteGeoMys
 import fr.ariegenature.geomys.ui.carte.CerclePrecision
+import fr.ariegenature.geomys.ui.carte.DialogueChoixFond
 import fr.ariegenature.geomys.ui.carte.GoutteIos
 import fr.ariegenature.geomys.ui.carte.PointPosition
 import fr.ariegenature.geomys.ui.carte.StyleBoutonCarte
 import fr.ariegenature.geomys.ui.carte.animerCamera
 import fr.ariegenature.geomys.ui.carte.cadrer
+import fr.ariegenature.geomys.ui.carte.collectionGeometries
 import fr.ariegenature.geomys.ui.carte.enPosition
-import fr.ariegenature.geomys.ui.carte.style
+import fr.ariegenature.geomys.ui.carte.rememberStyleFond
 import fr.ariegenature.geomys.ui.composants.BoutonAlerte
 import fr.ariegenature.geomys.ui.composants.DialogueActions
 import fr.ariegenature.geomys.ui.composants.DialogueChoixLignesAndroid
-import fr.ariegenature.geomys.ui.composants.DialogueChoixUnique
 import fr.ariegenature.geomys.ui.composants.FilArianeSuivis
 import fr.ariegenature.geomys.ui.composants.IndicateurActivite
 import fr.ariegenature.geomys.ui.composants.LocalToasts
@@ -98,13 +98,8 @@ import fr.ariegenature.geomys.ui.ressources.ic_remove
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import fr.ariegenature.geomys.ui.theme.FondGeoMys
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
 import org.jetbrains.compose.resources.painterResource
 import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.camera.CameraUpdate
@@ -248,13 +243,13 @@ private fun Carte(vm: CarteSuiviViewModel) {
         return ClickResult.Consume
     }
 
-    val etat = rememberMapState(baseStyle = vm.fond.style(), initialCameraPosition = CameraPosition(center = LatLon(46.5, 2.5).enPosition(), zoom = 6.0)) {
+    val etat = rememberMapState(baseStyle = rememberStyleFond(vm.fond), initialCameraPosition = CameraPosition(center = LatLon(46.5, 2.5).enPosition(), zoom = 6.0)) {
         // Les parents, puis leurs enfants par-dessus ; dans chacun, surfaces, lignes, puis points.
         for (enfant in listOf(false, true)) key(enfant) {
             val suffixe = if (enfant) "enfants" else "parents"
-            val surfaces = rememberGeoJsonSource(GeoJsonData.JsonString(remember(objets) { collection(objets, enfant) { it is GeometrieSuivi.Polygone } }))
-            val lignes = rememberGeoJsonSource(GeoJsonData.JsonString(remember(objets) { collection(objets, enfant) { it is GeometrieSuivi.Ligne } }))
-            val points = rememberGeoJsonSource(GeoJsonData.JsonString(remember(objets) { collection(objets, enfant) { it is GeometrieSuivi.Point } }))
+            val surfaces = rememberGeoJsonSource(GeoJsonData.JsonString(remember(objets) { collectionGeometries(objets, { it.enfant == enfant }) { it is GeometrieSuivi.Polygone } }))
+            val lignes = rememberGeoJsonSource(GeoJsonData.JsonString(remember(objets) { collectionGeometries(objets, { it.enfant == enfant }) { it is GeometrieSuivi.Ligne } }))
+            val points = rememberGeoJsonSource(GeoJsonData.JsonString(remember(objets) { collectionGeometries(objets, { it.enfant == enfant }) { it is GeometrieSuivi.Point } }))
             val couleurIos = if (enfant) ORANGE_LIGNE else BLEU_LIGNE
             FillLayer(
                 id = "geometries-surfaces-$suffixe",
@@ -313,44 +308,10 @@ private fun Carte(vm: CarteSuiviViewModel) {
             })
         }
         BoutonCarte(Res.drawable.ic_map, "Changer fond", StyleBoutonCarte.CONTROLE, vm::montrerChoixFond, Modifier.align(Alignment.BottomEnd).then(bas))
+        // La mention des données, entre les boutons du bas.
+        AttributionFond(vm.fond, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = 60.dp))
     }
 }
-
-/** Les géométries de [objets] (parents ou enfants) qui passent [filtre], en FeatureCollection ;
- *  chaque entité porte l'indice de son objet (`i`), pour le toucher. */
-private fun collection(objets: List<ObjetCarte>, enfant: Boolean, filtre: (GeometrieSuivi) -> Boolean): String = buildJsonObject {
-    put("type", "FeatureCollection")
-    put("features", buildJsonArray {
-        objets.forEachIndexed { i, o ->
-            if (o.enfant != enfant) return@forEachIndexed
-            o.geometries.filter(filtre).forEach { g ->
-                add(buildJsonObject {
-                    put("type", "Feature")
-                    put("properties", buildJsonObject { put("i", i) })
-                    put("geometry", buildJsonObject {
-                        when (g) {
-                            is GeometrieSuivi.Point -> {
-                                put("type", "Point")
-                                put("coordinates", coordonnee(g.position))
-                            }
-                            is GeometrieSuivi.Ligne -> {
-                                put("type", "LineString")
-                                put("coordinates", JsonArray(g.sommets.map(::coordonnee)))
-                            }
-                            // Le contour puis les trous : MapLibre les rend en creux.
-                            is GeometrieSuivi.Polygone -> {
-                                put("type", "Polygon")
-                                put("coordinates", JsonArray(g.anneaux.map { anneau -> JsonArray(anneau.map(::coordonnee)) }))
-                            }
-                        }
-                    })
-                })
-            }
-        }
-    })
-}.toString()
-
-private fun coordonnee(p: LatLon) = JsonArray(listOf(JsonPrimitive(p.longitude), JsonPrimitive(p.latitude)))
 
 @Composable
 private fun Dialogues(vm: CarteSuiviViewModel) {
@@ -371,13 +332,5 @@ private fun Dialogues(vm: CarteSuiviViewModel) {
             onFermer = vm::fermerMenu,
         )
     }
-    val fonds = FondCarte.entries
-    DialogueChoixUnique(
-        visible = vm.choixFondVisible,
-        titre = CarteSuivis.TITRE_FOND,
-        options = fonds.map { it.libelle },
-        selection = fonds.indexOfFirst { (vm.fond as? FondChoisi.EnLigne)?.fond == it },
-        onChoisir = { vm.choisirFond(FondChoisi.EnLigne(fonds[it])) },
-        onFermer = vm::fermerChoixFond,
-    )
+    DialogueChoixFond(vm.choixFondVisible, vm.fond, vm::choisirFond, vm::fermerChoixFond, titre = CarteSuivis.TITRE_FOND)
 }

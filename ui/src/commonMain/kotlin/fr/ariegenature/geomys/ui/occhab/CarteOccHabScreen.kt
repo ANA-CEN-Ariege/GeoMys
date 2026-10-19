@@ -52,8 +52,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
@@ -62,6 +64,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -70,8 +73,6 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
-import fr.ariegenature.geomys.carte.FondCarte
-import fr.ariegenature.geomys.carte.FondChoisi
 import fr.ariegenature.geomys.geo.LatLon
 import fr.ariegenature.geomys.model.OccHabStation
 import fr.ariegenature.geomys.occhab.CarteOccHab
@@ -79,10 +80,12 @@ import fr.ariegenature.geomys.occhab.GeometrieEdition
 import fr.ariegenature.geomys.occhab.ModeGeometrie
 import fr.ariegenature.geomys.occtax.CadrageSortie
 import fr.ariegenature.geomys.ui.carte.ANCRE_GOUTTE_IOS
+import fr.ariegenature.geomys.ui.carte.AttributionFond
 import fr.ariegenature.geomys.ui.carte.BoutonBoussole
 import fr.ariegenature.geomys.ui.carte.BoutonCarte
 import fr.ariegenature.geomys.ui.carte.CarteGeoMys
 import fr.ariegenature.geomys.ui.carte.CerclePrecision
+import fr.ariegenature.geomys.ui.carte.DialogueChoixFond
 import fr.ariegenature.geomys.ui.carte.GoutteIos
 import fr.ariegenature.geomys.ui.carte.MarqueurDeplacable
 import fr.ariegenature.geomys.ui.carte.PointPosition
@@ -92,7 +95,7 @@ import fr.ariegenature.geomys.ui.carte.SuiviCap
 import fr.ariegenature.geomys.ui.carte.animerCamera
 import fr.ariegenature.geomys.ui.carte.cadrer
 import fr.ariegenature.geomys.ui.carte.enPosition
-import fr.ariegenature.geomys.ui.carte.style
+import fr.ariegenature.geomys.ui.carte.rememberStyleFond
 import fr.ariegenature.geomys.ui.composants.AlerteEchecEcriture
 import fr.ariegenature.geomys.ui.composants.BalayageRetourIosDesactive
 import fr.ariegenature.geomys.ui.composants.BandeauNavigation
@@ -102,7 +105,6 @@ import fr.ariegenature.geomys.ui.composants.BoutonPlein
 import fr.ariegenature.geomys.ui.composants.BoutonVert
 import fr.ariegenature.geomys.ui.composants.DialogueActions
 import fr.ariegenature.geomys.ui.composants.DialogueAlerte
-import fr.ariegenature.geomys.ui.composants.DialogueChoixUnique
 import fr.ariegenature.geomys.ui.composants.DialogueProgression
 import fr.ariegenature.geomys.ui.composants.GraisseSymbole
 import fr.ariegenature.geomys.ui.composants.HAUTEUR_BANDEAU_IOS
@@ -193,6 +195,7 @@ private fun EcranCarte(vm: CarteOccHabViewModel, onAccueil: () -> Unit, onStatio
         }
     }
 
+    val densite = LocalDensity.current
     val haut = Modifier.windowInsetsPadding(if (ios) WindowInsets.safeDrawing else WindowInsets.statusBars)
     val bas = Modifier.windowInsetsPadding(if (ios) WindowInsets.safeDrawing else WindowInsets.navigationBars)
     Box(Modifier.fillMaxSize()) {
@@ -276,7 +279,7 @@ private fun EcranCarte(vm: CarteOccHabViewModel, onAccueil: () -> Unit, onStatio
             Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.Bottom) {
                     zoom()
-                    Spacer(Modifier.weight(1f))
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.BottomCenter) { AttributionFond(vm.fond, Modifier.padding(horizontal = 4.dp), lignesMax = 2) }
                     controles()
                 }
                 PanneauIos(vm)
@@ -284,7 +287,10 @@ private fun EcranCarte(vm: CarteOccHabViewModel, onAccueil: () -> Unit, onStatio
         } else {
             Box(Modifier.align(Alignment.BottomStart).then(bas).padding(start = 12.dp, bottom = 100.dp)) { zoom() }
             Box(Modifier.align(Alignment.BottomEnd).then(bas).padding(end = 12.dp, bottom = 100.dp)) { controles() }
-            PanneauAndroid(vm, Modifier.align(Alignment.BottomCenter).then(bas))
+            // La mention des données, au-dessus du panneau, entre les boutons.
+            var hautPanneau by remember { mutableStateOf(0.dp) }
+            AttributionFond(vm.fond, Modifier.align(Alignment.BottomCenter).padding(bottom = hautPanneau).padding(horizontal = 60.dp))
+            PanneauAndroid(vm, Modifier.align(Alignment.BottomCenter).onSizeChanged { hautPanneau = with(densite) { it.height.toDp() } }.then(bas))
         }
     }
 }
@@ -322,7 +328,7 @@ private fun Carte(vm: CarteOccHabViewModel, ouverture: CameraOccHab): MapState {
             zoom = 15.0,
         )
     }
-    val etat = rememberMapState(baseStyle = vm.fond.style(), initialCameraPosition = camera) {
+    val etat = rememberMapState(baseStyle = rememberStyleFond(vm.fond), initialCameraPosition = camera) {
         // Les stations du serveur, en violet, sous celles de la saisie.
         val surfacesServeur = rememberGeoJsonSource(GeoJsonData.JsonString(remember(violettes) { surfaces(violettes) }))
         val pointsServeur = rememberGeoJsonSource(GeoJsonData.JsonString(remember(violettes) { points(violettes) }))
@@ -702,15 +708,7 @@ private fun Dialogues(vm: CarteOccHabViewModel) {
         boutons = listOf(BoutonAlerte("OK", action = vm::quitterApresEnvoi)),
         onFermer = vm::fermerDialogue,
     )
-    val fonds = FondCarte.entries
-    DialogueChoixUnique(
-        visible = vm.choixFondVisible,
-        titre = "Fond de carte",
-        options = fonds.map { it.libelle },
-        selection = fonds.indexOfFirst { (vm.fond as? FondChoisi.EnLigne)?.fond == it },
-        onChoisir = { vm.choisirFond(FondChoisi.EnLigne(fonds[it])) },
-        onFermer = vm::fermerChoixFond,
-    )
+    DialogueChoixFond(vm.choixFondVisible, vm.fond, vm::choisirFond, vm::fermerChoixFond)
     AlerteEchecEcriture(vm.echecEcriture != null, vm::fermerEchecEcriture, vm.echecEcriture.orEmpty())
 }
 

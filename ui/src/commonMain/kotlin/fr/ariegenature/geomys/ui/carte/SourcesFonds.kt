@@ -57,15 +57,18 @@ internal val FondCarte.source: SourceFond
             zoomMax = 17,
             attribution = "© OpenTopoMap (CC-BY-SA) · © OpenStreetMap contributors",
         )
-        FondCarte.TOPO -> SourceFond(listOf(urlWmtsIgn("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png", prive = false)), 19, "")
-        FondCarte.SCAN25 -> SourceFond(listOf(urlWmtsIgn("GEOGRAPHICALGRIDSYSTEMS.MAPS", "image/jpeg", prive = true)), 18, "")
-        FondCarte.ORTHO -> SourceFond(listOf(urlWmtsIgn("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg", prive = false)), 19, "")
+        FondCarte.TOPO -> SourceFond(listOf(urlWmtsIgn("GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2", "image/png", prive = false)), 19, ATTRIBUTION_IGN)
+        FondCarte.SCAN25 -> SourceFond(listOf(urlWmtsIgn("GEOGRAPHICALGRIDSYSTEMS.MAPS", "image/jpeg", prive = true)), 18, ATTRIBUTION_IGN)
+        FondCarte.ORTHO -> SourceFond(listOf(urlWmtsIgn("ORTHOIMAGERY.ORTHOPHOTOS", "image/jpeg", prive = false)), 19, ATTRIBUTION_IGN)
         FondCarte.ESRI -> SourceFond(
             tuiles = listOf("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"),
             zoomMax = 19,
             attribution = "Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
         )
     }
+
+/** La mention des fonds de la Géoplateforme de l'IGN (GeoMys-Android n'en donnait aucune). */
+private const val ATTRIBUTION_IGN = "© IGN"
 
 /** Le serveur de tuiles d'OpenStreetMap. */
 internal const val HOTE_OSM = "tile.openstreetmap.org"

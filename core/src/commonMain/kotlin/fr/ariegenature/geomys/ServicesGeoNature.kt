@@ -18,6 +18,8 @@
 
 package fr.ariegenature.geomys
 
+import fr.ariegenature.geomys.carte.CartesMbtiles
+import fr.ariegenature.geomys.carte.LecteurMbtilesSqlite
 import fr.ariegenature.geomys.location.LocationTracker
 import fr.ariegenature.geomys.network.AdditionalFieldsApi
 import fr.ariegenature.geomys.network.EnvoiOccHab
@@ -107,6 +109,9 @@ class ServicesGeoNature(val socle: Socle) {
     /** [dossierMedias] en chemin, pour l'interface. */
     val cheminMedias: String get() = dossierMedias.toString()
     val mediasOrphelins = MediasOrphelins(socle.systeme, dossierMedias, sortieStore, outbox)
+
+    /** Les cartes MBTiles importées (`filesDir/mbtiles/` de GeoMys-Android, exclu des sauvegardes). */
+    val cartesMbtiles = CartesMbtiles(fichiers / "mbtiles", socle.systeme, LecteurMbtilesSqlite())
 
     /** Supprime la copie locale d'un média retiré d'une saisie, au mieux. */
     fun supprimerMedia(uri: String) {

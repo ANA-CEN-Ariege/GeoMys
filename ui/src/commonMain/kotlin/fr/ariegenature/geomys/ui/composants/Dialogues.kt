@@ -758,7 +758,7 @@ private fun BoutonTexteM3(texte: String, onClick: () -> Unit) {
 
 /** `BoutonDialogue` de GeoMys-IOS : texte de 15 pt demi-gras. */
 @Composable
-private fun BoutonDialogueIos(texte: String, teinte: Color, onClick: () -> Unit) {
+internal fun BoutonDialogueIos(texte: String, teinte: Color, onClick: () -> Unit) {
     BoutonIos(onClick, opaciteAppui = 0.4f) {
         Text(texte, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = teinte)
     }

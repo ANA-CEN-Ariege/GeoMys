@@ -19,6 +19,7 @@
 package fr.ariegenature.geomys.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,7 +34,9 @@ import fr.ariegenature.geomys.outils.ajouterSortiesEssai
 import fr.ariegenature.geomys.outils.ajouterTaxRefEssai
 import fr.ariegenature.geomys.outils.resumeDonnees
 import fr.ariegenature.geomys.outils.synchroniserEnJournalisant
+import fr.ariegenature.geomys.ui.carte.LocalCartesMbtiles
 import fr.ariegenature.geomys.ui.carte.prototype.PrototypeCarteScreen
+import fr.ariegenature.geomys.ui.cartes.importerCarteEssai
 import fr.ariegenature.geomys.ui.composants.ZoneToasts
 import fr.ariegenature.geomys.ui.mesure.MesureTaxRefScreen
 import fr.ariegenature.geomys.ui.navigation.NavigationGeoMys
@@ -54,7 +57,9 @@ import fr.ariegenature.geomys.ui.theme.GeoMysTheme
  *  - `ecran=suivis`, `action=monitoring-essai` : essais du lot 7, protocoles, sites, visites et
  *    observations fictifs dans le cache des Suivis (MonitoringEssai) ;
  *  - `ecran=occhab-carte`, `action=occhab-essai` : essais du lot 8, jeux de données, nomenclatures,
- *    habitats et stations OccHab fictifs (OccHabEssai). */
+ *    habitats et stations OccHab fictifs (OccHabEssai) ;
+ *  - `ecran=explorer-essai` : essai du lot 9, l'Explorer sur des observations fictives (ExplorerEssai) ;
+ *    `ecran=maps-manager`, `action=cartes-essai` : le Maps Manager, la carte MBTiles de test importée. */
 @Composable
 fun GeoMysApp(infos: InfosApp, services: ServicesGeoNature, lancement: Map<String, String> = emptyMap()) {
     LaunchedEffect(Unit) {
@@ -69,6 +74,7 @@ fun GeoMysApp(infos: InfosApp, services: ServicesGeoNature, lancement: Map<Strin
             "referentiels-essai" -> services.ajouterReferentielsEssai()
             "monitoring-essai" -> services.ajouterMonitoringEssai()
             "occhab-essai" -> services.ajouterOccHabEssai()
+            "cartes-essai" -> services.importerCarteEssai()
         }
     }
     GeoMysTheme {
@@ -88,7 +94,10 @@ fun GeoMysApp(infos: InfosApp, services: ServicesGeoNature, lancement: Map<Strin
                     taxons = lancement["taxons"]?.toIntOrNull(),
                     lecture = lancement["lecture"],
                 )
-                else -> NavigationGeoMys(infos, services, ecranInitial = lancement["ecran"])
+                // Les cartes importées, pour le fond de tous les écrans-cartes.
+                else -> CompositionLocalProvider(LocalCartesMbtiles provides services.cartesMbtiles) {
+                    NavigationGeoMys(infos, services, ecranInitial = lancement["ecran"])
+                }
             }
         }
     }

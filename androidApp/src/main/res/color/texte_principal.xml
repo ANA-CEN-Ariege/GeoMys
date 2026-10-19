@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- textColorPrimary de Theme.GeoMys (m3_dark_default_color_primary_text de Material Components 1.12) :
+     onSurface sombre (neutral90), à 38 % pour un texte désactivé. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="false" android:alpha="0.38" android:color="#FFE6E0E9" />
+    <item android:color="#FFE6E0E9" />
+</selector>

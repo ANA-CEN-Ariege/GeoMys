@@ -36,3 +36,11 @@ fun formaterDecimal(valeur: Double, decimales: Int): String {
     val signe = if (valeur < 0) "-" else ""
     return if (decimales == 0) "$signe$entiere" else "$signe$entiere,$fraction"
 }
+
+/** [valeur] avec ses milliers séparés par une espace fine insécable, comme `"%,d".format(valeur)`
+ *  sous Android en français (« 5 294 »). */
+fun formaterMilliers(valeur: Long): String {
+    val chiffres = abs(valeur).toString()
+    val groupes = chiffres.reversed().chunked(3).joinToString("\u202F").reversed()
+    return if (valeur < 0) "-$groupes" else groupes
+}

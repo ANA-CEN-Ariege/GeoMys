@@ -1,5 +1,5 @@
 fichier	source_set	zone	lignes	lignes_code	categorie	complexite_ui	commit_reference	statut_portage
-GeoMysApplication.kt	main	2-stockage-modeles-utils.md	83	44	MIXTE		cdd5196	porté en partie (lot 3 : travaux de démarrage, ServicesGeoNature.lancerTravauxDeDemarrage ; lot 6 : MapLibre à la place d'osmdroid ; cache de tuiles au lot 9)
+GeoMysApplication.kt	main	2-stockage-modeles-utils.md	83	44	MIXTE		cdd5196	porté (lot 3 : travaux de démarrage, ServicesGeoNature.lancerTravauxDeDemarrage ; lot 6 : MapLibre à la place d'osmdroid ; lot 9 : le cache de tuiles d'osmdroid, configuré et purgé au démarrage, laisse place à celui de MapLibre, sans réglage)
 TaxRefLocal.kt	main	2-stockage-modeles-utils.md	270	161	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
 gpx/GpxUtils.kt	main	2-stockage-modeles-utils.md	207	165	COMMUN-ADAPTÉ		cdd5196	porté (lot 6 : gpx/GpxUtils.kt ; lecture XML commune dans gpx/LecteurXml.kt)
 location/LocationForegroundService.kt	main	2-stockage-modeles-utils.md	115	75	PLATEFORME		cdd5196	porté (lot 6 : androidApp, LocationForegroundService.kt)
@@ -42,8 +42,8 @@ store/CachesSynchronises.kt	main	2-stockage-modeles-utils.md	92	24	COMMUN-ADAPT�
 store/GeoNatureConfig.kt	main	2-stockage-modeles-utils.md	450	227	COMMUN-ADAPTÉ		cdd5196	porté en partie (lot 1 ; reste additionalFieldsOcctaxJsonActif)
 store/HabitatCache.kt	main	2-stockage-modeles-utils.md	196	116	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
 store/JsonCollectionStore.kt	main	2-stockage-modeles-utils.md	119	54	COMMUN-ADAPTÉ		cdd5196	porté (lot 1, store/io/)
-store/MapTileCache.kt	main	2-stockage-modeles-utils.md	128	73	ABANDON		cdd5196	à faire
-store/MbtilesStore.kt	main	2-stockage-modeles-utils.md	145	86	MIXTE		cdd5196	à faire
+store/MapTileCache.kt	main	2-stockage-modeles-utils.md	128	73	ABANDON		cdd5196	abandonné (lot 9 : paquets hors ligne et cache ambiant de MapLibre, ui/carte/ZonesHorsLigne.kt ; occupation et vidage dans le Maps Manager)
+store/MbtilesStore.kt	main	2-stockage-modeles-utils.md	145	86	MIXTE		cdd5196	porté (lot 9, carte/CartesMbtiles.kt ; lecture SQLite dans carte/LecteurMbtilesSqlite.kt, pilote androidx.sqlite du système)
 store/MdpChiffre.kt	main	2-stockage-modeles-utils.md	156	97	PLATEFORME		cdd5196	porté (lot 1 ; trousseau iOS : CoffreKeychain)
 store/MediasOrphelins.kt	main	2-stockage-modeles-utils.md	85	36	COMMUN-ADAPTÉ		cdd5196	porté (lot 3)
 store/MonitoringCache.kt	main	2-stockage-modeles-utils.md	133	50	COMMUN-ADAPTÉ		cdd5196	porté (lot 2)
@@ -60,7 +60,7 @@ store/TaxRefCache.kt	main	2-stockage-modeles-utils.md	1029	675	COMMUN-ADAPTÉ		c
 sync/SyncForegroundService.kt	main	1-reseau-sync.md	136	85	PLATEFORME		cdd5196	porté (lot 2, androidApp, via ExecutionLongue)
 ui/AccueilFragment.kt	main	6-ui-transversale-ressources-build.md	328	224	UI	M	cdd5196	porté (lot 5 : ui/accueil/AccueilScreen.kt ; pastilles des envois en attente au lot 3 ; écrans d'attente pour les destinations des lots 6 à 9)
 ui/AlerteStockage.kt	main	6-ui-transversale-ressources-build.md	47	15	UI	S	cdd5196	porté (lot 6 : ui/composants/AlerteStockage.kt)
-ui/CacheManagerFragment.kt	main	5-occhab-cartes.md	754	588	UI	L	cdd5196	à faire
+ui/CacheManagerFragment.kt	main	5-occhab-cartes.md	754	588	UI	L	cdd5196	porté (lot 9, ui/cartes/MapsManagerScreen.kt et MapsManagerViewModel.kt ; règles et textes dans carte/ZoneHorsLigne.kt, carte/CiblageProtocole.kt, geo/TuileMath.kt ; téléchargement dans ui/carte/ZonesHorsLigne.kt ; dialogues du système dans ui/composants/DialogueSystemeAndroid.kt)
 ui/CaracterisationFragment.kt	main	4-saisie-occtax.md	261	194	MIXTE		cdd5196	porté (lot 6 : ui/occtax/CaracterisationScreen.kt et CaracterisationViewModel.kt ; règles dans occtax/FormulairesEspece.kt)
 ui/CarteGeometrieFragment.kt	main	5-occhab-cartes.md	538	397	UI	M	cdd5196	porté (lot 7 : ui/suivis/CarteSuiviScreen.kt et CarteSuiviViewModel.kt ; géométries, cadrage et actions dans monitoring/CarteSuivis.kt)
 ui/CompassView.kt	main	5-occhab-cartes.md	114	78	UI	S	cdd5196	porté (lot 6 : ui/carte/Boussole.kt)
@@ -71,14 +71,14 @@ ui/DetailsReleveDialog.kt	main	4-saisie-occtax.md	716	555	MIXTE		cdd5196	porté 
 ui/DetailsReleveFragment.kt	main	4-saisie-occtax.md	113	72	UI		cdd5196	porté (lot 6 : ui/occtax/DetailsReleveIntercalaireScreen.kt)
 ui/EditeurGeometrie.kt	main	5-occhab-cartes.md	374	235	MIXTE		cdd5196	porté (lot 8 : géométrie éditée et gestes dans occhab/GeometrieEdition.kt ; poignées et couches dans ui/occhab/CarteOccHabScreen.kt, automate dans CarteOccHabViewModel.kt)
 ui/EnvoiGroupeUi.kt	main	4-saisie-occtax.md	128	93	MIXTE		cdd5196	porté (lot 6 : boucle et textes dans envoi/EnvoiGroupe.kt ; bouton et dialogues dans ui/occtax/MesSaisiesScreen.kt)
-ui/ExplorerFragment.kt	main	5-occhab-cartes.md	556	454	UI	L	cdd5196	à faire
+ui/ExplorerFragment.kt	main	5-occhab-cartes.md	556	454	UI	L	cdd5196	porté (lot 9, ui/explorer/ExplorerScreen.kt et ExplorerViewModel.kt ; règles et textes dans explorer/Explorer.kt)
 ui/FicheObjetFragment.kt	main	3-formulaires-monitoring.md	729	557	UI	L	cdd5196	porté (lot 7 : ui/suivis/FicheObjetScreen.kt et FicheObjetViewModel.kt ; éléments de la fiche dans monitoring/FicheObjet.kt)
 ui/FilAriane.kt	main	6-ui-transversale-ressources-build.md	267	156	MIXTE		cdd5196	porté (lot 5 : appliquerBandeauNavigation dans ui/composants/FilAriane.kt ; lot 7 : le fil des Suivis dans monitoring/FilSuivis.kt et FilArianeSuivis, ui/composants/FilAriane.kt)
 ui/IconesEditionCarte.kt	main	5-occhab-cartes.md	81	42	UI	S	cdd5196	porté (lot 8 : disques des sommets et poignée « + » dans ui/occhab/CarteOccHabScreen.kt)
 ui/Insets.kt	main	6-ui-transversale-ressources-build.md	99	61	ABANDON		cdd5196	abandonné (lot 5 : WindowInsets de Compose)
 ui/MainActivity.kt	main	6-ui-transversale-ressources-build.md	140	80	MIXTE		cdd5196	porté en partie (lot 2 : canal de notification ; lot 5 : redirection vers Paramètres dans ui/navigation ; lot 6 : sortie du flux de saisie, DESTINATIONS_SAISIE dans ui/navigation)
 ui/MapCompassController.kt	main	5-occhab-cartes.md	116	76	PLATEFORME		cdd5196	porté (lot 6 : SuiviCap dans ui/carte/Boussole.kt)
-ui/MapUtils.kt	main	5-occhab-cartes.md	282	188	MIXTE		cdd5196	porté en partie (lot 6 : fonds et leur mémorisation dans carte/FondsCarte.kt, sources de tuiles dans ui/carte/SourcesFonds.kt, carte dans ui/carte/CarteGeoMys.kt ; lot 8 : airePolygoneM2 dans geo/AireGeodesique.kt ; MBTiles et téléchargement de zones au lot 9)
+ui/MapUtils.kt	main	5-occhab-cartes.md	282	188	MIXTE		cdd5196	porté (lot 6 : fonds et leur mémorisation dans carte/FondsCarte.kt, sources de tuiles dans ui/carte/SourcesFonds.kt, carte dans ui/carte/CarteGeoMys.kt ; lot 8 : airePolygoneM2 dans geo/AireGeodesique.kt ; lot 9 : appliquerFond pour une carte MBTiles et choisirFondCarte dans ui/carte/FondsCartes.kt)
 ui/MediaImport.kt	main	6-ui-transversale-ressources-build.md	141	95	PLATEFORME		cdd5196	porté (lot 6 : ui/composants/Medias.kt, Medias.android.kt et Medias.ios.kt)
 ui/Navigation.kt	main	6-ui-transversale-ressources-build.md	42	15	ABANDON		cdd5196	abandonné (lot 5 : routes typées de navigation-compose)
 ui/NouvelleVisiteFragment.kt	main	3-formulaires-monitoring.md	1363	901	MIXTE	XL	5b981f3	porté (lot 4 : valeurs d'une visite dans monitoring/form/ValeursFormulaire.kt ; lot 7 : ui/suivis/NouvelleVisiteScreen.kt et NouvelleVisiteViewModel.kt ; préparation, textes et suites dans monitoring/NouvelleVisite.kt ; 5b981f3, ligne de contexte reposée, au lot 8)

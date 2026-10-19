@@ -60,29 +60,33 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import fr.ariegenature.geomys.carte.FondCarte
-import fr.ariegenature.geomys.carte.FondChoisi
 import fr.ariegenature.geomys.geo.LatLon
 import fr.ariegenature.geomys.model.Taxon
 import fr.ariegenature.geomys.network.TaxRefStatut
 import fr.ariegenature.geomys.occtax.FinSaisie
 import fr.ariegenature.geomys.occtax.SaisieMono
 import fr.ariegenature.geomys.ui.carte.ANCRE_GOUTTE_IOS
+import fr.ariegenature.geomys.ui.carte.AttributionFond
 import fr.ariegenature.geomys.ui.carte.BoutonCarte
 import fr.ariegenature.geomys.ui.carte.CarteGeoMys
 import fr.ariegenature.geomys.ui.carte.CerclePrecision
+import fr.ariegenature.geomys.ui.carte.DialogueChoixFond
 import fr.ariegenature.geomys.ui.carte.MarqueurDeplacable
 import fr.ariegenature.geomys.ui.carte.PointPosition
 import fr.ariegenature.geomys.ui.carte.SommetDeplacable
@@ -90,7 +94,7 @@ import fr.ariegenature.geomys.ui.carte.StyleBoutonCarte
 import fr.ariegenature.geomys.ui.carte.SuiviCap
 import fr.ariegenature.geomys.ui.carte.animerCamera
 import fr.ariegenature.geomys.ui.carte.enPosition
-import fr.ariegenature.geomys.ui.carte.style
+import fr.ariegenature.geomys.ui.carte.rememberStyleFond
 import fr.ariegenature.geomys.ui.composants.AlerteEchecEcriture
 import fr.ariegenature.geomys.ui.composants.BandeauNavigation
 import fr.ariegenature.geomys.ui.composants.BoutonAlerte
@@ -102,7 +106,6 @@ import fr.ariegenature.geomys.ui.composants.BoutonTexte
 import fr.ariegenature.geomys.ui.composants.DialogueActions
 import fr.ariegenature.geomys.ui.composants.DialogueAlerte
 import fr.ariegenature.geomys.ui.composants.DialogueChoixLignesAndroid
-import fr.ariegenature.geomys.ui.composants.DialogueChoixUnique
 import fr.ariegenature.geomys.ui.composants.DialogueMaterialIos
 import fr.ariegenature.geomys.ui.composants.GraisseSymbole
 import fr.ariegenature.geomys.ui.composants.HAUTEUR_BANDEAU_IOS
@@ -181,15 +184,7 @@ fun SaisieMonoScreen(
 
         DialogueDetailsReleve(vm.details, vm::fermerDetails, vm::validerDetails)
         DialogueObservationsIci(vm)
-        val fonds = FondCarte.entries
-        DialogueChoixUnique(
-            visible = vm.choixFondVisible,
-            titre = "Fond de carte",
-            options = fonds.map { it.libelle },
-            selection = fonds.indexOfFirst { (vm.fond as? FondChoisi.EnLigne)?.fond == it },
-            onChoisir = { vm.choisirFond(FondChoisi.EnLigne(fonds[it])) },
-            onFermer = vm::fermerChoixFond,
-        )
+        DialogueChoixFond(vm.choixFondVisible, vm.fond, vm::choisirFond, vm::fermerChoixFond)
         DialogueActions(
             visible = vm.confirmerTerminer,
             titre = FinSaisie.TITRE,
@@ -334,6 +329,7 @@ private fun EcranCarteMono(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
     val portee = rememberCoroutineScope()
     val vibrer = rememberVibration()
     val etat = CarteMono(vm)
+    val densite = LocalDensity.current
     val haut = if (ios) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier.windowInsetsPadding(WindowInsets.statusBars)
     val bas = if (ios) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier.windowInsetsPadding(WindowInsets.navigationBars)
     val enregistrer = {
@@ -420,8 +416,10 @@ private fun EcranCarteMono(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
             })
         }
 
-        // ─── Bas : résumé, confirmation, compteur et « + » ───
-        PanneauMono(vm, enregistrer, Modifier.align(Alignment.BottomCenter))
+        // ─── Bas : résumé, confirmation, compteur et « + » ; la mention des données au-dessus ───
+        var hautPanneau by remember { mutableStateOf(0.dp) }
+        AttributionFond(vm.fond, Modifier.align(Alignment.BottomCenter).padding(bottom = hautPanneau).padding(horizontal = 60.dp))
+        PanneauMono(vm, enregistrer, Modifier.align(Alignment.BottomCenter).onSizeChanged { hautPanneau = with(densite) { it.height.toDp() } })
     }
 }
 
@@ -437,7 +435,7 @@ private fun CarteMono(vm: SaisieMonoViewModel): MapState {
         val centre = vm.centreMemorise ?: vm.tracker.position.value?.let { LatLon(it.latitude, it.longitude) } ?: FRANCE
         CameraPosition(center = centre.enPosition(), zoom = vm.zoomMemorise ?: 15.0)
     }
-    val etat = rememberMapState(baseStyle = vm.fond.style(), initialCameraPosition = camera) {
+    val etat = rememberMapState(baseStyle = rememberStyleFond(vm.fond), initialCameraPosition = camera) {
         val position by vm.tracker.position.collectAsState()
         position?.let { CerclePrecision(LatLon(it.latitude, it.longitude), it.precision.toDouble()) }
     }

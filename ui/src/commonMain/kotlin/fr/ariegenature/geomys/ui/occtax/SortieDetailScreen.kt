@@ -28,8 +28,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBars
@@ -48,25 +50,24 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import fr.ariegenature.geomys.carte.FondCarte
-import fr.ariegenature.geomys.carte.FondChoisi
 import fr.ariegenature.geomys.geo.LatLon
 import fr.ariegenature.geomys.occtax.FormeReleve
 import fr.ariegenature.geomys.occtax.MesSaisies
 import fr.ariegenature.geomys.occtax.ReleveAffiche
+import fr.ariegenature.geomys.ui.carte.AttributionFond
 import fr.ariegenature.geomys.ui.carte.BoutonCarte
 import fr.ariegenature.geomys.ui.carte.BulleCarte
 import fr.ariegenature.geomys.ui.carte.CarteGeoMys
+import fr.ariegenature.geomys.ui.carte.DialogueChoixFond
 import fr.ariegenature.geomys.ui.carte.MarqueurReleve
 import fr.ariegenature.geomys.ui.carte.StyleBoutonCarte
 import fr.ariegenature.geomys.ui.carte.cadrer
 import fr.ariegenature.geomys.ui.carte.cameraInitiale
 import fr.ariegenature.geomys.ui.carte.hauteurMarqueur
-import fr.ariegenature.geomys.ui.carte.style
+import fr.ariegenature.geomys.ui.carte.rememberStyleFond
 import fr.ariegenature.geomys.ui.composants.BandeauNavigation
 import fr.ariegenature.geomys.ui.composants.BoutonAlerte
 import fr.ariegenature.geomys.ui.composants.DialogueAlerte
-import fr.ariegenature.geomys.ui.composants.DialogueChoixUnique
 import fr.ariegenature.geomys.ui.composants.DialogueElements
 import fr.ariegenature.geomys.ui.composants.IndicateurActivite
 import fr.ariegenature.geomys.ui.composants.estIos
@@ -139,6 +140,17 @@ fun SortieDetailScreen(vm: SortieDetailViewModel, onAccueil: () -> Unit, onRetou
             BoutonCarte(Res.drawable.ic_share, "Partager (GPX)", StyleBoutonCarte.SECONDAIRE, { vm.fichierGpx()?.let(partager) })
         }
 
+        // La mention des données, au bas de la carte, à l'écart des boutons de droite.
+        if (vm.sortie != null) {
+            AttributionFond(
+                vm.fond,
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .windowInsetsPadding(if (ios) WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom) else WindowInsets.navigationBars)
+                    .padding(horizontal = 60.dp),
+            )
+        }
+
         // Bas droite : changer de fond, puis la liste des espèces.
         Column(
             Modifier
@@ -178,15 +190,7 @@ fun SortieDetailScreen(vm: SortieDetailViewModel, onAccueil: () -> Unit, onRetou
             lignes = sortie?.let(MesSaisies::lignesEspeces).orEmpty(),
             onFermer = vm::fermerEspeces,
         )
-        val fonds = FondCarte.entries
-        DialogueChoixUnique(
-            visible = vm.choixFondVisible,
-            titre = "Fond de carte",
-            options = fonds.map { it.libelle },
-            selection = fonds.indexOfFirst { (vm.fond as? FondChoisi.EnLigne)?.fond == it }.coerceAtLeast(0),
-            onChoisir = { vm.choisirFond(FondChoisi.EnLigne(fonds[it])) },
-            onFermer = vm::fermerChoixFond,
-        )
+        DialogueChoixFond(vm.choixFondVisible, vm.fond, vm::choisirFond, vm::fermerChoixFond)
         val info = vm.information
         DialogueAlerte(
             visible = info != null,
@@ -212,7 +216,7 @@ private fun CarteSortie(vm: SortieDetailViewModel) {
         releves.getOrNull(index)?.let { bulle = Bulle(position, decalage, it.titre, it.contenu) }
     }
 
-    val etat = rememberMapState(baseStyle = vm.fond.style(), initialCameraPosition = cameraInitiale(vm.cadrage)) {
+    val etat = rememberMapState(baseStyle = rememberStyleFond(vm.fond), initialCameraPosition = cameraInitiale(vm.cadrage)) {
         if (sortie.pointsParcours.size > 1) {
             val trace = rememberGeoJsonSource(GeoJsonData.JsonString(ligneGeoJson(sortie.pointsParcours.map { LatLon(it.latitude, it.longitude) })))
             LineLayer(

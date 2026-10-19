@@ -25,6 +25,8 @@ kotlin {
         // os/proc.h (os_proc_available_memory) n'est pas dans les bibliothèques de plateforme
         // de Kotlin/Native : définition dans src/nativeInterop/cinterop/proc.def.
         cible.compilations.getByName("main").cinterops.create("proc")
+        // Le pilote SQLite natif d'androidx.sqlite (cartes MBTiles) lie le SQLite du système.
+        cible.binaries.all { linkerOpts("-lsqlite3") }
     }
 
     sourceSets {
@@ -37,13 +39,17 @@ kotlin {
             implementation(libs.kotlinx.serialization.json.okio)
             api(libs.ktor.client.core)
             api(libs.multiplatform.settings)
-            implementation(libs.okio)
+            // api : les chemins okio font partie de l'API des cartes MBTiles (CartesMbtiles).
+            api(libs.okio)
+            implementation(libs.androidx.sqlite)
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)
+            implementation(libs.androidx.sqlite.framework)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
+            implementation(libs.androidx.sqlite.framework)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

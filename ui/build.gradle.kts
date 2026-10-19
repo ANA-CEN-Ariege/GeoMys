@@ -37,6 +37,9 @@ kotlin {
             baseName = "GeoMysUi"
             isStatic = true
         }
+        // Le SQLite du système, pour les cartes MBTiles (core) : ici les tests ; l'appli le lie
+        // dans le projet Xcode, le framework étant statique.
+        cible.binaries.all { linkerOpts("-lsqlite3") }
     }
 
     sourceSets {

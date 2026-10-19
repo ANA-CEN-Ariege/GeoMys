@@ -29,6 +29,10 @@ import androidx.compose.ui.uikit.LocalUIViewController
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
+import okio.FileSystem
+import okio.ForwardingSource
+import okio.Path.Companion.toPath
+import okio.SYSTEM
 import platform.Foundation.NSData
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSFileSize
@@ -38,6 +42,7 @@ import platform.Foundation.dataWithContentsOfURL
 import platform.UIKit.UIDocumentPickerDelegateProtocol
 import platform.UIKit.UIDocumentPickerViewController
 import platform.UniformTypeIdentifiers.UTType
+import platform.UniformTypeIdentifiers.UTTypeData
 import platform.UniformTypeIdentifiers.UTTypeXML
 import platform.darwin.NSObject
 import platform.posix.memcpy
@@ -88,4 +93,44 @@ private fun NSData.versOctets(): ByteArray {
     val octets = ByteArray(length.toInt())
     if (octets.isNotEmpty()) octets.usePinned { memcpy(it.addressOf(0), bytes, length) }
     return octets
+}
+
+/** Repris de GeoMys-IOS (CartesMbtilesView, `.fileImporter`) : tout fichier, copié dans la boîte de
+ *  l'appli, lu en flux ; la copie est effacée quand le flux se ferme. */
+@Composable
+actual fun rememberSelecteurCarte(onChoisi: (FluxChoisi?) -> Unit): () -> Unit {
+    val controleur = LocalUIViewController.current
+    val rappel by rememberUpdatedState(onChoisi)
+    // Le sélecteur ne garde qu'une référence faible sur son délégué.
+    val delegue = remember { DelegueSelecteurCarte { rappel(it) } }
+    return {
+        val selecteur = UIDocumentPickerViewController(forOpeningContentTypes = listOf(UTTypeData), asCopy = true)
+        selecteur.delegate = delegue
+        selecteur.allowsMultipleSelection = false
+        var sommet = controleur
+        while (sommet.presentedViewController != null) sommet = sommet.presentedViewController!!
+        sommet.presentViewController(selecteur, animated = true, completion = null)
+    }
+}
+
+private class DelegueSelecteurCarte(private val surFichier: (FluxChoisi?) -> Unit) : NSObject(), UIDocumentPickerDelegateProtocol {
+
+    override fun documentPicker(controller: UIDocumentPickerViewController, didPickDocumentsAtURLs: List<*>) {
+        val url = didPickDocumentsAtURLs.firstOrNull() as? NSURL ?: return
+        val chemin = url.path?.toPath()
+        val source = chemin?.let { runCatching { FileSystem.SYSTEM.source(it) }.getOrNull() }
+        surFichier(
+            source?.let {
+                val copie = object : ForwardingSource(it) {
+                    override fun close() {
+                        super.close()
+                        runCatching { FileSystem.SYSTEM.delete(chemin) }
+                    }
+                }
+                FluxChoisi(copie, url.lastPathComponent)
+            },
+        )
+    }
+
+    override fun documentPickerWasCancelled(controller: UIDocumentPickerViewController) {}
 }

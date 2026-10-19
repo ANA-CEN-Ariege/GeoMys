@@ -46,8 +46,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import fr.ariegenature.geomys.carte.FondCarte
-import fr.ariegenature.geomys.carte.FondChoisi
 import fr.ariegenature.geomys.geo.LatLon
 import fr.ariegenature.geomys.occtax.CadrageSortie
 import fr.ariegenature.geomys.ui.composants.estIos
@@ -66,31 +64,26 @@ import org.maplibre.compose.camera.CameraPosition
 import org.maplibre.compose.interaction.ClickEvent
 import org.maplibre.compose.interaction.ClickResult
 import org.maplibre.compose.interaction.MapInteractions
+import org.maplibre.compose.map.CameraConstraints
 import org.maplibre.compose.map.MapState
 import org.maplibre.compose.map.MaplibreMap
 import org.maplibre.compose.overlay.MapOverlayScope
-import org.maplibre.compose.style.BaseStyle
 import org.maplibre.spatialk.geojson.BoundingBox
-
-/** Le style MapLibre d'un fond. Les cartes MBTiles hors ligne viennent avec le Maps Manager
- *  (lot 9) : d'ici là, un fond MBTiles mémorisé se replie sur OpenStreetMap. */
-fun FondChoisi.style(): BaseStyle = when (this) {
-    is FondChoisi.EnLigne -> BaseStyle.Uri(ConfigurationCarte.urlStyle(fond.id))
-    is FondChoisi.Mbtiles -> BaseStyle.Uri(ConfigurationCarte.urlStyle(FondCarte.OSM.id))
-}
 
 /** Une carte des écrans de GeoMys : déplacement et zoom au doigt, sans rotation ni inclinaison
  *  (la rotation viendra du cap), sans logo, échelle ni boussole (osmdroid n'en montrait pas).
  *  [onClic] reçoit les touchers que rien d'autre n'a pris (couches cliquables, contenu Compose
  *  posé par [contenu]) ; il rend vrai s'il s'en est servi. [onAvantClic] reçoit chaque toucher
  *  AVANT les couches cliquables, avec sa position à l'écran : rendre vrai le garde pour lui.
- *  [contenu] place des éléments Compose sur la carte (`Modifier.placedAt`). */
+ *  [contenu] place des éléments Compose sur la carte (`Modifier.placedAt`). [bornesZoom] : les zooms
+ *  permis, s'ils sont plus étroits que ceux de MapLibre. */
 @Composable
 fun CarteGeoMys(
     etat: MapState,
     modifier: Modifier = Modifier,
     onClic: ((LatLon) -> Boolean)? = null,
     onAvantClic: ((LatLon, DpOffset) -> Boolean)? = null,
+    bornesZoom: ClosedFloatingPointRange<Double>? = null,
     contenu: @Composable MapOverlayScope.() -> Unit = {},
 ) {
     val interactions = remember(onClic, onAvantClic) {
@@ -119,7 +112,15 @@ fun CarteGeoMys(
             }
         }
     }
-    MaplibreMap(modifier = modifier, state = etat, interactions = interactions, overlay = { contenu() })
+    val contraintes = remember(bornesZoom) {
+        bornesZoom?.let { b ->
+            CameraConstraints(CameraConstraints.Standard) {
+                minZoom = b.start
+                maxZoom = b.endInclusive
+            }
+        } ?: CameraConstraints.Standard
+    }
+    MaplibreMap(modifier = modifier, state = etat, cameraConstraints = contraintes, interactions = interactions, overlay = { contenu() })
 }
 
 /** Position de départ d'une carte cadrée par [cadrage] avant de connaître sa taille : le centre,

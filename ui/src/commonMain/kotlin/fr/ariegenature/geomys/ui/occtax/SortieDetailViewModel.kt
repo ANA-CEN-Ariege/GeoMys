@@ -55,8 +55,8 @@ class SortieDetailViewModel(private val services: ServicesGeoNature, private val
     var cadrage by mutableStateOf<CadrageSortie>(CadrageSortie.France)
         private set
 
-    // Les cartes MBTiles hors ligne viennent avec le Maps Manager (lot 9).
-    var fond by mutableStateOf(chargerFondChoisi(services.preferences) { false })
+    // Le fond partagé par toutes les cartes, carte MBTiles importée comprise.
+    var fond by mutableStateOf(chargerFondChoisi(services.preferences, services.cartesMbtiles::existe))
         private set
 
     var boutonEnvoiVisible by mutableStateOf(false)

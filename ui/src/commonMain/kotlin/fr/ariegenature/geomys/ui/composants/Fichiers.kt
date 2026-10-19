@@ -19,6 +19,7 @@
 package fr.ariegenature.geomys.ui.composants
 
 import androidx.compose.runtime.Composable
+import okio.Source
 
 /** Ce qu'a donné le fichier choisi par l'utilisateur. */
 sealed interface FichierChoisi {
@@ -38,3 +39,15 @@ sealed interface FichierChoisi {
  *  l'utilisateur annule. Rend la fonction qui ouvre le sélecteur. */
 @Composable
 expect fun rememberSelecteurGpx(tailleMax: Long, onChoisi: (FichierChoisi) -> Unit): () -> Unit
+
+/** Un fichier choisi, à lire en flux : une carte MBTiles peut peser des centaines de Mo. [nom] : son nom
+ *  d'origine, s'il est connu. */
+class FluxChoisi(val source: Source, val nom: String?)
+
+/** Le sélecteur de fichiers du système, pour une carte MBTiles : ACTION_OPEN_DOCUMENT de tout type sous
+ *  Android (les .mbtiles n'ont pas de type MIME reconnu), UIDocumentPickerViewController de tout fichier
+ *  sous iOS, copié dans la boîte de l'appli puis effacé une fois lu. [onChoisi] reçoit le flux, ou null si
+ *  le fichier ne s'ouvre pas ; rien n'arrive si l'utilisateur annule. Rend la fonction qui ouvre le
+ *  sélecteur. */
+@Composable
+expect fun rememberSelecteurCarte(onChoisi: (FluxChoisi?) -> Unit): () -> Unit

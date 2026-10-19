@@ -78,7 +78,7 @@ class CarteSuiviViewModel(
         private set
     var menu by mutableStateOf<ActionsObjet?>(null)
         private set
-    var fond by mutableStateOf(chargerFondChoisi(services.preferences) { false })
+    var fond by mutableStateOf(chargerFondChoisi(services.preferences, services.cartesMbtiles::existe))
         private set
     var choixFondVisible by mutableStateOf(false)
         private set
