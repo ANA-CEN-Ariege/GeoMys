@@ -20,6 +20,8 @@ package fr.ariegenature.geomys.store.io
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
 /** Le format JSON des fichiers de l'appli (saisies, files d'envoi, caches). Il reproduit ce que
@@ -48,4 +50,16 @@ fun <T> listeDepuisJson(serialiseur: KSerializer<T>, json: String): List<T> {
     return try {
         JSON_STOCKAGE.decodeFromString(ListSerializer(serialiseur), json)
     } catch (_: Exception) { emptyList() }
+}
+
+/** [valeurs] en objet JSON de chaînes (`Gson.toJson` d'une Map<String, String> sous Android). */
+fun mapVersJson(valeurs: Map<String, String>): String =
+    JSON_STOCKAGE.encodeToString(MapSerializer(String.serializer(), String.serializer()), valeurs)
+
+/** Les valeurs d'un objet JSON de chaînes ; vide si [json] est vide ou illisible. */
+fun mapDepuisJson(json: String): Map<String, String> {
+    if (json.isEmpty()) return emptyMap()
+    return try {
+        JSON_STOCKAGE.decodeFromString(MapSerializer(String.serializer(), String.serializer()), json)
+    } catch (_: Exception) { emptyMap() }
 }

@@ -343,13 +343,13 @@ Ils sont signalés pour décision : les corriger dans GeoMys-Android, qui reste 
 
 | # | Constat | Références | Statut |
 |---|---|---|---|
-| 1 | En saisie mono-taxon, la naturalité et les champs `occExtraJson` (statut source, floutage, preuves) renvoyés par Caractérisation ne sont jamais lus ni posés sur l'observation : ils sont perdus. | `CaracterisationFragment.kt:228-251` ; aucune lecture dans `SaisieRapideFragment.kt` | vérifié |
-| 2 | R8 renomme les champs de `kotlin.Pair` (`a`/`b` jusqu'en 1.4.2, `f`/`g` depuis la 1.4.3). Le cache Gson `gn_cache_add_fields_occtax` devient donc illisible après chaque changement de mapping, jusqu'à la synchro suivante. | `mappings/mapping-1.4.7.txt` (`kotlin.Pair -> mf0`) ; `AdditionalFieldDef.nomenclatureOptions` | vérifié ; disparaît dans GeoMys Common (lot 2 : kotlinx-serialization, sans réflexion) |
+| 1 | En saisie mono-taxon, la naturalité et les champs `occExtraJson` (statut source, floutage, preuves) renvoyés par Caractérisation ne sont jamais lus ni posés sur l'observation : ils sont perdus. | `CaracterisationFragment.kt:228-251` ; aucune lecture dans `SaisieRapideFragment.kt` | vérifié ; **corrigé dans GeoMys-Android le 19 octobre** (`cad466b`), correction suivie par GeoMys Common (lot 6) |
+| 2 | R8 renomme les champs de `kotlin.Pair` (`a`/`b` jusqu'en 1.4.2, `f`/`g` depuis la 1.4.3). Le cache Gson `gn_cache_add_fields_occtax` devient donc illisible après chaque changement de mapping, jusqu'à la synchro suivante. | `mappings/mapping-1.4.7.txt` (`kotlin.Pair -> mf0`) ; `AdditionalFieldDef.nomenclatureOptions` | vérifié ; disparaît dans GeoMys Common (lot 2 : kotlinx-serialization, sans réflexion) ; **corrigé dans GeoMys-Android le 19 octobre** (`d72b8da` : `OptionNomenclature`), porté au lot 6 |
 | 3 | `HabitatCache.kt` contient un caractère NUL littéral : grep et d'autres outils prennent le fichier pour un binaire. | `store/HabitatCache.kt:100` | vérifié |
-| 4 | La date des « Détails communs » vaut toujours l'heure d'ouverture du dialogue, et elle écrase une date a posteriori armée ensuite. iOS ne pose la date que si elle a été modifiée. | `DetailsReleveDialog.kt:373-375, 481-490` ; `SaisieObservationFragment.kt:285-306` | à confirmer |
-| 5 | Le total d'individus diffère selon l'écran : tous les dénombrements dans le relevé, le seul dénombrement n° 0 dans les listes. | `SaisieObservationFragment.kt:405` contre `ObservationsFragment.kt:50`, `SortiesFragment.kt:292`, `SortieDetailFragment.kt:127` | à confirmer |
+| 4 | La date des « Détails communs » vaut toujours l'heure d'ouverture du dialogue, et elle écrase une date a posteriori armée ensuite. iOS ne pose la date que si elle a été modifiée. | `DetailsReleveDialog.kt:373-375, 481-490` ; `SaisieObservationFragment.kt:285-306` | confirmé au portage et reproduit (lot 6, [`LOT-6.md`](LOT-6.md) § 6) ; à trancher |
+| 5 | Le total d'individus diffère selon l'écran : tous les dénombrements dans le relevé, le seul dénombrement n° 0 dans les listes. | `SaisieObservationFragment.kt:405` contre `ObservationsFragment.kt:50`, `SortiesFragment.kt:292`, `SortieDetailFragment.kt:127` | confirmé au portage et reproduit (lot 6) ; à trancher |
 | 6 | Hors-ligne, une `IOException` levée par la synchro des settings OccTax (appel lancé hors de tout try) annule toute la phase A de « Recharger les données ». | `SyncRunner.kt:140-143` ; `GeoNatureSync.kt:557` | **confirmé le 18 octobre** : reproduit fidèlement par GeoMys Common sur l'A12 et l'iPhone (lot 2, `LOT-2.md` § 7) ; seulement quand aucune session n'est en cache |
-| 7 | « Continuer la saisie » ouvre toujours la carte multi-taxons, même pour une sortie saisie en mono. | `SortiesFragment.kt:111-117` | à confirmer |
+| 7 | « Continuer la saisie » ouvre toujours la carte multi-taxons, même pour une sortie saisie en mono. | `SortiesFragment.kt:111-117` | confirmé au portage et reproduit (lot 6) ; à trancher |
 | 8 | Le téléchargement de zones contourne la politique d'osmdroid et télécharge en masse des tuiles openstreetmap.org, contrairement à la politique d'usage d'OSM. L'attribution des fonds n'est jamais affichée. | `ui/MapUtils.kt:106-110, 132, 187, 196` | à confirmer |
 | 9 | La carte Monitoring dessine les trous des polygones comme des polygones pleins superposés. | `CarteGeometrieFragment.kt:312-317` | à confirmer |
 | 10 | L'Explorer affiche « 12 mois » en dur, alors que la profondeur d'historique vient du serveur. | `ExplorerFragment.kt:392, 490` | à confirmer |
@@ -383,6 +383,8 @@ GeoMys-Common remplacera les deux applications : il faut une seule règle par su
 | Liste des protocoles Monitoring | interroge le serveur à chaque ouverture | cache d'abord | à trancher |
 | `http://` | accepté, avec avertissement | refusé (ATS) | à trancher (§ 11) |
 | Clavier numérique | décimales et négatifs possibles | `numberPad` : ni décimale ni signe moins (défaut iOS) | Android |
+
+**Au lot 6.** Les sujets OccTax suivent la proposition : pas de passerelle multi → mono, GPS arrêté en quittant les sept écrans de saisie, clavier numérique d'Android (champs additionnels : signe moins et virgule, sous iOS par le clavier chiffres et ponctuation). La date des « Détails communs » et le nord de la boussole reproduisent Android en attendant la décision ([`LOT-6.md`](LOT-6.md) § 6).
 
 ---
 
@@ -430,7 +432,7 @@ Chaque lot suit le même cycle : il porte son code depuis le commit Android not�
 | 3 | Envois : OccTax (anti-doublon, médias, orphelins), file Monitoring, OccHab | T4 (envois et réseau dégradé) | tous les scénarios anti-doublon passent. **Fait le 18 octobre** ([`LOT-3.md`](LOT-3.md)) : 186 cas portés de GeoMys-Android et 5 écrits pour le portage, verts sur la JVM et le simulateur iOS ; premiers envois réels avec les écrans des lots 6 à 8 |
 | 4 | Moteur de formulaires : `FormulaireEtat`, champ taxon, champs additionnels | tests du moteur | mêmes valeurs envoyées qu'Android. **Fait le 19 octobre** ([`LOT-4.md`](LOT-4.md)) : 85 cas portés de GeoMys-Android et 54 écrits pour le portage, verts sur la JVM et le simulateur iOS ; comparaison sur un vrai serveur avec les écrans des lots 6 et 7 |
 | 5 | UI socle : thème sombre, navigation typée, composants (fil d'Ariane, messages, dialogues, listes à recherche), Accueil, Paramètres, à l'identique des écrans Android, avec les styles de GeoMys-IOS sous iOS (décision 15) | gardes textuelles de Paramètres réécrites | configuration et synchro depuis l'UI. **Fait le 18 octobre** ([`LOT-5.md`](LOT-5.md)) : configuration et synchro depuis l'interface sur le Galaxy A12 et l'iPhone 16, allure de GeoMys-Android et de GeoMys-IOS validée |
-| 6 | OccTax : carte multi, saisie mono, relevé, dénombrement, caractérisation, détails, Mes saisies, détail d'une sortie, GPX | gardes textuelles OccTax réécrites | recette terrain OccTax |
+| 6 | OccTax : carte multi, saisie mono, relevé, dénombrement, caractérisation, détails, Mes saisies, détail d'une sortie, GPX | gardes textuelles OccTax réécrites | recette terrain OccTax. **Porté le 19 octobre** ([`LOT-6.md`](LOT-6.md)) : écrans essayés sur l'émulateur et le simulateur, gardes OccTax réécrites, tests verts sur la JVM et le simulateur iOS ; la recette terrain reste à faire sur le Galaxy A12 et l'iPhone 16 |
 | 7 | Monitoring : Suivis, détail, fiche, nouvelle visite, Mes visites, carte des géométries | dernier cas de FormulaireRendererTest, la mise en page (les 14 autres sont réécrits au lot 4) | recette terrain Monitoring |
 | 8 | OccHab : carte d'édition (point dur), station, habitat, Mes stations | tests de l'éditeur (modèle : `OccHabEditeurTests` iOS) | recette terrain OccHab |
 | 9 | Explorer, Maps Manager (hors-ligne, MBTiles) | — | — |
@@ -462,9 +464,9 @@ Chaque lot suit le même cycle : il porte son code depuis le commit Android not�
 
 ## 12. Suivre les évolutions de GeoMys-Android pendant le portage
 
-GeoMys-Android continue d'évoluer : dix commits le 18 octobre. GeoMys-Common ne la modifie jamais ; elle la lit seulement.
+GeoMys-Android continue d'évoluer : dix commits le 18 octobre, deux le 19 (`cad466b`, `d72b8da`, reportés au lot 6). GeoMys-Common ne la modifie jamais ; elle la lit seulement.
 
-- Chaque fichier porté garde dans [`inventaire/index-fichiers.tsv`](inventaire/index-fichiers.tsv) le commit Android dont il provient (`commit_reference`, aujourd'hui `cdd5196`).
+- Chaque fichier porté garde dans [`inventaire/index-fichiers.tsv`](inventaire/index-fichiers.tsv) le commit Android dont il provient (`commit_reference`) : `cdd5196`, ou `d72b8da` pour les fichiers que touchent les deux commits du 19 octobre.
 - Avant de clore un lot, on liste ce qui a changé depuis, en lecture seule :
   `git -C ../GeoMys-Android log --oneline cdd5196..HEAD -- app/src/main/java/fr/ariegenature/geomys/<chemins du lot>`
 

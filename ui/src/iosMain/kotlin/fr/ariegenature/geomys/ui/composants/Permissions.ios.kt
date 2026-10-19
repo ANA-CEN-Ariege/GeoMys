@@ -19,6 +19,15 @@
 package fr.ariegenature.geomys.ui.composants
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 
 @Composable
 actual fun rememberDemandeNotifications(): () -> Unit = {}
+
+@Composable
+actual fun rememberDemandeLocalisation(onAccordee: () -> Unit): () -> Unit {
+    val rappel by rememberUpdatedState(onAccordee)
+    return remember { { rappel() } }
+}

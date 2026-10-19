@@ -50,13 +50,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import fr.ariegenature.geomys.carte.FondCarte
 import fr.ariegenature.geomys.geo.LatLon
 import fr.ariegenature.geomys.geo.LissageCap
 import fr.ariegenature.geomys.geo.ecartAngulaire
 import fr.ariegenature.geomys.ui.carte.ConfigurationCarte
-import fr.ariegenature.geomys.ui.carte.FondCarte
 import fr.ariegenature.geomys.ui.carte.PoigneesSommets
 import fr.ariegenature.geomys.ui.carte.enPosition
+import fr.ariegenature.geomys.ui.carte.id
 import fr.ariegenature.geomys.ui.carte.styleRaster
 import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
@@ -105,7 +106,7 @@ fun PrototypeCarteScreen(
     telechargerAuDemarrage: Boolean = false,
 ) {
     var choix by remember {
-        mutableStateOf(CHOIX_FONDS.firstOrNull { it.id == fondInitial } ?: ChoixFond.EnLigne(FondCarte.PLAN_IGN))
+        mutableStateOf(CHOIX_FONDS.firstOrNull { it.id == fondInitial } ?: ChoixFond.EnLigne(FondCarte.TOPO))
     }
     val sommets = remember { mutableStateListOf(*SOMMETS_INITIAUX) }
     val style = styleDe(choix)

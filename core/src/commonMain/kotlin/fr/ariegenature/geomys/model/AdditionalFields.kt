@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// Porté de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/network/AdditionalFields.kt,
+// Porté de GeoMys-Android @ d72b8da (app/src/main/java/fr/ariegenature/geomys/network/AdditionalFields.kt,
 // modèles) : passés dans model/ et @Serializable, sous les mêmes noms de propriétés, pour le cache
 // JSON des réglages (Gson sous Android ; cf. listeVersJson et listeDepuisJson).
 
@@ -65,7 +65,7 @@ data class AdditionalFieldDef(
      *  (ex. `STATUT_OBS`, `METH_DETERMIN`). Sert à fetcher /api/nomenclatures/nomenclature/<code>. */
     val codeNomenclatureType: String? = null,
     /** Options résolues pour widget=`nomenclature` : (id_nomenclature, label_fr). */
-    val nomenclatureOptions: List<Pair<String, String>> = emptyList(),
+    val nomenclatureOptions: List<OptionNomenclature> = emptyList(),
 ) {
     fun appliqueA(codeObjet: String): Boolean = objectsCode.contains(codeObjet)
 

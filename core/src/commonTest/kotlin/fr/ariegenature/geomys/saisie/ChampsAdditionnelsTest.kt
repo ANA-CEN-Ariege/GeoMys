@@ -24,6 +24,7 @@ package fr.ariegenature.geomys.saisie
 
 import fr.ariegenature.geomys.model.AdditionalFieldDef
 import fr.ariegenature.geomys.model.AdditionalFieldsObject
+import fr.ariegenature.geomys.model.OptionNomenclature
 import fr.ariegenature.geomys.model.WidgetType
 import fr.ariegenature.geomys.store.io.listeVersJson
 import kotlin.test.Test
@@ -43,7 +44,7 @@ class ChampsAdditionnelsTest {
         requis: Boolean = false,
         defaut: String? = null,
         widgetServeur: String = "",
-        nomenclature: List<Pair<String, String>> = emptyList(),
+        nomenclature: List<OptionNomenclature> = emptyList(),
         objets: List<String> = listOf(AdditionalFieldsObject.RELEVE),
         datasets: List<Int> = emptyList(),
     ) = AdditionalFieldDef(
@@ -77,7 +78,7 @@ class ChampsAdditionnelsTest {
 
     @Test
     fun nomenclature_envoie_l_id_de_nomenclature() {
-        val statut = def("statut", WidgetType.NOMENCLATURE, nomenclature = listOf("85" to "Présent", "86" to "Absent"))
+        val statut = def("statut", WidgetType.NOMENCLATURE, nomenclature = listOf(OptionNomenclature("85", "Présent"), OptionNomenclature("86", "Absent")))
         assertEquals(listOf("(non renseigné)", "Présent", "Absent"), ChampsAdditionnels.libellesListe(statut))
         assertEquals("86", etat(statut, valeurs = mapOf("statut" to "86")).collecter()["statut"])
         assertEquals("", etat(statut, valeurs = mapOf("statut" to "Absent")).collecter()["statut"])
@@ -196,7 +197,7 @@ class ChampsAdditionnelsTest {
             def("milieux", WidgetType.CHECKBOX, listOf("Prairie", "Forêt"), listOf("1", "2")),
             def("vu", WidgetType.CHECKBOX),
             def("note", WidgetType.TEXTAREA),
-            def("statut", WidgetType.NOMENCLATURE, nomenclature = listOf("85" to "Présent")),
+            def("statut", WidgetType.NOMENCLATURE, nomenclature = listOf(OptionNomenclature("85", "Présent"))),
         )
         val e = etat(*defs)
         e.choisirPosition("meteo", 2)

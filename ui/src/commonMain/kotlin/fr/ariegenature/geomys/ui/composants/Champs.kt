@@ -117,10 +117,10 @@ private fun TypeChamp.clavier() = when (this) {
 
 /** Texte saisi d'un champ Material 3 : TextAppearance.Material3.BodyLarge (16 sp). */
 @Composable
-private fun styleSaisieMaterial() = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface)
+internal fun styleSaisieMaterial() = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface)
 
 /** Texte saisi d'un `TextField` SwiftUI sur le dégradé : corps 17 pt, blanc. */
-private val styleSaisieIos = TextStyle(color = Color.White, fontSize = 17.sp)
+internal val styleSaisieIos = TextStyle(color = Color.White, fontSize = 17.sp)
 
 /** Champ de saisie d'une ligne.
  *  - Android : TextInputLayout OutlinedBox de Material Components (étiquette flottante [libelle],
@@ -379,6 +379,35 @@ private fun <T> ListeDeroulanteAndroid(
     onChoix: (T) -> Unit,
     onFermer: () -> Unit,
 ) {
+    PopupListeAndroid(ancre, elements, onFermer) { element ->
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .clickable { onChoix(element) }
+                .padding(horizontal = 8.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Text(
+                libelle(element),
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** Le cadre de la liste d'un AutoCompleteTextView (cf. [ListeDeroulanteAndroid]), chaque élément
+ *  dessiné par [ligne]. */
+@Composable
+internal fun <T> PopupListeAndroid(
+    ancre: Rect,
+    elements: List<T>,
+    onFermer: () -> Unit,
+    ligne: @Composable (T) -> Unit,
+) {
     val densite = LocalDensity.current
     val decalage = with(densite) { DecalageListeDeroulante.roundToPx() }
     val hautVisible = WindowInsets.statusBars.getTop(densite)
@@ -400,24 +429,7 @@ private fun <T> ListeDeroulanteAndroid(
             modifier = with(densite) { Modifier.width(ancre.width.toDp()).heightIn(max = hauteurMax.toDp()) },
         ) {
             LazyColumn {
-                items(elements) { element ->
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .clickable { onChoix(element) }
-                            .padding(horizontal = 8.dp),
-                        contentAlignment = Alignment.CenterStart,
-                    ) {
-                        Text(
-                            libelle(element),
-                            fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
+                items(elements) { element -> ligne(element) }
             }
         }
     }

@@ -26,6 +26,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import fr.ariegenature.geomys.InfosApp
 import fr.ariegenature.geomys.ServicesGeoNature
+import fr.ariegenature.geomys.outils.ajouterReferentielsEssai
+import fr.ariegenature.geomys.outils.ajouterSortiesEssai
+import fr.ariegenature.geomys.outils.ajouterTaxRefEssai
 import fr.ariegenature.geomys.outils.resumeDonnees
 import fr.ariegenature.geomys.outils.synchroniserEnJournalisant
 import fr.ariegenature.geomys.ui.carte.prototype.PrototypeCarteScreen
@@ -41,7 +44,11 @@ import fr.ariegenature.geomys.ui.theme.GeoMysTheme
  *  - `ecran=accueil` ou `ecran=parametres` : écran d'ouverture, sans ou avec Paramètres ;
  *  - `ecran=prototype-carte`, `fond=<id>`, `zoom=<n>`, `action=hors-ligne` (lot 0) ;
  *  - `ecran=mesure-taxref`, `action=preparer`, `taxons=<n>` ou `action=mesurer`, `lecture=flux|chaine` (lot 0) ;
- *  - `action=synchroniser` ou `action=etat-donnees` : essai du lot 2, sans écran (DiagnosticSynchro). */
+ *  - `action=synchroniser` ou `action=etat-donnees` : essai du lot 2, sans écran (DiagnosticSynchro) ;
+ *  - `ecran=mes-saisies`, `action=sorties-essai` : essais du lot 6 (sorties fictives, SortiesEssai) ;
+ *  - `action=taxref-essai` : essai du lot 6, un petit référentiel à la place du cache (TaxRefEssai) ;
+ *  - `action=referentiels-essai` : essai du lot 6, jeux de données, observateurs et champs de relevé
+ *    fictifs (ReferentielsEssai). */
 @Composable
 fun GeoMysApp(infos: InfosApp, services: ServicesGeoNature, lancement: Map<String, String> = emptyMap()) {
     LaunchedEffect(Unit) {
@@ -51,6 +58,9 @@ fun GeoMysApp(infos: InfosApp, services: ServicesGeoNature, lancement: Map<Strin
         when (lancement["action"]) {
             "synchroniser" -> services.synchroniserEnJournalisant(::println)
             "etat-donnees" -> println(services.resumeDonnees())
+            "sorties-essai" -> services.ajouterSortiesEssai()
+            "taxref-essai" -> services.ajouterTaxRefEssai()
+            "referentiels-essai" -> services.ajouterReferentielsEssai()
         }
     }
     GeoMysTheme {

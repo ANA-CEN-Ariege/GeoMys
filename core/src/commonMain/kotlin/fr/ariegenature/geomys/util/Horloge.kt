@@ -19,7 +19,13 @@
 package fr.ariegenature.geomys.util
 
 import kotlin.time.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.number
+import kotlinx.datetime.toLocalDateTime
 
 /** L'heure courante en millisecondes depuis l'époque Unix : `System.currentTimeMillis()` dans
  *  GeoMys-Android. */
 fun maintenantMillis(): Long = Clock.System.now().toEpochMilliseconds()
+
+/** Le mois courant (1 à 12) dans le fuseau du téléphone : `Calendar.MONTH + 1` dans GeoMys-Android. */
+fun moisCourant(): Int = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).month.number

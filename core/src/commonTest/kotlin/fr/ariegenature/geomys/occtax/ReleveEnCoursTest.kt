@@ -1,0 +1,186 @@
+/*
+ * GeoMys-Common — application de saisie naturaliste pour GeoNature, Android et iOS.
+ * Copyright (C) 2026 ANA - CEN Ariège
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+// Propre au portage : sous GeoMys-Android, ces règles vivaient dans SaisieObservationFragment, sans test.
+// Les attendus sont ceux de son code @ cdd5196.
+
+package fr.ariegenature.geomys.occtax
+
+import fr.ariegenature.geomys.ServicesDeTest
+import fr.ariegenature.geomys.model.Denombrement
+import fr.ariegenature.geomys.model.Observation
+import fr.ariegenature.geomys.model.Taxon
+import kotlin.test.AfterTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runTest
+
+/** [ReleveEnCours] : reprise d'un relevé, valeurs de départ, enregistrement au fil de l'eau. */
+class ReleveEnCoursTest {
+
+    private val t = ServicesDeTest()
+    private val config get() = t.services.config
+
+    @AfterTest
+    fun nettoyer() = t.nettoyer()
+
+    private fun TestScope.session() = SessionSaisieOcctax(t.services.sortieStore, t.services.locationTracker, backgroundScope)
+
+    private val polygone = GeometrieFinale("Polygon", "[[1.0,42.0],[1.1,42.0],[1.1,42.1]]", 42.03, 1.07)
+
+    @Test
+    fun un_nouveau_releve_enregistre_ses_especes_au_fil_de_l_eau() = runTest {
+        config.idDataset = "12"
+        config.observateurDefautNom = "Alice"
+        val session = session()
+        val releve = ReleveEnCours(session, config, OuvertureReleve(geometrie = polygone), dernierTaxon = Taxon.PLANTE)
+        assertEquals(Taxon.PLANTE, releve.taxonInitial)
+        releve.ajouter(Taxon.OISEAU, "Merle noir", 4117)
+        releve.ajouter(Taxon.OISEAU, "Rougegorge familier", 4001)
+        val obs = session.observations.value
+        assertEquals(listOf("Merle noir", "Rougegorge familier"), obs.map { it.espece })
+        assertEquals(setOf(releve.releveId), obs.map { it.releveId }.toSet())
+        assertTrue(obs.all { it.geometryType == "Polygon" && it.latitude == 42.03 && it.longitude == 1.07 })
+        assertTrue(obs.all { it.determinateur == "Alice" && it.nombre == 1 })
+        // Jeu de données figé au premier enregistrement : le défaut de la config.
+        assertTrue(obs.all { it.idDatasetReleve == 12 })
+        // Les espèces gardent leur identité d'un enregistrement à l'autre.
+        val ids = obs.map { it.id }
+        releve.supprimer(0)
+        assertEquals(listOf(ids[1]), session.observations.value.map { it.id })
+    }
+
+    /** Session vide (appli rouverte après la mort de son processus) : le relevé à reprendre est
+     *  introuvable, et rien ne s'enregistre ; un nouveau relevé ne l'est jamais. */
+    @Test
+    fun un_releve_a_reprendre_absent_de_la_session_est_introuvable() = runTest {
+        val session = session()
+        assertTrue(ReleveEnCours(session, config, OuvertureReleve(releveId = "R1"), dernierTaxon = null).introuvable)
+        assertTrue(ReleveEnCours(session, config, OuvertureReleve(obsId = "o1"), dernierTaxon = null).introuvable)
+        assertFalse(ReleveEnCours(session, config, OuvertureReleve(geometrie = polygone), dernierTaxon = null).introuvable)
+        assertTrue(session.observations.value.isEmpty())
+    }
+
+    @Test
+    fun un_releve_repris_garde_ses_observations_leur_date_et_leur_position() = runTest {
+        val session = session()
+        session.ajouterObservation(
+            Observation(id = "o1", espece = "Merle noir", taxon = Taxon.OISEAU, cdNom = 4117, latitude = 42.9, longitude = 1.4,
+                date = 1_700_000_000_000L, releveId = "R1", idDatasetReleve = 7, commentReleve = "lisière"),
+        )
+        session.ajouterObservation(
+            Observation(id = "autre", espece = "Pic vert", taxon = Taxon.OISEAU, cdNom = 3611, latitude = 43.0, longitude = 1.5, releveId = "R2"),
+        )
+        val releve = ReleveEnCours(session, config, OuvertureReleve(releveId = "R1"), dernierTaxon = Taxon.PLANTE)
+        assertEquals("R1", releve.releveId)
+        assertEquals(Taxon.OISEAU, releve.taxonInitial, "le groupe de la première espèce")
+        assertEquals("lisière", releve.commentaire)
+        // Date jamais fixée à la main : celle de la création.
+        assertEquals(1_700_000_000_000L, releve.dateDebut)
+        releve.modifier(0) { it.copy(nombre = 3, notes = "chant") }
+        val o1 = session.observations.value.single { it.id == "o1" }
+        assertEquals(3, o1.nombre)
+        assertEquals("chant", o1.notes)
+        assertEquals(1_700_000_000_000L, o1.date)
+        assertEquals(42.9, o1.latitude)
+        assertEquals(7, o1.idDatasetReleve)
+        assertEquals("R2", session.observations.value.single { it.id == "autre" }.releveId)
+    }
+
+    @Test
+    fun terminer_sans_espece_enregistre_un_releve_d_absence() = runTest {
+        val session = session()
+        val releve = ReleveEnCours(session, config, OuvertureReleve(geometrie = GeometrieFinale("Point", null, 42.5, 1.2)), null)
+        val message = releve.terminer()
+        assertEquals("Relevé sans espèce enregistré — retrouvez-le dans « Mes saisies »", message)
+        val substitut = session.observations.value.single()
+        assertEquals(ReleveEnCours.ESPECE_SANS_ESPECE, substitut.espece)
+        assertTrue(substitut.releveSansEspece)
+        assertNull(substitut.taxon)
+        assertNull(substitut.cdNom)
+        assertEquals(0, substitut.nombre)
+        assertEquals(releve.releveId, substitut.releveId)
+        assertEquals(42.5, substitut.latitude)
+    }
+
+    @Test
+    fun terminer_avec_des_especes_les_compte() = runTest {
+        val session = session()
+        val releve = ReleveEnCours(session, config, OuvertureReleve(geometrie = polygone), null)
+        releve.ajouter(Taxon.OISEAU, "Merle noir", 4117)
+        assertEquals("Relevé enregistré (1 espèce) — retrouvez-le dans « Mes saisies »", releve.terminer())
+        releve.ajouter(Taxon.OISEAU, "Pic vert", 3611)
+        assertEquals("Relevé enregistré (2 espèces) — retrouvez-le dans « Mes saisies »", releve.terminer())
+    }
+
+    @Test
+    fun un_nouveau_releve_herite_de_la_saisie() = runTest {
+        val session = session()
+        // Un relevé déjà enregistré fixe le jeu de données de la saisie.
+        session.ajouterObservation(Observation(id = "a", espece = "Merle noir", latitude = 0.0, longitude = 0.0, releveId = "R0", idDatasetReleve = 5))
+        session.definirDateAPosteriori(1_600_000_000_000L, 1_600_000_360_000L)
+        val sansCommuns = ReleveEnCours(session, config, OuvertureReleve(geometrie = polygone), null)
+        assertEquals(5, sansCommuns.idDataset)
+        assertEquals(1_600_000_000_000L, sansCommuns.dateDebut)
+        // Les détails communs priment, sauf sur les champs additionnels de l'écran intercalé.
+        session.definirDetailsCommuns(
+            DetailsReleveResult(idDataset = 9, idsObservateurs = listOf(3), nomsObservateurs = listOf("Bob"), additionnels = mapOf("a" to "1"), comment = "commun"),
+        )
+        val avecCommuns = ReleveEnCours(session, config, OuvertureReleve(geometrie = polygone, additionnelsIntercales = mapOf("b" to "2")), null)
+        assertEquals(9, avecCommuns.idDataset)
+        assertEquals(listOf("Bob"), avecCommuns.nomsObservateurs)
+        assertEquals("commun", avecCommuns.commentaire)
+        assertEquals(mapOf("b" to "2"), avecCommuns.additionnelsReleve)
+    }
+
+    @Test
+    fun les_details_du_releve_partent_avec_le_prochain_enregistrement() = runTest {
+        val session = session()
+        val releve = ReleveEnCours(session, config, OuvertureReleve(geometrie = polygone), null)
+        releve.ajouter(Taxon.OISEAU, "Merle noir", 4117)
+        releve.appliquerDetails(DetailsReleveResult(idDataset = 4, idsObservateurs = emptyList(), nomsObservateurs = emptyList(), additionnels = emptyMap(), comment = "haie", dateDebut = 1L, dateModifiee = true))
+        // Comme sous Android, le dialogue n'enregistre pas.
+        assertNull(session.observations.value.single().commentReleve)
+        assertTrue(session.saisieAPosteriori)
+        releve.synchroniser()
+        assertEquals("haie", session.observations.value.single().commentReleve)
+        assertEquals(4, session.observations.value.single().idDatasetReleve)
+    }
+
+    @Test
+    fun le_denombrement_numero_zero_revient_dans_les_champs_a_plat() {
+        val espece = EspeceReleve(Taxon.OISEAU, "Merle noir", 4117)
+        val retour = espece.avecDenombrements(
+            listOf(
+                Denombrement(nombreMin = 2, nombreMax = 2, sexe = "M"),
+                Denombrement(nombreMin = 3, nombreMax = 5),
+            ),
+        )
+        assertEquals(2, retour.nombre)
+        assertNull(retour.nombreMax, "un maximum égal au minimum n'est pas gardé")
+        assertEquals("M", retour.sexe)
+        assertEquals(1, retour.denombrementsAdditionnels.size)
+        assertEquals(5, retour.total)
+        assertEquals(retour, retour.avecDenombrements(emptyList()))
+        assertEquals(listOf(2, 3), retour.denombrements().map { it.nombreMin })
+    }
+}

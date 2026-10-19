@@ -23,6 +23,7 @@
 package fr.ariegenature.geomys.network
 
 import com.russhwolf.settings.MapSettings
+import fr.ariegenature.geomys.model.OptionNomenclature
 import fr.ariegenature.geomys.model.WidgetType
 import fr.ariegenature.geomys.network.ServeurSimule.Companion.json
 import fr.ariegenature.geomys.network.ServeurSimule.Companion.statut
@@ -135,7 +136,7 @@ class AdditionalFieldsChargerTest {
         assertEquals(listOf("note", "statut"), defs.map { it.fieldName })
         val statut = defs[1]
         assertEquals(WidgetType.NOMENCLATURE, statut.widget)
-        assertEquals(listOf("84" to "Non observé", "85" to "Présent"), statut.nomenclatureOptions)
+        assertEquals(listOf(OptionNomenclature("84", "Non observé"), OptionNomenclature("85", "Présent")), statut.nomenclatureOptions)
         assertEquals("85", statut.defaultValue)
         assertTrue(serveur.chemins.any { it == "/api/gn_commons/additional_fields?module_code=OCCTAX" })
     }

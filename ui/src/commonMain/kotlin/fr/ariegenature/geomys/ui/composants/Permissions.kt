@@ -25,3 +25,10 @@ import androidx.compose.runtime.Composable
  *  manque. Rien à demander sous iOS, où la synchro ne notifie pas. */
 @Composable
 expect fun rememberDemandeNotifications(): () -> Unit
+
+/** Demande, si besoin, l'autorisation de localisation, puis appelle [onAccordee] si elle est
+ *  donnée : ACCESS_FINE_LOCATION et ACCESS_COARSE_LOCATION sous Android (l'une des deux suffit),
+ *  comme les écrans de carte de GeoMys-Android. Sous iOS, c'est CLLocationManager qui la demande au
+ *  premier démarrage du suivi : [onAccordee] est appelé tout de suite. */
+@Composable
+expect fun rememberDemandeLocalisation(onAccordee: () -> Unit): () -> Unit

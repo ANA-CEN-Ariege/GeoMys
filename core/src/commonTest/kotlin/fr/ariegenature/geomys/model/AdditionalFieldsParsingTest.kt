@@ -45,7 +45,7 @@ class AdditionalFieldsParsingTest {
                 idField = 2, fieldName = "meteo", fieldLabel = "Météo",
                 widget = WidgetType.SELECT, fieldValues = listOf("soleil", "pluie"),
                 objectsCode = listOf("OCCTAX_RELEVE"), widgetServeur = "select",
-                nomenclatureOptions = listOf("85" to "Présent"),
+                nomenclatureOptions = listOf(OptionNomenclature("85", "Présent")),
             ),
         )
         val json = listeVersJson(AdditionalFieldDef.serializer(), defs)
@@ -59,6 +59,22 @@ class AdditionalFieldsParsingTest {
         assertEquals(listOf("OCCTAX_RELEVE"), relu[1].objectsCode)
         // Propre au portage : tout le modèle fait l'aller-retour, paires comprises.
         assertEquals(defs, relu)
+    }
+
+    /** Port du garde de GeoMys-Android d72b8da (GsonRoundTripTest) : les options de nomenclature
+     *  sont écrites sous des noms fixes, `code` et `label`, jamais ceux d'une `Pair`. */
+    @Test
+    fun les_options_de_nomenclature_ont_des_noms_json_stables() {
+        val def = AdditionalFieldDef(
+            idField = 7, fieldName = "etat_sanitaire", fieldLabel = "État sanitaire",
+            widget = WidgetType.NOMENCLATURE,
+            codeNomenclatureType = "ETA_SANITAIRE",
+            nomenclatureOptions = listOf(OptionNomenclature("12", "Bon"), OptionNomenclature("13", "Blessé")),
+        )
+        val json = listeVersJson(AdditionalFieldDef.serializer(), listOf(def))
+        assertTrue(json.contains("\"code\"") && json.contains("\"label\""), "options nommées code/label")
+        assertTrue(!json.contains("\"first\"") && !json.contains("\"second\""), "une Pair est revenue")
+        assertEquals(def, fromJson(json).single())
     }
 
     @Test

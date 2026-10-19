@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.semantics.Role
@@ -53,6 +54,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ariegenature.geomys.ui.theme.Apparence
@@ -78,9 +80,10 @@ internal fun styleLibelleMaterial(couleur: Color, taille: Float = 14f) = TextSty
     platformStyle = styleTextePlateforme,
 )
 
-/** Un MaterialButton : hauteur minimale 48 dp dont 4 dp de retrait en haut et en bas (le fond ne
- *  couvre que 40 dp, la zone tactile garde 48 dp), largeur minimale 88 dp, contenu centré dans les
- *  marges intérieures [marges], comptées depuis les bords de la vue comme sous Android. */
+/** Un MaterialButton : hauteur minimale [hauteurMin] (48 dp) dont [retraitVertical] (4 dp) en haut et
+ *  en bas (le fond ne couvre que 40 dp, la zone tactile garde 48 dp), largeur minimale [largeurMin]
+ *  (88 dp), [forme] (pilule), contenu centré dans les marges intérieures [marges], comptées depuis
+ *  les bords de la vue comme sous Android. */
 @Composable
 internal fun BoutonMaterial(
     onClick: () -> Unit,
@@ -91,12 +94,16 @@ internal fun BoutonMaterial(
     marges: PaddingValues = PaddingValues(horizontal = 24.dp, vertical = 6.dp),
     couleurContenu: Color,
     onLongClick: (() -> Unit)? = null,
+    hauteurMin: Dp = 48.dp,
+    largeurMin: Dp = 88.dp,
+    retraitVertical: Dp = 4.dp,
+    forme: Shape = PILULE,
     contenu: @Composable () -> Unit,
 ) {
     val interactions = remember { MutableInteractionSource() }
     Box(
         modifier = modifier
-            .defaultMinSize(minWidth = 88.dp, minHeight = 48.dp)
+            .defaultMinSize(minWidth = largeurMin, minHeight = hauteurMin)
             .combinedClickable(
                 interactionSource = interactions,
                 indication = null,
@@ -110,10 +117,10 @@ internal fun BoutonMaterial(
         Box(
             Modifier
                 .matchParentSize()
-                .padding(vertical = 4.dp)
-                .clip(PILULE)
+                .padding(vertical = retraitVertical)
+                .clip(forme)
                 .background(fond)
-                .then(if (contour != null) Modifier.border(contour, PILULE) else Modifier)
+                .then(if (contour != null) Modifier.border(contour, forme) else Modifier)
                 .indication(interactions, ripple(color = couleurContenu)),
         )
         Box(Modifier.padding(marges), contentAlignment = Alignment.Center) {
@@ -155,8 +162,8 @@ internal fun BoutonIos(
 
 // ─── Boutons communs ───
 
-/** Bouton contour jaune clair : `Widget.GeoMys.Button.OutlinedButton` (contour 1 dp, marges 24 dp)
- *  sous Android, `GeoMysBoutonOutlineStyle` (pilule pleine largeur, 14 pt medium) sous iOS. Désactivé,
+/** Bouton contour jaune clair : `Widget.GeoMys.Button.OutlinedButton` (contour 1 dp, marges 24 dp,
+ *  ou [margesAndroid] et [hauteurMinAndroid] posées par le layout) sous Android, `GeoMysBoutonOutlineStyle` (pilule pleine largeur, 14 pt medium) sous iOS. Désactivé,
  *  il ne change pas d'aspect, comme dans les deux applis. Sous iOS, [enCours] place l'indicateur
  *  d'activité devant [texteEnCours] (« Test en cours… ») ; sous Android, l'écran pose sa ProgressBar
  *  sous le bouton. */
@@ -168,6 +175,8 @@ fun BoutonContour(
     actif: Boolean = true,
     enCours: Boolean = false,
     texteEnCours: String = texte,
+    margesAndroid: PaddingValues = PaddingValues(horizontal = 24.dp, vertical = 6.dp),
+    hauteurMinAndroid: Dp = 48.dp,
 ) {
     if (LocalApparence.current == Apparence.IOS) {
         BoutonIos(onClick, modifier, actif, opaciteAppui = 0.7f) {
@@ -196,7 +205,9 @@ fun BoutonContour(
             modifier = modifier,
             actif = actif,
             contour = BorderStroke(1.dp, CouleursGeoMys.jauneClair),
+            marges = margesAndroid,
             couleurContenu = CouleursGeoMys.jauneClair,
+            hauteurMin = hauteurMinAndroid,
         ) { Text(texte, style = styleLibelleMaterial(CouleursGeoMys.jauneClair)) }
     }
 }
@@ -249,6 +260,50 @@ fun BoutonPlein(
             couleurContenu = contenu,
             onLongClick = onLongClick,
         ) { Text(texte, style = styleLibelleMaterial(contenu)) }
+    }
+}
+
+/** Bouton plein vert translucide (green_85), texte blanc : un `Button` Material 3 à fond
+ *  `backgroundTint="@color/green_85"` sous Android, `GeoMysBoutonVertStyle` sous iOS (pilule pleine
+ *  largeur, 15 pt medium, marges 24 pt × [margeVerticaleIos], estompé à 40 % quand il est désactivé),
+ *  précédé du symbole [symboleIos] s'il y en a un (`Label` de SwiftUI). */
+@Composable
+fun BoutonVert(
+    texte: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    actif: Boolean = true,
+    margeVerticaleIos: Dp = 12.dp,
+    symboleIos: String? = null,
+) {
+    if (LocalApparence.current == Apparence.IOS) {
+        BoutonIos(onClick, modifier, actif, opaciteInactif = 0.4f) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(CouleursGeoMys.vert85, PILULE)
+                    .padding(horizontal = 24.dp, vertical = margeVerticaleIos),
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (symboleIos != null) SymboleSf(symboleIos, 15f, listOf(Color.White), graisse = GraisseSymbole.MOYENNE)
+                Text(
+                    texte,
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+    } else {
+        BoutonMaterial(
+            onClick = onClick,
+            modifier = modifier,
+            actif = actif,
+            fond = CouleursGeoMys.vert85,
+            couleurContenu = Color.White,
+        ) { Text(texte, style = styleLibelleMaterial(Color.White)) }
     }
 }
 

@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimulatorTest
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -51,4 +52,10 @@ kotlin {
             implementation(libs.multiplatform.settings.test)
         }
     }
+}
+
+// Le simulateur des tests iOS : par défaut, celui que choisit le plugin Kotlin (par son nom) ;
+// `-Pgeomys.simulateur=<UDID>` en impose un, pour ne pas toucher à un simulateur déjà ouvert.
+providers.gradleProperty("geomys.simulateur").orNull?.let { udid ->
+    tasks.withType<KotlinNativeSimulatorTest>().configureEach { device.set(udid) }
 }

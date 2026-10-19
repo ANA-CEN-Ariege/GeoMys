@@ -19,6 +19,7 @@
 package fr.ariegenature.geomys.ui.carte
 
 import fr.ariegenature.geomys.InfosApp
+import fr.ariegenature.geomys.carte.FondCarte
 import fr.ariegenature.geomys.network.http.moteurHttpPlateforme
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
@@ -33,9 +34,6 @@ import org.maplibre.compose.resource.MapResourceProvider
 object ConfigurationCarte {
 
     private const val SCHEMA = "geomys"
-
-    /** Le serveur de tuiles d'OpenStreetMap (FondCarte.OSM). */
-    private const val HOTE_OSM = "tile.openstreetmap.org"
 
     /** Style du serveur de tuiles local du prototype (voir PrototypeCarteScreen). */
     const val ID_STYLE_TEST_LOCAL = "test-local"
@@ -54,15 +52,15 @@ object ConfigurationCarte {
         initialisee = true
 
         styles = FondCarte.entries.associate { fond ->
-            fond.id to styleRaster(fond.tuiles, fond.zoomMax, fond.attribution)
+            fond.id to styleRaster(fond.source.tuiles, fond.source.zoomMax, fond.source.attribution)
         } + (ID_STYLE_TEST_LOCAL to styleRaster(
             tuiles = listOf("http://${hoteServeurTest(infos)}:8765/tuiles/{z}/{x}/{y}.png"),
             zoomMax = 19,
             attribution = "Serveur de test",
         ))
 
-        // Les serveurs de tuiles (OSM en particulier) demandent un User-Agent qui identifie
-        // l'application. L'intercepteur de maplibre-compose 0.20.0 n'applique aucun en-tête
+        // Les serveurs de tuiles (OSM et OpenTopoMap en particulier) demandent un User-Agent qui
+        // identifie l'application. L'intercepteur de maplibre-compose 0.20.0 n'applique aucun en-tête
         // (PROTOTYPE-CARTE.md § 2) : l'appli télécharge donc elle-même les tuiles de ces serveurs
         // (TuilesHttp), avec son User-Agent. Celles du serveur de test passent par le même chemin,
         // ce qui permet de vérifier les en-têtes reçus.
@@ -73,7 +71,7 @@ object ConfigurationCarte {
                 install(HttpTimeout)
                 install(UserAgent) { agent = userAgent }
             },
-            hotes = setOf(HOTE_OSM, hoteServeurTest(infos)),
+            hotes = setOf(HOTE_OSM, hoteServeurTest(infos)) + HOTES_OPENTOPO,
         )
         DefaultMapRuntime.configure {
             resourceProvider = MapResourceProvider(

@@ -58,15 +58,18 @@ const val FIL_SEPARATEUR = " › "
  *    colorSurfaceVariant, élévation 6 dp, 13 sp gras, maison `ic_home` jaune de 2,1 fois le texte,
  *    calée sur le bas de la ligne). L'écran le place à 12 dp du coin haut-gauche.
  *  - iOS : `FilAriane` de GeoMys-IOS (bande pleine largeur, noir 25 %, 13 pt, maison « house.fill »
- *    de 1,68 fois le texte, niveau courant demi-gras blanc). */
+ *    de 1,68 fois le texte, niveaux demi-gras blancs). [titreIos] : l'écran courant en dernier niveau,
+ *    là où GeoMys-IOS met le titre que l'écran Android affiche sous le bandeau. */
 @Composable
-fun BandeauNavigation(libelle: String, onAccueil: () -> Unit, modifier: Modifier = Modifier) {
+fun BandeauNavigation(libelle: String, onAccueil: () -> Unit, modifier: Modifier = Modifier, titreIos: String? = null) {
     if (estIos) {
         val maison = 13f * 1.68f
         val texte = buildAnnotatedString {
             appendInlineContent("maison", "Accueil")
-            withStyle(SpanStyle(color = CouleursGeoMys.blanc70, fontSize = 13.sp)) { append(FIL_SEPARATEUR) }
-            withStyle(SpanStyle(color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)) { append(libelle) }
+            for (niveau in listOfNotNull(libelle, titreIos)) {
+                withStyle(SpanStyle(color = CouleursGeoMys.blanc70, fontSize = 13.sp)) { append(FIL_SEPARATEUR) }
+                withStyle(SpanStyle(color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)) { append(niveau) }
+            }
         }
         val icone = InlineTextContent(Placeholder(maison.sp, maison.sp, PlaceholderVerticalAlign.TextCenter)) {
             Box(Modifier.fillMaxSize().clickable(onClickLabel = "Accueil", onClick = onAccueil), contentAlignment = Alignment.Center) {

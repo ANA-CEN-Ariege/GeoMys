@@ -24,6 +24,8 @@ kotlin {
         androidResources {
             enable = true
         }
+        // Les règles des écrans (ViewModels, état des champs) se vérifient sur la JVM, sans émulateur.
+        withHostTest {}
     }
 
     listOf(
@@ -55,6 +57,13 @@ kotlin {
         androidMain.dependencies {
             // Demande de permission (notification de la synchro, Android 13 et suivants).
             implementation(libs.androidx.activity.compose)
+        }
+        getByName("androidHostTest").dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.ktor.client.mock)
+            implementation(libs.multiplatform.settings.test)
+            implementation(libs.okio)
         }
     }
 }

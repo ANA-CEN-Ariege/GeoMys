@@ -21,6 +21,7 @@ package fr.ariegenature.geomys.ui.composants
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 
 // Les éléments que chaque plateforme dessine elle-même : interrupteur, indicateur d'activité,
 // symboles SF et alertes système d'iOS. Sous Android, Compose reproduit les widgets de Material
@@ -42,14 +43,15 @@ expect fun SymboleSf(
     description: String? = null,
 )
 
-/** Interrupteur : MaterialSwitch de GeoMys-Android, `Toggle` (UISwitch) teinté en bleu primaire
- *  dans GeoMys-IOS. */
+/** Interrupteur : MaterialSwitch de GeoMys-Android, `Toggle` (UISwitch) de GeoMys-IOS teinté
+ *  [teinteIos] (bleu primaire, vert sur les écrans de saisie). */
 @Composable
 expect fun Interrupteur(
     coche: Boolean,
     onChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     description: String? = null,
+    teinteIos: Color = CouleursGeoMys.primaire,
 )
 
 /** Indicateur d'activité indéterminé : ProgressBar d'Android dans une boîte de [tailleAndroid] dp
@@ -63,8 +65,9 @@ expect fun IndicateurActivite(
     petitIos: Boolean = false,
 )
 
-/** Un bouton d'alerte système. [annulation] : le rôle `.cancel` de SwiftUI. */
-data class BoutonAlerte(val texte: String, val annulation: Boolean = false, val action: () -> Unit = {})
+/** Un bouton d'alerte système. [annulation] : le rôle `.cancel` de SwiftUI ; [destructif] : le rôle
+ *  `.destructive` (texte rouge sous iOS). */
+data class BoutonAlerte(val texte: String, val annulation: Boolean = false, val destructif: Boolean = false, val action: () -> Unit = {})
 
 /** Présente l'alerte système d'iOS (UIAlertController, comme `.alert` de SwiftUI). [onFermee] est
  *  appelé après chaque bouton. Sans effet sous Android, où l'alerte est un dialogue Compose. */

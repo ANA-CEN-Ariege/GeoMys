@@ -24,6 +24,8 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 
@@ -36,6 +38,24 @@ actual fun rememberDemandeNotifications(): () -> Unit {
             ContextCompat.checkSelfPermission(contexte, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) {
             demande.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+}
+
+@Composable
+actual fun rememberDemandeLocalisation(onAccordee: () -> Unit): () -> Unit {
+    val contexte = LocalContext.current
+    val rappel by rememberUpdatedState(onAccordee)
+    val demande = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { accords ->
+        if (accords[Manifest.permission.ACCESS_FINE_LOCATION] == true || accords[Manifest.permission.ACCESS_COARSE_LOCATION] == true) {
+            rappel()
+        }
+    }
+    return {
+        if (ContextCompat.checkSelfPermission(contexte, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            rappel()
+        } else {
+            demande.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
         }
     }
 }

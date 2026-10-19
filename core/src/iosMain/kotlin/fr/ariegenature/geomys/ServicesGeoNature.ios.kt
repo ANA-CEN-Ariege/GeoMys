@@ -18,6 +18,8 @@
 
 package fr.ariegenature.geomys
 
+import fr.ariegenature.geomys.location.SourcePositionsIos
+import fr.ariegenature.geomys.location.SuiviGpsDirect
 import fr.ariegenature.geomys.network.http.ClientsGeoNature
 import fr.ariegenature.geomys.network.http.moteurHttpPlateforme
 import fr.ariegenature.geomys.plateforme.ExecutionLongueIos
@@ -33,6 +35,8 @@ private val services: ServicesGeoNature by lazy {
             coffre = CoffreKeychain(),
             clients = ClientsGeoNature(moteurHttpPlateforme(), moteurHttpPlateforme(ecriture = true)),
             executionLongue = ExecutionLongueIos(),
+            positions = SourcePositionsIos(),
+            suiviGps = SuiviGpsDirect,
         ),
     )
 }

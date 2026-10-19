@@ -19,6 +19,8 @@
 package fr.ariegenature.geomys
 
 import android.content.Context
+import fr.ariegenature.geomys.location.SourcePositionsAndroid
+import fr.ariegenature.geomys.location.SuiviGps
 import fr.ariegenature.geomys.network.http.ClientsGeoNature
 import fr.ariegenature.geomys.network.http.moteurHttpPlateforme
 import fr.ariegenature.geomys.plateforme.ExecutionLongue
@@ -30,9 +32,9 @@ import fr.ariegenature.geomys.store.racinesStockage
 private var services: ServicesGeoNature? = null
 
 /** Les services de l'appli, créés au premier appel puis partagés par tout le processus.
- *  [executionLongue] vient du module de l'appli : son service au premier plan et sa notification
- *  ont besoin de ses ressources (icône, nom). */
-fun servicesGeoNature(context: Context, executionLongue: ExecutionLongue): ServicesGeoNature =
+ *  [executionLongue] et [suiviGps] viennent du module de l'appli : leurs services au premier plan
+ *  et leurs notifications ont besoin de ses ressources (icônes, nom). */
+fun servicesGeoNature(context: Context, executionLongue: ExecutionLongue, suiviGps: SuiviGps): ServicesGeoNature =
     services ?: synchronized(ServicesGeoNature::class) {
         services ?: ServicesGeoNature(
             Socle(
@@ -41,6 +43,8 @@ fun servicesGeoNature(context: Context, executionLongue: ExecutionLongue): Servi
                 coffre = CoffreAndroid(context),
                 clients = ClientsGeoNature(moteurHttpPlateforme(), moteurHttpPlateforme(ecriture = true)),
                 executionLongue = executionLongue,
+                positions = SourcePositionsAndroid(context),
+                suiviGps = suiviGps,
             ),
         ).also { services = it }
     }

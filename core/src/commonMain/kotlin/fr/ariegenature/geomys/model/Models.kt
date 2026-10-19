@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// Porté de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/model/Models.kt) :
+// Porté de GeoMys-Android @ d72b8da (app/src/main/java/fr/ariegenature/geomys/model/Models.kt) :
 // @Serializable sur chaque classe ; UUID et currentTimeMillis remplacés par leurs équivalents
 // communs. Les noms des propriétés forment le format des fichiers : ne pas les renommer.
 
@@ -34,6 +34,13 @@ data class PointTrace(
     val latitude: Double,
     val longitude: Double
 )
+
+/** Option d'un champ additionnel de type `nomenclature` : identifiant de nomenclature et
+ *  libellé affiché. Classe dédiée, et non une `Pair`, comme dans GeoMys-Android depuis d72b8da :
+ *  le cache des champs additionnels survit aux mises à jour, ses noms JSON (`code`, `label`)
+ *  restent fixes. */
+@Serializable
+data class OptionNomenclature(val code: String, val label: String)
 
 /** Un dénombrement (counting) GeoNature : 1 occurrence peut en avoir plusieurs.
  *  Chacun a sa propre tranche d'effectif + caractéristiques (sexe, stade…) + médias attachés. */

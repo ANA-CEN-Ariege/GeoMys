@@ -1,0 +1,110 @@
+/*
+ * GeoMys-Common — application de saisie naturaliste pour GeoNature, Android et iOS.
+ * Copyright (C) 2026 ANA - CEN Ariège
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+// Porté de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/util/GeoJsonCoords.kt) : LatLon à
+// la place du GeoPoint d'osmdroid, org.json par son portage commun.
+
+package fr.ariegenature.geomys.util
+
+import fr.ariegenature.geomys.geo.LatLon
+import fr.ariegenature.geomys.json.JSONArray
+
+/**
+ * Sommets d'une géométrie au format interne `geometryCoordsJson` = `[[lon, lat], …]` (même
+ * convention pour Occtax et OccHab, parsée à l'envoi par `GeoNatureUpload.construireGeometrie`).
+ * Point unique de parsing / sérialisation / centroïde : ce code était copié 12 fois dans les
+ * fragments carte, sans test (audit 2026-08-27).
+ */
+object GeoJsonCoords {
+
+    /** `[[lon,lat], …]` → points. Vide si null, illisible, ou sans paire exploitable ; une paire
+     *  malformée est ignorée, les autres conservées. */
+    fun parse(json: String?): List<LatLon> {
+        if (json.isNullOrEmpty()) return emptyList()
+        return try {
+            val arr = JSONArray(json)
+            (0 until arr.length()).mapNotNull { i ->
+                arr.optJSONArray(i)?.takeIf { it.length() >= 2 }?.let { c ->
+                    try { LatLon(c.getDouble(1), c.getDouble(0)) } catch (_: Exception) { null }
+                }
+            }
+        } catch (_: Exception) { emptyList() }
+    }
+
+    /** `[[lon,lat], …]` → paires `[lon, lat]` (DoubleArray, modifiables en place — édition
+     *  topologique). Null si le JSON est illisible. */
+    fun parsePaires(json: String?): MutableList<DoubleArray>? {
+        if (json.isNullOrEmpty()) return null
+        return try {
+            val arr = JSONArray(json)
+            MutableList(arr.length()) { i ->
+                val c = arr.getJSONArray(i)
+                doubleArrayOf(c.getDouble(0), c.getDouble(1))
+            }
+        } catch (_: Exception) { null }
+    }
+
+    /** Points → `[[lon,lat], …]`. */
+    fun format(points: List<LatLon>): String = JSONArray().apply {
+        points.forEach { put(JSONArray().put(it.longitude).put(it.latitude)) }
+    }.toString()
+
+    /** Paires `[lon, lat]` → `[[lon,lat], …]`. */
+    fun formatPaires(paires: List<DoubleArray>): String = JSONArray().apply {
+        paires.forEach { put(JSONArray().put(it[0]).put(it[1])) }
+    }.toString()
+
+    /** `[[[lon,lat], …], …]` (LISTE d'anneaux — les TROUS d'un polygone, cf.
+     *  [fr.ariegenature.geomys.model.OccHabStation.geometryTrousJson]) → anneaux de points.
+     *  Vide si null/illisible ; un anneau vide ou illisible est ignoré, les autres conservés. */
+    fun parseAnneaux(json: String?): List<List<LatLon>> {
+        if (json.isNullOrEmpty()) return emptyList()
+        return try {
+            val arr = JSONArray(json)
+            (0 until arr.length()).mapNotNull { i ->
+                arr.optJSONArray(i)?.let { anneau ->
+                    (0 until anneau.length()).mapNotNull { k ->
+                        anneau.optJSONArray(k)?.takeIf { it.length() >= 2 }?.let { c ->
+                            try { LatLon(c.getDouble(1), c.getDouble(0)) } catch (_: Exception) { null }
+                        }
+                    }.takeIf { it.isNotEmpty() }
+                }
+            }
+        } catch (_: Exception) { emptyList() }
+    }
+
+    /** Anneaux de points → `[[[lon,lat], …], …]`. **Null si la liste est vide** : le champ absent
+     *  signifie « polygone plein » (pas de trou), jamais un tableau vide. */
+    fun formatAnneaux(anneaux: List<List<LatLon>>): String? {
+        val nonVides = anneaux.filter { it.isNotEmpty() }
+        if (nonVides.isEmpty()) return null
+        return JSONArray().apply {
+            nonVides.forEach { a ->
+                put(JSONArray().apply { a.forEach { put(JSONArray().put(it.longitude).put(it.latitude)) } })
+            }
+        }.toString()
+    }
+
+    /** Centroïde = moyenne arithmétique des sommets (la convention historique de l'appli pour
+     *  `latitude`/`longitude` d'un polygone : affichage carte, pas un calcul géodésique).
+     *  Null si aucun sommet. */
+    fun centroide(points: List<LatLon>): LatLon? {
+        if (points.isEmpty()) return null
+        return LatLon(points.map { it.latitude }.average(), points.map { it.longitude }.average())
+    }
+}

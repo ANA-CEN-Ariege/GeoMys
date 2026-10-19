@@ -18,6 +18,8 @@
 
 package fr.ariegenature.geomys
 
+import fr.ariegenature.geomys.location.SourcePositions
+import fr.ariegenature.geomys.location.SuiviGps
 import fr.ariegenature.geomys.network.http.ClientsGeoNature
 import fr.ariegenature.geomys.plateforme.ExecutionLongue
 import fr.ariegenature.geomys.store.CoffreMotDePasse
@@ -27,13 +29,15 @@ import okio.FileSystem
 import okio.SYSTEM
 
 /** Ce que la plateforme fournit aux services de l'appli : dossiers, réglages, coffre, réseau,
- *  exécution des travaux longs. Les tests en fournissent des doublures (dossier temporaire,
- *  MapSettings, MockEngine). */
+ *  exécution des travaux longs, récepteur GPS et suivi en arrière-plan. Les tests en fournissent
+ *  des doublures (dossier temporaire, MapSettings, MockEngine, positions simulées). */
 class Socle(
     val racines: RacinesStockage,
     val reglages: FabriqueReglages,
     val coffre: CoffreMotDePasse,
     val clients: ClientsGeoNature,
     val executionLongue: ExecutionLongue,
+    val positions: SourcePositions,
+    val suiviGps: SuiviGps,
     val systeme: FileSystem = FileSystem.SYSTEM,
 )

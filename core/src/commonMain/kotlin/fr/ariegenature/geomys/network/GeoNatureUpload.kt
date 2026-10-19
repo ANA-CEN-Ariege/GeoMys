@@ -65,6 +65,7 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 import kotlinx.io.IOException
 import okio.FileSystem
+import okio.Path
 import okio.Path.Companion.toPath
 import okio.SYSTEM
 
@@ -134,6 +135,8 @@ class GeoNatureUpload(
     private val geoNatureSync: GeoNatureSync,
     private val relevesOrphelins: RelevesOrphelins,
     private val systeme: FileSystem = FileSystem.SYSTEM,
+    /** Le dossier des copies locales des médias, où retrouver un média par son nom (cf. [fichierMedia]). */
+    private val dossierMedias: Path? = null,
     private val horloge: () -> Long = ::maintenantMillis,
 ) {
 
@@ -898,7 +901,7 @@ class GeoNatureUpload(
             Journal.e(TAG_MEDIA, "URI fichier invalide : $mediaPath")
             return Pair(null, "URI fichier invalide : $mediaPath")
         }
-        val fichier = chemin.toPath()
+        val fichier = fichierMedia(systeme, chemin, dossierMedias)
         val octets = try {
             if (!systeme.exists(fichier)) null else systeme.read(fichier) { readByteArray() }
         } catch (_: Exception) { null }
@@ -1334,6 +1337,17 @@ class GeoNatureUpload(
                 else -> emptyList()
             }
             return candidats.firstNotNullOfOrNull { typesMedia[it] }
+        }
+
+        /** Le fichier local d'un média enregistré à [chemin] : lui-même s'il existe, sinon le fichier du
+         *  même nom dans [dossierMedias]. Propre au portage : sous iOS, le dossier de l'appli change de
+         *  chemin à chaque mise à jour, et un chemin absolu enregistré avant ne mène plus nulle part
+         *  (GeoMys-IOS enregistrait pour cela « medias/<nom> »). */
+        fun fichierMedia(systeme: FileSystem, chemin: String, dossierMedias: Path?): Path {
+            val enregistre = chemin.toPath()
+            if (dossierMedias == null || systeme.exists(enregistre)) return enregistre
+            val repli = dossierMedias / enregistre.name
+            return if (systeme.exists(repli)) repli else enregistre
         }
 
         /** Le chemin d'un média enregistré par URI `file:` (ou par chemin absolu), décodé, sans requête

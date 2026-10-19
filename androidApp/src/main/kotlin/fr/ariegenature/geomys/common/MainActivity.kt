@@ -52,14 +52,21 @@ class MainActivity : ComponentActivity() {
         ConfigurationCarte.initialiser(infos)
         // Paramètres d'essai : adb shell am start … --es ecran prototype-carte --es fond serveur-test
         val lancement = CLES_LANCEMENT.mapNotNull { cle -> intent.getStringExtra(cle)?.let { cle to it } }.toMap()
-        val services = servicesGeoNature(applicationContext, ExecutionLongueAndroid(applicationContext))
+        val services = servicesGeoNature(applicationContext, ExecutionLongueAndroid(applicationContext), SuiviGpsAndroid(applicationContext))
         setContent { GeoMysApp(infos, services, lancement) }
     }
 
-    /** Canal de la notification de synchro, comme MainActivity de GeoMys-Android (celui du suivi
-     *  GPS viendra avec le tracé). */
+    /** Canaux des notifications du suivi GPS et de la synchro, comme MainActivity de
+     *  GeoMys-Android. */
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val canalGps = NotificationChannel(
+            LocationForegroundService.CHANNEL_ID,
+            "Suivi GPS",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "Suivi GPS en arrière-plan pendant une sortie"
+        }
         val canalSync = NotificationChannel(
             SyncForegroundService.CHANNEL_ID,
             "Synchronisation",
@@ -67,6 +74,9 @@ class MainActivity : ComponentActivity() {
         ).apply {
             description = "Chargement des données GeoNature en arrière-plan"
         }
-        getSystemService(NotificationManager::class.java).createNotificationChannel(canalSync)
+        getSystemService(NotificationManager::class.java).apply {
+            createNotificationChannel(canalGps)
+            createNotificationChannel(canalSync)
+        }
     }
 }

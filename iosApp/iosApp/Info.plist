@@ -22,6 +22,25 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Localisation : textes de GeoMys-IOS, au nom de l'appli. -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>$(APP_DISPLAY_NAME) utilise votre position pour géolocaliser les observations et enregistrer votre trace GPS.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>$(APP_DISPLAY_NAME) enregistre votre trace GPS en arrière-plan pendant une sortie sur le terrain.</string>
+	<!-- Dictée vocale du nom d'espèce (textes de GeoMys-IOS). -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>$(APP_DISPLAY_NAME) utilise le micro pour la dictée vocale lors de la saisie des notes d'observation.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>$(APP_DISPLAY_NAME) utilise la reconnaissance vocale pour la dictée des notes d'observation.</string>
+	<!-- Photo d'un dénombrement (UIImagePickerController ; texte de GeoMys-IOS). La galerie (PHPicker)
+	     et les fichiers son n'en demandent pas. -->
+	<key>NSCameraUsageDescription</key>
+	<string>$(APP_DISPLAY_NAME) utilise l'appareil photo pour attacher des photos aux observations naturalistes.</string>
+	<!-- La trace GPS continue écran verrouillé, pendant une sortie (allowsBackgroundLocationUpdates). -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<!-- HTTP autorisé seulement vers les adresses locales : serveur de tuiles de test du prototype
 	     carte (outils/prototype-carte). Les serveurs publics restent en HTTPS. -->
 	<key>NSAppTransportSecurity</key>

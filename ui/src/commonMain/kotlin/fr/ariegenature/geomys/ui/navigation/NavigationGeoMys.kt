@@ -31,9 +31,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
+import androidx.navigation.NavOptionsBuilder
 import androidx.navigation.compose.DefaultNavTransitions
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -43,12 +47,38 @@ import fr.ariegenature.geomys.InfosApp
 import fr.ariegenature.geomys.ServicesGeoNature
 import fr.ariegenature.geomys.store.configurationComplete
 import fr.ariegenature.geomys.store.envoisEnAttente
+import fr.ariegenature.geomys.store.io.mapDepuisJson
+import fr.ariegenature.geomys.store.io.mapVersJson
 import fr.ariegenature.geomys.ui.accueil.AccueilScreen
 import fr.ariegenature.geomys.ui.accueil.ActionsAccueil
 import fr.ariegenature.geomys.ui.accueil.EntreeMenuAccueil
 import fr.ariegenature.geomys.ui.accueil.EtatAccueil
 import fr.ariegenature.geomys.ui.avenir.EcranAVenir
 import fr.ariegenature.geomys.ui.composants.estIos
+import fr.ariegenature.geomys.ui.occtax.MesSaisiesScreen
+import fr.ariegenature.geomys.ui.occtax.MesSaisiesViewModel
+import fr.ariegenature.geomys.network.TaxRefStatut
+import fr.ariegenature.geomys.occtax.GeometrieFinale
+import fr.ariegenature.geomys.occtax.OuvertureReleve
+import fr.ariegenature.geomys.occtax.SaisieMono
+import fr.ariegenature.geomys.saisie.ChampsAdditionnels
+import fr.ariegenature.geomys.ui.occtax.CaracterisationScreen
+import fr.ariegenature.geomys.ui.occtax.CaracterisationViewModel
+import fr.ariegenature.geomys.ui.occtax.DenombrementScreen
+import fr.ariegenature.geomys.ui.occtax.DenombrementViewModel
+import fr.ariegenature.geomys.ui.occtax.DetailsReleveIntercalaireScreen
+import fr.ariegenature.geomys.ui.occtax.DetailsReleveIntercalaireViewModel
+import fr.ariegenature.geomys.ui.occtax.ObservationsScreen
+import fr.ariegenature.geomys.ui.occtax.ObservationsViewModel
+import fr.ariegenature.geomys.ui.occtax.SaisieMonoScreen
+import fr.ariegenature.geomys.ui.occtax.SaisieMonoViewModel
+import fr.ariegenature.geomys.ui.occtax.SaisieMultiScreen
+import fr.ariegenature.geomys.ui.occtax.SaisieReleveScreen
+import fr.ariegenature.geomys.ui.occtax.SaisieReleveViewModel
+import fr.ariegenature.geomys.ui.occtax.SaisieMultiViewModel
+import fr.ariegenature.geomys.ui.occtax.SessionSaisieViewModel
+import fr.ariegenature.geomys.ui.occtax.SortieDetailScreen
+import fr.ariegenature.geomys.ui.occtax.SortieDetailViewModel
 import fr.ariegenature.geomys.ui.parametres.ParametresScreen
 import fr.ariegenature.geomys.ui.parametres.ParametresViewModel
 import fr.ariegenature.geomys.ui.parametres.TaxonsListeScreen
@@ -61,6 +91,67 @@ data object RouteAccueil
 @Serializable
 data object RouteParametres
 
+/** « Mes saisies » : les sorties OccTax du store. */
+@Serializable
+data object RouteMesSaisies
+
+/** « Détail de la saisie » d'une sortie de « Mes saisies ». */
+@Serializable
+data class RouteSortieDetail(val sortieId: String)
+
+/** Carte de la saisie multi-taxons ; [sortieId] : la sortie reprise depuis « Mes saisies ». */
+@Serializable
+data class RouteSaisieMulti(val sortieId: String? = null)
+
+/** Saisie d'un relevé : repris ([releveId], ou l'observation seule [obsId]), sinon nouveau, posé à
+ *  sa géométrie ([geometrieType], [geometrieCoords], [latitude], [longitude]), avec les champs
+ *  additionnels saisis dans l'écran intercalé ([additionnelsJson], le `addReleveJson` d'Android). */
+@Serializable
+data class RouteReleve(
+    val releveId: String? = null,
+    val obsId: String? = null,
+    val geometrieType: String? = null,
+    val geometrieCoords: String? = null,
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    val additionnelsJson: String? = null,
+) {
+    fun ouverture() = OuvertureReleve(
+        releveId = releveId,
+        obsId = obsId,
+        geometrie = geometrieType?.let { GeometrieFinale(it, geometrieCoords, latitude, longitude) },
+        additionnelsIntercales = additionnelsJson?.let(::mapDepuisJson),
+    )
+}
+
+/** Les relevés de la saisie en cours (bouton liste de la carte). */
+@Serializable
+data object RouteObservations
+
+/** Saisie mono-taxon, avec les champs de relevé de l'écran intercalé ([additionnelsJson]). */
+@Serializable
+data class RouteSaisieMono(val additionnelsJson: String? = null)
+
+/** Les champs additionnels obligatoires d'un nouveau relevé, avant ses espèces, posé à sa géométrie ;
+ *  [mono] : avant la saisie mono-taxon, dont ils seront le défaut. */
+@Serializable
+data class RouteDetailsReleve(
+    val geometrieType: String? = null,
+    val geometrieCoords: String? = null,
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    val mono: Boolean = false,
+)
+
+/** Caractérisation de l'espèce [index] du relevé ouvert ; [comportementSeul] : ouverte d'elle-même pour un
+ *  oiseau nicheur ; [mono] : les réglages de la saisie mono-taxon. */
+@Serializable
+data class RouteCaracterisation(val index: Int, val comportementSeul: Boolean = false, val mono: Boolean = false)
+
+/** Dénombrements de l'espèce [index] du relevé ouvert ; [mono] : les réglages de la saisie mono-taxon. */
+@Serializable
+data class RouteDenombrement(val index: Int, val mono: Boolean = false)
+
 /** Contenu d'une liste de taxons du cache (Paramètres › Détails). */
 @Serializable
 data class RouteTaxonsListe(val idListe: Int, val nomListe: String)
@@ -69,10 +160,26 @@ data class RouteTaxonsListe(val idListe: Int, val nomListe: String)
 @Serializable
 data class RouteAVenir(val titre: String, val lot: String)
 
-private const val LOT_OCCTAX = "lot 6 (OccTax)"
 private const val LOT_MONITORING = "lot 7 (Monitoring)"
 private const val LOT_OCCHAB = "lot 8 (OccHab)"
 private const val LOT_CARTES = "lot 9 (Explorer, cartes)"
+
+/** Les écrans du flux de saisie OccTax (DESTINATIONS_SAISIE de MainActivity). */
+private val DESTINATIONS_SAISIE = listOf(
+    RouteSaisieMulti::class,
+    RouteSaisieMono::class,
+    RouteObservations::class,
+    RouteDetailsReleve::class,
+    RouteReleve::class,
+    RouteCaracterisation::class,
+    RouteDenombrement::class,
+)
+
+/** Navigue seulement si l'écran [depuis] est au premier plan : un double toucher n'empile pas deux
+ *  fois l'écran suivant (`naviguerSur` de GeoMys-Android). */
+private fun NavHostController.naviguerDepuis(depuis: NavBackStackEntry, route: Any, options: NavOptionsBuilder.() -> Unit = {}) {
+    if (depuis.lifecycle.currentState == Lifecycle.State.RESUMED) navigate(route, options)
+}
 
 /** La pile des écrans, posée sur l'accueil.
  *  - Transitions : aucune sous Android (le nav_graph de GeoMys-Android n'en déclare pas) ; celles
@@ -80,20 +187,89 @@ private const val LOT_CARTES = "lot 9 (Explorer, cartes)"
  *  - Au lancement : une mise à jour qui exige un rechargement arme son drapeau, puis une
  *    configuration incomplète ouvre Paramètres, d'office et sans animation, comme MainActivity
  *    (GeoMys-Android) et ContentView (GeoMys-IOS). [ecranInitial] « accueil » s'en dispense (essais
- *    d'affichage), « parametres » l'impose. */
+ *    d'affichage), « parametres » l'impose ; essais du lot 6 : « mes-saisies » ouvre « Mes saisies »,
+ *    « detail-saisie » le détail de la saisie la plus récente, « saisie-multi » une nouvelle saisie
+ *    multi-taxons, « saisie-suivante » la même carte en positionnement (comme au retour d'un relevé),
+ *    « reprise-saisie » la reprise de la plus récente saisie non envoyée, « releve-essai » son premier
+ *    relevé, « releve-nouveau » un nouveau relevé ponctuel, « caracterisation-essai » et
+ *    « denombrement-essai » la caractérisation et les dénombrements de la première espèce de ce relevé,
+ *    « details-releve » et « details-communs » le nouveau relevé et la carte, leur dialogue de détails
+ *    ouvert, « details-intercale » l'écran des champs du relevé intercalé avant ses espèces,
+ *    « observations-essai » la liste des relevés de la plus récente saisie non envoyée, « saisie-mono » la
+ *    saisie mono-taxon, « saisie-mono-carte » sa carte, démarrée sur le Merle noir (référentiel d'essai). */
 @Composable
 fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial: String? = null) {
     val nav = rememberNavController()
     val ios = estIos
     var demarrage by remember { mutableStateOf(true) }
+    // Essai d'affichage : le dialogue des détails ouvert d'emblée (le simulateur iOS ne touche pas).
+    var essaiDetails by remember { mutableStateOf(ecranInitial == "details-releve" || ecranInitial == "details-communs") }
+    var essaiMonoCarte by remember { mutableStateOf(ecranInitial == "saisie-mono-carte") }
+    // La session de saisie OccTax, partagée par tous les écrans du flux comme le TraceViewModel
+    // (`activityViewModels()`) de GeoMys-Android : elle vit au-dessus du graphe.
+    val sessionSaisie = viewModel { SessionSaisieViewModel(services) }
+    // Quitter le flux de saisie DANS l'appli (et non passer en arrière-plan) : sur une vraie
+    // transition saisie → hors saisie seulement.
+    LaunchedEffect(nav) {
+        var dansFlux = false
+        nav.currentBackStackEntryFlow.collect { entree ->
+            val dansSaisie = DESTINATIONS_SAISIE.any { entree.destination.hasRoute(it) }
+            if (dansFlux && !dansSaisie) sessionSaisie.quitterFluxSaisie()
+            dansFlux = dansSaisie
+        }
+    }
     LaunchedEffect(Unit) {
         services.cachesSynchronises.armerRechargementSiRequis(services.config)
         val ouvrirParametres = when (ecranInitial) {
-            "accueil" -> false
+            "accueil", "mes-saisies", "detail-saisie", "saisie-multi", "saisie-suivante", "reprise-saisie", "releve-essai", "releve-nouveau",
+            "caracterisation-essai", "denombrement-essai", "details-releve", "details-communs", "details-intercale",
+            "observations-essai", "saisie-mono", "saisie-mono-carte" -> false
             "parametres" -> true
             else -> !configurationComplete(services.config, services.taxRef)
         }
         if (ouvrirParametres) nav.navigate(RouteParametres)
+        if (ecranInitial == "mes-saisies" || ecranInitial == "detail-saisie") nav.navigate(RouteMesSaisies)
+        if (ecranInitial == "detail-saisie") services.sortieStore.charger().firstOrNull()?.let { nav.navigate(RouteSortieDetail(it.id)) }
+        if (ecranInitial == "saisie-multi" || ecranInitial == "saisie-suivante" || ecranInitial == "details-communs") {
+            sessionSaisie.demarrerSaisieSuivante = ecranInitial == "saisie-suivante"
+            nav.navigate(RouteSaisieMulti())
+        }
+        if (ecranInitial == "reprise-saisie" || ecranInitial == "observations-essai") {
+            services.sortieStore.charger().firstOrNull { !it.envoyeGeoNature }?.let { sortie ->
+                nav.navigate(RouteSaisieMulti(sortie.id))
+                if (ecranInitial == "observations-essai") {
+                    // La liste montre la session : on attend que la sortie y soit reprise.
+                    while (sessionSaisie.session.sortieEnEditionId != sortie.id) withFrameNanos {}
+                    nav.navigate(RouteObservations)
+                }
+            }
+        }
+        if (ecranInitial in setOf("releve-essai", "caracterisation-essai", "denombrement-essai")) {
+            services.sortieStore.charger().firstOrNull { !it.envoyeGeoNature && it.observations.isNotEmpty() }?.let { sortie ->
+                nav.navigate(RouteSaisieMulti(sortie.id))
+                // Le relevé ne s'ouvre qu'une fois la sortie reprise dans la session.
+                while (sessionSaisie.session.sortieEnEditionId != sortie.id) withFrameNanos {}
+                val premiere = sortie.observations.first()
+                nav.navigate(RouteReleve(releveId = premiere.releveId, obsId = premiere.id.takeIf { premiere.releveId == null }))
+                if (ecranInitial == "caracterisation-essai") nav.navigate(RouteCaracterisation(0))
+                if (ecranInitial == "denombrement-essai") nav.navigate(RouteDenombrement(0))
+            }
+        }
+        if (ecranInitial == "saisie-mono" || ecranInitial == "saisie-mono-carte") {
+            sessionSaisie.session.reinitialiser()
+            nav.navigate(RouteSaisieMono())
+        }
+        if (ecranInitial == "details-intercale") {
+            sessionSaisie.session.typeSaisieLabel = SaisieMultiViewModel.LIBELLE
+            nav.navigate(RouteSaisieMulti())
+            nav.navigate(RouteDetailsReleve("Point", latitude = 42.9649, longitude = 1.6056))
+        }
+        if (ecranInitial == "releve-nouveau" || ecranInitial == "details-releve") {
+            // La carte, sautée, aurait posé le libellé du flux.
+            sessionSaisie.session.typeSaisieLabel = SaisieMultiViewModel.LIBELLE
+            nav.navigate(RouteSaisieMulti())
+            nav.navigate(RouteReleve(geometrieType = "Point", latitude = 42.9649, longitude = 1.6056))
+        }
         // Les transitions reprennent une fois la redirection posée.
         withFrameNanos {}
         withFrameNanos {}
@@ -111,7 +287,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             if (ios) DefaultNavTransitions.popExitTransition(DefaultNavTransitions.exitTransition)(this) else ExitTransition.None
         },
     ) {
-        composable<RouteAccueil> { EcranAccueil(infos, services, nav) }
+        composable<RouteAccueil> { EcranAccueil(infos, services, sessionSaisie, nav) }
         composable<RouteParametres> {
             val vm = viewModel { ParametresViewModel(services) }
             ParametresScreen(
@@ -124,10 +300,243 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             val route = entree.toRoute<RouteTaxonsListe>()
             TaxonsListeScreen(services, route.idListe, route.nomListe, onRetour = { nav.popBackStack() })
         }
+        composable<RouteMesSaisies> {
+            val vm = viewModel { MesSaisiesViewModel(services) }
+            MesSaisiesScreen(
+                vm,
+                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onDetail = { id -> nav.navigate(RouteSortieDetail(id)) },
+                onContinuer = { id ->
+                    // Recharger la sortie et recadrer la carte dessus, même déjà éditée dans la session.
+                    sessionSaisie.session.forcerRepriseAuProchainEcran()
+                    nav.navigate(RouteSaisieMulti(id))
+                },
+            )
+        }
+        composable<RouteSaisieMulti> { entree ->
+            val route = entree.toRoute<RouteSaisieMulti>()
+            val vm = viewModel { SaisieMultiViewModel(services, sessionSaisie, route.sortieId) }
+            if (essaiDetails && ecranInitial == "details-communs") {
+                LaunchedEffect(vm) {
+                    essaiDetails = false
+                    vm.ouvrirDetailsCommuns()
+                }
+            }
+            SaisieMultiScreen(
+                vm,
+                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onOuvrirReleve = { releve ->
+                    val g = releve.geometrie
+                    nav.naviguerDepuis(
+                        entree,
+                        if (releve.ecranReleve && g != null) RouteDetailsReleve(g.type, g.coordsJson, g.latitude, g.longitude)
+                        else RouteReleve(releve.releveId, releve.obsId, g?.type, g?.coordsJson, g?.latitude ?: 0.0, g?.longitude ?: 0.0),
+                    )
+                },
+                onOuvrirListe = { nav.naviguerDepuis(entree, RouteObservations) },
+                onQuitter = { nav.popBackStack() },
+            )
+        }
+        composable<RouteSortieDetail> { entree ->
+            val route = entree.toRoute<RouteSortieDetail>()
+            val vm = viewModel(key = route.sortieId) { SortieDetailViewModel(services, route.sortieId) }
+            SortieDetailScreen(
+                vm,
+                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onRetour = { nav.popBackStack() },
+            )
+        }
+        composable<RouteObservations> { entree ->
+            val vm = viewModel { ObservationsViewModel(services, sessionSaisie) }
+            ObservationsScreen(
+                vm,
+                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onFermer = { nav.popBackStack() },
+                onEditer = { releve ->
+                    val rid = releve.releveId
+                    nav.naviguerDepuis(entree, if (!rid.isNullOrEmpty()) RouteReleve(releveId = rid) else RouteReleve(obsId = releve.premier.id))
+                },
+            )
+        }
+        composable<RouteSaisieMono> { entree ->
+            val route = entree.toRoute<RouteSaisieMono>()
+            val vm = viewModel { SaisieMonoViewModel(services, sessionSaisie, route.additionnelsJson?.let(::mapDepuisJson)) }
+            if (essaiMonoCarte) {
+                LaunchedEffect(vm) {
+                    essaiMonoCarte = false
+                    vm.champ.saisir("Merle noir")
+                    vm.champ.recherche.poser(TaxRefStatut.Trouve(4117, "Turdus merula", "Merle noir"), "Merle noir")
+                    vm.demarrer()
+                }
+            }
+            SaisieMonoScreen(
+                vm,
+                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onCaracterisation = { nav.naviguerDepuis(entree, RouteCaracterisation(0, mono = true)) },
+                onDenombrement = { nav.naviguerDepuis(entree, RouteDenombrement(0, mono = true)) },
+                onEditerObservation = { id -> nav.naviguerDepuis(entree, RouteReleve(obsId = id)) },
+                onQuitter = { nav.popBackStack() },
+            )
+        }
+        composable<RouteDetailsReleve> { entree ->
+            val route = entree.toRoute<RouteDetailsReleve>()
+            val vm = viewModel { DetailsReleveIntercalaireViewModel(services, sessionSaisie) }
+            DetailsReleveIntercalaireScreen(
+                vm,
+                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onAnnuler = { nav.popBackStack() },
+                onContinuer = { valeurs ->
+                    // L'écran quitte la pile : le retour depuis la saisie ramène à l'écran d'avant.
+                    val suite = if (route.mono) {
+                        RouteSaisieMono(additionnelsJson = mapVersJson(valeurs))
+                    } else {
+                        RouteReleve(
+                            geometrieType = route.geometrieType,
+                            geometrieCoords = route.geometrieCoords,
+                            latitude = route.latitude,
+                            longitude = route.longitude,
+                            additionnelsJson = mapVersJson(valeurs),
+                        )
+                    }
+                    nav.naviguerDepuis(entree, suite) { popUpTo<RouteDetailsReleve> { inclusive = true } }
+                },
+            )
+        }
+        composable<RouteReleve> { entree ->
+            val route = entree.toRoute<RouteReleve>()
+            val vm = viewModel { SaisieReleveViewModel(services, sessionSaisie, route.ouverture()) }
+            if (vm.releve.introuvable) {
+                LaunchedEffect(Unit) { nav.popBackStack() }
+                return@composable
+            }
+            if (essaiDetails && ecranInitial == "details-releve") {
+                LaunchedEffect(vm) {
+                    essaiDetails = false
+                    vm.ouvrirDetails()
+                }
+            }
+            SaisieReleveScreen(
+                vm,
+                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onCaracterisation = { index, seul -> nav.naviguerDepuis(entree, RouteCaracterisation(index, seul)) },
+                onDenombrement = { nav.naviguerDepuis(entree, RouteDenombrement(it)) },
+                onTermine = {
+                    // Comme le drapeau que GeoMys-Android pose sur l'écran précédent : seule la carte
+                    // multi-taxons repart en positionnement (pas la saisie mono, ni la liste).
+                    if (nav.previousBackStackEntry?.destination?.hasRoute<RouteSaisieMulti>() == true) {
+                        sessionSaisie.demarrerSaisieSuivante = true
+                    }
+                    nav.popBackStack()
+                },
+            )
+        }
+        composable<RouteCaracterisation> { entree ->
+            val route = entree.toRoute<RouteCaracterisation>()
+            if (route.mono) {
+                val mono = saisieMonoOuverte(nav, entree, services, sessionSaisie)
+                val espece = remember(mono) { mono?.especeFormulaires() }
+                if (mono == null || espece == null) {
+                    LaunchedEffect(Unit) { nav.popBackStack() }
+                    return@composable
+                }
+                val vm = viewModel { CaracterisationViewModel(services, espece, comportementSeul = false) }
+                CaracterisationScreen(
+                    vm,
+                    sessionSaisie.session.typeSaisieLabel,
+                    onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                    onValide = { caracterisee ->
+                        mono.appliquerCaracterisation(caracterisee)
+                        nav.popBackStack()
+                    },
+                )
+                return@composable
+            }
+            val releve = releveOuvert(nav, entree, services, sessionSaisie)
+            val espece = remember(releve) { releve?.releve?.especes?.value?.getOrNull(route.index) }
+            if (releve == null || espece == null) {
+                LaunchedEffect(Unit) { nav.popBackStack() }
+                return@composable
+            }
+            val vm = viewModel { CaracterisationViewModel(services, espece, route.comportementSeul) }
+            CaracterisationScreen(
+                vm,
+                releve.typeSaisieLabel,
+                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onValide = { caracterisee ->
+                    releve.releve.modifier(route.index) { caracterisee }
+                    nav.popBackStack()
+                },
+            )
+        }
+        composable<RouteDenombrement> { entree ->
+            val route = entree.toRoute<RouteDenombrement>()
+            if (route.mono) {
+                val mono = saisieMonoOuverte(nav, entree, services, sessionSaisie)
+                val espece = remember(mono) { mono?.especeFormulaires() }
+                if (mono == null || espece == null) {
+                    LaunchedEffect(Unit) { nav.popBackStack() }
+                    return@composable
+                }
+                val vm = viewModel { DenombrementViewModel(services, espece) }
+                DenombrementScreen(
+                    vm,
+                    sessionSaisie.session.typeSaisieLabel,
+                    onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                    onValide = { liste ->
+                        mono.appliquerDenombrements(liste)
+                        nav.popBackStack()
+                    },
+                )
+                return@composable
+            }
+            val releve = releveOuvert(nav, entree, services, sessionSaisie)
+            val espece = remember(releve) { releve?.releve?.especes?.value?.getOrNull(route.index) }
+            if (releve == null || espece == null) {
+                LaunchedEffect(Unit) { nav.popBackStack() }
+                return@composable
+            }
+            val vm = viewModel { DenombrementViewModel(services, espece) }
+            DenombrementScreen(
+                vm,
+                releve.typeSaisieLabel,
+                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onValide = { liste ->
+                    releve.releve.modifier(route.index) { it.avecDenombrements(liste) }
+                    nav.popBackStack()
+                },
+            )
+        }
         composable<RouteAVenir> { entree ->
             val route = entree.toRoute<RouteAVenir>()
             EcranAVenir(route.titre, route.lot, onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) })
         }
+    }
+}
+
+/** Le ViewModel du relevé ouvert sous un sous-écran (l'`activityViewModels()` de GeoMys-Android) : celui de
+ *  l'entrée [RouteReleve] de la pile, null s'il n'y en a pas. */
+@Composable
+private fun releveOuvert(
+    nav: NavHostController,
+    entree: NavBackStackEntry,
+    services: ServicesGeoNature,
+    sessionSaisie: SessionSaisieViewModel,
+): SaisieReleveViewModel? {
+    val parent = remember(entree) { runCatching { nav.getBackStackEntry<RouteReleve>() }.getOrNull() } ?: return null
+    return viewModel(parent) { SaisieReleveViewModel(services, sessionSaisie, parent.toRoute<RouteReleve>().ouverture()) }
+}
+
+/** La saisie mono-taxon d'où l'on vient (l'entrée [RouteSaisieMono] de la pile), pour ses réglages. */
+@Composable
+private fun saisieMonoOuverte(
+    nav: NavHostController,
+    entree: NavBackStackEntry,
+    services: ServicesGeoNature,
+    sessionSaisie: SessionSaisieViewModel,
+): SaisieMonoViewModel? {
+    val parent = remember(entree) { runCatching { nav.getBackStackEntry<RouteSaisieMono>() }.getOrNull() } ?: return null
+    return viewModel(parent) {
+        SaisieMonoViewModel(services, sessionSaisie, parent.toRoute<RouteSaisieMono>().additionnelsJson?.let(::mapDepuisJson))
     }
 }
 
@@ -145,7 +554,7 @@ private fun lireEtatAccueil(infos: InfosApp, services: ServicesGeoNature): EtatA
 }
 
 @Composable
-private fun EcranAccueil(infos: InfosApp, services: ServicesGeoNature, nav: NavHostController) {
+private fun EcranAccueil(infos: InfosApp, services: ServicesGeoNature, sessionSaisie: SessionSaisieViewModel, nav: NavHostController) {
     var etat by remember { mutableStateOf(lireEtatAccueil(infos, services)) }
     val portee = rememberCoroutineScope()
     LifecycleResumeEffect(Unit) {
@@ -170,14 +579,26 @@ private fun EcranAccueil(infos: InfosApp, services: ServicesGeoNature, nav: NavH
     AccueilScreen(
         etat,
         ActionsAccueil(
-            saisieMulti = { aVenir("Saisie multi-taxons", LOT_OCCTAX) },
-            saisieMono = { aVenir("Saisie mono-taxons", LOT_OCCTAX) },
+            saisieMulti = {
+                // Nouvelle saisie : ardoise vierge, sans les observations de la précédente.
+                sessionSaisie.session.reinitialiser()
+                nav.navigate(RouteSaisieMulti())
+            },
+            saisieMono = {
+                // Saisie mono-taxons : ardoise vierge ; l'écran « Détails du relevé » n'est intercalé
+                // que s'il existe un champ de relevé obligatoire SANS valeur par défaut.
+                sessionSaisie.session.reinitialiser()
+                sessionSaisie.session.typeSaisieLabel = SaisieMono.LIBELLE
+                val config = services.config
+                val ecranReleve = ChampsAdditionnels.aDesChampsReleveRequisSansDefaut(config.additionalFieldsOcctaxJsonActif, config.idDataset.toIntOrNull())
+                nav.navigate(if (ecranReleve) RouteDetailsReleve(mono = true) else RouteSaisieMono())
+            },
             monitoring = { aVenir("Monitoring", LOT_MONITORING) },
             occhab = { aVenir("OccHab", LOT_OCCHAB) },
             parametres = { nav.navigate(RouteParametres) },
             menu = { entree ->
                 when (entree) {
-                    EntreeMenuAccueil.MES_SAISIES -> aVenir("Mes saisies", LOT_OCCTAX)
+                    EntreeMenuAccueil.MES_SAISIES -> nav.navigate(RouteMesSaisies)
                     EntreeMenuAccueil.MES_VISITES -> aVenir("Mes visites", LOT_MONITORING)
                     EntreeMenuAccueil.MES_STATIONS -> aVenir("Mes stations", LOT_OCCHAB)
                     EntreeMenuAccueil.EXPLORER -> aVenir("Explorer", LOT_CARTES)

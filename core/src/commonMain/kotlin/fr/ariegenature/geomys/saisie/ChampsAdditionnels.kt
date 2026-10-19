@@ -16,7 +16,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// Extrait de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/ui/saisie/AdditionalFieldsRenderer.kt) :
+// Extrait de GeoMys-Android @ d72b8da (app/src/main/java/fr/ariegenature/geomys/ui/saisie/AdditionalFieldsRenderer.kt) :
 // la logique des champs additionnels OccTax — valeurs au rendu, encodage relu par `collecter`,
 // champs obligatoires vides — sort des vues, où elle vivait dans des tags. Gson devient kotlinx,
 // org.json son portage commun. Les widgets deviennent des composables, qui lisent cet état.
@@ -102,12 +102,12 @@ object ChampsAdditionnels {
     /** Les entrées d'une liste déroulante (SELECT, NOMENCLATURE) : « (non renseigné) » d'abord, et
      *  leur code (vide pour la première). */
     fun libellesListe(def: AdditionalFieldDef): List<String> = when (def.widget) {
-        WidgetType.NOMENCLATURE -> listOf(NON_RENSEIGNE) + def.nomenclatureOptions.map { it.second }
+        WidgetType.NOMENCLATURE -> listOf(NON_RENSEIGNE) + def.nomenclatureOptions.map { it.label }
         else -> listOf(NON_RENSEIGNE) + def.fieldValues
     }
 
     fun codesListeDeroulante(def: AdditionalFieldDef): List<String> = when (def.widget) {
-        WidgetType.NOMENCLATURE -> listOf("") + def.nomenclatureOptions.map { it.first }
+        WidgetType.NOMENCLATURE -> listOf("") + def.nomenclatureOptions.map { it.code }
         else -> listOf("") + codesListe(def)
     }
 

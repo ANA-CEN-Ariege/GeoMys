@@ -19,6 +19,8 @@
 package fr.ariegenature.geomys
 
 import com.russhwolf.settings.MapSettings
+import fr.ariegenature.geomys.location.SourcePositionsSimulee
+import fr.ariegenature.geomys.location.SuiviGpsDirect
 import fr.ariegenature.geomys.network.ServeurSimule
 import fr.ariegenature.geomys.plateforme.ExecutionLongue
 import fr.ariegenature.geomys.store.CoffreEnMemoire
@@ -32,12 +34,14 @@ import okio.SYSTEM
  *  MapSettings par nom), coffre en mémoire, serveur simulé. C'est ce que donnaient les objets
  *  globaux et Robolectric sous Android. [redemarrer] simule un démarrage à froid sur les mêmes
  *  disque et réglages ; le test appelle [nettoyer] à la fin. Les travaux confiés à
- *  ExecutionLongue attendent dans [travauxLongs]. */
+ *  ExecutionLongue attendent dans [travauxLongs] ; les positions GPS arrivent par
+ *  [positions]. */
 internal class ServicesDeTest(val serveur: ServeurSimule = ServeurSimule()) {
     private val systeme = FileSystem.SYSTEM
     val dossier = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "geomys-test-${uuidAleatoire()}"
     private val reglages = mutableMapOf<String, MapSettings>()
     val travauxLongs = mutableListOf<suspend () -> Unit>()
+    val positions = SourcePositionsSimulee()
 
     private val socle = Socle(
         racines = RacinesStockage(dossier / "fichiers", dossier / "cache"),
@@ -45,6 +49,8 @@ internal class ServicesDeTest(val serveur: ServeurSimule = ServeurSimule()) {
         coffre = CoffreEnMemoire(),
         clients = serveur.clients,
         executionLongue = ExecutionLongue { _, _, travail -> travauxLongs += travail },
+        positions = positions,
+        suiviGps = SuiviGpsDirect,
     )
 
     var services = ServicesGeoNature(socle)

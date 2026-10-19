@@ -18,6 +18,7 @@
 
 package fr.ariegenature.geomys
 
+import fr.ariegenature.geomys.location.LocationTracker
 import fr.ariegenature.geomys.network.AdditionalFieldsApi
 import fr.ariegenature.geomys.network.EnvoiOccHab
 import fr.ariegenature.geomys.network.EnvoiSortie
@@ -75,6 +76,16 @@ class ServicesGeoNature(val socle: Socle) {
     val auth = GeoNatureAuth(clients)
     val verificationConnexion = VerificationConnexion(auth, clients)
 
+    // Position : le récepteur de la plateforme, lu par les cartes, la saisie et le suivi en
+    // arrière-plan (GeoMysApplication.locationTracker sous Android).
+    val locationTracker = LocationTracker(socle.positions)
+
+    /** Démarre le suivi GPS des écrans de saisie, maintenu quand l'appli passe en arrière-plan
+     *  (service au premier plan et sa notification sous Android). */
+    fun demarrerSuiviGps() = socle.suiviGps.demarrer(locationTracker)
+
+    fun arreterSuiviGps() = socle.suiviGps.arreter(locationTracker)
+
     // Référentiels : filesDir/taxref, filesDir/monitoring… comme sous Android.
     val taxRef = TaxRefCache(fichiers / "taxref", socle.reglages.reglages("taxref_cache"), socle.systeme)
     val nomenclatures = NomenclatureCache(socle.reglages.reglages("nomenclature_cache"), taxRef)
@@ -90,7 +101,21 @@ class ServicesGeoNature(val socle: Socle) {
     val occHabStore = OccHabStore(FichierAtomique(socle.systeme, fichiers / "occhab_store.json", "OccHabStore"))
     val outbox = OutboxMonitoring(FichierAtomique(socle.systeme, fichiers / "monitoring_outbox.json", "OutboxMonitoring"))
     val relevesOrphelins = RelevesOrphelins(socle.reglages.reglages("releves_orphelins"))
-    val mediasOrphelins = MediasOrphelins(socle.systeme, fichiers / "medias", sortieStore, outbox)
+    /** Les photos et sons importés dans les saisies (`filesDir/medias/` de GeoMys-Android). */
+    val dossierMedias = fichiers / "medias"
+
+    /** [dossierMedias] en chemin, pour l'interface. */
+    val cheminMedias: String get() = dossierMedias.toString()
+    val mediasOrphelins = MediasOrphelins(socle.systeme, dossierMedias, sortieStore, outbox)
+
+    /** Supprime la copie locale d'un média retiré d'une saisie, au mieux. */
+    fun supprimerMedia(uri: String) {
+        val chemin = GeoNatureUpload.cheminDepuisUri(uri) ?: return
+        try {
+            socle.systeme.delete(GeoNatureUpload.fichierMedia(socle.systeme, chemin, dossierMedias))
+        } catch (_: Exception) {
+        }
+    }
 
     val taxRefLocal = TaxRefLocal(taxRef, nomenclatures)
     val taxRefService = TaxRefService(taxRef, taxRefLocal)
@@ -111,7 +136,7 @@ class ServicesGeoNature(val socle: Socle) {
     val monitoringSync = MonitoringSync(auth, monitoring, monitoringDatalists, pictos)
 
     // Envois : OccTax (relevés, occurrences, médias), file des Suivis, OccHab.
-    val upload = GeoNatureUpload(auth, clients, nomenclatures, geoNatureSync, relevesOrphelins, socle.systeme)
+    val upload = GeoNatureUpload(auth, clients, nomenclatures, geoNatureSync, relevesOrphelins, socle.systeme, dossierMedias)
     val envoiSortie = EnvoiSortie(upload, sortieStore)
     val monitoringEnvoi = MonitoringEnvoi(auth, clients)
     val outboxEnvoi = OutboxEnvoi(outbox, monitoringEnvoi, upload)

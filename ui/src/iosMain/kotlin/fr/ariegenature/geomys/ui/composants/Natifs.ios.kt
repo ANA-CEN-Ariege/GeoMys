@@ -56,6 +56,7 @@ import platform.UIKit.UIActivityIndicatorViewStyleMedium
 import platform.UIKit.UIAlertAction
 import platform.UIKit.UIAlertActionStyleCancel
 import platform.UIKit.UIAlertActionStyleDefault
+import platform.UIKit.UIAlertActionStyleDestructive
 import platform.UIKit.UIAlertController
 import platform.UIKit.UIAlertControllerStyleAlert
 import platform.UIKit.UIColor
@@ -155,14 +156,14 @@ private class CibleInterrupteur(var onChange: (Boolean) -> Unit) : NSObject() {
  *  de GeoMys-IOS). Placé sous le canevas Compose (découpe transparente) : le dégradé de fond est
  *  repeint derrière par la vue SwiftUI hôte (iosApp), pour que ses coins arrondis restent justes. */
 @Composable
-actual fun Interrupteur(coche: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier, description: String?) {
+actual fun Interrupteur(coche: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier, description: String?, teinteIos: Color) {
     val rappel by rememberUpdatedState(onChange)
     val cible = remember { CibleInterrupteur { rappel(it) } }
     val (largeur, hauteur) = remember { UISwitch().intrinsicContentSize.useContents { width to height } }
     UIKitView(
         factory = {
             UISwitch().apply {
-                onTintColor = CouleursGeoMys.primaire.versUIColor()
+                onTintColor = teinteIos.versUIColor()
                 setOn(coche, animated = false)
                 addTarget(cible, NSSelectorFromString("basculer:"), UIControlEventValueChanged)
                 accessibilityLabel = description
@@ -216,7 +217,11 @@ actual fun AlerteSysteme(
         if (!visible) return@LaunchedEffect
         val alerte = UIAlertController.alertControllerWithTitle(titre, message, UIAlertControllerStyleAlert)
         for (bouton in boutons) {
-            val style = if (bouton.annulation) UIAlertActionStyleCancel else UIAlertActionStyleDefault
+            val style = when {
+                bouton.annulation -> UIAlertActionStyleCancel
+                bouton.destructif -> UIAlertActionStyleDestructive
+                else -> UIAlertActionStyleDefault
+            }
             alerte.addAction(UIAlertAction.actionWithTitle(bouton.texte, style) { _ ->
                 bouton.action()
                 fermer()
