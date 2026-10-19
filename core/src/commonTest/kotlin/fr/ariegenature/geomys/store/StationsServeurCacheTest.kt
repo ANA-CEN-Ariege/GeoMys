@@ -219,20 +219,29 @@ class StationsServeurCacheTest {
         assertTrue(lues[0].observateursNoms.isEmpty())
     }
 
-    // Propre au portage : les deux autres cas de normaliserStation et normaliserHabitat.
+    // Propre au portage : les deux autres cas de normaliserStation et normaliserHabitat. Sous Gson,
+    // OccHabStation et OccHabHabitat, qui n'ont que des paramètres à valeur par défaut, passent par
+    // leur constructeur sans argument : une clé ABSENTE prend sa valeur par défaut, seule une clé
+    // explicitement nulle fait écarter l'élément (correction du lot 3, cf. LOT-3.md).
     @Test
-    fun station_sans_habitats_et_habitat_sans_id_sont_ecartes() {
+    fun station_ou_habitat_a_id_nul_ecartes_et_cles_absentes_reparees() {
         cache.remplacerTout(emptyList()) // crée le dossier
         ecrireFichier(
             """{"dateChargement":1757000000000,"versionFormat":2,"stations":[""" +
                 """{"id":"a","idStationServeur":1,"idDataset":10,"habitats":[""" +
                 """{"id":"h1","cdHab":11},{"id":null,"cdHab":12},{"cdHab":13},null]},""" +
-                """{"id":"b","idStationServeur":2,"idDataset":10}]}"""
+                """{"id":"b","idStationServeur":2,"idDataset":10},""" +
+                """{"id":"c","idStationServeur":3,"idDataset":10,"habitats":null},""" +
+                """{"idStationServeur":4,"idDataset":10,"habitats":[]}]}"""
         )
         cache.resetPourTests()
         val lues = cache.lire(10)
-        assertEquals(listOf(1), lues.map { it.idStationServeur }, "station sans habitats écartée")
-        assertEquals(listOf(11), lues.single().habitats.map { it.cdHab }, "habitats sans id écartés")
+        assertEquals(listOf(1, 2, 4), lues.map { it.idStationServeur },
+            "habitats nuls → station écartée ; habitats ou id absents → valeurs par défaut")
+        assertEquals(listOf(11, 13), lues.first().habitats.map { it.cdHab }, "seul l'habitat d'id nul est écarté")
+        assertTrue(lues.first().habitats.all { it.id.isNotEmpty() }, "l'habitat sans id en reçoit un")
+        assertTrue(lues.first { it.idStationServeur == 2 }.habitats.isEmpty())
+        assertTrue(lues.first { it.idStationServeur == 4 }.id.isNotEmpty(), "la station sans id en reçoit un")
     }
 
     // ── Purges ──

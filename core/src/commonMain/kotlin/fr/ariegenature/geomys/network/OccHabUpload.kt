@@ -1,0 +1,312 @@
+/*
+ * GeoMys-Common — application de saisie naturaliste pour GeoNature, Android et iOS.
+ * Copyright (C) 2026 ANA - CEN Ariège
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+// Porté de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/network/OccHabUpload.kt) :
+// l'objet devient une classe injectée (trouverIdParUuid, pure, en compagnon) ; HttpURLConnection
+// remplacé par ClientsGeoNature, SimpleDateFormat par DateEnvoi, Log par Journal.
+
+package fr.ariegenature.geomys.network
+
+import fr.ariegenature.geomys.journal.Journal
+import fr.ariegenature.geomys.json.JSONArray
+import fr.ariegenature.geomys.json.JSONObject
+import fr.ariegenature.geomys.model.OccHabStation
+import fr.ariegenature.geomys.network.http.ClientsGeoNature
+import fr.ariegenature.geomys.network.http.get
+import fr.ariegenature.geomys.network.http.postJson
+import fr.ariegenature.geomys.store.GeoNatureConfig
+import fr.ariegenature.geomys.util.AnaEval
+import fr.ariegenature.geomys.util.DateEnvoi
+import io.ktor.client.statement.bodyAsText
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.withContext
+import kotlinx.io.IOException
+
+/** Résultat de l'envoi d'une station OccHab (`OccHabUpload.envoyer`). */
+data class OccHabEnvoiResult(
+    /** id_station attribué par le serveur (extrait de la réponse GeoJSON). null si non retrouvé. */
+    val idStationServeur: Int?,
+    /** Nombre d'habitats effectivement envoyés (ceux avec un cd_hab renseigné). */
+    val nbHabitats: Int,
+    /** true si la station existait DÉJÀ côté serveur (créée lors d'une tentative précédente au
+     *  statut incertain) : aucun POST n'a été refait — anti-doublon. */
+    val dejaPresente: Boolean = false,
+)
+
+/**
+ * Envoi d'une station OccHab (station + habitats) vers `POST /api/occhab/stations/`.
+ *
+ * Contrairement à Occtax (relevé puis N occurrences + médias), OccHab envoie TOUT en un seul POST :
+ * le corps est un Feature GeoJSON dont les `properties` portent les champs de la station, les
+ * `observers` (tableau d'`{id_role}`) et les `habitats` imbriqués. Les nomenclatures sont envoyées
+ * en `id_nomenclature_*` (le modèle les stocke déjà ainsi). Pas de médias.
+ *
+ * MISE À JOUR : quand la station porte un `idStationServeur` (importée du serveur, ou déjà envoyée
+ * puis rééditée), le POST vise `/stations/<id>/` avec le MÊME corps — le serveur (blueprint
+ * `create_or_update_station`) recharge l'instance et Marshmallow la met à jour : un habitat portant
+ * son `id_habitat` est mis à jour, un habitat sans id est créé, un habitat omis est SUPPRIMÉ.
+ * Permission CRUVED U vérifiée par instance côté serveur.
+ */
+class OccHabUpload(private val auth: GeoNatureAuth, private val clients: ClientsGeoNature) {
+
+    suspend fun envoyer(station: OccHabStation, config: GeoNatureConfig): OccHabEnvoiResult = withContext(Dispatchers.IO) {
+        val base = config.urlServeur.trim().trimEnd('/')
+        val (token, idRole, cookies) = auth.loginAvecCookies(base, config.login, config.motDePasse)
+            ?: throw GNErreur.AuthEchouee(401)
+
+        // Jeu de données : celui de la station (choisi à la saisie) sinon le défaut de la config.
+        val datasetId = station.idDataset?.takeIf { it > 0 }
+            ?: config.idDataset.trim().toIntOrNull()?.takeIf { it > 0 }
+            ?: throw GNErreur.EnvoiEchoue(0, "id_dataset invalide")
+        if (!config.datasetAcceptablePourEnvoi(datasetId)) throw GNErreur.DatasetInvalide(datasetId)
+
+        // Habitats OPTIONNELS : une station peut être envoyée sans aucun habitat — le serveur
+        // l'accepte (`habitats` n'est pas `required` dans StationSchema, `validate_habitats` ne
+        // contrôle que l'appartenance ; parité web où l'on ajoute les habitats après). On ne garde
+        // que ceux portant un code HABREF valide (les incomplets sont ignorés) ; le tableau
+        // `habitats` peut donc être vide.
+        val habitatsValides = station.habitats.filter { it.cdHab > 0 }
+
+        // MISE À JOUR vs CRÉATION : un id_station serveur connu route l'envoi sur /stations/<id>/
+        // (mise à jour) au lieu de /stations/ (création).
+        val estMiseAJour = (station.idStationServeur ?: 0) > 0
+
+        // Anti-doublon (CRÉATION seulement) : une tentative précédente s'est soldée par un statut
+        // INCERTAIN (réseau coupé après l'émission) → la station a peut-être déjà été créée. Le
+        // serveur OccHab n'imposant aucune contrainte d'unicité, on interroge par notre UUID stable
+        // AVANT de re-POSTer. Trouvée → on renvoie son id sans rien recréer. Absente → on procède au
+        // POST. En MISE À JOUR, cette vérification est INUTILE : re-POSTer /stations/<id>/ est
+        // idempotent (le serveur recharge la même instance) — après une mise à jour incertaine, le
+        // ré-envoi re-POSTe donc directement.
+        if (station.envoiIncertain && !estMiseAJour) {
+            verifierStationExistante(base, token, cookies, station.uuidStation, datasetId)?.let { idExistant ->
+                return@withContext OccHabEnvoiResult(
+                    idStationServeur = idExistant,
+                    nbHabitats = habitatsValides.size,
+                    dejaPresente = true,
+                )
+            }
+        }
+
+        val dateMin = station.dateMin ?: station.date
+        val dateMax = station.dateMax ?: station.dateMin ?: station.date
+
+        // Géométrie : mutualisée avec Occtax (Point / Polygon, [lon,lat], fermeture d'anneau) + TROUS
+        // du polygone (anneaux intérieurs lus sur le serveur, renvoyés tels quels : sans eux la mise
+        // à jour les supprimait — bug 2026-08-31).
+        val geometry = GeoNatureUpload.construireGeometrie(
+            type = station.geometryType,
+            coordsJson = station.geometryCoordsJson,
+            lat = station.latitude,
+            lon = station.longitude,
+            trousJson = station.geometryTrousJson,
+        )
+
+        // Observateurs : tableau d'{id_role}. Vide → utilisateur connecté (id_digitiser reste posé
+        // côté serveur). observers_txt renseigné en plus si la station en porte un.
+        val observateurs = station.observateursIds.filter { it > 0 }
+            .ifEmpty { listOfNotNull(idRole) }
+        val observersArr = JSONArray().apply {
+            observateurs.forEach { put(JSONObject().put("id_role", it)) }
+        }
+
+        val habitatsArr = JSONArray()
+        habitatsValides.forEach { h ->
+            habitatsArr.put(JSONObject().apply {
+                // MISE À JOUR : id_habitat + unique_id_sinp_hab renvoyés quand connus, pour que le
+                // serveur METTE À JOUR l'habitat existant au lieu d'un couple suppression/re-création
+                // (ids et UUID SINP préservés). Jamais en CRÉATION : le serveur rejetterait un
+                // id_habitat appartenant à une autre station (validate_habitats), et un habitat neuf
+                // n'en porte pas.
+                if (estMiseAJour) {
+                    h.idHabitatServeur?.takeIf { it > 0 }?.let { put("id_habitat", it) }
+                    h.uuidHabitat?.takeIf { it.isNotBlank() }?.let { put("unique_id_sinp_hab", it) }
+                }
+                put("cd_hab", h.cdHab)
+                // nom_cite obligatoire : repli sur le libellé HABREF si l'utilisateur ne l'a pas édité.
+                put("nom_cite", h.nomCite.ifBlank { h.habitatLabel }.ifBlank { "Habitat ${h.cdHab}" })
+                h.determiner?.takeIf { it.isNotBlank() }?.let { put("determiner", it) }
+                h.recouvrement?.let { put("recovery_percentage", it) }
+                // technical_precision : part humaine RE-FUSIONNÉE avec le bloc ANA-EVAL du plugin
+                // QGIS (anaEvalJson, extrait à la lecture serveur) ; la clé `recouvrement` du bloc
+                // (champ DOUBLE) est réalignée sur la valeur native éditée. anaEvalJson null →
+                // comportement standard STRICTEMENT inchangé.
+                AnaEval.avecBloc(
+                    h.precisionTechnique,
+                    AnaEval.avecRecouvrementNatif(h.anaEvalJson, h.recouvrement),
+                )?.let { put("technical_precision", it) }
+                h.idNomTypeDetermination?.let { put("id_nomenclature_determination_type", it) }
+                // collection_technique : obligatoire côté serveur mais avec un défaut serveur — on
+                // l'omet si non renseigné pour laisser le serveur appliquer son défaut.
+                h.idNomTechniqueCollecte?.let { put("id_nomenclature_collection_technique", it) }
+                h.idNomAbondance?.let { put("id_nomenclature_abundance", it) }
+                h.idNomSensibilite?.let { put("id_nomenclature_sensitivity", it) }
+                h.idNomInteretCommunautaire?.let { put("id_nomenclature_community_interest", it) }
+            })
+        }
+
+        val properties = JSONObject().apply {
+            put("id_dataset", datasetId)
+            // UUID SINP stable côté client : ancre d'idempotence pour la vérification d'existence
+            // d'un ré-envoi (cf. verifierStationExistante). Le serveur le persiste tel quel (colonne
+            // unique_id_sinp_station) au lieu d'en générer un.
+            station.uuidStation.takeIf { it.isNotBlank() }?.let { put("unique_id_sinp_station", it) }
+            put("date_min", DateEnvoi.date(dateMin))
+            put("date_max", DateEnvoi.date(dateMax))
+            station.stationName?.takeIf { it.isNotBlank() }?.let { put("station_name", it) }
+            // comment : part humaine RE-FUSIONNÉE avec le bloc ANA-EVAL de la station (anaEvalJson)
+            // — le bloc survit ainsi au flux des détails de session. anaEvalJson null →
+            // comportement standard STRICTEMENT inchangé.
+            AnaEval.avecBloc(station.comment, station.anaEvalJson)?.let { put("comment", it) }
+            station.altitudeMin?.let { put("altitude_min", it) }
+            station.altitudeMax?.let { put("altitude_max", it) }
+            station.profondeurMin?.let { put("depth_min", it) }
+            station.profondeurMax?.let { put("depth_max", it) }
+            station.surface?.let { put("area", it) }
+            station.precision?.let { put("precision", it) }
+            station.idNomExposition?.let { put("id_nomenclature_exposure", it) }
+            station.idNomCalculSurface?.let { put("id_nomenclature_area_surface_calculation", it) }
+            station.idNomObjetGeographique?.let { put("id_nomenclature_geographic_object", it) }
+            station.idNomTypeSol?.let { put("id_nomenclature_type_sol", it) }
+            station.idNomTypeMosaique?.let { put("id_nomenclature_type_mosaique_habitat", it) }
+            station.observateursTxt?.takeIf { it.isNotBlank() }?.let { put("observers_txt", it) }
+            put("observers", observersArr)
+            put("habitats", habitatsArr)
+        }
+
+        val corps = JSONObject()
+            .put("type", "Feature")
+            .put("geometry", geometry)
+            .put("properties", properties)
+            .toString()
+
+        // MISE À JOUR (id serveur connu) → POST /stations/<id>/ ; sinon CRÉATION → /stations/.
+        val url = if (estMiseAJour) "$base/api/occhab/stations/${station.idStationServeur}/" else "$base/api/occhab/stations/"
+        val reponse = try {
+            clients.postJson(url, corps, token, cookies, timeoutMs = 30_000)
+        } catch (e: IOException) {
+            // Coupure réseau autour du POST : impossible de savoir si le serveur a enregistré (la
+            // réponse peut se perdre APRÈS création). Statut INCERTAIN → le prochain envoi vérifiera
+            // l'existence par UUID avant de recréer (anti-doublon). Ne jamais requalifier ça en échec
+            // net : ce serait inviter à un re-POST aveugle.
+            throw GNErreur.EnvoiIncertain(
+                "Réseau interrompu pendant l'envoi de la station — statut incertain " +
+                    "(${e.message ?: e::class.simpleName}). La station a peut-être été enregistrée.")
+        }
+        val code = reponse.status.value
+        if (code !in 200..299) {
+            val corpsErreur = try { reponse.bodyAsText() } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
+            throw GNErreur.EnvoiEchoue(code, parseErreur(code, corpsErreur))
+        }
+        val texteReponse = try { reponse.bodyAsText() } catch (e: CancellationException) { throw e } catch (_: Exception) { "" }
+
+        // Réponse = la station en Feature GeoJSON. id_station en `id` à la racine ou dans properties.
+        val idStationLu = try {
+            val resp = JSONObject(texteReponse)
+            resp.optInt("id", -1).takeIf { it > 0 }
+                ?: resp.optJSONObject("properties")?.optInt("id_station", -1)?.takeIf { it > 0 }
+        } catch (_: Exception) { null }
+
+        // 2xx mais id ILLISIBLE sur une CRÉATION (corps tronqué, réponse non JSON, id sous un autre
+        // nom) : la station EST créée côté serveur, et sans son id elle serait marquée « envoyée »
+        // sans rien pour la retrouver — sa réédition en créerait une seconde, le module OccHab
+        // n'ayant aucune contrainte d'unicité (audit 2026-09-14, R1-M2). On va donc chercher l'id
+        // par notre uuid, immédiatement. Si cette vérification est elle-même impossible,
+        // `verifierStationExistante` lève EnvoiIncertain : la station reste incertaine et le prochain
+        // envoi vérifiera au lieu de re-POSTer — c'est exactement ce qu'il faut.
+        val idStation = idStationLu
+            ?: if (!estMiseAJour) {
+                Journal.w(TAG, "Création acceptée mais id_station illisible — récupération par uuid")
+                verifierStationExistante(base, token, cookies, station.uuidStation, datasetId)
+            } else {
+                null
+            }
+
+        OccHabEnvoiResult(idStationServeur = idStation, nbHabitats = habitatsValides.size)
+    }
+
+    /**
+     * Cherche une station déjà créée côté serveur portant [uuid] (`unique_id_sinp_station`).
+     * `GET /api/occhab/stations/?format=json&id_dataset=<jdd>` (filtre serveur : la liste complète
+     * d'une grosse instance faisait tomber la vérification en délai dépassé). Renvoie son id_station
+     * si trouvée, null si ABSENTE (réponse lue, uuid non trouvé → le POST est sûr). Vérification
+     * IMPOSSIBLE (réseau, délai, HTTP ≠ 2xx — ex. 403 sans CRUVED R) → lève
+     * [GNErreur.EnvoiIncertain] : le serveur était joignable lors de la tentative précédente, la
+     * station a donc peut-être été créée — re-POSTer à l'aveugle dupliquerait (audit 2026-08-27).
+     */
+    private suspend fun verifierStationExistante(base: String, token: String?, cookies: String, uuid: String, idDataset: Int?): Int? {
+        if (uuid.isBlank()) return null
+        val url = buildString {
+            append("$base/api/occhab/stations/?format=json")
+            if (idDataset != null && idDataset > 0) append("&id_dataset=$idDataset")
+        }
+        val reponse = try {
+            clients.get(url, token, cookies, timeoutMs = 30_000)
+        } catch (_: IOException) {
+            throw GNErreur.EnvoiIncertain("Vérification anti-doublon impossible (réseau) — " +
+                "la station a peut-être déjà été créée ; réessayez avec du réseau.")
+        }
+        try {
+            val code = reponse.status.value
+            if (code !in 200..299) {
+                throw GNErreur.EnvoiIncertain(
+                    "Vérification anti-doublon impossible (HTTP $code) — la station a peut-être déjà " +
+                        "été créée ; réessayez.")
+            }
+            return trouverIdParUuid(reponse.bodyAsText(), uuid)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: GNErreur) {
+            throw e
+        } catch (e: Exception) {
+            throw GNErreur.EnvoiIncertain("Vérification anti-doublon impossible " +
+                "(${e.message ?: e::class.simpleName}) — réessayez.")
+        }
+    }
+
+    companion object {
+        private const val TAG = "OccHabUpload"
+
+        /** L'id_station d'une station portant [uuid] dans la réponse de la liste des stations. Gère
+         *  le format `json` (tableau d'objets) et un repli `geojson` (FeatureCollection). */
+        internal fun trouverIdParUuid(text: String, uuid: String): Int? {
+            val cible = uuid.trim().lowercase()
+            if (cible.isEmpty()) return null
+            val arr = try {
+                JSONArray(text)
+            } catch (_: Exception) {
+                val root = try { JSONObject(text) } catch (_: Exception) { return null }
+                root.optJSONArray("features") ?: return null
+            }
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val props = o.optJSONObject("properties") ?: o
+                val u = props.optString("unique_id_sinp_station", "").trim().lowercase()
+                if (u.isNotEmpty() && u == cible) {
+                    val id = props.optInt("id_station", -1).takeIf { it > 0 }
+                        ?: o.optInt("id_station", -1).takeIf { it > 0 }
+                        ?: o.optInt("id", -1).takeIf { it > 0 }
+                    if (id != null) return id
+                }
+            }
+            return null
+        }
+    }
+}

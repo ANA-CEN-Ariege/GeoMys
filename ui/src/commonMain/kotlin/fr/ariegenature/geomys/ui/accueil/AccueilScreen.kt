@@ -118,10 +118,10 @@ data class EtatAccueil(
     val stationsEnAttente: Int = 0,
     val enregistrerTrace: Boolean = true,
 ) {
-    /** Pastille du menu : il reste quelque chose à envoyer. */
+    /** Pastille du menu : il reste quelque chose à envoyer, même dans une entrée masquée
+     *  (`updatePastilleMenu` de GeoMys-Android ; GeoMys-IOS n'y comptait que les entrées visibles). */
     val pastilleMenu: Boolean
-        get() = saisiesEnAttente > 0 || (monitoringDisponible && visitesEnAttente > 0) ||
-            (occhabDisponible && stationsEnAttente > 0)
+        get() = saisiesEnAttente > 0 || visitesEnAttente > 0 || stationsEnAttente > 0
 }
 
 /** Les entrées du menu de l'accueil. */

@@ -74,6 +74,11 @@ abstract class JsonCollectionStore<T : Any>(serialiseur: KSerializer<T>) {
      *  les laissait à null, et le store concerné les rejetait. */
     protected open fun accepter(brut: JsonObject): Boolean = true
 
+    /** Nettoie, AVANT décodage, une entrée acceptée : retire les éléments nuls ou sans identifiant
+     *  de ses listes, que la normalisation d'Android écartait un par un. Sans ce nettoyage, un seul
+     *  élément nul ferait écarter toute l'entrée par le décodage strict. */
+    protected open fun preparer(brut: JsonObject): JsonObject = brut
+
     /** Reconstruit une entrée SÛRE après décodage ; renvoie null pour l'ÉCARTER. */
     protected open fun normaliser(item: T): T? = item
 
@@ -122,7 +127,9 @@ abstract class JsonCollectionStore<T : Any>(serialiseur: KSerializer<T>) {
             // Une entrée null est sautée sans quarantaine, comme le filterNotNull d'Android.
             if (brut is JsonNull) continue
             val item = try {
-                if (brut is JsonObject && accepter(brut)) normaliser(JSON_STOCKAGE.decodeFromJsonElement(serialiseurElement, brut)) else null
+                if (brut is JsonObject && accepter(brut)) {
+                    normaliser(JSON_STOCKAGE.decodeFromJsonElement(serialiseurElement, preparer(brut)))
+                } else null
             } catch (e: Exception) {
                 null
             }

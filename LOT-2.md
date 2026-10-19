@@ -68,6 +68,8 @@ Les caches JSON des réglages ne dépendent plus des noms de champs de `kotlin.P
 
 **Relecture des stations serveur.** GeoMys-Android écarte, à la relecture, une station sans `id` ou sans liste `habitats`, et un habitat sans `id` (`normaliserStation`). kotlinx leur donnerait les valeurs par défaut. `stationDepuisJson` les écarte donc avant le décodage. Il resservira à `OccHabStore`.
 
+*Précisé au lot 3* ([`LOT-3.md`](LOT-3.md) § 3) : sous Gson, « sans » voulait dire explicitement `null`. Une clé absente prenait sa valeur par défaut, car ces deux classes ont un constructeur sans argument. Seul le `null` explicite écarte désormais l'élément.
+
 ## 5. Synchro en arrière-plan : ExecutionLongue
 
 `SyncRunner.lancer()` confie la synchro à l'`ExecutionLongue` fournie par la plateforme.

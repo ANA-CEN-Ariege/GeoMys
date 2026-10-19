@@ -44,8 +44,10 @@ import fr.ariegenature.geomys.ui.theme.GeoMysTheme
  *  - `action=synchroniser` ou `action=etat-donnees` : essai du lot 2, sans écran (DiagnosticSynchro). */
 @Composable
 fun GeoMysApp(infos: InfosApp, services: ServicesGeoNature, lancement: Map<String, String> = emptyMap()) {
-    // Essai du lot 2 : synchro complète, ou état des données hors ligne, écrits dans le journal.
     LaunchedEffect(Unit) {
+        // Préchauffe de TaxRef et balayage des médias orphelins, une fois par processus.
+        services.lancerTravauxDeDemarrage()
+        // Essai du lot 2 : synchro complète, ou état des données hors ligne, écrits dans le journal.
         when (lancement["action"]) {
             "synchroniser" -> services.synchroniserEnJournalisant(::println)
             "etat-donnees" -> println(services.resumeDonnees())

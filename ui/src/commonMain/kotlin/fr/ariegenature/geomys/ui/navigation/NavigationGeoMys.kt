@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.platform.LocalUriHandler
@@ -41,6 +42,7 @@ import androidx.navigation.toRoute
 import fr.ariegenature.geomys.InfosApp
 import fr.ariegenature.geomys.ServicesGeoNature
 import fr.ariegenature.geomys.store.configurationComplete
+import fr.ariegenature.geomys.store.envoisEnAttente
 import fr.ariegenature.geomys.ui.accueil.AccueilScreen
 import fr.ariegenature.geomys.ui.accueil.ActionsAccueil
 import fr.ariegenature.geomys.ui.accueil.EntreeMenuAccueil
@@ -50,6 +52,7 @@ import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.parametres.ParametresScreen
 import fr.ariegenature.geomys.ui.parametres.ParametresViewModel
 import fr.ariegenature.geomys.ui.parametres.TaxonsListeScreen
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -128,8 +131,8 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
     }
 }
 
-/** L'état de l'accueil, relu à chaque retour sur l'écran. Les envois en attente viendront avec les
- *  stores de saisie (lots 3 et 6 à 8) : d'ici là, rien n'est en attente. */
+/** L'état de l'accueil, relu à chaque retour sur l'écran. Les envois en attente, lus dans les stores
+ *  de saisie, sont comptés à part, hors du fil principal ([envoisEnAttente]). */
 private fun lireEtatAccueil(infos: InfosApp, services: ServicesGeoNature): EtatAccueil {
     val config = services.config
     return EtatAccueil(
@@ -144,9 +147,23 @@ private fun lireEtatAccueil(infos: InfosApp, services: ServicesGeoNature): EtatA
 @Composable
 private fun EcranAccueil(infos: InfosApp, services: ServicesGeoNature, nav: NavHostController) {
     var etat by remember { mutableStateOf(lireEtatAccueil(infos, services)) }
+    val portee = rememberCoroutineScope()
     LifecycleResumeEffect(Unit) {
-        etat = lireEtatAccueil(infos, services)
-        onPauseOrDispose {}
+        // Les comptes précédents restent affichés jusqu'au nouveau comptage (pas de clignement).
+        etat = lireEtatAccueil(infos, services).copy(
+            saisiesEnAttente = etat.saisiesEnAttente,
+            visitesEnAttente = etat.visitesEnAttente,
+            stationsEnAttente = etat.stationsEnAttente,
+        )
+        val comptage = portee.launch {
+            val enAttente = services.envoisEnAttente()
+            etat = etat.copy(
+                saisiesEnAttente = enAttente.saisies,
+                visitesEnAttente = enAttente.visites,
+                stationsEnAttente = enAttente.stations,
+            )
+        }
+        onPauseOrDispose { comptage.cancel() }
     }
     val liens = LocalUriHandler.current
     val aVenir = { titre: String, lot: String -> nav.navigate(RouteAVenir(titre, lot)) }

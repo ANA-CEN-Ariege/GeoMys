@@ -17,8 +17,7 @@
  */
 
 // Porté de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/network/InvalidationCaches.kt) :
-// la fonction devient une classe sur les services dont elle vide les caches. Les caches de l'envoi
-// (GeoNatureUpload.invaliderCaches sous Android) la rejoindront avec le portage de l'envoi.
+// la fonction devient une classe sur les services dont elle vide les caches.
 
 package fr.ariegenature.geomys.network
 
@@ -28,6 +27,7 @@ import fr.ariegenature.geomys.store.StationsServeurCache
 class InvalidationCaches(
     private val auth: GeoNatureAuth,
     private val monitoring: MonitoringApi,
+    private val upload: GeoNatureUpload,
     private val nomenclatures: NomenclatureCache,
     private val stationsServeur: StationsServeurCache,
 ) {
@@ -44,6 +44,7 @@ class InvalidationCaches(
     fun invaliderCachesSession() {
         auth.invaliderCache()
         monitoring.invaliderCaches()
+        upload.invaliderCaches()
         // Cache DISQUE des nomenclatures : contrairement aux caches ci-dessus il survit au
         // process, et GeoNatureUpload.envoyer() le préfère au réseau (`fromCache.isNotEmpty()`).
         // Sans cette purge, les id_nomenclature de l'ancienne instance partaient dans les
