@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -76,6 +77,7 @@ import fr.ariegenature.geomys.occtax.EspeceReleve
 import fr.ariegenature.geomys.ui.composants.BandeauNavigation
 import fr.ariegenature.geomys.ui.composants.BoutonContour
 import fr.ariegenature.geomys.ui.composants.BoutonIos
+import fr.ariegenature.geomys.ui.composants.HAUTEUR_BANDEAU_IOS
 import fr.ariegenature.geomys.ui.composants.Interrupteur
 import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.SymboleSf
@@ -134,8 +136,10 @@ fun SaisieReleveScreen(
         if (ios) {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 BandeauNavigation(vm.typeSaisieLabel, onAccueil, titreIos = TITRE)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PaletteGroupes(vm.groupes, vm.taxon, vm::choisirTaxon, Modifier.padding(start = 12.dp, end = 12.dp, top = 4.dp))
+                // 20 pt entre le bandeau, les groupes, « Nom scientifique » et le champ espèce, comme en
+                // saisie mono (demande du 19 octobre).
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                    PaletteGroupes(vm.groupes, vm.taxon, vm::choisirTaxon, Modifier.padding(start = 12.dp, end = 12.dp, top = 20.dp))
                     // Le Toggle SwiftUI garde sa taille (libellé, puis l'interrupteur) ; l'espace restant
                     // le sépare de « Détails ».
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -161,7 +165,7 @@ fun SaisieReleveScreen(
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
                     Column(
-                        Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 8.dp),
+                        Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         // La DERNIÈRE espèce saisie en tête de liste.
@@ -171,7 +175,7 @@ fun SaisieReleveScreen(
                     }
                 }
             }
-            BoutonIos(vm::terminer, Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 4.dp, end = 12.dp), opaciteAppui = 0.6f) {
+            BoutonIos(vm::terminer, Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(end = 12.dp).height(HAUTEUR_BANDEAU_IOS), opaciteAppui = 0.6f) {
                 SymboleSf("checkmark.circle.fill", 30f, listOf(Color.White, CouleursGeoMys.vert), description = "Terminer le relevé")
             }
         } else {

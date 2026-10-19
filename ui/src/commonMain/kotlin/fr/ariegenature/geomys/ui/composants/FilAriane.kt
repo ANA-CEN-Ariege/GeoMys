@@ -24,6 +24,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
@@ -57,6 +58,20 @@ import org.jetbrains.compose.resources.painterResource
 /** Séparateur des niveaux du fil, identique dans les deux applis (`FIL_SEPARATEUR`). */
 const val FIL_SEPARATEUR = " › "
 
+/** La maison : 2,1 fois le texte de 13, sur les deux plateformes. GeoMys-IOS la réduisait d'un
+ *  cinquième ; l'appli reprend la taille d'Android (demande du 19 octobre). */
+private const val TAILLE_MAISON = 13f * 2.10f
+
+/** Marge verticale de la pastille d'Android (`view_bandeau_saisie`). */
+private const val MARGE_VERTICALE = 10f
+
+/** Hauteur du bandeau de navigation sous iOS, la même sur tous les écrans, fil des Suivis compris :
+ *  celle de la pastille d'Android, la maison et ses marges. Un fil trop long pour une ligne passe à
+ *  la suivante, et le bandeau grandit d'autant. Un bouton posé dessus (la coche de fin) prend cette
+ *  hauteur pour s'y centrer. */
+val HAUTEUR_BANDEAU_IOS = (TAILLE_MAISON + 2 * MARGE_VERTICALE).dp
+
+
 /** Fil d'Ariane cliquable des Suivis : « 🏠 › Monitoring › Protocole › Site ». Chaque ancêtre
  *  remonte à son niveau : [onNiveau] reçoit le fil tronqué au niveau touché. [dernierCliquable] :
  *  faux quand le dernier niveau est l'écran courant (une fiche), vrai quand tous sont des
@@ -64,7 +79,7 @@ const val FIL_SEPARATEUR = " › "
  *  - Android : `appliquerFilAriane` (pastille de `view_bandeau_saisie` en pleine largeur, liens
  *    jaune clair sans soulignement, maison de 2,1 fois le texte) ;
  *  - iOS : `FilAriane` de GeoMys-IOS (bande noire à 25 %, niveaux demi-gras, cliquables en jaune,
- *    le dernier en blanc). */
+ *    le dernier en blanc), avec la maison et la hauteur de la pastille d'Android. */
 @Composable
 fun FilArianeSuivis(
     segments: List<FilSegment>,
@@ -98,26 +113,17 @@ fun FilArianeSuivis(
     }
     val accueil = segments.firstOrNull { it.type == FIL_TYPE_ACCUEIL }?.let { listOf(it) }
     if (ios) {
-        val maison = 13f * 1.68f
-        val icone = InlineTextContent(Placeholder(maison.sp, maison.sp, PlaceholderVerticalAlign.TextCenter)) {
+        val icone = InlineTextContent(Placeholder(TAILLE_MAISON.sp, TAILLE_MAISON.sp, PlaceholderVerticalAlign.TextCenter)) {
             Box(Modifier.fillMaxSize().clickable(onClickLabel = "Accueil") { accueil?.let(onNiveau) }, contentAlignment = Alignment.Center) {
-                SymboleSf("house.fill", maison, listOf(CouleursGeoMys.jauneClair))
+                SymboleSf("house.fill", TAILLE_MAISON, listOf(CouleursGeoMys.jauneClair))
             }
         }
-        Text(
-            texte,
-            inlineContent = mapOf("maison" to icone),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = modifier
-                .fillMaxWidth()
-                .background(Color.Black.copy(alpha = 0.25f))
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-        )
+        BandeIos(modifier) {
+            Text(texte, inlineContent = mapOf("maison" to icone), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        }
     } else {
         val couleurs = MaterialTheme.colorScheme
-        val maison = 13f * 2.10f
-        val icone = InlineTextContent(Placeholder(maison.sp, maison.sp, PlaceholderVerticalAlign.Bottom)) {
+        val icone = InlineTextContent(Placeholder(TAILLE_MAISON.sp, TAILLE_MAISON.sp, PlaceholderVerticalAlign.Bottom)) {
             Image(
                 painterResource(Res.drawable.ic_home),
                 contentDescription = "Accueil",
@@ -136,7 +142,7 @@ fun FilArianeSuivis(
                 .fillMaxWidth()
                 .shadow(6.dp, forme)
                 .background(couleurs.surfaceVariant, forme)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .padding(horizontal = 14.dp, vertical = MARGE_VERTICALE.dp),
         )
     }
 }
@@ -146,13 +152,13 @@ fun FilArianeSuivis(
  *  - Android : `appliquerBandeauNavigation` sur `view_bandeau_saisie` (pastille aux coins de 12 dp,
  *    colorSurfaceVariant, élévation 6 dp, 13 sp gras, maison `ic_home` jaune de 2,1 fois le texte,
  *    calée sur le bas de la ligne). L'écran le place à 12 dp du coin haut-gauche.
- *  - iOS : `FilAriane` de GeoMys-IOS (bande pleine largeur, noir 25 %, 13 pt, maison « house.fill »
- *    de 1,68 fois le texte, niveaux demi-gras blancs). [titreIos] : l'écran courant en dernier niveau,
+ *  - iOS : `FilAriane` de GeoMys-IOS (bande pleine largeur, noir 25 %, 13 pt, maison « house.fill »,
+ *    niveaux demi-gras blancs), avec la maison et la hauteur de la pastille d'Android
+ *    ([HAUTEUR_BANDEAU_IOS]). [titreIos] : l'écran courant en dernier niveau,
  *    là où GeoMys-IOS met le titre que l'écran Android affiche sous le bandeau. */
 @Composable
 fun BandeauNavigation(libelle: String, onAccueil: () -> Unit, modifier: Modifier = Modifier, titreIos: String? = null) {
     if (estIos) {
-        val maison = 13f * 1.68f
         val texte = buildAnnotatedString {
             appendInlineContent("maison", "Accueil")
             for (niveau in listOfNotNull(libelle, titreIos)) {
@@ -160,28 +166,20 @@ fun BandeauNavigation(libelle: String, onAccueil: () -> Unit, modifier: Modifier
                 withStyle(SpanStyle(color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)) { append(niveau) }
             }
         }
-        val icone = InlineTextContent(Placeholder(maison.sp, maison.sp, PlaceholderVerticalAlign.TextCenter)) {
+        val icone = InlineTextContent(Placeholder(TAILLE_MAISON.sp, TAILLE_MAISON.sp, PlaceholderVerticalAlign.TextCenter)) {
             Box(Modifier.fillMaxSize().clickable(onClickLabel = "Accueil", onClick = onAccueil), contentAlignment = Alignment.Center) {
-                SymboleSf("house.fill", maison, listOf(CouleursGeoMys.jauneClair))
+                SymboleSf("house.fill", TAILLE_MAISON, listOf(CouleursGeoMys.jauneClair))
             }
         }
-        Text(
-            texte,
-            inlineContent = mapOf("maison" to icone),
-            modifier = modifier
-                .fillMaxWidth()
-                .background(Color.Black.copy(alpha = 0.25f))
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-        )
+        BandeIos(modifier) { Text(texte, inlineContent = mapOf("maison" to icone)) }
     } else {
         val couleurs = MaterialTheme.colorScheme
-        val maison = 13f * 2.10f
         val texte = buildAnnotatedString {
             appendInlineContent("maison", "Accueil")
             append(FIL_SEPARATEUR)
             append(libelle)
         }
-        val icone = InlineTextContent(Placeholder(maison.sp, maison.sp, PlaceholderVerticalAlign.Bottom)) {
+        val icone = InlineTextContent(Placeholder(TAILLE_MAISON.sp, TAILLE_MAISON.sp, PlaceholderVerticalAlign.Bottom)) {
             Image(
                 painterResource(Res.drawable.ic_home),
                 contentDescription = "Accueil",
@@ -199,7 +197,21 @@ fun BandeauNavigation(libelle: String, onAccueil: () -> Unit, modifier: Modifier
             modifier = modifier
                 .shadow(6.dp, forme)
                 .background(couleurs.surfaceVariant, forme)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .padding(horizontal = 14.dp, vertical = MARGE_VERTICALE.dp),
         )
     }
+}
+
+/** La bande des deux bandeaux sous iOS : pleine largeur, noir à 25 %, au moins
+ *  [HAUTEUR_BANDEAU_IOS] de haut, le fil centré verticalement. */
+@Composable
+private fun BandeIos(modifier: Modifier, contenu: @Composable () -> Unit) {
+    Box(
+        modifier
+            .fillMaxWidth()
+            .heightIn(min = HAUTEUR_BANDEAU_IOS)
+            .background(Color.Black.copy(alpha = 0.25f))
+            .padding(horizontal = 12.dp, vertical = MARGE_VERTICALE.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) { contenu() }
 }

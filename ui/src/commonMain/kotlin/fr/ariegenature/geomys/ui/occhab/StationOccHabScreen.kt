@@ -69,6 +69,7 @@ import fr.ariegenature.geomys.ui.composants.BoutonIcone
 import fr.ariegenature.geomys.ui.composants.BoutonIos
 import fr.ariegenature.geomys.ui.composants.BoutonPlein
 import fr.ariegenature.geomys.ui.composants.GraisseSymbole
+import fr.ariegenature.geomys.ui.composants.HAUTEUR_BANDEAU_IOS
 import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.afficher
@@ -215,7 +216,7 @@ private fun ContenuIos(vm: StationOccHabViewModel, onAccueil: () -> Unit) {
             }
         }
         // La coche de fin, par-dessus le bandeau, en haut à droite.
-        BoutonIos(vm::terminer, Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 12.dp), opaciteAppui = 0.6f) {
+        BoutonIos(vm::terminer, Modifier.align(Alignment.TopEnd).padding(end = 12.dp).height(HAUTEUR_BANDEAU_IOS), opaciteAppui = 0.6f) {
             SymboleSf("checkmark.circle.fill", 30f, listOf(Color.White, CouleursGeoMys.vert), description = "Terminer la station")
         }
     }

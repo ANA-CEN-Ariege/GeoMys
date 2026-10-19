@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -101,6 +102,7 @@ import fr.ariegenature.geomys.ui.composants.DialogueActions
 import fr.ariegenature.geomys.ui.composants.DialogueAlerte
 import fr.ariegenature.geomys.ui.composants.DialogueChoixUnique
 import fr.ariegenature.geomys.ui.composants.GraisseSymbole
+import fr.ariegenature.geomys.ui.composants.HAUTEUR_BANDEAU_IOS
 import fr.ariegenature.geomys.ui.composants.IndicateurActivite
 import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.RetourSysteme
@@ -284,7 +286,7 @@ private fun EcranCarte(vm: SaisieMultiViewModel, onAccueil: () -> Unit) {
             }
             // Masquée pendant le positionnement, pour ne pas la confondre avec la validation.
             if (!vm.modePositionnement) {
-                BoutonIos(vm::demanderTerminer, Modifier.align(Alignment.TopEnd).then(haut).padding(top = 4.dp, end = 12.dp), opaciteAppui = 0.6f) {
+                BoutonIos(vm::demanderTerminer, Modifier.align(Alignment.TopEnd).then(haut).padding(end = 12.dp).height(HAUTEUR_BANDEAU_IOS), opaciteAppui = 0.6f) {
                     SymboleSf("checkmark.circle.fill", 30f, listOf(Color.White, CouleursGeoMys.vert), description = "Terminer la saisie")
                 }
             }

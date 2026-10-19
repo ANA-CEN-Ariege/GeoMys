@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -104,6 +105,7 @@ import fr.ariegenature.geomys.ui.composants.DialogueAlerte
 import fr.ariegenature.geomys.ui.composants.DialogueChoixUnique
 import fr.ariegenature.geomys.ui.composants.DialogueProgression
 import fr.ariegenature.geomys.ui.composants.GraisseSymbole
+import fr.ariegenature.geomys.ui.composants.HAUTEUR_BANDEAU_IOS
 import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.afficher
@@ -209,7 +211,7 @@ private fun EcranCarte(vm: CarteOccHabViewModel, onAccueil: () -> Unit, onStatio
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                 )
             }
-            BoutonIos(vm::terminer, Modifier.align(Alignment.TopEnd).then(haut).padding(top = 4.dp, end = 12.dp), opaciteAppui = 0.6f) {
+            BoutonIos(vm::terminer, Modifier.align(Alignment.TopEnd).then(haut).padding(end = 12.dp).height(HAUTEUR_BANDEAU_IOS), opaciteAppui = 0.6f) {
                 SymboleSf("checkmark.circle.fill", 30f, listOf(Color.White, CouleursGeoMys.vert), description = "Terminer la saisie")
             }
         } else {

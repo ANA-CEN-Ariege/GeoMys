@@ -165,3 +165,9 @@ Chaque cas des défauts corrigés échoue quand on réintroduit le défaut. Les 
 - **Paramètres de lancement** (essais d'affichage) :
   - `action=occhab-essai` (§ 6) ;
   - `ecran=` : `occhab-carte` (nouvelle session), `occhab-infos` (ses informations obligatoires ouvertes), `occhab-reprise` (la saisie d'essai reprise), `occhab-edition` (sa pelouse sélectionnée), `occhab-station`, `occhab-details` (détails ouverts), `occhab-habitat`, `occhab-habitat-nouveau`, `mes-stations`.
+
+## 11. Retouches après le commit du lot
+
+Demandées le 19 octobre, après l'essai sur l'iPhone 16 :
+- **Bandeau de navigation sous iOS** : la maison prend la taille d'Android (2,1 fois le texte, au lieu des 1,68 de GeoMys-IOS), et le bandeau la hauteur de la pastille d'Android, 47,3 pt contre 38. Cette hauteur est la même sur tous les écrans, fil des Suivis compris (`HAUTEUR_BANDEAU_IOS`). Un fil trop long passe à la ligne, sans être tronqué, et le bandeau grandit d'autant. Les coches de fin posées sur le bandeau y sont centrées.
+- **Écrans de saisie OccTax sous iOS** (relevé multi-taxons et saisie mono) : 20 pt entre le bandeau, les groupes taxonomiques, « Nom scientifique » et le champ espèce. Le relevé multi-taxons n'en avait que 4 à 8.

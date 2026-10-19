@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
@@ -104,6 +105,7 @@ import fr.ariegenature.geomys.ui.composants.DialogueChoixLignesAndroid
 import fr.ariegenature.geomys.ui.composants.DialogueChoixUnique
 import fr.ariegenature.geomys.ui.composants.DialogueMaterialIos
 import fr.ariegenature.geomys.ui.composants.GraisseSymbole
+import fr.ariegenature.geomys.ui.composants.HAUTEUR_BANDEAU_IOS
 import fr.ariegenature.geomys.ui.composants.Interrupteur
 import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.RetourSysteme
@@ -257,12 +259,13 @@ private fun EcranReglages(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             BandeauNavigation(vm.session.typeSaisieLabel, onAccueil)
             Column(
-                // Le contenu commence à 60 pt sous la zone sûre, comme sous le fil d'Ariane de GeoMys-IOS.
-                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 22.dp, bottom = 24.dp),
+                // 20 pt entre le bandeau, les groupes, « Nom scientifique » et le champ espèce, comme en
+                // saisie multi-taxons (demande du 19 octobre).
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 PaletteGroupes(champ.groupes, champ.taxon, vm::choisirTaxon, Modifier)
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Nom scientifique", fontSize = 13.sp, color = Color.White)
                     Spacer(Modifier.width(8.dp))
                     Interrupteur(champ.nomScientifique, vm::basculerNomScientifique, teinteIos = CouleursGeoMys.vert)
@@ -358,7 +361,7 @@ private fun EcranCarteMono(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                 )
             }
-            BoutonIos(vm::demanderTerminer, Modifier.align(Alignment.TopEnd).then(haut).padding(top = 4.dp, end = 12.dp), opaciteAppui = 0.6f) {
+            BoutonIos(vm::demanderTerminer, Modifier.align(Alignment.TopEnd).then(haut).padding(end = 12.dp).height(HAUTEUR_BANDEAU_IOS), opaciteAppui = 0.6f) {
                 SymboleSf("checkmark.circle.fill", 30f, listOf(Color.White, CouleursGeoMys.vert), description = "Terminer la saisie")
             }
         } else {
