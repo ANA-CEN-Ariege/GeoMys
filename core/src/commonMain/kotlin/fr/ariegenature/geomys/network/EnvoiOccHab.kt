@@ -78,6 +78,9 @@ class EnvoiOccHab(
     suspend fun envoyerSaisieOccHabVersGeoNature(
         saisie: OccHabSaisie,
         config: GeoNatureConfig,
+        /** Les ids des seules stations à envoyer (les voisines d'une autre saisie que la topologie
+         *  partagée a modifiées) ; null = toute la saisie. */
+        seulement: Set<String>? = null,
         /** Envoi d'UNE station — injectable pour les tests (défaut : le POST réseau réel). */
         envoyer: suspend (OccHabStation, GeoNatureConfig) -> OccHabEnvoiResult = occHabUpload::envoyer,
     ): ResultatEnvoiOccHab = withContext(Dispatchers.IO) {
@@ -95,7 +98,7 @@ class EnvoiOccHab(
             )
         }
         try {
-            envoyerSousVerrou(saisie, config, envoyer)
+            envoyerSousVerrou(saisie, config, seulement, envoyer)
         } finally {
             verrou.unlock()
         }
@@ -116,15 +119,17 @@ class EnvoiOccHab(
     private suspend fun envoyerSousVerrou(
         saisie: OccHabSaisie,
         config: GeoNatureConfig,
+        seulement: Set<String>?,
         envoyer: suspend (OccHabStation, GeoNatureConfig) -> OccHabEnvoiResult,
     ): ResultatEnvoiOccHab {
         // RELECTURE SOUS VERROU : on repart de l'état DISQUE et non de l'instantané de l'écran, sinon
         // le second envoi sérialisé reposterait les stations que le premier vient de marquer. Repli
         // sur l'objet reçu si la saisie est absente du store (cas dégradé : écriture refusée).
         val saisieRelue = store.charger().find { it.id == saisie.id } ?: saisie
-        val aEnvoyer = saisieRelue.stations.filter { !it.envoyeGeoNature }
-        val dejaEnvoyees = saisieRelue.stations.size - aEnvoyer.size
-        val total = saisieRelue.stations.size
+        val concernees = saisieRelue.stations.filter { seulement == null || it.id in seulement }
+        val aEnvoyer = concernees.filter { !it.envoyeGeoNature }
+        val dejaEnvoyees = concernees.size - aEnvoyer.size
+        val total = concernees.size
 
         if (aEnvoyer.isEmpty()) {
             // Tout avait déjà été transmis (la saisie est déjà marquée envoyée au store).

@@ -35,6 +35,7 @@ import fr.ariegenature.geomys.carte.enregistrerFondChoisi
 import fr.ariegenature.geomys.geo.LatLon
 import fr.ariegenature.geomys.model.OccHabSaisie
 import fr.ariegenature.geomys.model.OccHabStation
+import fr.ariegenature.geomys.network.ResultatEnvoiOccHab
 import fr.ariegenature.geomys.occhab.CadrageOccHab
 import fr.ariegenature.geomys.occhab.CarteOccHab
 import fr.ariegenature.geomys.occhab.DetailsStation
@@ -43,9 +44,13 @@ import fr.ariegenature.geomys.occhab.ModeGeometrie
 import fr.ariegenature.geomys.occhab.PileAnnulationGeometrie
 import fr.ariegenature.geomys.occhab.SaisiesDetailsStation
 import fr.ariegenature.geomys.occhab.SessionOccHab
+import fr.ariegenature.geomys.occhab.TopologiePolygone
+import fr.ariegenature.geomys.util.GeoJsonCoords
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** Un ordre de caméra pour l'écran. */
 sealed interface CameraOccHab {
@@ -118,6 +123,17 @@ class CarteOccHabViewModel(
     /** Stations du serveur dessinées en violet (importables). */
     var stationsViolettes by mutableStateOf<List<OccHabStation>>(emptyList())
         private set
+
+    /** La saisie de chaque station du store, toutes saisies : celle d'une voisine que la topologie
+     *  partagée modifie. */
+    private var saisieDesStations: Map<String, String> = emptyMap()
+
+    /** La géométrie au début du glisser en cours : la position de départ du sommet déplacé. */
+    private var editionAvantGeste: GeometrieEdition? = null
+
+    /** Les écritures des voisines, geste après geste, dans l'ordre ; et combien attendent encore. */
+    private val verrouVoisines = Mutex()
+    private var propagationsEnCours = 0
 
     /** Stations du serveur chargées (cache ou réseau) et le jeu de données du chargement. */
     private var stationsServeur: List<OccHabStation> = emptyList()
@@ -237,7 +253,9 @@ class CarteOccHabViewModel(
     private fun pointsDe(g: GeometrieEdition): List<LatLon> = g.point?.let { listOf(it) } ?: g.sommets
 
     private suspend fun rafraichirLocales(): List<OccHabStation> {
-        val locales = CarteOccHab.stationsLocales(store.charger(), session.station.id)
+        val saisies = store.charger()
+        saisieDesStations = saisies.flatMap { s -> s.stations.map { it.id to s.id } }.toMap()
+        val locales = CarteOccHab.stationsLocales(saisies, session.station.id)
         stationsLocales = locales
         return locales
     }
@@ -259,22 +277,24 @@ class CarteOccHabViewModel(
         return stationsServeur.size
     }
 
-    /** Les stations de l'utilisateur DÉJÀ sur le serveur pour le JEU DE DONNÉES de la station
-     *  (demande terrain 2026-08-27), depuis le cache de la synchro, avec sa date : rien n'est demandé
-     *  au serveur (décision de l'utilisateur du 20 octobre ; un envoi y reporte ses stations).
-     *  [conserverLesAutresJdd] : les stations des autres JDD restent affichées (demande utilisateur
-     *  2026-10-18). L'emprise n'est jamais touchée : elle ne change que sur un geste de
+    /** Les stations de l'utilisateur DÉJÀ sur le serveur, depuis le cache de la synchro, avec sa date
+     *  : rien n'est demandé au serveur (décision de l'utilisateur du 20 octobre ; un envoi y reporte
+     *  ses stations). Celles du JEU DE DONNÉES de la station sont annoncées (demande terrain
+     *  2026-08-27) ; celles des autres restent affichées (demandes utilisateur des 18 et 20 octobre :
+     *  une station ajoutée ne doit pas faire disparaître les autres). Toutes, et non plus celles du
+     *  seul jeu : à l'ouverture, ce chargement croisait celui de la consultation, et le dernier arrivé
+     *  l'emportait. L'emprise n'est jamais touchée : elle ne change que sur un geste de
      *  l'utilisateur. */
-    private fun chargerServeur(conserverLesAutresJdd: Boolean = false) {
+    private fun chargerServeur() {
         val idJdd = session.details.idDataset
         if (idJdd == null || idJdd <= 0) {
             message(CarteOccHab.CHOISIR_JDD)
             return
         }
         viewModelScope.launch {
-            val chargees = services.stationsServeur.lire(idJdd)
+            stationsServeur = services.stationsServeur.tout
+            val chargees = stationsServeur.filter { it.idDataset == idJdd }
             val dateCache = services.stationsServeur.dateChargement
-            stationsServeur = if (conserverLesAutresJdd) chargees + services.stationsServeur.tout.filter { it.idDataset != idJdd } else chargees
             jddCharge = idJdd
             classer()
             if (chargees.isNotEmpty()) {
@@ -291,20 +311,11 @@ class CarteOccHabViewModel(
         }
     }
 
-    /** Le JDD de la station a pu changer (« i », bascule de saisie) : l'affichage reste celui du
-     *  compte ET du JDD courant. JDD inchangé → simple re-classement ; changé → on efface, et on
-     *  recharge. */
+    /** Le JDD de la station a pu changer (« i », bascule de saisie) : inchangé, un simple
+     *  re-classement ; changé, les stations de son nouveau jeu sont annoncées. */
     private suspend fun resynchroniserAuJdd() {
         if (stationsServeur.isEmpty() && jddCharge == null) return
-        val jdd = session.details.idDataset
-        if (jdd == jddCharge) {
-            classer()
-            return
-        }
-        stationsServeur = emptyList()
-        jddCharge = null
-        classer()
-        chargerServeur()
+        if (session.details.idDataset == jddCharge) classer() else chargerServeur()
     }
 
     // ─── Touchers ───
@@ -349,7 +360,10 @@ class CarteOccHabViewModel(
 
     // ─── Gestes sur la géométrie éditée ───
 
-    fun debutGlisser() = memoriser()
+    fun debutGlisser() {
+        editionAvantGeste = edition
+        memoriser()
+    }
 
     fun glisserPoint(p: LatLon) {
         edition = edition.copy(point = p)
@@ -365,12 +379,18 @@ class CarteOccHabViewModel(
         edition = edition.avecSommet(index, p)
     }
 
-    /** Fin du glisser d'un sommet, aimanté sur le sommet d'une AUTRE station : le voisin, lui, ne
-     *  bouge pas (demande utilisateur 2026-10-18) — l'aimantage pose un sommet exactement sur un
-     *  autre, il ne les marie pas. */
+    /** Fin du glisser d'un sommet, [cible] déjà aimantée. Topologie partagée (demande de
+     *  l'utilisateur du 20 octobre, qui rétablit celle de GeoMys-Android du 30 août au 18 octobre) :
+     *  les sommets des stations voisines confondus avec sa position de départ le suivent ; celui sur
+     *  lequel il s'aimante, lui, ne bouge pas. */
     fun finGlisserSommet(index: Int, cible: LatLon) {
+        val depart = editionAvantGeste?.sommets?.getOrNull(index)
+        editionAvantGeste = null
         edition = edition.avecSommet(index, cible)
         persisterSelection()
+        if (depart != null && !TopologiePolygone.memePoint(depart, cible)) {
+            propagerAuxVoisines { anneau -> TopologiePolygone.deplacerSommetsConfondus(anneau, depart, cible) }
+        }
     }
 
     fun glisserSommetTrou(anneau: Int, index: Int, p: LatLon) {
@@ -385,13 +405,65 @@ class CarteOccHabViewModel(
         persisterSelection()
     }
 
-    /** Poignée « + » : un sommet au milieu de l'arête, persisté. Aucune station voisine n'est
-     *  touchée, même sur une arête commune. */
+    /** Poignée « + » : un sommet au milieu de l'arête, persisté. Sur une arête du contour extérieur
+     *  commune avec une station voisine, le même sommet lui est ajouté (topologie partagée, demande
+     *  de l'utilisateur du 20 octobre). */
     fun insererSommet(anneau: Int, indexArete: Int) {
+        val avant = edition
         val apres = (if (anneau < 0) edition.avecSommetInsere(indexArete) else edition.avecSommetTrouInsere(anneau, indexArete)) ?: return
         memoriser()
         edition = apres
         persisterSelection()
+        if (anneau < 0) {
+            val a = avant.sommets[indexArete]
+            val b = avant.sommets[(indexArete + 1) % avant.sommets.size]
+            val milieu = apres.sommets[indexArete + 1]
+            propagerAuxVoisines { ring -> TopologiePolygone.insererSurArete(ring, a, b, milieu) }
+        }
+    }
+
+    /** Topologie partagée : [transforme] appliqué au contour extérieur de chaque station POLYGONE
+     *  dessinée autour de la station éditée — rouges (toutes saisies) et violettes (serveur) ; les
+     *  trous ne sont pas partagés. Celles qu'il change sont redessinées aussitôt, puis enregistrées
+     *  dans leur saisie, à envoyer ; une station du serveur sans copie locale est importée dans la
+     *  saisie courante. Celles d'autres saisies partiront avec l'envoi de la saisie courante
+     *  ([envoyer]). Une voisine en plusieurs parties, ou envoyée sans id serveur connu, n'est pas
+     *  touchée : le raccord se rompt de son côté, et on le dit. */
+    private fun propagerAuxVoisines(transforme: (List<LatLon>) -> List<LatLon>?) {
+        val changees = (stationsLocales + stationsViolettes).mapNotNull { v ->
+            if (v.geometryType != "Polygon" || v.geometryCoordsJson.isNullOrEmpty()) return@mapNotNull null
+            transforme(GeoJsonCoords.parse(v.geometryCoordsJson))?.let { v to it }
+        }
+        if (changees.isEmpty()) return
+        val modifiables = changees.filter { (v, _) -> !v.geometryPartielle && (!v.envoyeGeoNature || (v.idStationServeur ?: 0) > 0) }
+        if (modifiables.size < changees.size) message(CarteOccHab.VOISINE_NON_MODIFIABLE, longue = true)
+        if (modifiables.isEmpty()) return
+        val saisieCourante = session.saisieId
+        val deplacees = modifiables.map { (v, anneau) ->
+            CarteOccHab.voisineDeplacee(v, anneau, copieLocale = v.id in saisieDesStations) to (saisieDesStations[v.id] ?: saisieCourante)
+        }
+        // Redessinées tout de suite : le geste suivant part de leur nouvelle géométrie.
+        val parId = deplacees.associate { (st, _) -> st.id to st }
+        stationsLocales = stationsLocales.map { parId[it.id] ?: it }
+        stationsViolettes = stationsViolettes.map { parId[it.id] ?: it }
+        propagationsEnCours++
+        viewModelScope.launch {
+            verrouVoisines.withLock {
+                for ((st, saisie) in deplacees) {
+                    if (!store.upsertStation(saisie, st)) {
+                        echecEcriture = CarteOccHab.CONSIGNE_SOMMET
+                        break
+                    }
+                    if (saisie != saisieCourante) session.voisinesAEnvoyer.getOrPut(saisie) { mutableSetOf() } += st.id
+                }
+            }
+            message(CarteOccHab.messageVoisinesModifiees(deplacees.size))
+            // Relues du store une fois toutes les écritures faites : une importée passe en rouge.
+            if (--propagationsEnCours == 0) {
+                rafraichirLocales()
+                if (serveurCharge) classer()
+            }
+        }
     }
 
     fun changerMode(mode: ModeGeometrie) {
@@ -623,8 +695,8 @@ class CarteOccHabViewModel(
             DetailsStation.appliquer(session, saisies, demarrage = true)
             DetailsStation.memoriser(config, session.details)
             enCreation = true
-            // Le JDD est connu : ses stations sont rafraîchies, les autres restent affichées.
-            chargerServeur(conserverLesAutresJdd = true)
+            // Le JDD est connu : ses stations sont annoncées, toutes restent affichées.
+            chargerServeur()
             viewModelScope.launch { rafraichirLocales() }
             bandeau = CarteOccHab.texteMode(edition.mode, geometrieChargee)
         }
@@ -696,11 +768,30 @@ class CarteOccHabViewModel(
         viewModelScope.launch {
             try {
                 val res = services.envoiOccHab.envoyerSaisieOccHabVersGeoNature(saisie, config)
-                dialogue = DialogueCarteOccHab.ResultatEnvoi(if (res.succes) "Envoi" else "Erreur d'envoi", res.message)
+                val voisines = envoyerVoisines(saisie.id)
+                val succes = res.succes && voisines?.succes != false
+                val texte = res.message + voisines?.let { "\n\n" + it.message }.orEmpty()
+                dialogue = DialogueCarteOccHab.ResultatEnvoi(if (succes) "Envoi" else "Erreur d'envoi", texte)
             } finally {
                 envoiEnCours = false
             }
         }
+    }
+
+    /** Les stations d'AUTRES saisies que la topologie partagée a modifiées, envoyées avec la saisie
+     *  courante, elles seules dans leur saisie ; null s'il n'y en a pas. */
+    private suspend fun envoyerVoisines(saisieCourante: String): ResultatEnvoiOccHab? {
+        val autres = session.voisinesAEnvoyer.filterKeys { it != saisieCourante }
+        if (autres.isEmpty()) return null
+        val saisies = store.charger()
+        val resultats = autres.mapNotNull { (saisieId, ids) ->
+            val saisie = saisies.firstOrNull { it.id == saisieId } ?: return@mapNotNull null
+            services.envoiOccHab.envoyerSaisieOccHabVersGeoNature(saisie, config, seulement = ids).also {
+                if (it.succes) session.voisinesAEnvoyer.remove(saisieId)
+            }
+        }
+        if (resultats.isEmpty()) return null
+        return ResultatEnvoiOccHab(resultats.all { it.succes }, CarteOccHab.STATIONS_VOISINES + resultats.joinToString("\n") { it.message })
     }
 
     /** « OK » du résultat de l'envoi. */

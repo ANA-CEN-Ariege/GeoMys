@@ -31,11 +31,14 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import fr.ariegenature.geomys.geo.LatLon
+import fr.ariegenature.geomys.model.OccHabSaisie
+import fr.ariegenature.geomys.model.OccHabStation
 import fr.ariegenature.geomys.occhab.CarteOccHab
 import fr.ariegenature.geomys.occhab.ModeGeometrie
 import fr.ariegenature.geomys.occhab.TopologiePolygone
 import fr.ariegenature.geomys.outils.ajouterOccHabEssai
 import fr.ariegenature.geomys.ui.ServicesEssai
+import fr.ariegenature.geomys.util.GeoJsonCoords
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -421,6 +424,135 @@ class EditeurCarteOccHabTest {
         carte.finGlisserSommetTrou(0, 0, LatLon(43.0, 1.0))
         attendreEvenement("l'avertissement du sommet sorti") {
             it == EvenementCarteOccHab.Message(CarteOccHab.SOMMET_TROU_HORS_POLYGONE, longue = true)
+        }
+    }
+
+    // ─── Topologie partagée (demande de l'utilisateur du 20 octobre) ───
+    // La pelouse à envoyer et la prairie du serveur partagent l'arête B (42,9540 ; 1,6220) –
+    // C (42,9570 ; 1,6220) : sommets 1 et 2 de la pelouse, dernier et premier de la prairie.
+
+    private val sommetB = LatLon(42.9540, 1.6220)
+    private val sommetC = LatLon(42.9570, 1.6220)
+
+    /** Le store relu sur le fil principal de la carte, sans le bloquer : une écriture de la carte peut
+     *  y tenir son verrou, qu'un `runBlocking` attendrait sans fin. */
+    private fun relireStore(): List<OccHabSaisie> {
+        var lu: List<OccHabSaisie>? = null
+        portee.launch { lu = services.occHabStore.charger() }
+        attendre("le store relu") { lu != null }
+        return requireNotNull(lu)
+    }
+
+    /** La copie locale de la prairie (id serveur 501) dans le store, et sa saisie. */
+    private fun prairieEnregistree() = relireStore()
+        .flatMap { s -> s.stations.map { s.id to it } }
+        .firstOrNull { (_, st) -> st.idStationServeur == 501 }
+
+    @Test
+    fun un_sommet_partage_deplace_entraine_la_prairie_du_serveur() {
+        val carte = carteEnConsultation()
+        assertTrue(carte.stationsViolettes.any { it.idStationServeur == 501 }, "la prairie est du serveur")
+        selectionner(carte, PELOUSE)
+        assertEquals(sommetB, carte.edition.sommets[1])
+        val deplace = LatLon(42.9535, 1.6225)
+        carte.debutGlisser()
+        carte.glisserSommet(1, deplace)
+        carte.finGlisserSommet(1, deplace)
+        attendre("la prairie importée dans la saisie") { prairieEnregistree() != null }
+        val (saisie, prairie) = requireNotNull(prairieEnregistree())
+        assertEquals(SAISIE, saisie, "importée dans la saisie courante, elle partira avec elle")
+        val anneau = GeoJsonCoords.parse(prairie.geometryCoordsJson)
+        assertEquals(deplace, anneau.first(), "son sommet partagé a suivi")
+        assertEquals(sommetC, anneau.last(), "les autres ne bougent pas")
+        assertFalse(prairie.envoyeGeoNature, "à envoyer, en mise à jour")
+        assertTrue(prairie.empreinteOrigine != null)
+        attendre("la prairie redessinée en rouge") {
+            carte.stationsLocales.any { it.idStationServeur == 501 } && carte.stationsViolettes.none { it.idStationServeur == 501 }
+        }
+        attendreEvenement("le message des voisines") { it == EvenementCarteOccHab.Message(CarteOccHab.messageVoisinesModifiees(1)) }
+        // « Annuler » ne défait que la pelouse (décision du 17 octobre) : la prairie garde son sommet.
+        carte.annuler()
+        assertEquals(sommetB, carte.edition.sommets[1])
+        principal.scheduler.advanceUntilIdle()
+        assertEquals(deplace, GeoJsonCoords.parse(requireNotNull(prairieEnregistree()).second.geometryCoordsJson).first())
+    }
+
+    @Test
+    fun un_sommet_insere_sur_l_arete_commune_l_est_aussi_dans_la_prairie() {
+        val carte = carteEnConsultation()
+        selectionner(carte, PELOUSE)
+        carte.insererSommet(-1, 1)
+        val milieu = TopologiePolygone.milieu(sommetB, sommetC)
+        assertEquals(milieu, carte.edition.sommets[2])
+        attendre("la prairie importée dans la saisie") { prairieEnregistree() != null }
+        val anneau = GeoJsonCoords.parse(requireNotNull(prairieEnregistree()).second.geometryCoordsJson)
+        assertEquals(5, anneau.size)
+        assertEquals(milieu, anneau.last(), "inséré sur l'arête de fermeture C → B")
+    }
+
+    @Test
+    fun une_voisine_d_une_autre_saisie_y_reste_et_partira_avec_l_envoi() {
+        // Une station rouge d'une autre saisie, raccordée au sommet A (42,9540 ; 1,6180) de la pelouse.
+        val autre = "essai-occhab-autre"
+        val voisine = OccHabStation(
+            id = "essai-occhab-voisine", geometryType = "Polygon", latitude = 42.9530, longitude = 1.6170,
+            geometryCoordsJson = GeoJsonCoords.format(listOf(LatLon(42.9520, 1.6160), LatLon(42.9520, 1.6180), LatLon(42.9540, 1.6180))),
+        )
+        runBlocking { services.occHabStore.upsertStation(autre, voisine) }
+        val session = vm { SessionOccHabViewModel() }
+        session.session.reprendreSaisie(runBlocking { services.occHabStore.charger() }.first { it.id == SAISIE })
+        val carte = vm { CarteOccHabViewModel(services, session) }
+        portee.launch { carte.evenements.collect { recus += it } }
+        carte.ouverture()
+        attendre("les stations dessinées") { carte.stationsLocales.any { it.id == voisine.id } }
+        selectionner(carte, PELOUSE)
+        val deplace = LatLon(42.9542, 1.6178)
+        carte.debutGlisser()
+        carte.finGlisserSommet(0, deplace)
+        attendre("la voisine déplacée dans sa saisie") {
+            relireStore().single { it.id == autre }.stations.single().geometryCoordsJson?.let(GeoJsonCoords::parse)?.last() == deplace
+        }
+        assertEquals(mapOf(autre to mutableSetOf(voisine.id)), session.session.voisinesAEnvoyer)
+    }
+
+    /** Constat sous Android le 20 octobre : une station ajoutée puis terminée, la carte suivante ne
+     *  montrait plus les stations des autres jeux de données — le chargement du jeu de la saisie
+     *  croisait celui de la consultation, et le dernier arrivé l'emportait. */
+    @Test
+    fun une_station_ajoutee_ne_fait_pas_disparaitre_les_autres() {
+        val toutes = listOf(501, 502, 503, 504)
+        val session = vm { SessionOccHabViewModel() }
+        session.session.reprendreSaisie(runBlocking { services.occHabStore.charger() }.first { it.id == SAISIE })
+        val carte = vm { CarteOccHabViewModel(services, session) }
+        portee.launch { carte.evenements.collect { recus += it } }
+        carte.ouverture()
+        attendreChargement()
+        attendre("toutes les stations à l'ouverture") { carte.stationsViolettes.mapNotNull { it.idStationServeur }.sorted() == toutes }
+        carte.ajouterStation()
+        carte.validerDetails(requireNotNull(carte.details).saisies())
+        attendreChargement()
+        carte.changerMode(ModeGeometrie.POLYGONE)
+        listOf(p1, p2, p3).forEach { carte.toucherCarte(it, null) }
+        carte.valider()
+        attendreEvenement("l'écran de la station") { it == EvenementCarteOccHab.OuvrirStation }
+        // L'écran de la station terminé : une nouvelle station, sur une NOUVELLE carte.
+        session.session.nouvelleStation()
+        val autreMagasin = ViewModelStore()
+        try {
+            val suivante = ViewModelProvider.create(autreMagasin, viewModelFactory { initializer { CarteOccHabViewModel(services, session) } })[CarteOccHabViewModel::class]
+            portee.launch { suivante.evenements.collect {} }
+            suivante.ouverture()
+            attendre("toutes les stations sur la carte suivante") {
+                suivante.stationsViolettes.mapNotNull { it.idStationServeur }.sorted() == toutes && suivante.stationsLocales.size == 3
+            }
+            // Le chargement du jeu de la saisie fini (son message), rien n'a disparu.
+            repeat(5) {
+                principal.scheduler.advanceUntilIdle()
+                Thread.sleep(20)
+            }
+            assertEquals(toutes, suivante.stationsViolettes.mapNotNull { it.idStationServeur }.sorted())
+        } finally {
+            autreMagasin.clear()
         }
     }
 

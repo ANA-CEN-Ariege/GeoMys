@@ -184,4 +184,19 @@ class EnvoiOccHabTest {
         assertEquals<Map<String, Pair<Int?, Int?>>>(mapOf("A" to (1200 to 1350), "B" to (800 to 820)), parties)
         assertEquals(1200, store.stationsDeSaisie("sa").first { it.id == "A" }.altitudeMin, "reportées dans la saisie")
     }
+
+    /** Propre au portage : les voisines d'une autre saisie que la topologie partagée a modifiées
+     *  partent seules, avec l'envoi de la saisie courante (demande de l'utilisateur du 20 octobre). */
+    @Test
+    fun seules_les_stations_designees_partent() = runTest {
+        preparer()
+        val appelees = mutableListOf<String>()
+        val res = envoi.envoyerSaisieOccHabVersGeoNature(saisie(), config, seulement = setOf("B")) { st, _ ->
+            appelees.add(st.id)
+            OccHabEnvoiResult(idStationServeur = 400, nbHabitats = 1)
+        }
+        assertTrue(res.succes, res.message)
+        assertEquals(listOf("B"), appelees)
+        assertFalse(saisie().envoyeGeoNature, "A reste à envoyer")
+    }
 }

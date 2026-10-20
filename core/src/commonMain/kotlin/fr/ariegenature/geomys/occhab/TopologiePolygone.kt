@@ -17,16 +17,48 @@
  */
 
 // Porté de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/util/TopologiePolygone.kt) :
-// `milieu` et `pointDansAnneau`, sur des LatLon. `memePoint` n'est pas repris : la topologie partagée
-// qu'il servait a été retirée de GeoMys-Android (cdd5196), et il n'y avait plus d'appelant.
+// `milieu` et `pointDansAnneau`, sur des LatLon. La topologie partagée (`memePoint`, `insererSurArete`,
+// `deplacerSommetsConfondus`), retirée de GeoMys-Android le 18 octobre (cdd5196), revient de sa version
+// précédente le 20 octobre, à la demande de l'utilisateur.
 
 package fr.ariegenature.geomys.occhab
 
 import fr.ariegenature.geomys.geo.LatLon
+import kotlin.math.abs
 
-/** Outils géométriques de la carte OccHab : milieu d'une arête (poignée « + ») et appartenance
- *  d'un point à un anneau (sommet de trou sorti du polygone). */
+/** Outils géométriques de la carte OccHab : milieu d'une arête (poignée « + »), appartenance d'un
+ *  point à un anneau (sommet de trou sorti du polygone), et topologie PARTAGÉE des polygones
+ *  aimantés — deux stations qui partagent un sommet ou une arête restent raccordées quand l'une est
+ *  éditée. */
 object TopologiePolygone {
+
+    /** Tolérance de [memePoint] : 1e-9°, environ 0,1 mm. */
+    private const val EPSILON = 1e-9
+
+    /** Deux positions confondues : un sommet partagé, l'aimantage COPIANT les coordonnées du sommet
+     *  cible. */
+    fun memePoint(a: LatLon, b: LatLon): Boolean =
+        abs(a.latitude - b.latitude) < EPSILON && abs(a.longitude - b.longitude) < EPSILON
+
+    /** [anneau] (sommets distincts, fermeture implicite) avec [insere] entre les deux extrémités de
+     *  son arête {[a], [b]}, dans un sens ou dans l'autre ; null s'il ne la possède pas. */
+    fun insererSurArete(anneau: List<LatLon>, a: LatLon, b: LatLon, insere: LatLon): List<LatLon>? {
+        for (i in anneau.indices) {
+            val pi = anneau[i]
+            val pj = anneau[(i + 1) % anneau.size]
+            if ((memePoint(a, pi) && memePoint(b, pj)) || (memePoint(b, pi) && memePoint(a, pj))) {
+                return anneau.toMutableList().also { it.add(i + 1, insere) }
+            }
+        }
+        return null
+    }
+
+    /** [anneau] dont tout sommet confondu avec [avant] (sommet partagé) est déplacé vers [apres] ;
+     *  null si aucun ne l'est. */
+    fun deplacerSommetsConfondus(anneau: List<LatLon>, avant: LatLon, apres: LatLon): List<LatLon>? {
+        if (anneau.none { memePoint(it, avant) }) return null
+        return anneau.map { if (memePoint(it, avant)) apres else it }
+    }
 
     /** Milieu de l'arête [a]-[b] (position de la poignée « + »). */
     fun milieu(a: LatLon, b: LatLon): LatLon =

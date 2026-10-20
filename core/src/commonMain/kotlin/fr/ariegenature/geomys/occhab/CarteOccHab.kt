@@ -24,12 +24,14 @@ package fr.ariegenature.geomys.occhab
 
 import fr.ariegenature.geomys.geo.Emprise
 import fr.ariegenature.geomys.geo.LatLon
+import fr.ariegenature.geomys.geo.airePolygoneM2
 import fr.ariegenature.geomys.geo.empriseZoomerSur
 import fr.ariegenature.geomys.model.OccHabSaisie
 import fr.ariegenature.geomys.model.OccHabStation
 import fr.ariegenature.geomys.store.GeoNatureConfig
 import fr.ariegenature.geomys.util.FormatDate
 import fr.ariegenature.geomys.util.GeoJsonCoords
+import kotlin.math.roundToLong
 
 /** Les stations du serveur, une fois classées : celles qu'on dessine en violet (importables d'un
  *  toucher), et le nombre de celles dont une copie non envoyée vit dans une AUTRE saisie. */
@@ -195,6 +197,46 @@ object CarteOccHab {
      *  du serveur dessinées (violettes). Jamais la station en cours : elle n'est dans aucune. */
     fun ciblesAimantage(locales: List<OccHabStation>, violettes: List<OccHabStation>): List<LatLon> =
         (locales + violettes).flatMap(::points)
+
+    /** Une station VOISINE dont la topologie partagée a changé l'anneau extérieur en [anneau] :
+     *  centroïde et surface recalculés (ses trous, inchangés, déduits), altitudes effacées —
+     *  redemandées à l'envoi. Déjà envoyée, elle repasse « à envoyer » en mise à jour par son id
+     *  serveur, avec l'empreinte de sa version envoyée : revenue à l'identique, elle redeviendrait
+     *  « envoyée » si une saisie en garde la copie ([copieLocale]), et quitterait sinon « Mes
+     *  stations » (station du serveur importée par la topologie). Ses dates ne changent pas : elle
+     *  n'a pas été revue sur le terrain. */
+    fun voisineDeplacee(voisine: OccHabStation, anneau: List<LatLon>, copieLocale: Boolean): OccHabStation {
+        val centre = GeoJsonCoords.centroide(anneau)
+        val deplacee = voisine.copy(
+            latitude = centre?.latitude ?: voisine.latitude,
+            longitude = centre?.longitude ?: voisine.longitude,
+            geometryCoordsJson = GeoJsonCoords.format(anneau),
+            surface = airePolygoneM2(anneau, GeoJsonCoords.parseAnneaux(voisine.geometryTrousJson)).roundToLong(),
+            altitudeMin = null,
+            altitudeMax = null,
+        )
+        if (!voisine.envoyeGeoNature) return deplacee
+        return deplacee.copy(
+            envoyeGeoNature = false,
+            envoiIncertain = false,
+            derniereErreurEnvoi = null,
+            empreinteOrigine = voisine.empreinteOrigine ?: voisine.empreinteContenu(),
+            origineEnvoyee = copieLocale,
+        )
+    }
+
+    /** Après un geste qui a modifié [n] stations voisines (topologie partagée). */
+    fun messageVoisinesModifiees(n: Int): String =
+        if (n == 1) "Station voisine modifiée aussi : elle partira avec cette saisie."
+        else "$n stations voisines modifiées aussi : elles partiront avec cette saisie."
+
+    /** En tête du résultat de l'envoi des voisines d'autres saisies, envoyées avec la saisie. */
+    const val STATIONS_VOISINES = "Stations voisines : "
+
+    /** Une voisine raccordée que l'appli ne peut pas modifier : géométrie en plusieurs parties, ou
+     *  station envoyée sans id serveur connu. */
+    const val VOISINE_NON_MODIFIABLE =
+        "Une station voisine raccordée n'est pas modifiable dans l'application : le raccord est rompu de son côté."
 
     /** Seuil d'aimantage, en dp à l'écran (constant quel que soit le zoom ; 28 → 44 dp à la
      *  demande terrain 2026-08-27, pour raccorder plus facilement au sommet d'un autre polygone). */

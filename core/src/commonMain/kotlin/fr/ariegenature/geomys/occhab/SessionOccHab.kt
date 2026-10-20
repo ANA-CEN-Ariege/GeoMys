@@ -146,6 +146,11 @@ class SessionOccHab {
      *  encore été quittée. */
     var dernierCadrageCarte: Triple<Double, Double, Double>? = null
 
+    /** Les stations d'AUTRES saisies que la topologie partagée a modifiées pendant la session : leur
+     *  saisie → leurs ids. Elles partent avec l'envoi de la saisie courante ; perdues avec la
+     *  session, elles restent « à envoyer » dans leur saisie (« Mes stations »). */
+    val voisinesAEnvoyer: MutableMap<String, MutableSet<String>> = mutableMapOf()
+
     /** Nouvelle station dans la MÊME saisie : garde [saisieId], repart d'une géométrie et
      *  d'habitats vierges et des DÉFAUTS de session (détails par station). */
     fun nouvelleStation() {

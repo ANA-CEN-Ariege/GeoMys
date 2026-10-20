@@ -26,8 +26,10 @@ package fr.ariegenature.geomys.occhab
 import fr.ariegenature.geomys.geo.LatLon
 import fr.ariegenature.geomys.model.OccHabSaisie
 import fr.ariegenature.geomys.model.OccHabStation
+import fr.ariegenature.geomys.util.GeoJsonCoords
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -113,5 +115,35 @@ class CarteOccHabTest {
         assertTrue(CarteOccHab.messageImport(nommee).startsWith("« Tourbière »\n\nLa station et ses 1 habitat(s) sera ouverte"))
         assertTrue(CarteOccHab.messageImport(OccHabStation()).startsWith("La station sera ouverte"))
         assertTrue(CarteOccHab.messageCopieLocale(nommee, 0L, traceEnCours = true).endsWith("\n\nLe tracé en cours (non validé) sera abandonné."))
+    }
+
+    /** Topologie partagée (demande de l'utilisateur du 20 octobre) : une voisine déplacée recalcule
+     *  centroïde et surface, perd ses altitudes et garde ses dates ; déjà envoyée, elle repasse « à
+     *  envoyer » avec l'empreinte de sa version envoyée. */
+    @Test
+    fun une_voisine_deplacee_repart_a_envoyer() {
+        val carre = listOf(LatLon(42.0, 1.0), LatLon(42.0, 1.001), LatLon(42.001, 1.001), LatLon(42.001, 1.0))
+        val envoyee = OccHabStation(
+            id = "v", idStationServeur = 5, geometryType = "Polygon", geometryCoordsJson = GeoJsonCoords.format(carre),
+            latitude = 42.0005, longitude = 1.0005, altitudeMin = 1200, altitudeMax = 1300, surface = 9000,
+            dateMin = 7L, envoyeGeoNature = true, origineServeur = true,
+        )
+        val anneau = carre.toMutableList().also { it[2] = LatLon(42.002, 1.002) }
+        val importee = CarteOccHab.voisineDeplacee(envoyee, anneau, copieLocale = false)
+        assertEquals(GeoJsonCoords.format(anneau), importee.geometryCoordsJson)
+        assertEquals(GeoJsonCoords.centroide(anneau)?.latitude, importee.latitude)
+        assertTrue((importee.surface ?: 0) > 9000, "surface recalculée : ${importee.surface}")
+        assertNull(importee.altitudeMin, "altitudes redemandées à l'envoi")
+        assertNull(importee.altitudeMax)
+        assertEquals(7L, importee.dateMin, "pas revue sur le terrain : ses dates restent")
+        assertFalse(importee.envoyeGeoNature)
+        assertEquals(envoyee.empreinteContenu(), importee.empreinteOrigine)
+        assertFalse(importee.origineEnvoyee, "station du serveur importée")
+        assertTrue(CarteOccHab.voisineDeplacee(envoyee, anneau, copieLocale = true).origineEnvoyee, "copie envoyée d'une saisie")
+        // Pas encore envoyée : seule sa géométrie change.
+        val locale = envoyee.copy(idStationServeur = null, envoyeGeoNature = false, origineServeur = false)
+        val deplacee = CarteOccHab.voisineDeplacee(locale, anneau, copieLocale = true)
+        assertNull(deplacee.empreinteOrigine)
+        assertFalse(deplacee.origineEnvoyee)
     }
 }

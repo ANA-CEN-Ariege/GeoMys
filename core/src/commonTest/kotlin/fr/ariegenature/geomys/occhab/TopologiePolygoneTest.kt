@@ -17,24 +17,55 @@
  */
 
 // Porté de GeoMys-Android @ cdd5196 (app/src/test/java/fr/ariegenature/geomys/TopologiePolygoneTest.kt) : les
-// trois cas de pointDansAnneau, sur des LatLon ; Robolectric retiré, JUnit remplacé par kotlin.test. Le cas
-// de memePoint n'est pas repris avec la fonction, restée sans appelant depuis le retrait de la topologie
-// partagée.
+// trois cas de pointDansAnneau, sur des LatLon ; Robolectric retiré, JUnit remplacé par kotlin.test. Les trois
+// cas de la topologie partagée viennent de sa version précédente (cdd5196~1), revenue le 20 octobre, à la
+// demande de l'utilisateur.
 
 package fr.ariegenature.geomys.occhab
 
 import fr.ariegenature.geomys.geo.LatLon
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** Outils géométriques de la carte OccHab : appartenance d'un point à un anneau (avertissement
- *  « sommet de trou sorti du polygone »).
- *
- *  La topologie PARTAGÉE entre polygones aimantés a été retirée le 2026-10-18 : un geste ne
- *  modifie plus que la station en cours d'édition, donc plus rien n'est répercuté chez un
- *  voisin — ni un déplacement de sommet, ni une insertion sur une arête commune. */
+/** Outils géométriques de la carte OccHab : topologie partagée des polygones aimantés (insertion
+ *  sur une arête commune, déplacement d'un sommet partagé, tolérance d'égalité) et appartenance d'un
+ *  point à un anneau (avertissement « sommet de trou sorti du polygone »). */
 class TopologiePolygoneTest {
+
+    private val anneau = listOf(LatLon(42.0, 1.0), LatLon(42.0, 2.0), LatLon(43.0, 2.0))
+
+    @Test
+    fun insertion_sur_arete_commune_dans_les_deux_sens_fermeture_incluse() {
+        val a = LatLon(42.0, 1.0)
+        val b = LatLon(42.0, 2.0)
+        val m = TopologiePolygone.milieu(a, b)
+        assertEquals(listOf(a, m, b, LatLon(43.0, 2.0)), TopologiePolygone.insererSurArete(anneau, a, b, m))
+        // Sens inverse (b → a) : même arête.
+        assertEquals(listOf(a, m, b, LatLon(43.0, 2.0)), TopologiePolygone.insererSurArete(anneau, b, a, m))
+        // Arête de fermeture (dernier → premier) : inséré après le dernier sommet.
+        val c = LatLon(43.0, 2.0)
+        assertEquals(LatLon(42.5, 1.5), TopologiePolygone.insererSurArete(anneau, c, a, TopologiePolygone.milieu(c, a))?.get(3))
+        // Arête étrangère : rien.
+        assertNull(TopologiePolygone.insererSurArete(anneau, LatLon(50.0, 5.0), a, m))
+    }
+
+    @Test
+    fun deplacement_d_un_sommet_partage() {
+        assertEquals(
+            listOf(LatLon(42.0, 1.0), LatLon(42.1, 2.1), LatLon(43.0, 2.0)),
+            TopologiePolygone.deplacerSommetsConfondus(anneau, LatLon(42.0, 2.0), LatLon(42.1, 2.1)),
+        )
+        assertNull(TopologiePolygone.deplacerSommetsConfondus(anneau, LatLon(0.0, 0.0), LatLon(1.0, 1.0)), "aucun sommet confondu")
+    }
+
+    @Test
+    fun meme_point_tolerance_fine() {
+        assertTrue(TopologiePolygone.memePoint(LatLon(42.0, 1.0), LatLon(42.0 + 1e-10, 1.0)))
+        assertFalse(TopologiePolygone.memePoint(LatLon(42.0, 1.0), LatLon(42.0 + 1e-6, 1.0)))
+    }
 
     /** Carré 0..10 (LatLon = latitude, longitude). */
     private fun carre() = listOf(LatLon(0.0, 0.0), LatLon(0.0, 10.0), LatLon(10.0, 10.0), LatLon(10.0, 0.0))

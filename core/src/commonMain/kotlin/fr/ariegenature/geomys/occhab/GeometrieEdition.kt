@@ -159,9 +159,11 @@ data class GeometrieEdition(
  * le dernier sommet (demande terrain 2026-08-30).
  *
  * Un instantané est pris AVANT chaque opération (tap, déplacement, insertion de sommet) et
- * n'emporte que la géométrie EN COURS : « Annuler » ne touche pas aux stations voisines (demande
- * utilisateur 2026-10-18) — annuler son propre geste ne doit pas modifier le travail enregistré
- * sur d'autres stations.
+ * n'emporte que la géométrie EN COURS : « Annuler » ne touche pas aux stations voisines, même
+ * quand la topologie partagée les a modifiées (décision de l'utilisateur du 17 octobre sous
+ * GeoMys-Android, gardée quand la topologie est revenue le 20 octobre) — annuler son propre geste
+ * ne doit pas modifier le travail enregistré sur d'autres stations. Un sommet partagé annulé d'un
+ * côté seulement désolidarise donc les deux polygones ; un nouvel aimantage les raccorde.
  */
 class PileAnnulationGeometrie(private val profondeurMax: Int = 30) {
 
