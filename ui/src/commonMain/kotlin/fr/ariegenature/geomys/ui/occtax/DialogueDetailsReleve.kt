@@ -18,12 +18,12 @@
 
 // Porté de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/ui/DetailsReleveDialog.kt) : le
 // dialogue « Détails du relevé », ses champs gardés dans un état ([EtatDetailsReleve]) au lieu de ses vues ; les
-// règles (listes, dates, résultat) sont dans occtax/DetailsReleveFormulaire. Sous iOS, l'allure de
-// DetailsReleveView de GeoMys-IOS (UI/Saisie/DetailsReleveView.swift).
+// règles (listes, dates, résultat) sont dans occtax/DetailsReleveFormulaire. Sous iOS, les sections des
+// détails d'une station OccHab, dans la carte centrée des dialogues de détails (demande du 20 octobre), et non
+// plus l'allure de DetailsReleveView de GeoMys-IOS (UI/Saisie/DetailsReleveView.swift).
 
 package fr.ariegenature.geomys.ui.occtax
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
@@ -34,13 +34,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
@@ -56,7 +54,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -83,22 +80,28 @@ import fr.ariegenature.geomys.store.champFormVisible
 import fr.ariegenature.geomys.ui.composants.BoutonCadreIos
 import fr.ariegenature.geomys.ui.composants.CaseDate
 import fr.ariegenature.geomys.ui.composants.ChampDateHeure
-import fr.ariegenature.geomys.ui.composants.ChampLibelle
 import fr.ariegenature.geomys.ui.composants.ChampTexteFormulaire
 import fr.ariegenature.geomys.ui.composants.DeroulantAndroid
 import fr.ariegenature.geomys.ui.composants.DialogueFormulaire
-import fr.ariegenature.geomys.ui.composants.GraisseSymbole
+import fr.ariegenature.geomys.ui.composants.FOND_LIGNE_FEUILLE_IOS
 import fr.ariegenature.geomys.ui.composants.INVITE_IOS
 import fr.ariegenature.geomys.ui.composants.IndicateurActivite
+import fr.ariegenature.geomys.ui.composants.LigneChoixIos
+import fr.ariegenature.geomys.ui.composants.LigneIos
 import fr.ariegenature.geomys.ui.composants.LigneListeAndroid
-import fr.ariegenature.geomys.ui.composants.LigneMenuIos
+import fr.ariegenature.geomys.ui.composants.LigneNombreIos
+import fr.ariegenature.geomys.ui.composants.LigneTexteIos
+import fr.ariegenature.geomys.ui.composants.LigneTexteSeulIos
+import fr.ariegenature.geomys.ui.composants.LignesObservateursIos
+import fr.ariegenature.geomys.ui.composants.LignesRechercheIos
 import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.ObservateursAndroid
 import fr.ariegenature.geomys.ui.composants.PopupListeAndroid
+import fr.ariegenature.geomys.ui.composants.SectionIos
+import fr.ariegenature.geomys.ui.composants.SeparateurIos
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.composants.styleSaisieIos
-import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import fr.ariegenature.geomys.util.maintenantMillis
 import kotlinx.coroutines.CoroutineScope
@@ -462,8 +465,6 @@ private fun ChampHabitatAndroid(e: EtatDetailsReleve) {
     }
 }
 
-// ─── Champs communs aux deux plateformes ───
-
 /** Champ simple : EditText d'une ligne, chiffres seulement si [numerique]. */
 @Composable
 private fun ChampSimple(e: EtatDetailsReleve, cle: String, numerique: Boolean) {
@@ -475,7 +476,7 @@ private fun ChampSimple(e: EtatDetailsReleve, cle: String, numerique: Boolean) {
     )
 }
 
-/** Commentaire : deux lignes au moins (cinq au plus sous iOS). */
+/** Commentaire : deux lignes au moins. */
 @Composable
 private fun ChampCommentaire(e: EtatDetailsReleve) {
     ChampTexteFormulaire(
@@ -485,87 +486,98 @@ private fun ChampCommentaire(e: EtatDetailsReleve) {
         uneLigne = false,
         clavier = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
         compactAndroid = true,
-        lignesMax = 5,
     )
 }
 
-// ─── iOS : DetailsReleveView de GeoMys-IOS ───
+// ─── iOS : les sections des détails d'une station OccHab ───
 
 @Composable
 private fun ContenuIos(e: EtatDetailsReleve) {
     val d = e.donnees
-    ChampLibelle("Jeu de données") {
-        if (d.datasets.isEmpty()) {
-            Text(e.dataset?.second ?: "—", fontSize = 15.sp, color = Color.White)
-        } else {
-            LigneMenuIos(
-                texte = e.dataset?.second ?: "—",
-                invite = e.dataset == null,
-                options = d.datasets.map { it.second },
-                selection = d.datasets.indexOfFirst { it.first == e.dataset?.first },
-                onChoix = e::choisirDataset,
-            )
-        }
+    SectionIos("Jeu de données") {
+        if (d.datasets.isEmpty()) LigneTexteSeulIos(e.dataset?.second ?: "—")
+        else LignesRechercheIos("Rechercher un jeu de données", d.datasets.map { it.second }, e.dataset?.second.orEmpty(), e::choisirDataset)
     }
 
-    ChampLibelle("Observateurs") {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (d.observateurs.isEmpty() && e.observateurs.isEmpty()) Text("—", fontSize = 15.sp, color = CouleursGeoMys.blanc70)
-            e.observateurs.forEach { (id, nom) ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(nom, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
-                    Box(Modifier.clickable(remember { MutableInteractionSource() }, indication = null) { e.retirerObservateur(id) }) {
-                        SymboleSf("xmark", 13f, listOf(CouleursGeoMys.rougePastille), graisse = GraisseSymbole.GRASSE, description = "Retirer $nom")
-                    }
-                }
-            }
-            if (d.observateurs.isNotEmpty()) {
-                LigneMenuIos("Ajouter un observateur", invite = true, options = d.observateurs.map { it.second }, selection = -1, onChoix = e::ajouterObservateur)
-            }
-        }
-    }
+    SectionIos("Observateurs") { LignesObservateursIos(d.observateurs, e.observateurs, e::ajouterObservateur, e::retirerObservateur) }
 
     d.infos.forEach { (libelle, valeur) ->
-        if (valeur.isNotBlank()) ChampLibelle(libelle) { Text(valeur, fontSize = 15.sp, color = Color.White) }
+        if (valeur.isNotBlank()) SectionIos(libelle) { LigneTexteSeulIos(valeur) }
     }
 
-    ChampLibelle(if (d.avecFin) "Date de début" else "Date du relevé") {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            ChampDateHeure(e.debut, d.heures, e::changerDebut, Modifier.weight(1f))
+    SectionIos(if (d.avecFin) "Date de début" else "Date du relevé") {
+        LigneDateIos(e.debut, d.heures, e::changerDebut) {
             if (d.avecFin && !e.finActive) BoutonCadreIos("plus", CouleursGeoMys.jauneClair, "Ajouter une date de fin", e::ajouterFin)
         }
     }
     if (e.finActive) {
-        ChampLibelle("Date de fin") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                ChampDateHeure(e.fin, d.heures, e::changerFin, Modifier.weight(1f))
+        SectionIos("Date de fin") {
+            LigneDateIos(e.fin, d.heures, e::changerFin) {
                 BoutonCadreIos("xmark", CouleursGeoMys.rougePastille, "Retirer la date de fin", e::retirerFin)
             }
         }
     }
 
     e.nomenclaturesReleve.forEach { c ->
-        ChampNomenclatureVue(c, e.positions[c.champ.code] ?: 0, { e.positions[c.champ.code] = it })
+        SectionIos(c.libelle) { LigneChoixIos("", c.libelles, e.positions[c.champ.code] ?: 0) { e.positions[c.champ.code] = it } }
     }
 
     e.champsSimples.forEach { (cle, libelle, numerique) ->
-        ChampLibelle(libelle) { ChampSimple(e, cle, numerique) }
+        SectionIos(libelle) {
+            val texte = e.textesSimples[cle].orEmpty()
+            if (numerique) {
+                LigneNombreIos("", texte, { e.textesSimples[cle] = it.filter(Char::isDigit) }, KeyboardOptions(keyboardType = KeyboardType.Number))
+            } else {
+                LigneTexteIos(texte, { e.textesSimples[cle] = it }, "—", clavier = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences))
+            }
+        }
     }
 
     e.additionnels?.let {
-        Text("Champs additionnels", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        ChampsAdditionnelsVue(it)
+        Column {
+            Text(
+                "Champs additionnels",
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
+                modifier = Modifier.padding(start = 16.dp, bottom = 12.dp),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(24.dp)) { ChampsAdditionnelsSectionsIos(it) }
+        }
     }
 
-    if (e.habitatVisible) ChampLibelle("Habitat") { ChampHabitatIos(e) }
+    if (e.habitatVisible) SectionIos("Habitat") { LignesHabitatIos(e) }
 
-    if (e.commentaireVisible) ChampLibelle("Commentaire") { ChampCommentaire(e) }
+    if (e.commentaireVisible) {
+        SectionIos("Commentaire") {
+            LigneTexteIos(
+                e.commentaire,
+                { e.commentaire = it },
+                "Commentaire",
+                lignesMin = 2,
+                lignesMax = 5,
+                clavier = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+            )
+        }
+    }
+}
+
+/** Une date du relevé sur sa ligne : le sélecteur natif, peint du fond de la ligne, puis [bouton]
+ *  (le « ＋ » ou le « ✕ » de la date de fin). */
+@Composable
+private fun LigneDateIos(millis: Long, heures: Boolean, onChange: (Long) -> Unit, bouton: @Composable () -> Unit) {
+    LigneIos {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            ChampDateHeure(millis, heures, onChange, Modifier.weight(1f), fondIos = FOND_LIGNE_FEUILLE_IOS)
+            bouton()
+        }
+    }
 }
 
 /** Habitat : `AutocompleteField` au style système de HabitatPicker (loupe, champ nu, roue pendant
- *  la recherche), les résultats déroulés dessous tant que le champ a le focus. */
+ *  la recherche) sur sa ligne, les résultats en lignes dessous tant que le champ a le focus. */
 @Composable
-private fun ChampHabitatIos(e: EtatDetailsReleve) {
+private fun LignesHabitatIos(e: EtatDetailsReleve) {
     val focus = LocalFocusManager.current
     val interactions = remember { MutableInteractionSource() }
     val focalise by interactions.collectIsFocusedAsState()
@@ -579,7 +591,7 @@ private fun ChampHabitatIos(e: EtatDetailsReleve) {
             }
         }
     }
-    Column {
+    LigneIos {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SymboleSf("magnifyingglass", 17f, listOf(SECONDAIRE_IOS))
             BasicTextField(
@@ -600,28 +612,18 @@ private fun ChampHabitatIos(e: EtatDetailsReleve) {
             )
             if (e.rechercheHabitat) IndicateurActivite(Color.White, petitIos = true)
         }
-        if (focalise && e.habitatsDeroules && e.habitats.isNotEmpty()) {
-            LazyColumn(
-                Modifier
-                    .padding(top = 4.dp)
-                    .heightIn(max = 200.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color.Gray.copy(alpha = 0.12f)),
-            ) {
-                itemsIndexed(e.habitats.toList()) { i, h ->
-                    Text(
-                        h.libelle,
-                        fontSize = 14.sp,
-                        color = Color.White,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                e.choisirHabitat(h)
-                                focus.clearFocus()
-                            }
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                    )
-                    if (i < e.habitats.lastIndex) Box(Modifier.fillMaxWidth().height(0.5.dp).background(Color.Gray.copy(alpha = 0.3f)))
+    }
+    if (focalise && e.habitatsDeroules && e.habitats.isNotEmpty()) {
+        LazyColumn(Modifier.heightIn(max = 220.dp)) {
+            items(e.habitats.toList()) { h ->
+                Column {
+                    SeparateurIos(Modifier.padding(start = 16.dp))
+                    LigneIos(Modifier.clickable {
+                        e.choisirHabitat(h)
+                        focus.clearFocus()
+                    }) {
+                        Text(h.libelle, fontSize = 17.sp, color = Color.White)
+                    }
                 }
             }
         }

@@ -185,7 +185,7 @@ class SaisieMono(
     }
 
     companion object {
-        const val LIBELLE = "Saisie mono-taxons"
+        const val LIBELLE = "Saisie mono-taxon"
 
         /** La consigne au-dessus de la carte. */
         const val CONSIGNE = "Touchez pour placer le point · appui long pour le déplacer"

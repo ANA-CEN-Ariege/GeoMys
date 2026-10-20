@@ -84,7 +84,7 @@ class CarteOccHabEmpriseTest {
 
     @Test
     fun le_chargement_des_stations_serveur_a_l_ouverture_ne_touche_pas_a_l_emprise() {
-        val session = vm { SessionOccHabViewModel(services) }
+        val session = vm { SessionOccHabViewModel() }
         val saisie = runBlocking { services.occHabStore.charger() }.first { it.id == "essai-occhab-a-envoyer" }
         // Saisie reprise au JDD connu : la carte charge ses stations serveur dès l'ouverture.
         session.session.reprendreSaisie(saisie)
@@ -102,7 +102,7 @@ class CarteOccHabEmpriseTest {
 
     @Test
     fun ajouter_une_station_charge_les_stations_du_jdd_sans_toucher_a_l_emprise() {
-        val session = vm { SessionOccHabViewModel(services) }
+        val session = vm { SessionOccHabViewModel() }
         session.session.demarrerSession(detailsSessionParDefaut(services.config))
         val carte = vm { CarteOccHabViewModel(services, session) }
         carte.ouverture()

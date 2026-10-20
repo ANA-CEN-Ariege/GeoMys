@@ -22,31 +22,11 @@
 package fr.ariegenature.geomys.ui.occhab
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import fr.ariegenature.geomys.ServicesGeoNature
 import fr.ariegenature.geomys.occhab.SessionOccHab
-import fr.ariegenature.geomys.occhab.altitudesMnt
-import kotlinx.coroutines.launch
 
-/** La session de saisie OccHab ([SessionOccHab]), partagée par les écrans OccHab. */
-class SessionOccHabViewModel(private val services: ServicesGeoNature) : ViewModel() {
+/** La session de saisie OccHab ([SessionOccHab]), partagée par les écrans OccHab. Les altitudes du MNT
+ *  ne sont plus demandées au serveur à chaque géométrie, mais à l'envoi (`EnvoiOccHab`) : les écrans
+ *  ne demandent rien au serveur (décision de l'utilisateur du 20 octobre). */
+class SessionOccHabViewModel : ViewModel() {
     val session = SessionOccHab()
-
-    /** Remplit les altitudes min/max de la station courante via le MNT du serveur. Lancé dans la
-     *  portée de la SESSION : la réponse arrive généralement APRÈS la navigation vers l'écran de la
-     *  station — celle de la carte serait annulée. À l'arrivée, ne touche la session que si la
-     *  station courante est TOUJOURS celle du lancement, et reporte dans le store si la station y
-     *  est déjà (réédition persistée à « Valider », ou 1er habitat validé entre-temps) ; sinon les
-     *  altitudes partiront avec la prochaine persistance de la station. */
-    fun remplirAltitudes() {
-        val station = session.station
-        val saisieId = session.saisieId
-        viewModelScope.launch {
-            val (min, max) = services.altitudesMnt(station) ?: return@launch
-            if (session.station.id == station.id) session.definirAltitudes(min, max)
-            services.occHabStore.stationsDeSaisie(saisieId).firstOrNull { it.id == station.id }?.let {
-                services.occHabStore.upsertStation(saisieId, it.copy(altitudeMin = min, altitudeMax = max))
-            }
-        }
-    }
 }

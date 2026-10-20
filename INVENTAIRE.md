@@ -381,18 +381,19 @@ GeoMys-Common remplacera les deux applications : il faut une seule règle par su
 | Altitudes OccHab (MNT) | présentes | absentes | Android |
 | Protection des envois en arrière-plan | aucune | `beginBackgroundTask` | iOS (`ExecutionLongue` pour les deux) |
 | Passerelle saisie multi → mono | supprimée le 17 octobre (décision produit) | encore présente (appui long sur ➕) | Android |
-| JDD et `id_digitiser` des formulaires Monitoring | option unique auto-sélectionnée ; `id_digitiser` posé à l'envoi | JDD OccTax présélectionné ; `id_digitiser` posé à l'ouverture | à trancher |
+| JDD et `id_digitiser` des formulaires Monitoring | option unique auto-sélectionnée ; `id_digitiser` posé à l'envoi | JDD OccTax présélectionné ; `id_digitiser` posé à l'ouverture | **Android** (tranché le 20 octobre : GeoMys-Android fait référence) |
 | Date des « Détails communs » | toujours posée (§ 8.2, n° 4) | posée seulement si modifiée | iOS |
-| Nord de la boussole | magnétique | géographique | à trancher (géographique conseillé) |
+| Nord de la boussole | magnétique | géographique | **magnétique**, comme Android (tranché le 20 octobre ; sous iOS, le cap magnétique de `CLHeading`) |
 | Dessin OccHab : tap sur une station voisine | la sélection gagne (le tracé est abandonné) | l'aimantage gagne | iOS |
 | Arrêt du GPS en quittant la saisie | sur 7 destinations (multi et mono) | seulement en quittant la carte multi | Android |
-| Liste des protocoles Monitoring | interroge le serveur à chaque ouverture | cache d'abord | à trancher |
+| Liste des protocoles Monitoring | interroge le serveur à chaque ouverture | cache d'abord | **iOS : le cache d'abord** (tranché le 20 octobre : la liste de la dernière synchro) |
+| Données affichées (sites, fiches, schémas, listes, stations OccHab, habitats) | le serveur d'abord, le cache en repli | le cache d'abord | **le cache seulement** (tranché le 20 octobre : rien n'est téléchargé hors synchro, ce que l'appli envoie est reporté dans le cache ; [`LOT-9.md`](LOT-9.md) § 11) |
 | `http://` | accepté, avec avertissement | refusé (ATS) | à trancher (§ 11) |
 | Clavier numérique | décimales et négatifs possibles | `numberPad` : ni décimale ni signe moins (défaut iOS) | Android |
 
-**Au lot 6.** Les sujets OccTax suivent la proposition : pas de passerelle multi → mono, GPS arrêté en quittant les sept écrans de saisie, clavier numérique d'Android (champs additionnels : signe moins et virgule, sous iOS par le clavier chiffres et ponctuation). La date des « Détails communs » et le nord de la boussole reproduisent Android en attendant la décision ([`LOT-6.md`](LOT-6.md) § 6) ; la date suit la proposition depuis le lot 8.
+**Au lot 6.** Les sujets OccTax suivent la proposition : pas de passerelle multi → mono, GPS arrêté en quittant les sept écrans de saisie, clavier numérique d'Android (champs additionnels : signe moins et virgule, sous iOS par le clavier chiffres et ponctuation). La date des « Détails communs » et le nord de la boussole reproduisent Android en attendant la décision ([`LOT-6.md`](LOT-6.md) § 6) ; la date suit la proposition depuis le lot 8. Le nord magnétique est confirmé le 20 octobre : sous iOS, la boussole suivait en fait le nord géographique dès que la position était connue (le cap de maplibre-compose) ; elle lit maintenant le cap magnétique ([`LOT-9.md`](LOT-9.md) § 11).
 
-**Au lot 7.** Les sujets Monitoring reproduisent Android en attendant la décision : la liste des protocoles interroge le serveur à chaque ouverture, le cache prenant le relais hors ligne ; un jeu de données seul est choisi d'office, et `id_digitiser` est posé à l'envoi. Le clavier des champs nombre suit la proposition : signé sous Android, chiffres et ponctuation sous iOS ([`LOT-7.md`](LOT-7.md) § 2 et 5).
+**Au lot 7.** Les sujets Monitoring reproduisaient Android. Décisions du 20 octobre : un jeu de données seul est choisi d'office et `id_digitiser` est posé à l'envoi, comme sous Android ; la liste des protocoles se lit dans le cache de la dernière synchro, comme sous iOS ; plus généralement, les écrans ne lisent que le cache, rien n'est téléchargé hors synchro et ce que l'appli envoie y est reporté ([`LOT-9.md`](LOT-9.md) § 11). Le clavier des champs nombre suit la proposition : signé sous Android, chiffres et ponctuation sous iOS ([`LOT-7.md`](LOT-7.md) § 2 et 5).
 
 **Au lot 8.** Les sujets OccHab suivent la proposition : pendant le dessin d'une nouvelle géométrie, l'aimantage à un sommet voisin (44 dp) passe avant la sélection de la station touchée ; les altitudes MNT sont reprises d'Android ([`LOT-8.md`](LOT-8.md) § 5). La date des « Détails communs » la suit aussi, avec la correction du défaut n° 4 : elle n'est retenue que modifiée.
 

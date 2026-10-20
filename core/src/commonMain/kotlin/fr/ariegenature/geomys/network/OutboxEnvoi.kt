@@ -57,6 +57,7 @@ class OutboxEnvoi(
     private val outbox: OutboxMonitoring,
     private val monitoringEnvoi: MonitoringEnvoi,
     private val upload: GeoNatureUpload,
+    private val objets: MonitoringObjets,
 ) {
 
     data class Resultat(val succes: Int, val echecs: Int, val messages: List<String>)
@@ -266,6 +267,7 @@ class OutboxEnvoi(
                         // L'objet est créé côté serveur → ses enfants sont débloqués dans tous les cas
                         // (même si ses médias ont échoué) → nouveau tour de boucle.
                         nouvelleVagueSucces = true
+                        reporterDansLeCache(saisieAJour, envoi.idServeur)
                         // Résout la clé de TOUS les enfants pointant ce parent local — y compris ceux
                         // qui ne sont pas traités dans cet envoi (ex. en erreur d'un envoi précédent).
                         // parentUuidLocal est conservé : il porte le groupement visuel et protège le
@@ -526,6 +528,25 @@ class OutboxEnvoi(
             throw e
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    /** L'objet [s] créé sur le serveur sous l'id [id], reporté dans le cache des Suivis pour que la
+     *  fiche de son parent le montre sans attendre la synchro suivante (décision de l'utilisateur du
+     *  20 octobre : ce que l'appli modifie est répercuté dans le cache). Ses propriétés : les valeurs
+     *  envoyées, avec la clé de son parent et son uuid client. Un échec n'affecte pas l'envoi : la
+     *  synchro suivante l'apportera. */
+    private fun reporterDansLeCache(s: SaisieEnAttente, id: Int) {
+        try {
+            val proprietes = JSONObject(s.valeursJson)
+            val idParent = s.parentIdServeur ?: -1
+            if (!s.parentIdField.isNullOrEmpty() && idParent > 0) proprietes.put(s.parentIdField, idParent)
+            if (!s.uuidFieldName.isNullOrEmpty() && !s.uuidPayload.isNullOrEmpty()) proprietes.put(s.uuidFieldName, s.uuidPayload)
+            objets.reporterObjetCree(s.moduleCode, s.objectType, id, proprietes, null, s.parentObjectType, idParent)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Journal.w(TAG, "${s.objectType} #$id envoyé mais pas reporté dans le cache : ${e.message}")
         }
     }
 

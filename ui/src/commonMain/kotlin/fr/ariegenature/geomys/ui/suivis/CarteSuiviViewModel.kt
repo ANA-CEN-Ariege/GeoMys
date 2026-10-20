@@ -34,12 +34,12 @@ import fr.ariegenature.geomys.carte.chargerFondChoisi
 import fr.ariegenature.geomys.carte.enregistrerFondChoisi
 import fr.ariegenature.geomys.geo.Emprise
 import fr.ariegenature.geomys.monitoring.ActionCarte
+import fr.ariegenature.geomys.monitoring.AffichageSuivis
 import fr.ariegenature.geomys.monitoring.CarteSuivis
 import fr.ariegenature.geomys.monitoring.FilSegment
 import fr.ariegenature.geomys.monitoring.ObjetCarte
 import fr.ariegenature.geomys.network.MonitoringApi.MonitoringEnfant
 import fr.ariegenature.geomys.network.MonitoringApi.MonitoringSchemaObjet
-import fr.ariegenature.geomys.network.humaniserErreurReseau
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
@@ -96,26 +96,26 @@ class CarteSuiviViewModel(
         viewModelScope.launch { if (objectType == "module") chargerProtocole() else chargerObjet() }
     }
 
-    /** La géométrie d'un enfant : l'API ne la donne pas toujours avec la liste, il faut alors
-     *  charger l'enfant lui-même (au mieux : un échec isolé ne prive pas la carte du reste). */
+    /** La géométrie d'un enfant : l'API ne la donne pas toujours avec la liste, elle est alors lue
+     *  dans sa fiche en cache (au mieux : une fiche absente ne prive pas la carte du reste). */
     private suspend fun geometries(enfants: List<Pair<String, MonitoringEnfant>>): List<Triple<String, MonitoringEnfant, String?>> = coroutineScope {
-        val config = services.config
         enfants.map { (type, e) ->
             async {
                 val geo = e.geometrieGeoJson?.takeIf { it.isNotEmpty() }
-                    ?: resultat { services.monitoring.chargerObjet(config, moduleCode, type, e.id).geometrieGeoJson }.getOrNull()
+                    ?: resultat { services.monitoring.lireObjet(moduleCode, type, e.id)?.geometrieGeoJson }.getOrNull()
                 Triple(type, e, geo)
             }
         }.awaitAll()
     }
 
-    /** La carte d'un objet : sa géométrie, puis celles de ses enfants. */
+    /** La carte d'un objet : sa géométrie, puis celles de ses enfants. Tout vient du cache de la
+     *  synchro, rien n'est demandé au serveur (décision de l'utilisateur du 20 octobre). */
     private suspend fun chargerObjet() = coroutineScope {
-        val config = services.config
-        val schemaAttendu = async { resultat { services.monitoring.chargerSchemaProtocole(config, moduleCode) }.getOrNull() }
-        val objet = resultat { services.monitoring.chargerObjet(config, moduleCode, objectType, id) }.getOrElse { e ->
+        val schemaAttendu = async { resultat { services.monitoring.lireSchemaProtocole(moduleCode) }.getOrNull() }
+        val objet = resultat { services.monitoring.lireObjet(moduleCode, objectType, id) }.getOrNull()
+        if (objet == null) {
             chargement = false
-            erreur = humaniserErreurReseau(e)
+            erreur = AffichageSuivis.FICHE_HORS_CACHE
             return@coroutineScope
         }
         schema = schemaAttendu.await()
@@ -136,15 +136,15 @@ class CarteSuiviViewModel(
         terminer(listOf(principal) + enfants.mapNotNull { (type, e, gj) -> lireObjet(type, e, gj, enfant = true) })
     }
 
-    /** La carte d'un protocole : ses sites « macro ». */
+    /** La carte d'un protocole : ses sites « macro », depuis le cache. */
     private suspend fun chargerProtocole() {
-        val config = services.config
-        val parType = resultat { services.monitoring.chargerEnfants(config, moduleCode) }.getOrElse { e ->
+        val parType = resultat { services.monitoring.lireEnfants(moduleCode) }.getOrNull()
+        if (parType == null) {
             chargement = false
-            erreur = humaniserErreurReseau(e)
+            erreur = AffichageSuivis.PROTOCOLE_HORS_CACHE
             return
         }
-        schema = resultat { services.monitoring.chargerSchemaProtocole(config, moduleCode) }.getOrNull()
+        schema = resultat { services.monitoring.lireSchemaProtocole(moduleCode) }.getOrNull()
         val aCharger = CarteSuivis.typesMacro(parType.keys.toList(), schema).flatMap { type -> parType[type].orEmpty().map { type to it } }
         if (aCharger.isEmpty()) {
             chargement = false

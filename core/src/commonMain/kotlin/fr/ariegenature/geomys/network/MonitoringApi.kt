@@ -33,19 +33,24 @@ class MonitoringApi(
     private val datalists: MonitoringDatalists,
 ) {
 
-    /** Vide les caches mémoire process-wide (liste de modules + LabelResolver par module).
-     *  À appeler quand l'URL/login/mdp serveur changent — sinon on continue à servir des
-     *  modules et des résolutions de nomenclatures du serveur précédent. Le cache disque
-     *  ([MonitoringCache]) n'est pas touché : il est versionné par module_code et reste
-     *  valide tant que l'utilisateur ne change pas de serveur. */
+    /** Vide le cache mémoire process-wide de la liste des modules. À appeler quand
+     *  l'URL/login/mdp serveur changent — sinon on continue à servir les modules du serveur
+     *  précédent. Le cache disque ([MonitoringCache]) n'est pas touché : il est versionné par
+     *  module_code et reste valide tant que l'utilisateur ne change pas de serveur. */
     fun invaliderCaches() {
         modules.invaliderCacheMemoire()
-        datalists.invaliderCacheMemoire()
     }
 
     /** Voir [MonitoringModules.chargerModules]. */
     suspend fun chargerModules(config: GeoNatureConfig): List<MonitoringModule> =
         modules.chargerModules(config)
+
+    /** Voir [MonitoringModules.chargerModulesDepuisCache]. */
+    suspend fun chargerModulesDepuisCache(): List<MonitoringModule>? = modules.chargerModulesDepuisCache()
+
+    /** Voir [MonitoringObjets.lireObjetDepuisParent]. */
+    suspend fun lireObjetDepuisParent(moduleCode: String, objectType: String, id: Int, parentType: String?, parentId: Int): MonitoringObjet? =
+        objets.lireObjetDepuisParent(moduleCode, objectType, id, parentType, parentId)
 
     /** Un enfant (site, sites_group, …) d'un module monitoring : id technique + nom "best-effort"
      *  extrait à la volée + map plate des propriétés strings (pour ré-extraire le nom côté UI
@@ -249,6 +254,9 @@ class MonitoringApi(
     suspend fun chargerEnfants(config: GeoNatureConfig, moduleCode: String): Map<String, List<MonitoringEnfant>> =
         objets.chargerEnfants(config, moduleCode)
 
+    /** Voir [MonitoringObjets.lireEnfants]. */
+    suspend fun lireEnfants(moduleCode: String): Map<String, List<MonitoringEnfant>>? = objets.lireEnfants(moduleCode)
+
     /** Un objet monitoring complet : type + id + propriétés plates + enfants directs (1 niveau).
      *  Sert pour les fiches site/visite/observation, toutes pilotées par le même renderer
      *  générique côté UI.
@@ -262,6 +270,9 @@ class MonitoringApi(
         val enfants: Map<String, List<MonitoringEnfant>>,
         val geometrie: String?,
         val geometrieGeoJson: String?,
+        /** Faux pour une fiche reconstituée depuis sa ligne chez son parent : ses enfants (les
+         *  observations d'une visite passée) ne sont pas dans le cache, [enfants] est vide. */
+        val enfantsConnus: Boolean = true,
     )
 
     /** Voir [MonitoringObjets.chargerObjet]. */
@@ -272,9 +283,17 @@ class MonitoringApi(
         id: Int,
     ): MonitoringObjet = objets.chargerObjet(config, moduleCode, objectType, id)
 
+    /** Voir [MonitoringObjets.lireObjet]. */
+    suspend fun lireObjet(moduleCode: String, objectType: String, id: Int): MonitoringObjet? =
+        objets.lireObjet(moduleCode, objectType, id)
+
     /** Voir [MonitoringSchemas.chargerSchemaProtocole]. */
     suspend fun chargerSchemaProtocole(config: GeoNatureConfig, moduleCode: String): Map<String, MonitoringSchemaObjet>? =
         schemas.chargerSchemaProtocole(config, moduleCode)
+
+    /** Voir [MonitoringSchemas.lireSchemaProtocole]. */
+    suspend fun lireSchemaProtocole(moduleCode: String): Map<String, MonitoringSchemaObjet>? =
+        schemas.lireSchemaProtocole(moduleCode)
 
     /** Une option de datalist fetchée depuis l'API serveur. `cdNomenclature`/`labelDefaut`
      *  permettent de résoudre les valeurs par défaut déclarées dans le schéma
@@ -291,5 +310,9 @@ class MonitoringApi(
         config: GeoNatureConfig,
         prop: MonitoringPropertySchema,
     ): List<OptionDatalist>? = datalists.chargerOptionsDatalist(config, prop)
+
+    /** Voir [MonitoringDatalists.lireOptionsDatalist]. */
+    suspend fun lireOptionsDatalist(config: GeoNatureConfig, prop: MonitoringPropertySchema): List<OptionDatalist>? =
+        datalists.lireOptionsDatalist(config, prop)
 
 }

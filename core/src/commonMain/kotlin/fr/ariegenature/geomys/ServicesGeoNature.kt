@@ -43,6 +43,7 @@ import fr.ariegenature.geomys.network.OutboxEnvoi
 import fr.ariegenature.geomys.network.SyncRunner
 import fr.ariegenature.geomys.network.TaxRefService
 import fr.ariegenature.geomys.network.VerificationConnexion
+import fr.ariegenature.geomys.occhab.altitudesMnt
 import fr.ariegenature.geomys.store.CachesSynchronises
 import fr.ariegenature.geomys.store.GeoNatureConfig
 import fr.ariegenature.geomys.store.HabitatCacheStore
@@ -124,7 +125,7 @@ class ServicesGeoNature(val socle: Socle) {
 
     val taxRefLocal = TaxRefLocal(taxRef, nomenclatures)
     val taxRefService = TaxRefService(taxRef, taxRefLocal)
-    val habitats = HabitatService(clients, habitatsOcctax, habitatsOccHab)
+    val habitats = HabitatService(habitatsOcctax, habitatsOccHab)
 
     // Réseau : navigation, champs additionnels, OccHab, synchro des référentiels.
     val browse = GeoNatureBrowse(auth, clients, taxRef)
@@ -140,23 +141,18 @@ class ServicesGeoNature(val socle: Socle) {
     val monitoring = MonitoringApi(monitoringModules, monitoringSchemas, monitoringObjets, monitoringDatalists)
     val monitoringSync = MonitoringSync(auth, monitoring, monitoringDatalists, pictos)
 
-    /** Le picto d'un protocole (`chargerImagePicto` de SuivisFragment) : celui du cache disque,
-     *  sinon téléchargé. La session déjà en cache sert si elle est encore fraîche ; un picto ne
-     *  déclenche aucune connexion (sans session, le téléchargement part sans authentification).
-     *  Rend son chemin, pour l'interface ; null si le protocole n'a pas d'image. */
-    suspend fun cheminPicto(moduleCode: String, modulePicto: String?): String? {
-        val base = config.urlServeur
-        val session = auth.sessionEnCache(base.trim().trimEnd('/'), config.login)
-        return pictos.fichierOuTelecharger(base, moduleCode, modulePicto, session?.first, session?.third)?.toString()
-    }
+    /** Le picto d'un protocole (`chargerImagePicto` de SuivisFragment) : celui que la synchro a mis
+     *  en cache, sans requête (décision de l'utilisateur du 20 octobre : rien n'est téléchargé hors
+     *  synchro). Rend son chemin, pour l'interface ; null si le protocole n'a pas d'image en cache. */
+    fun cheminPicto(moduleCode: String): String? = pictos.fichierLocal(moduleCode)?.toString()
 
     // Envois : OccTax (relevés, occurrences, médias), file des Suivis, OccHab.
     val upload = GeoNatureUpload(auth, clients, nomenclatures, geoNatureSync, relevesOrphelins, socle.systeme, dossierMedias)
     val envoiSortie = EnvoiSortie(upload, sortieStore)
-    val monitoringEnvoi = MonitoringEnvoi(auth, clients)
-    val outboxEnvoi = OutboxEnvoi(outbox, monitoringEnvoi, upload)
+    val monitoringEnvoi = MonitoringEnvoi(auth, clients, monitoringDatalists)
+    val outboxEnvoi = OutboxEnvoi(outbox, monitoringEnvoi, upload, monitoringObjets)
     val occHabUpload = OccHabUpload(auth, clients)
-    val envoiOccHab = EnvoiOccHab(occHabUpload, occHabStore, stationsServeur)
+    val envoiOccHab = EnvoiOccHab(occHabUpload, occHabStore, stationsServeur) { station -> altitudesMnt(station) }
 
     // Purges et synchro globale (« Recharger les données »).
     val cachesSynchronises = CachesSynchronises(

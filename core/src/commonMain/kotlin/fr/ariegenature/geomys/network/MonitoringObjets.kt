@@ -34,6 +34,8 @@ import fr.ariegenature.geomys.store.MonitoringCache
 import fr.ariegenature.geomys.util.formaterDecimal
 import io.ktor.client.statement.bodyAsText
 import kotlin.math.abs
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
@@ -51,11 +53,28 @@ class MonitoringObjets(
     private val cache: MonitoringCache,
 ) {
 
+    /** Le schéma en cache de chaque module, analysé une fois : (JSON brut, objet). Les libellés et
+     *  genres des types se lisent ligne à ligne (le « Nouvelle visite » de chaque site, les lignes de
+     *  « Mes visites ») ; analyser le schéma à chaque lecture coûtait 6 ms par ligne sous iOS, soit
+     *  2 s pour un protocole de 300 sites (mesuré le 20 octobre). Le JSON brut sert de clé :
+     *  [MonitoringCache] rend la même chaîne tant que le schéma n'est pas réécrit. */
+    private val schemasAnalyses = HashMap<String, Pair<String, JSONObject>>()
+    private val verrouSchemas = SynchronizedObject()
+
+    private fun schemaEnCache(moduleCode: String): JSONObject? {
+        val json = cache.getJson(cache.keySchema(moduleCode)) ?: return null
+        synchronized(verrouSchemas) { schemasAnalyses[moduleCode] }
+            ?.let { (brut, schema) -> if (brut === json) return schema }
+        val schema = try { JSONObject(json) } catch (_: Exception) { return null }
+        synchronized(verrouSchemas) { schemasAnalyses[moduleCode] = json to schema }
+        return schema
+    }
+
     /** GET /api/monitorings/object/<module_code>/module?depth=1 — récupère le module et la liste
      *  de ses enfants directs avec leurs propriétés brutes. Map `object_type → [enfants]`, map
      *  vide si aucun enfant. **Throw** [GNErreur.AuthEchouee] si l'auth tombe, et
      *  [GNErreur.EnvoiEchoue] avec le code HTTP sur 403/404/500 — l'appelant peut humaniser via
-     *  [humaniserErreurReseau]. */
+     *  [humaniserErreurReseau]. Réservé à la synchro : les écrans lisent le cache ([lireEnfants]). */
     suspend fun chargerEnfants(config: GeoNatureConfig, moduleCode: String): Map<String, List<MonitoringEnfant>> =
         withContext(Dispatchers.IO) {
             val base = config.urlServeur.trim().trimEnd('/')
@@ -83,25 +102,16 @@ class MonitoringObjets(
             val obj = try { JSONObject(text) } catch (_: Exception) {
                 throw GNErreur.EnvoiEchoue(0, "Enfants $moduleCode : JSON illisible")
             }
-            val children = obj.optJSONObject("children") ?: return@withContext emptyMap<String, List<MonitoringEnfant>>()
-            val result = linkedMapOf<String, List<MonitoringEnfant>>()
-            val it = children.keys()
-            while (it.hasNext()) {
-                val type = it.next()
-                val arr = children.optJSONArray(type) ?: continue
-                val liste = mutableListOf<MonitoringEnfant>()
-                for (i in 0 until arr.length()) {
-                    val item = arr.optJSONObject(i) ?: continue
-                    val id = item.optInt("id", item.optInt("${type}_id", -1))
-                    val props = item.optJSONObject("properties")
-                    val proprietesPlates = aplatirProprietes(props)
-                    val nom = extraireNomHeuristique(proprietesPlates, type, id)
-                    val geoJson = item.optJSONObject("geometry")?.toString()
-                    liste.add(MonitoringEnfant(id, nom, proprietesPlates, geoJson))
-                }
-                result[type] = liste
-            }
-            result
+            enfantsDe(obj)
+        }
+
+    /** Les enfants directs du module pour les écrans : ceux que la synchro a mis en cache, sans
+     *  requête (décision de l'utilisateur du 20 octobre : rien n'est téléchargé hors synchro).
+     *  Null s'ils n'y sont pas : protocole jamais synchronisé. */
+    suspend fun lireEnfants(moduleCode: String): Map<String, List<MonitoringEnfant>>? =
+        withContext(Dispatchers.IO) {
+            val json = cache.getJson(cache.keyEnfants(moduleCode)) ?: return@withContext null
+            try { enfantsDe(JSONObject(json)) } catch (_: Exception) { null }
         }
 
     /** Résout le label "humain" d'un objet serveur à partir de la fiche en cache local.
@@ -124,22 +134,15 @@ class MonitoringObjets(
      *  "Site", "Station", "Visite"). Retourne null si le schéma n'est pas en cache ou si le
      *  type n'a pas de label déclaré. Pas d'appel réseau. */
     fun labelTypeEnCache(moduleCode: String, type: String): String? {
-        val json = cache.getJson(cache.keySchema(moduleCode)) ?: return null
-        return try {
-            val v = JSONObject(json).optJSONObject(type) ?: return null
-            v.optString("label", "").takeIf { it.isNotEmpty() }
-                ?: v.optString("label_list", "").takeIf { it.isNotEmpty() }
-        } catch (_: Exception) { null }
+        val v = schemaEnCache(moduleCode)?.optJSONObject(type) ?: return null
+        return v.optString("label", "").takeIf { it.isNotEmpty() }
+            ?: v.optString("label_list", "").takeIf { it.isNotEmpty() }
     }
 
     /** Lit dans le schéma cache de [moduleCode] le `genre` ("M"/"F") d'un type d'objet, pour
      *  accorder les phrases (« cette visite » / « ce passage »). Null si absent. Pas de réseau. */
-    fun genreTypeEnCache(moduleCode: String, type: String): String? {
-        val json = cache.getJson(cache.keySchema(moduleCode)) ?: return null
-        return try {
-            JSONObject(json).optJSONObject(type)?.optString("genre", "")?.takeIf { it.isNotEmpty() }
-        } catch (_: Exception) { null }
-    }
+    fun genreTypeEnCache(moduleCode: String, type: String): String? =
+        schemaEnCache(moduleCode)?.optJSONObject(type)?.optString("genre", "")?.takeIf { it.isNotEmpty() }
 
     /** Libellé d'action « Nouvelle visite » / « Nouveau passage » / « Nouvel inventaire » pour
      *  créer un objet de type [type] dans [moduleCode], accordé au genre déclaré par le schéma
@@ -160,18 +163,15 @@ class MonitoringObjets(
      *  n'a pas de parent. L'idFieldName est porté par le SCHÉMA DU PARENT — c'est le nom de
      *  la propriété qui contient l'id du parent dans la fiche enfant. */
     private fun parentTypeEtIdField(moduleCode: String, type: String): Pair<String, String>? {
-        val json = cache.getJson(cache.keySchema(moduleCode)) ?: return null
-        return try {
-            val schema = JSONObject(json)
-            val v = schema.optJSONObject(type) ?: return null
-            val parentType = v.optString("parent_type", "")
-                .ifEmpty { v.optJSONArray("parent_types")?.optString(0, "").orEmpty() }
-                .takeIf { it.isNotEmpty() } ?: return null
-            val parentObj = schema.optJSONObject(parentType) ?: return null
-            val idField = parentObj.optString("id_field_name", "")
-                .takeIf { it.isNotEmpty() } ?: return null
-            parentType to idField
-        } catch (_: Exception) { null }
+        val schema = schemaEnCache(moduleCode) ?: return null
+        val v = schema.optJSONObject(type) ?: return null
+        val parentType = v.optString("parent_type", "")
+            .ifEmpty { v.optJSONArray("parent_types")?.optString(0, "").orEmpty() }
+            .takeIf { it.isNotEmpty() } ?: return null
+        val parentObj = schema.optJSONObject(parentType) ?: return null
+        val idField = parentObj.optString("id_field_name", "")
+            .takeIf { it.isNotEmpty() } ?: return null
+        return parentType to idField
     }
 
     /** Remonte la chaîne des ancêtres serveur d'un objet en s'appuyant uniquement sur le
@@ -210,7 +210,10 @@ class MonitoringObjets(
     /** GET /api/monitorings/object/<module_code>/<object_type>/<id>?depth=1 — fiche d'un objet
      *  (site, visite, observation, …) avec ses propriétés et ses enfants directs.
      *  **Throw** [GNErreur.AuthEchouee] sur défaut d'auth, [GNErreur.EnvoiEchoue] sur HTTP != 200
-     *  ou parse cassé (le code est ainsi exploitable côté UI pour humaniser le message). */
+     *  ou parse cassé (le code est ainsi exploitable côté UI pour humaniser le message). Réservé à
+     *  la synchro, et à la fiche d'une saisie (visite, observation), que la synchro ne charge pas :
+     *  ouverte avec du réseau, elle se met à jour ainsi après s'être affichée depuis le cache
+     *  (demande de l'utilisateur du 20 octobre). Les autres écrans lisent le cache ([lireObjet]). */
     suspend fun chargerObjet(
         config: GeoNatureConfig,
         moduleCode: String,
@@ -243,38 +246,117 @@ class MonitoringObjets(
             val obj = try { JSONObject(text) } catch (_: Exception) {
                 throw GNErreur.EnvoiEchoue(0, "$objectType #$id : JSON illisible")
             }
-            val proprietes = aplatirProprietes(obj.optJSONObject("properties"))
-            val enfants = linkedMapOf<String, List<MonitoringEnfant>>()
-            obj.optJSONObject("children")?.let { childrenObj ->
-                val it = childrenObj.keys()
-                while (it.hasNext()) {
-                    val ctype = it.next()
-                    val arr = childrenObj.optJSONArray(ctype) ?: continue
-                    val liste = mutableListOf<MonitoringEnfant>()
-                    for (i in 0 until arr.length()) {
-                        val item = arr.optJSONObject(i) ?: continue
-                        val cid = item.optInt("id", item.optInt("${ctype}_id", -1))
-                        val cprops = aplatirProprietes(item.optJSONObject("properties"))
-                        val cnom = extraireNomHeuristique(cprops, ctype, cid)
-                        val cgeo = item.optJSONObject("geometry")?.toString()
-                        liste.add(MonitoringEnfant(cid, cnom, cprops, cgeo))
-                    }
-                    enfants[ctype] = liste
+            objetDe(obj, moduleCode, objectType, id)
+        }
+
+    /** La fiche d'un objet pour les écrans : celle que la synchro (ou un envoi, cf.
+     *  [reporterObjetCree]) a mise en cache, sans requête. Null si elle n'y est pas : la synchro ne
+     *  charge que les objets structurels (sites, groupes…), pas l'historique des visites. */
+    suspend fun lireObjet(moduleCode: String, objectType: String, id: Int): MonitoringObjet? =
+        withContext(Dispatchers.IO) {
+            val json = cache.getJson(cache.keyObjet(moduleCode, objectType, id)) ?: return@withContext null
+            try { objetDe(JSONObject(json), moduleCode, objectType, id) } catch (_: Exception) { null }
+        }
+
+    /** La fiche d'un objet absent du cache, reconstituée depuis sa ligne chez son parent ([parentType]
+     *  null : le module) : ses propriétés et sa géométrie, sans ses enfants, que la synchro ne charge
+     *  pas (une visite passée et ses observations). Null si le parent n'est pas en cache ou ne la
+     *  porte pas. */
+    suspend fun lireObjetDepuisParent(
+        moduleCode: String,
+        objectType: String,
+        id: Int,
+        parentType: String?,
+        parentId: Int,
+    ): MonitoringObjet? = withContext(Dispatchers.IO) {
+        val parent = cache.getJson(cleParent(moduleCode, parentType, parentId) ?: return@withContext null)
+            ?.let { runCatching { JSONObject(it) }.getOrNull() }
+            ?: return@withContext null
+        val ligne = parent.optJSONObject("children")?.optJSONArray(objectType)?.let { lignes ->
+            (0 until lignes.length()).mapNotNull { lignes.optJSONObject(it) }
+                .firstOrNull { it.optInt("id", it.optInt("${objectType}_id", -1)) == id }
+        } ?: return@withContext null
+        objetDe(ligne, moduleCode, objectType, id).copy(enfants = emptyMap(), enfantsConnus = false)
+    }
+
+    /** Reporte dans le cache un objet que l'appli vient de créer sur le serveur (visite, observation…),
+     *  pour que les écrans le montrent sans attendre la synchro suivante (décision de l'utilisateur
+     *  du 20 octobre : ce que l'appli modifie est répercuté dans le cache) : sa fiche, sans enfants,
+     *  si elle n'y est pas déjà, et sa ligne parmi les enfants de son parent ([parentType] null ou
+     *  « module » : les enfants directs du protocole), remplacée si elle y est déjà (nouvel essai).
+     *  [proprietes] et [geometrie] : l'objet tel qu'il a été envoyé. Un parent absent du cache est
+     *  laissé tel quel. */
+    fun reporterObjetCree(
+        moduleCode: String,
+        objectType: String,
+        id: Int,
+        proprietes: JSONObject,
+        geometrie: JSONObject?,
+        parentType: String?,
+        parentId: Int,
+    ) {
+        if (id <= 0) return
+        fun ligne() = JSONObject().put("id", id).put("properties", proprietes).also { o ->
+            if (geometrie != null) o.put("geometry", geometrie)
+        }
+        val cleFiche = cache.keyObjet(moduleCode, objectType, id)
+        if (cache.getJson(cleFiche) == null) {
+            cache.setJson(cleFiche, ligne().put("object_type", objectType).put("children", JSONObject()).toString())
+        }
+        val cle = cleParent(moduleCode, parentType, parentId) ?: return
+        val parent = cache.getJson(cle)?.let { runCatching { JSONObject(it) }.getOrNull() } ?: return
+        val enfants = parent.optJSONObject("children") ?: JSONObject().also { parent.put("children", it) }
+        val lignes = enfants.optJSONArray(objectType) ?: JSONArray().also { enfants.put(objectType, it) }
+        val rang = (0 until lignes.length()).firstOrNull { lignes.optJSONObject(it)?.optInt("id", -1) == id }
+        if (rang != null) lignes.put(rang, ligne()) else lignes.put(ligne())
+        cache.setJson(cle, parent.toString())
+    }
+
+    /** Le fichier du cache qui porte les enfants d'un parent : la fiche de l'objet, ou les enfants
+     *  directs du module ([parentType] null ou « module »). */
+    private fun cleParent(moduleCode: String, parentType: String?, parentId: Int): String? = when {
+        parentType == null || parentType == "module" -> cache.keyEnfants(moduleCode)
+        parentId > 0 -> cache.keyObjet(moduleCode, parentType, parentId)
+        else -> null
+    }
+
+    companion object {
+
+        /** Les enfants directs d'un objet ou du module (`children`), par type, dans l'ordre du JSON. */
+        internal fun enfantsDe(obj: JSONObject): Map<String, List<MonitoringEnfant>> {
+            val children = obj.optJSONObject("children") ?: return emptyMap()
+            val result = linkedMapOf<String, List<MonitoringEnfant>>()
+            val it = children.keys()
+            while (it.hasNext()) {
+                val type = it.next()
+                val arr = children.optJSONArray(type) ?: continue
+                val liste = mutableListOf<MonitoringEnfant>()
+                for (i in 0 until arr.length()) {
+                    val item = arr.optJSONObject(i) ?: continue
+                    val id = item.optInt("id", item.optInt("${type}_id", -1))
+                    val proprietes = aplatirProprietes(item.optJSONObject("properties"))
+                    val nom = extraireNomHeuristique(proprietes, type, id)
+                    val geoJson = item.optJSONObject("geometry")?.toString()
+                    liste.add(MonitoringEnfant(id, nom, proprietes, geoJson))
                 }
+                result[type] = liste
             }
+            return result
+        }
+
+        /** La fiche d'un objet : ses propriétés, ses enfants directs et sa géométrie. */
+        internal fun objetDe(obj: JSONObject, moduleCode: String, objectType: String, id: Int): MonitoringObjet {
             val geoObj = obj.optJSONObject("geometry")
-            MonitoringObjet(
+            return MonitoringObjet(
                 type = objectType,
                 id = id,
                 moduleCode = moduleCode,
-                proprietes = proprietes,
-                enfants = enfants,
+                proprietes = aplatirProprietes(obj.optJSONObject("properties")),
+                enfants = enfantsDe(obj),
                 geometrie = formatGeometrie(geoObj),
                 geometrieGeoJson = geoObj?.toString(),
             )
         }
-
-    companion object {
 
         /** Aplatit le bloc `properties` d'un objet monitoring en `Map<String, String>`. Filtre les
          *  valeurs null/objets/tableaux : on garde uniquement les scalaires (string, number, bool)

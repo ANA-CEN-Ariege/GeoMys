@@ -112,6 +112,9 @@ import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.afficher
 import fr.ariegenature.geomys.ui.composants.estIos
+import fr.ariegenature.geomys.ui.occtax.BLEU_APPUYE
+import fr.ariegenature.geomys.ui.occtax.BoutonRondAndroid
+import fr.ariegenature.geomys.ui.occtax.BoutonRondIos
 import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.ui.ressources.coche
 import fr.ariegenature.geomys.ui.ressources.ic_add
@@ -584,28 +587,39 @@ private fun BoutonMode(mode: ModeGeometrie, vm: CarteOccHabViewModel, descriptio
     }
 }
 
-/** Panneau du bas (Android, `panel_bg`) : « Ajouter une station » en consultation ; « Annuler »
- *  et « Valider » en création. */
+/** Le bas de la carte (Android). En consultation, le « + » de la saisie multi-taxons (disque bleu de
+ *  48 dp), sans bandeau : une nouvelle station (demande du 20 octobre ; GeoMys-Android y avait « Ajouter
+ *  une station » sur la bande `panel_bg`). En création, « Annuler » et « Valider » sur cette bande. */
 @Composable
 private fun PanneauAndroid(vm: CarteOccHabViewModel, modifier: Modifier) {
+    if (!vm.enCreation) {
+        Box(modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), contentAlignment = Alignment.Center) {
+            BoutonRondAndroid(Res.drawable.ic_add, CouleursGeoMys.primaire, BLEU_APPUYE, 48.dp, "Ajouter une station", vm::ajouterStation)
+        }
+        return
+    }
     Row(
         modifier.fillMaxWidth().background(CouleursGeoMys.fondBas).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (!vm.enCreation) {
-            BoutonVert("Ajouter une station", vm::ajouterStation, Modifier.fillMaxWidth())
-        } else {
-            BoutonPlein("Annuler", vm::annuler, Modifier.weight(1f), actif = vm.peutAnnuler)
-            Spacer(Modifier.size(8.dp))
-            BoutonVert("Valider", vm::valider, Modifier.weight(1f).alpha(if (vm.peutValider) 1f else 0.5f), actif = vm.peutValider)
-        }
+        BoutonPlein("Annuler", vm::annuler, Modifier.weight(1f), actif = vm.peutAnnuler)
+        Spacer(Modifier.size(8.dp))
+        BoutonVert("Valider", vm::valider, Modifier.weight(1f).alpha(if (vm.peutValider) 1f else 0.5f), actif = vm.peutValider)
     }
 }
 
-/** Panneau du bas (iOS, OccHabCarteView) sur le dégradé : « Ajouter une station » (vert, coins de
- *  10 pt) ; « Annuler » en texte et « Valider » sur fond vert, estompés quand ils sont inactifs. */
+/** Le bas de la carte (iOS). En consultation, le « + » de la saisie multi-taxons (disque bleu ombré de
+ *  56 pt), sans bandeau : une nouvelle station (demande du 20 octobre ; GeoMys-IOS y avait « Ajouter une
+ *  station » sur le dégradé). En création, sur le dégradé, « Annuler » en texte et « Valider » sur fond
+ *  vert, estompés quand ils sont inactifs. */
 @Composable
 private fun PanneauIos(vm: CarteOccHabViewModel) {
+    if (!vm.enCreation) {
+        Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 16.dp), contentAlignment = Alignment.Center) {
+            BoutonRondIos("plus", CouleursGeoMys.primaire, Color.White, "Ajouter une station", vm::ajouterStation)
+        }
+        return
+    }
     val forme = FormeContinue(10.dp)
     Row(
         Modifier
@@ -616,34 +630,21 @@ private fun PanneauIos(vm: CarteOccHabViewModel) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (!vm.enCreation) {
-            BoutonIos(vm::ajouterStation, Modifier.fillMaxWidth(), opaciteAppui = 0.6f) {
-                Row(
-                    Modifier.fillMaxWidth().background(CouleursGeoMys.vert, forme).padding(vertical = 14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    SymboleSf("plus", 16f, listOf(Color.White), graisse = GraisseSymbole.DEMI_GRASSE)
-                    Text("Ajouter une station", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                }
-            }
-        } else {
-            BoutonIos(vm::annuler, Modifier.weight(1f), actif = vm.peutAnnuler, opaciteAppui = 0.6f) {
-                Text(
-                    "Annuler",
-                    color = if (vm.peutAnnuler) Color.White else CouleursGeoMys.blanc70.copy(alpha = 0.4f),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(vertical = 12.dp),
-                )
-            }
-            BoutonIos(vm::valider, Modifier.weight(1f), actif = vm.peutValider, opaciteAppui = 0.6f) {
-                Box(
-                    Modifier.fillMaxWidth().background(CouleursGeoMys.vert.copy(alpha = if (vm.peutValider) 1f else 0.4f), forme).padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text("Valider", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                }
+        BoutonIos(vm::annuler, Modifier.weight(1f), actif = vm.peutAnnuler, opaciteAppui = 0.6f) {
+            Text(
+                "Annuler",
+                color = if (vm.peutAnnuler) Color.White else CouleursGeoMys.blanc70.copy(alpha = 0.4f),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(vertical = 12.dp),
+            )
+        }
+        BoutonIos(vm::valider, Modifier.weight(1f), actif = vm.peutValider, opaciteAppui = 0.6f) {
+            Box(
+                Modifier.fillMaxWidth().background(CouleursGeoMys.vert.copy(alpha = if (vm.peutValider) 1f else 0.4f), forme).padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("Valider", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }

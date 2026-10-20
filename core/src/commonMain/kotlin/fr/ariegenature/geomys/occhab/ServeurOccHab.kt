@@ -17,37 +17,22 @@
  */
 
 // Extrait de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/ui/OccHabCarteFragment.kt,
-// lancerRemplissageAltitudes, et StationsServeurOverlay.kt, charger) : l'appel au MNT du serveur pour la
-// géométrie d'une station, et le chargement des stations du serveur pour un jeu de données.
+// lancerRemplissageAltitudes) : l'appel au MNT du serveur pour la géométrie d'une station, fait à l'envoi
+// depuis le 20 octobre. Le chargement des stations du serveur d'un jeu de données (StationsServeurOverlay.kt,
+// charger) a disparu le même jour : la carte lit le cache de la synchro.
 
 package fr.ariegenature.geomys.occhab
 
 import fr.ariegenature.geomys.ServicesGeoNature
 import fr.ariegenature.geomys.model.OccHabStation
 import fr.ariegenature.geomys.network.GeoNatureUpload
-import kotlinx.atomicfu.atomic
 
 /** Les altitudes min/max du MNT du serveur (`POST /geo/info`, le même appel que le web au dessin
- *  d'une géométrie) pour la géométrie de [station]. BEST-EFFORT : null hors ligne ou en erreur
- *  (les champs restent saisissables à la main). */
+ *  d'une géométrie) pour la géométrie de [station], demandées à l'envoi (`EnvoiOccHab`). BEST-EFFORT :
+ *  null hors ligne ou en erreur (les champs restent saisissables à la main). */
 suspend fun ServicesGeoNature.altitudesMnt(station: OccHabStation): Pair<Int, Int>? {
     val geometrie = GeoNatureUpload.construireGeometrie(
         station.geometryType, station.geometryCoordsJson, station.latitude, station.longitude, station.geometryTrousJson,
     )
     return occHab.altitudesPourGeometrie(config, geometrie)
-}
-
-/** Les stations du serveur d'un jeu de données, et le nombre de celles qu'il détient mais que
- *  l'appli ne sait pas dessiner (MultiPoint, GeometryCollection… tracés sous QGIS), écartées. */
-data class StationsDuServeur(val stations: List<OccHabStation>, val nbIgnorees: Int)
-
-/** Charge les stations de l'utilisateur DÉJÀ sur le serveur pour le jeu de données [idJdd] (filtre
- *  serveur `id_dataset` + filtre client), et les écrit dans le cache hors ligne au fil de l'eau
- *  (les autres JDD, chargés par la synchro, sont conservés). Lève l'erreur réseau : l'appelant
- *  se replie sur le cache. */
-suspend fun ServicesGeoNature.chargerStationsDuJdd(idJdd: Int): StationsDuServeur {
-    val ignorees = atomic(0)
-    val stations = occHab.chargerStations(config, idDataset = idJdd, ignorees = ignorees).filter { it.idDataset == idJdd }
-    stationsServeur.remplacerJdd(idJdd, stations)
-    return StationsDuServeur(stations, ignorees.value)
 }

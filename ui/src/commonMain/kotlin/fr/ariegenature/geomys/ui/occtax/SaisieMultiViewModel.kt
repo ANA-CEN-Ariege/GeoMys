@@ -305,7 +305,7 @@ class SaisieMultiViewModel(
     /** « i » : les détails communs déjà réglés, sinon les défauts de la configuration. */
     fun ouvrirDetailsCommuns() {
         detailsCommuns = EtatDetailsReleve(DetailsReleveFormulaire.communs(session.detailsCommuns, config), services.nomenclatures, viewModelScope) { terme ->
-            services.habitats.rechercher(config.urlServeur, terme)
+            services.habitats.rechercher(terme)
         }
     }
 

@@ -92,13 +92,7 @@ class HabitatOccHabViewModel(
         if (texte.trim().length < 2) return
         tache = viewModelScope.launch {
             delay(300)
-            val trouves = services.habitats.rechercher(
-                config.urlServeur.trim().trimEnd('/'),
-                texte,
-                20,
-                config.occhabIdListHabitat.takeIf { it > 0 },
-                occhab = true,
-            )
+            val trouves = services.habitats.rechercher(texte, 20, occhab = true)
             resultats.clear()
             resultats.addAll(trouves)
             resultatsDeroules = resultats.isNotEmpty()

@@ -30,7 +30,7 @@ import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
  *  station OccHab sont des jours). Les jours futurs sont permis.
  *  - Android : texte de 15 sp (« dd/MM/yyyy », « — » sans date), marges de 4 × 10 dp, ondulation
  *    au toucher, qui ouvre le DatePickerDialog du système ;
- *  - iOS : UIDatePicker compact, sur [fondIos] ; sans date, le jour même. */
+ *  - iOS : UIDatePicker compact, sa pastille à gauche, sur [fondIos] ; sans date, le jour même. */
 @Composable
 expect fun ChampJour(
     millis: Long?,

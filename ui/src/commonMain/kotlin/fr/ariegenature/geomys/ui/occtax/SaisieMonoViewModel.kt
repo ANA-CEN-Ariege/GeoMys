@@ -139,7 +139,7 @@ class SaisieMonoViewModel(
     var cibleDemarrage: LatLon? = null
 
     init {
-        // Écran d'entrée du flux mono-taxons : les écrans en aval affichent le même bandeau.
+        // Écran d'entrée du flux mono-taxon : les écrans en aval affichent le même bandeau.
         session.typeSaisieLabel = SaisieMono.LIBELLE
         session.saisieMono = true
         // Le modèle suit le groupe de la palette.
@@ -206,7 +206,7 @@ class SaisieMonoViewModel(
 
     fun ouvrirDetails() {
         details = EtatDetailsReleve(saisie.donneesDetails(), services.nomenclatures, viewModelScope) { terme ->
-            services.habitats.rechercher(config.urlServeur, terme)
+            services.habitats.rechercher(terme)
         }
     }
 

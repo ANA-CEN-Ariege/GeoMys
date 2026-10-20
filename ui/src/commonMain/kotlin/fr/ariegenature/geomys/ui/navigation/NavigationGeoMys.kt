@@ -358,7 +358,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
     val sessionSaisie = viewModel { SessionSaisieViewModel(services) }
     // La session OccHab, partagée de même par la carte, la station, l'habitat et « Mes stations »
     // (OccHabViewModel, `activityViewModels()`).
-    val sessionOccHab = viewModel { SessionOccHabViewModel(services) }
+    val sessionOccHab = viewModel { SessionOccHabViewModel() }
     // Quitter le flux de saisie DANS l'appli (et non passer en arrière-plan) : sur une vraie
     // transition saisie → hors saisie seulement.
     LaunchedEffect(nav) {
@@ -387,12 +387,12 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
         )
         if (ecranInitial in essaisSuivis) nav.navigate(RouteSuivis)
         if (ecranInitial == "carte-mares") {
-            resultat { services.monitoring.chargerModules(services.config) }
+            resultat { services.monitoring.chargerModulesDepuisCache() }
             nav.navigate(RouteCarteSuivi("mares_ana", "module", 102, "Suivi des mares", encoderFil(filRacineSuivis("Suivi des mares"))))
         }
         if (ecranInitial in essaisSuivis - "suivis" - "carte-mares") {
             // Le détail lit le protocole dans la liste chargée : on la charge d'abord.
-            resultat { services.monitoring.chargerModules(services.config) }
+            resultat { services.monitoring.chargerModulesDepuisCache() }
             nav.navigate(RouteSuiviDetail(PROTOCOLE_ESSAI))
         }
         if (ecranInitial in essaisSuivis - "suivis" - "suivi-detail" - "carte-mares") {
@@ -972,7 +972,7 @@ private fun EcranAccueil(
                 nav.navigate(RouteSaisieMulti())
             },
             saisieMono = {
-                // Saisie mono-taxons : ardoise vierge ; l'écran « Détails du relevé » n'est intercalé
+                // Saisie mono-taxon : ardoise vierge ; l'écran « Détails du relevé » n'est intercalé
                 // que s'il existe un champ de relevé obligatoire SANS valeur par défaut.
                 sessionSaisie.session.reinitialiser()
                 sessionSaisie.session.typeSaisieLabel = SaisieMono.LIBELLE

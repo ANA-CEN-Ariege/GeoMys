@@ -315,7 +315,7 @@ private fun EcranReglages(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
                     BoutonPlein("Démarrer la saisie →", demarrer, Modifier.weight(1f), actif = demarrable)
                 }
             }
-            // Bandeau flottant « 🏠 › Saisie mono-taxons », dégagé par la marge haute du panneau.
+            // Bandeau flottant « 🏠 › Saisie mono-taxon », dégagé par la marge haute du panneau.
             BandeauNavigation(vm.session.typeSaisieLabel, onAccueil, Modifier.windowInsetsPadding(WindowInsets.statusBars).padding(12.dp))
         }
     }

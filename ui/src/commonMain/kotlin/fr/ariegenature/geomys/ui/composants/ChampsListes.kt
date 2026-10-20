@@ -18,24 +18,24 @@
 
 // Extrait du dialogue « Détails du relevé » du lot 6 (ui/occtax/DialogueDetailsReleve.kt), dont le dialogue
 // des détails d'une station OccHab reprend les champs : le champ « menu déroulant » à recherche de
-// GeoMys-Android (champ_dropdown_releve.xml) et la ligne de menu de DetailsReleveView de GeoMys-IOS.
+// GeoMys-Android (champ_dropdown_releve.xml) et, sous iOS, les lignes du jeu de données et des observateurs
+// des détails d'une station (OccHabInfosStationSheet de GeoMys-IOS), que les deux dialogues partagent depuis
+// le 20 octobre.
 
 package fr.ariegenature.geomys.ui.composants
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -52,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -186,30 +187,83 @@ internal fun ObservateursAndroid(
 
 // ─── iOS ───
 
-/** `ligneDeroulante` de DetailsReleveView : libellé (blanc 70 % pour une invite), chevron, fond
- *  blanc 8 % aux coins de 8 pt ; le toucher ouvre le menu du système. */
+/** Le pendant de [DeroulantAndroid] dans une [SectionIos] : un champ à filtre, certaines instances
+ *  exposant des dizaines de jeux de données, et la liste filtrée dessous (cinq au plus) tant qu'il a le
+ *  focus. Le toucher le vide et ouvre la liste ; quitté, avec ou sans choix, il affiche [texteChoisi]. */
 @Composable
-internal fun LigneMenuIos(texte: String, invite: Boolean, options: List<String>, selection: Int, onChoix: (Int) -> Unit) {
-    Box(Modifier.fillMaxWidth()) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-                .padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                texte,
-                fontSize = 17.sp,
-                color = if (invite) CouleursGeoMys.blanc70 else Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(8.dp))
-            SymboleSf("chevron.down", 12f, listOf(CouleursGeoMys.blanc70), graisse = GraisseSymbole.DEMI_GRASSE)
+internal fun LignesRechercheIos(indication: String, libelles: List<String>, texteChoisi: String, onChoix: (Int) -> Unit) {
+    val focus = LocalFocusManager.current
+    var focalise by remember { mutableStateOf(false) }
+    var recherche by remember { mutableStateOf("") }
+    // Le choix fait, le champ quitte le focus avant que [texteChoisi] change : il le lit à l'affichage.
+    val texte = if (focalise) recherche else texteChoisi
+    LigneIos {
+        BasicTextField(
+            value = texte,
+            onValueChange = { recherche = it },
+            singleLine = true,
+            textStyle = styleSaisieIos,
+            cursorBrush = SolidColor(CouleursGeoMys.jauneClair),
+            modifier = Modifier.fillMaxWidth().onFocusChanged {
+                if (it.isFocused != focalise) {
+                    focalise = it.isFocused
+                    recherche = ""
+                }
+            },
+            decorationBox = { champ ->
+                Box {
+                    if (texte.isEmpty()) Text(indication, style = styleSaisieIos.copy(color = INVITE_IOS))
+                    champ()
+                }
+            },
+        )
+    }
+    if (focalise) {
+        DetailsReleveFormulaire.filtrer(libelles, recherche).take(5).forEach { i ->
+            SeparateurIos(Modifier.padding(start = 16.dp))
+            LigneIos(Modifier.clickable {
+                onChoix(i)
+                focus.clearFocus()
+            }) {
+                Text(libelles[i], fontSize = 17.sp, color = Color.White)
+            }
         }
-        MenuSysteme(options, selection, onChoix, Modifier.matchParentSize())
+    }
+}
+
+/** Les observateurs dans une [SectionIos] : un par ligne, retirable par sa croix, puis « Ajouter un
+ *  observateur » et le menu des [proposes]. Comme [ObservateursAndroid] : sans [proposes] (cache non
+ *  chargé), pas de ligne d'ajout, et « — » si personne n'est choisi. */
+@Composable
+internal fun LignesObservateursIos(
+    proposes: List<Pair<Int, String>>,
+    choisis: List<Pair<Int, String>>,
+    onAjouter: (Int) -> Unit,
+    onRetirer: (Int) -> Unit,
+) {
+    if (proposes.isEmpty() && choisis.isEmpty()) LigneTexteSeulIos("—", couleur = CouleursGeoMys.blanc70)
+    choisis.forEachIndexed { i, (id, nom) ->
+        if (i > 0) SeparateurIos(Modifier.padding(start = 16.dp))
+        LigneIos {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(nom, fontSize = 17.sp, color = Color.White, modifier = Modifier.weight(1f))
+                Box(Modifier.clickable(remember { MutableInteractionSource() }, indication = null) { onRetirer(id) }) {
+                    SymboleSf("xmark", 13f, listOf(CouleursGeoMys.rougePastille), graisse = GraisseSymbole.DEMI_GRASSE, description = "Retirer $nom")
+                }
+            }
+        }
+    }
+    if (proposes.isNotEmpty()) {
+        if (choisis.isNotEmpty()) SeparateurIos(Modifier.padding(start = 16.dp))
+        LigneIos {
+            Box(Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Ajouter un observateur", fontSize = 17.sp, color = CouleursGeoMys.blanc70, modifier = Modifier.weight(1f))
+                    SymboleSf("chevron.down", 12f, listOf(CouleursGeoMys.blanc70), graisse = GraisseSymbole.DEMI_GRASSE)
+                }
+                MenuSysteme(proposes.map { it.second }, -1, onAjouter, Modifier.matchParentSize())
+            }
+        }
     }
 }
 

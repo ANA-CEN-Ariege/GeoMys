@@ -168,7 +168,7 @@ class SaisieReleveViewModel(
     /** « Détails » : le dialogue sur les valeurs du relevé. */
     fun ouvrirDetails() {
         details = EtatDetailsReleve(DetailsReleveFormulaire.pourReleve(releve, config), services.nomenclatures, viewModelScope) { terme ->
-            services.habitats.rechercher(config.urlServeur, terme)
+            services.habitats.rechercher(terme)
         }
     }
 

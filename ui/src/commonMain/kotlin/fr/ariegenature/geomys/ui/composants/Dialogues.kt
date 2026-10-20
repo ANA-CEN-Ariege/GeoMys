@@ -84,6 +84,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
@@ -577,9 +578,9 @@ internal fun SectionIos(titre: String?, modifier: Modifier = Modifier, fond: Col
  *  le ferment.
  *  - Android : AlertDialog d'AppCompat dont la vue est fournie par l'écran (`setView` d'une
  *    ScrollView), comme [DialogueAlerte] ;
- *  - iOS : la feuille de GeoMys-IOS ([FeuilleIos]) sur le dégradé d'accueil. */
+ *  - iOS : la carte des dialogues de détails ([CarteDetailsIos]). */
 @Composable
-fun DialogueFeuilleFormulaire(
+fun DialogueFormulaireAppCompat(
     visible: Boolean,
     titre: String,
     onAnnuler: () -> Unit,
@@ -588,10 +589,7 @@ fun DialogueFeuilleFormulaire(
     contenu: @Composable ColumnScope.() -> Unit,
 ) {
     if (estIos) {
-        val degrade = Brush.linearGradient(listOf(CouleursGeoMys.fondHaut, CouleursGeoMys.fondBas), Offset.Zero, Offset.Infinite)
-        FeuilleIos(visible, titre, onAnnuler, onValider, annulable, degrade) {
-            Column(verticalArrangement = Arrangement.spacedBy(24.dp), content = contenu)
-        }
+        CarteDetailsIos(visible, titre, onAnnuler, onValider, annulable, contenu)
         return
     }
     CoucheDialogueAndroid(visible, if (annulable) onAnnuler else ({})) {
@@ -670,7 +668,7 @@ fun DialogueProgression(visible: Boolean, texte: String) {
  *  « Valider ». « Valider » ne ferme pas le dialogue : l'écran le ferme si la saisie est acceptée ;
  *  toucher le voile, Retour ou « Annuler » appellent [onAnnuler].
  *  - Android : MaterialAlertDialog de Material 3, le contenu ([contenu]) sans marge propre ;
- *  - iOS : `DialogueMaterial` de GeoMys-IOS, « Annuler » blanc 70 % et « Valider » jaune clair. */
+ *  - iOS : la carte des dialogues de détails ([CarteDetailsIos]). */
 @Composable
 fun DialogueFormulaire(
     visible: Boolean,
@@ -680,10 +678,7 @@ fun DialogueFormulaire(
     contenu: @Composable ColumnScope.() -> Unit,
 ) {
     if (estIos) {
-        DialogueMaterialIos(visible, titre, onAnnuler, boutons = {
-            BoutonDialogueIos("Annuler", CouleursGeoMys.blanc70, onAnnuler)
-            BoutonDialogueIos("Valider", CouleursGeoMys.jauneClair, onValider)
-        }, contenu = contenu)
+        CarteDetailsIos(visible, titre, onAnnuler, onValider, annulable = true, contenu)
         return
     }
     if (visible) RetourSysteme(onRetour = onAnnuler)
@@ -859,15 +854,18 @@ private fun BarreBoutonsAndroid(boutons: List<BoutonAlerte>, onFermer: () -> Uni
 private val PresentationIos = CubicBezierEasing(0.2f, 0.9f, 0.3f, 1f)
 
 /** `DialogueMaterial` de GeoMys-IOS : voile noir à 45 % (toucher = fermer), carte de 560 pt au plus,
- *  à 20 pt des bords, fond bleu nuit (accueil_bottom), coins continus de 12 pt, filet blanc 15 %,
- *  ombre ; titre 18 pt demi-gras, contenu défilant au-delà de 70 % de l'écran, boutons en bas à
- *  droite. Le tout monte du bas, comme le `fullScreenCover` qui le présente. */
+ *  à 20 pt des bords, sur [fond] (bleu nuit, accueil_bottom, par défaut), coins continus de 12 pt,
+ *  filet blanc 15 %, ombre ; titre 18 pt demi-gras, contenu défilant au-delà de 70 % de l'écran, ses
+ *  éléments espacés de [espacement], boutons en bas à droite. Le tout monte du bas, comme le
+ *  `fullScreenCover` qui le présente. */
 @Composable
 internal fun DialogueMaterialIos(
     visible: Boolean,
     titre: String,
     onFond: () -> Unit,
     boutons: @Composable () -> Unit,
+    fond: Brush = SolidColor(CouleursGeoMys.fondBas),
+    espacement: Dp = 14.dp,
     contenu: @Composable ColumnScope.() -> Unit,
 ) {
     AnimatedVisibility(
@@ -891,7 +889,7 @@ internal fun DialogueMaterialIos(
                     .widthIn(max = 560.dp)
                     .fillMaxWidth()
                     .shadow(18.dp, forme, ambientColor = Color.Black.copy(alpha = 0.4f), spotColor = Color.Black.copy(alpha = 0.4f))
-                    .background(CouleursGeoMys.fondBas, forme)
+                    .background(fond, forme)
                     .border(1.dp, Color.White.copy(alpha = 0.15f), forme)
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
             ) {
@@ -907,7 +905,7 @@ internal fun DialogueMaterialIos(
                         .heightIn(max = hauteurMax)
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(espacement),
                     content = contenu,
                 )
                 Row(
@@ -917,4 +915,33 @@ internal fun DialogueMaterialIos(
             }
         }
     }
+}
+
+/** Les dialogues de détails (« Détails de la station », « Détails du relevé ») : la carte centrée de
+ *  [DialogueMaterialIos], au dégradé d'accueil et aux sections ([SectionIos]) espacées de 24 pt de la
+ *  feuille des détails d'une station de GeoMys-IOS. Le style d'OccHab, en carte centrée pour tous
+ *  (demande du 20 octobre). Toucher le voile ou balayer depuis le bord l'annule, sauf si elle n'est
+ *  pas [annulable]. */
+@Composable
+private fun CarteDetailsIos(
+    visible: Boolean,
+    titre: String,
+    onAnnuler: () -> Unit,
+    onValider: () -> Unit,
+    annulable: Boolean,
+    contenu: @Composable ColumnScope.() -> Unit,
+) {
+    if (visible && annulable) RetourSysteme(onRetour = onAnnuler)
+    DialogueMaterialIos(
+        visible,
+        titre,
+        onFond = { if (annulable) onAnnuler() },
+        boutons = {
+            BoutonDialogueIos("Annuler", CouleursGeoMys.blanc70, onAnnuler)
+            BoutonDialogueIos("Valider", CouleursGeoMys.jauneClair, onValider)
+        },
+        fond = Brush.linearGradient(listOf(CouleursGeoMys.fondHaut, CouleursGeoMys.fondBas), Offset.Zero, Offset.Infinite),
+        espacement = 24.dp,
+        contenu = contenu,
+    )
 }

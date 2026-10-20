@@ -80,4 +80,14 @@ class MonitoringCacheLabelTest {
         assertNull(m.objets.labelTypeEnCache("stom", "inconnu"))
         assertNull(m.objets.labelTypeEnCache("module_sans_schema", "site"))
     }
+
+    /** Propre au portage : le schéma analysé reste en mémoire (une analyse par ligne figeait la liste
+     *  d'un protocole de 300 sites 2 s sous iOS) ; un schéma réécrit par la synchro doit se voir. */
+    @Test
+    fun un_schema_reecrit_change_le_libelle_d_une_nouvelle_saisie() {
+        m.cache.setJson(m.cache.keySchema("stom"), """{"visit":{"label":"Visite","genre":"F"}}""")
+        assertEquals("Nouvelle visite", m.objets.libelleNouveau("stom", "visit"))
+        m.cache.setJson(m.cache.keySchema("stom"), """{"visit":{"label":"Passage","genre":"M"}}""")
+        assertEquals("Nouveau passage", m.objets.libelleNouveau("stom", "visit"))
+    }
 }

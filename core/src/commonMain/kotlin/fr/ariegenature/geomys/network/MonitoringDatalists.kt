@@ -43,6 +43,7 @@ import fr.ariegenature.geomys.store.io.listeDepuisJson
 import fr.ariegenature.geomys.util.essayer
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.decodeURLQueryComponent
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.Dispatchers
@@ -64,120 +65,110 @@ class MonitoringDatalists(
     private val taxRef: TaxRefCache,
 ) {
 
-    /** Cache du LabelResolver par moduleCode. Évite de re-fetcher les nomenclatures / users /
-     *  datasets entre fiches d'un même protocole. Invalidé en même temps que [dernierSchema]
-     *  ne le serait — ici on garde indéfiniment dans la session (les nomenclatures changent
-     *  rarement). Sous verrou : deux fiches chargées ensemble y écrivent depuis deux fils. */
-    private val cacheResolvers = mutableMapOf<String, LabelResolver>()
-    private val verrouResolvers = SynchronizedObject()
+    /** Le LabelResolver d'un protocole, depuis le cache seulement (décision de l'utilisateur du
+     *  20 octobre : rien n'est téléchargé hors synchro) : les identifiants que [schema] déclare
+     *  (`type_util` user, nomenclature, dataset) traduits par les listes que la synchro a mises en
+     *  cache — observateurs de la liste du protocole, options des nomenclatures et des jeux de
+     *  données de ses formulaires, jeux de données OccTax et OccHab. Un identifiant sans libellé en
+     *  cache reste affiché tel quel. */
+    suspend fun lireResolveurLabels(config: GeoNatureConfig, schema: Map<String, MonitoringSchemaObjet>): LabelResolver =
+        withContext(Dispatchers.IO) {
+            val proprietes = schema.values.flatMap { it.properties.values }
+            /** Les entrées d'une liste en cache ([prop] : son api), projetées (clé → libellé). */
+            fun libelles(prop: MonitoringPropertySchema, cle: String, vararg libelle: String): Map<String, String> {
+                val entrees = listeEnCache(prop) ?: return emptyMap()
+                val map = mutableMapOf<String, String>()
+                for (i in 0 until entrees.length()) {
+                    val item = entrees.optJSONObject(i) ?: continue
+                    val id = item.opt(cle)?.toString()?.takeIf { it.isNotEmpty() } ?: continue
+                    val lbl = libelle.firstNotNullOfOrNull { k -> item.opt(k)?.toString()?.takeIf { it.isNotEmpty() } } ?: continue
+                    map[id] = lbl
+                }
+                return map
+            }
+            val nomenclatures = mutableMapOf<String, MutableMap<String, String>>()
+            proprietes.filter { it.typeUtil == "nomenclature" }.forEach { p ->
+                val code = p.nomenclatureType ?: return@forEach
+                nomenclatures.getOrPut(code) { mutableMapOf() } += libelles(p, "id_nomenclature", "label_fr", "label_default")
+            }
+            val idListObserver = schema["module"]?.idListObserver
+            val users = if (proprietes.any { it.typeUtil == "user" } && idListObserver != null) {
+                val arr = lireObservateursDeListe(idListObserver)
+                buildMap {
+                    for (i in 0 until (arr?.length() ?: 0)) {
+                        val item = arr?.optJSONObject(i) ?: continue
+                        val id = item.opt("id_role")?.toString()?.takeIf { it.isNotEmpty() } ?: continue
+                        val lbl = item.opt("nom_complet")?.toString()?.takeIf { it.isNotEmpty() } ?: continue
+                        put(id, lbl)
+                    }
+                }
+            } else emptyMap()
+            val datasets = mutableMapOf<String, String>()
+            if (proprietes.any { it.typeUtil == "dataset" }) {
+                listOf(config.datasetsCacheJson, config.datasetsOcchabCacheJson).filter { it.isNotEmpty() }.forEach { json ->
+                    runCatching { listeDepuisJson(GeoNatureDataset.serializer(), json) }.getOrNull()
+                        ?.forEach { datasets[it.id.toString()] = it.nom }
+                }
+                proprietes.filter { it.apiUrl?.startsWith("meta/datasets") == true || it.typeWidget.equals("dataset", ignoreCase = true) }
+                    .forEach { datasets += libelles(it, "id_dataset", "dataset_name") }
+            }
+            LabelResolver(nomenclatures = nomenclatures, users = users, datasets = datasets, taxRef = taxRef)
+        }
 
-    /** Vide le cache mémoire process-wide des LabelResolver par module. Appelé par
-     *  [MonitoringApi.invaliderCaches] quand l'URL/login/mdp serveur changent. */
-    internal fun invaliderCacheMemoire() {
-        synchronized(verrouResolvers) { cacheResolvers.clear() }
+    /** La liste en cache d'une datalist ([prop] : son api), telle que la synchro l'a reçue. */
+    private fun listeEnCache(prop: MonitoringPropertySchema): JSONArray? {
+        val apiPath = prop.apiUrl ?: return null
+        val cles = (listOfNotNull(prop.dataPath) + listOf("values", "data", "items", "results")).toTypedArray()
+        return cache.getJson(cache.keyOptionsDatalist(apiPath))?.let { runCatching { it.parserTableauJson(*cles) }.getOrNull() }
     }
 
-    /** Construit le LabelResolver pour un protocole : scan du schéma pour identifier les types
-     *  d'IDs à résoudre (`type_util` ∈ user/nomenclature/dataset), fetch parallèle des listes
-     *  correspondantes, retourne un resolver utilisable côté UI. Met en cache par moduleCode.
-     *  Renvoie un resolver vide (mais non-null) en cas d'échec partiel/total — chaque ID non
-     *  résolu reste alors affiché tel quel. */
-    suspend fun chargerResolveurLabels(
-        config: GeoNatureConfig,
-        moduleCode: String,
-        schema: Map<String, MonitoringSchemaObjet>,
-    ): LabelResolver = withContext(Dispatchers.IO) {
-        synchronized(verrouResolvers) { cacheResolvers[moduleCode] }?.let { return@withContext it }
-        // Inventaire des ressources à fetcher.
-        val codesNomenclature = mutableSetOf<String>()
-        var besoinUsers = false
-        var besoinDatasets = false
-        schema.values.forEach { obj ->
-            obj.properties.values.forEach { prop ->
-                when (prop.typeUtil) {
-                    "nomenclature" -> prop.nomenclatureType?.let { codesNomenclature.add(it) }
-                    "user" -> besoinUsers = true
-                    "dataset" -> besoinDatasets = true
-                }
-            }
-        }
-        val idListObserver = schema["module"]?.idListObserver
+    /** Jeux de données ACTIFS rattachés à [moduleCode], demandés au serveur (le cache OCCTAX ne les
+     *  contient pas — synchro filtrée `module_code=OCCTAX`) et mis en cache. Essaie les deux casses du
+     *  code module (routes Flask sensibles à la casse). Renvoie le tableau brut (id_dataset,
+     *  id_taxa_list…) non vide, ou null si injoignable ou vide, le cache restant alors tel quel.
+     *  Réservé à la synchro et à l'envoi d'une visite : les écrans lisent le cache
+     *  ([lireDatasetsDuModule]). */
+    suspend fun chargerDatasetsDuModule(config: GeoNatureConfig, moduleCode: String): JSONArray? = try {
         val base = config.urlServeur.trim().trimEnd('/')
-        // Même correctif que `chargerOptionsDatalist` ci-dessous : hors-ligne, `loginAvecCookies`
-        // LÈVE l'IOException (lot B3, audit 2026-08-27) et le repli « auth == null » ne la voyait
-        // pas — les observateurs d'une visite relue hors-ligne s'affichaient en identifiants bruts
-        // au lieu de leurs noms (audit 2026-09-14, R7-m1).
-        val session = try {
-            auth.loginAvecCookies(base, config.login, config.motDePasse)
-        } catch (_: IOException) { null }
-        // En offline (auth KO), on peut quand même servir les observateurs via le cache
-        // disque écrit par le sync. On ne retourne plus immédiatement un resolver vide :
-        // on tente le fallback observateurs avant d'abandonner.
-        val token = session?.first
-        val cookies = session?.third.orEmpty()
-
-        suspend fun fetchListe(path: String, keyId: String, keyLabel: String, dataPath: String?): Map<String, String> {
-            val reponse = clients.get("$base/api/$path", token, cookies, 15000)
-            if (reponse.status.value != 200) return emptyMap()
-            val text = reponse.bodyAsText()
-            val clesArray = (listOfNotNull(dataPath) + listOf("values", "data", "items", "results")).toTypedArray()
-            val array: JSONArray = text.parserTableauJson(*clesArray) ?: return emptyMap()
-            val map = mutableMapOf<String, String>()
-            for (i in 0 until array.length()) {
-                val item = array.optJSONObject(i) ?: continue
-                val id = item.opt(keyId)?.toString() ?: continue
-                val lbl = item.opt(keyLabel)?.toString() ?: continue
-                if (id.isNotEmpty() && lbl.isNotEmpty()) map[id] = lbl
-            }
-            return map
-        }
-
-        coroutineScope {
-            // Nomenclatures et datasets : pas de fallback cache disque pour l'instant, donc
-            // si auth a échoué (offline), on les skippe pour ne pas timeout 15s × N requêtes.
-            val nomenclaturesDeferred = if (session == null) emptyList() else codesNomenclature.map { code ->
-                async { code to fetchListe("nomenclatures/nomenclature/$code", "id_nomenclature", "label_fr", "values") }
-            }
-            // Observateurs : on délègue à chargerObservateursDeListe qui gère le fallback
-            // cache disque automatiquement — utile en offline strict.
-            val usersDeferred = if (besoinUsers && idListObserver != null) async {
-                val arr = chargerObservateursDeListe(config, idListObserver) ?: return@async emptyMap()
-                val map = mutableMapOf<String, String>()
-                for (i in 0 until arr.length()) {
-                    val item = arr.optJSONObject(i) ?: continue
-                    val id = item.opt("id_role")?.toString() ?: continue
-                    val lbl = item.opt("nom_complet")?.toString() ?: continue
-                    if (id.isNotEmpty() && lbl.isNotEmpty()) map[id] = lbl
+        val session = auth.loginAvecCookies(base, config.login, config.motDePasse)
+        if (session == null) {
+            null
+        } else {
+            val (token, _, cookies) = session
+            var trouve: JSONArray? = null
+            for (variante in listOf(moduleCode, moduleCode.lowercase()).distinct()) {
+                val reponse = clients.get("$base/api/meta/datasets?module_code=$variante&active=true&fields=modules", token, cookies, timeoutMs = 10_000)
+                if (reponse.status.value != 200) continue
+                val arr = reponse.bodyAsText().parserTableauJson("data") ?: continue
+                if (arr.length() > 0) {
+                    trouve = arr
+                    break
                 }
-                map.toMap()
-            } else null
-            val datasetsDeferred = if (besoinDatasets && session != null) async {
-                fetchListe("meta/datasets", "id_dataset", "dataset_name", null)
-            } else null
-
-            val nomenclaturesMap = nomenclaturesDeferred.associate { it.await() }
-            val usersMap = usersDeferred?.await() ?: emptyMap()
-            val datasetsMap = datasetsDeferred?.await() ?: emptyMap()
-            val resolver = LabelResolver(
-                nomenclatures = nomenclaturesMap,
-                users = usersMap,
-                datasets = datasetsMap,
-                taxRef = taxRef,
-            )
-            // On ne mémorise QUE le résolveur construit avec le réseau. Depuis que le login lève
-            // l'IOException hors-ligne (et qu'on la rattrape, cf. `auth` plus haut), un résolveur
-            // DÉGRADÉ — observateurs et jeux de données vides, donc affichés en identifiants bruts —
-            // pouvait être mis en cache pour toute la session et resservi même après le retour du
-            // réseau : l'utilisateur devait tuer l'application pour revoir des noms (effet de bord
-            // du lot A du 2026-09-15, relevé à la vérification de l'audit 2026-09-14).
-            if (session != null) synchronized(verrouResolvers) { cacheResolvers[moduleCode] = resolver }
-            resolver
+            }
+            trouve?.also { cache.setJson(cache.keyDatasetsModule(moduleCode), it.toString()) }
         }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null
+    }
+
+    /** Les jeux de données du protocole en cache ([chargerDatasetsDuModule]), sans requête ; null
+     *  s'ils n'y sont pas. */
+    fun lireDatasetsDuModule(moduleCode: String): JSONArray? =
+        cache.getJson(cache.keyDatasetsModule(moduleCode))?.let { runCatching { JSONArray(it) }.getOrNull() }
+
+    /** La liste d'observateurs d'une UsersHub `id_liste` en cache, sans requête : celle que la synchro
+     *  y a mise ([chargerObservateursDeListe]). Null si elle n'y est pas. */
+    fun lireObservateursDeListe(idListe: Int): JSONArray? {
+        if (idListe <= 0) return null
+        return cache.getJson(cache.keyObservateurs(idListe))?.let { runCatching { JSONArray(it) }.getOrNull() }
     }
 
     /** Charge la liste d'observateurs d'une UsersHub `id_liste` : fetch live + persistance
      *  dans le cache `MonitoringCache.keyObservateurs`, ou fallback sur le cache disque si
-     *  pas de réseau / auth en échec. Retourne null si vraiment rien ne marche. */
+     *  pas de réseau / auth en échec. Retourne null si vraiment rien ne marche. Réservé à la
+     *  synchro : les écrans lisent le cache ([lireObservateursDeListe]). */
     suspend fun chargerObservateursDeListe(
         config: GeoNatureConfig,
         idListe: Int,
@@ -204,13 +195,47 @@ class MonitoringDatalists(
             }
         }
         // Fallback cache disque pour usage offline.
-        cache.getJson(key)?.let { runCatching { JSONArray(it) }.getOrNull() }
+        lireObservateursDeListe(idListe)
+    }
+
+    /** Les options d'un widget `datalist` ou `nomenclature` pour les écrans : celles que la synchro a
+     *  mises en cache ([chargerOptionsDatalist]), sans requête ; à défaut, pour un jeu de données,
+     *  ceux du module dans le cache des jeux OccTax. Null si rien n'est en cache. */
+    suspend fun lireOptionsDatalist(config: GeoNatureConfig, prop: MonitoringPropertySchema): List<OptionDatalist>? =
+        withContext(Dispatchers.IO) {
+            val apiPath = prop.apiUrl ?: return@withContext null
+            val keyLabel = prop.keyLabel ?: return@withContext null
+            val keyValue = prop.keyValue ?: "id"
+            if (prop.application != null && prop.application != "GeoNature") return@withContext null
+            Regex("""users/menu/(\d+)""").find(apiPath)?.let { obs ->
+                val arr = lireObservateursDeListe(obs.groupValues[1].toIntOrNull() ?: return@withContext null)
+                    ?: return@withContext null
+                return@withContext extraireOptions(arr, keyValue, keyLabel, prop.filtres)
+            }
+            optionsEnCache(prop, keyValue, keyLabel) ?: datasetsDuModuleEnCache(config, prop, apiPath)
+        }
+
+    /** Les options en cache d'une datalist, null si absentes ou vides. */
+    private fun optionsEnCache(prop: MonitoringPropertySchema, keyValue: String, keyLabel: String): List<OptionDatalist>? =
+        listeEnCache(prop)?.let { extraireOptions(it, keyValue, keyLabel, prop.filtres) }?.takeIf { it.isNotEmpty() }
+
+    /** Repli d'un champ jeu de données : les jeux du module dans le cache des jeux OccTax (non filtré
+     *  CRUVED, donc en dernier ressort). Null hors champ jeu de données ou sans jeu du module. */
+    private fun datasetsDuModuleEnCache(config: GeoNatureConfig, prop: MonitoringPropertySchema, apiPath: String): List<OptionDatalist>? {
+        if (!apiPath.startsWith("meta/datasets") && !prop.typeWidget.equals("dataset", ignoreCase = true)) return null
+        val moduleCodeFiltre = Regex("""module_code=([^&]+)""").find(apiPath)?.groupValues?.get(1)
+            ?: prop.moduleCodeFiltre ?: return null
+        val cacheDatasets = config.datasetsCacheJson.takeIf { it.isNotEmpty() } ?: return null
+        val associes = listeDepuisJson(GeoNatureDataset.serializer(), cacheDatasets).filter { moduleCodeFiltre in it.moduleCodes }
+        if (associes.isEmpty()) return null
+        return associes.map { OptionDatalist(it.id.toString(), it.nom) }.sortedBy { it.label.lowercase() }
     }
 
     /** Fetch dynamiquement les options d'un widget `datalist` ou `nomenclature` (forme ancienne).
      *  Construit l'URL `<base>/api/<api>`, parse selon `dataPath` (si fourni) → array d'objets,
      *  puis projette chaque entrée sur (keyValue, keyLabel). Renvoie null sur erreur HTTP/auth/parse.
-     *  Application "TaxHub" non supportée pour l'instant — renvoie null avec log. */
+     *  Application "TaxHub" non supportée pour l'instant — renvoie null avec log. Réservé à la
+     *  synchro, qui en remplit le cache : les écrans le lisent ([lireOptionsDatalist]). */
     suspend fun chargerOptionsDatalist(
         config: GeoNatureConfig,
         prop: MonitoringPropertySchema,
@@ -244,33 +269,11 @@ class MonitoringDatalists(
         // PAS avec le cache local.
         // Fallback offline : si le fetch live échoue, on retombe en bas sur le cache filtré
         // par moduleCodes — meilleure approximation hors-ligne, à défaut de mieux.
-        // Helper local pour le fallback dataset offline. Renvoie null si on n'est pas sur
-        // le cas dataset ou si le cache ne donne rien d'exploitable.
-        fun fallbackDatasetCache(): List<OptionDatalist>? {
-            if (!apiPath.startsWith("meta/datasets") &&
-                !prop.typeWidget.equals("dataset", ignoreCase = true)
-            ) return null
-            val moduleCodeFiltre = Regex("""module_code=([^&]+)""").find(apiPath)?.groupValues?.get(1)
-                ?: prop.moduleCodeFiltre ?: return null
-            val cacheDatasets = config.datasetsCacheJson.takeIf { it.isNotEmpty() } ?: return null
-            val datasets: List<GeoNatureDataset> = listeDepuisJson(GeoNatureDataset.serializer(), cacheDatasets)
-            val associes = datasets.filter { moduleCodeFiltre in it.moduleCodes }
-            if (associes.isEmpty()) return null
-            return associes
-                .map { OptionDatalist(it.id.toString(), it.nom) }
-                .sortedBy { it.label.lowercase() }
-        }
-        // Clé + relecture du cache d'options (offline). Définis AVANT le login pour servir aussi le
-        // cas « pas de réseau » (login null) : sans ça, une liste déroulante de nomenclature est
-        // vide hors-ligne et bloque la saisie d'une nouvelle visite.
+        // Replis hors ligne : la liste exacte en cache, puis les jeux du module (jeux de données).
+        fun fallbackDatasetCache(): List<OptionDatalist>? = datasetsDuModuleEnCache(config, prop, apiPath)
         val clesArray = (listOfNotNull(prop.dataPath) + listOf("values", "data", "items", "results")).toTypedArray()
         val cleCache = cache.keyOptionsDatalist(apiPath)
-        fun cacheOffline(): List<OptionDatalist>? =
-            cache.getJson(cleCache)?.let { txt ->
-                runCatching { txt.parserTableauJson(*clesArray) }.getOrNull()
-                    ?.let { extraireOptions(it, keyValue, keyLabel, prop.filtres) }
-                    ?.takeIf { it.isNotEmpty() }
-            }
+        fun cacheOffline(): List<OptionDatalist>? = optionsEnCache(prop, keyValue, keyLabel)
         val base = config.urlServeur.trim().trimEnd('/')
         // Hors-ligne (login impossible) : cache datalist EXACT d'abord — le cache datasets
         // d'Occtax n'est pas filtré CRUVED, il ne sert qu'en dernier ressort.

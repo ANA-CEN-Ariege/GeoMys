@@ -17,8 +17,9 @@
  */
 
 // La boussole des cartes de saisie : CompassView et MapCompassController de GeoMys-Android @ cdd5196,
-// BoussoleBouton de GeoMys-IOS (UI/Map/MapView.swift). Le cap vient du fournisseur de maplibre-compose,
-// lissé comme dans le prototype carte du lot 0 (LissageCap).
+// BoussoleBouton de GeoMys-IOS (UI/Map/MapView.swift). Le cap, rapporté au nord magnétique comme sous
+// GeoMys-Android sur les deux plateformes (rememberFournisseurCap), est lissé comme dans le prototype carte
+// du lot 0 (LissageCap).
 
 package fr.ariegenature.geomys.ui.carte
 
@@ -68,7 +69,6 @@ import org.maplibre.compose.camera.CameraAnimation
 import org.maplibre.compose.camera.CameraMoveReason
 import org.maplibre.compose.camera.CameraUpdate
 import org.maplibre.compose.location.HeadingRequest
-import org.maplibre.compose.location.rememberDefaultHeadingProvider
 import org.maplibre.compose.map.MapState
 import org.maplibre.spatialk.units.Bearing
 import org.maplibre.spatialk.units.extensions.inDegrees
@@ -146,7 +146,7 @@ private val TRIANGLE_HAUT = GenericShape { taille, _ ->
  *  boussole, sans faire tourner la carte. */
 @Composable
 fun rememberCapAppareil(): Double? {
-    val fournisseurCap = rememberDefaultHeadingProvider()
+    val fournisseurCap = rememberFournisseurCap()
     val cap by produceState<Double?>(null, fournisseurCap) {
         fournisseurCap.updates(HeadingRequest { minimumInterval = Duration.ZERO })
             // Capteur refusé par le système : l'aiguille reste au nord.
@@ -164,7 +164,7 @@ private val CAP_IMMEDIAT = CameraAnimation.Ease { duration = Duration.ZERO }
  *  part, continuent ; pendant un geste, la carte reste au doigt (une commande la lui reprendrait). */
 @Composable
 fun SuiviCap(etat: MapState, actif: Boolean) {
-    val fournisseurCap = rememberDefaultHeadingProvider()
+    val fournisseurCap = rememberFournisseurCap()
     LaunchedEffect(actif) {
         if (!actif) {
             if (etat.cameraPosition.bearing != 0.0) etat.setCameraPosition(etat.cameraPosition.copy(bearing = 0.0))

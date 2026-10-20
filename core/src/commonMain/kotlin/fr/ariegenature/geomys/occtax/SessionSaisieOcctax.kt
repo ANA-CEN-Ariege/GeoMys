@@ -45,7 +45,7 @@ class SessionSaisieOcctax(
     val locationTracker: LocationTracker,
     portee: CoroutineScope,
 ) {
-    /** Libellé du type de saisie en cours (« Saisie mono-taxons » / « Saisie multi-taxons »),
+    /** Libellé du type de saisie en cours (« Saisie mono-taxon » / « Saisie multi-taxons »),
      *  posé par l'écran d'entrée du flux et lu par tous les écrans de saisie pour leur bandeau
      *  « 🏠 › <type> ». */
     var typeSaisieLabel: String = ""

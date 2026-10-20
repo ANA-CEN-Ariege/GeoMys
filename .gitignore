@@ -16,3 +16,7 @@ captures
 !*.xcodeproj/project.xcworkspace/
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
+# Signature des versions : la clé et ses mots de passe ne quittent jamais le poste.
+keystore.properties
+*.jks
+*.keystore

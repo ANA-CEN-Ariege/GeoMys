@@ -43,7 +43,11 @@ import kotlinx.coroutines.withContext
  *  avec normalisation du corps (types, complément Marshmallow, id_digitiser, id_dataset),
  *  vérification anti-doublon par uuid client, et résolution du jeu de données rattaché au
  *  protocole. Appelé principalement par [OutboxEnvoi]. */
-class MonitoringEnvoi(private val auth: GeoNatureAuth, private val clients: ClientsGeoNature) {
+class MonitoringEnvoi(
+    private val auth: GeoNatureAuth,
+    private val clients: ClientsGeoNature,
+    private val datalists: MonitoringDatalists,
+) {
 
     /** Cherche parmi les enfants directs de {parentObjectType}/{parentId} un objet portant [uuid]
      *  dans son champ [uuidFieldName]. Anti-doublon : quand la RÉPONSE d'un POST s'est perdue
@@ -245,9 +249,10 @@ class MonitoringEnvoi(private val auth: GeoNatureAuth, private val clients: Clie
     }
 
     /** Le premier jeu de données actif rattaché au [moduleCode] côté serveur. D'abord dans le cache
-     *  local OCCTAX (si par chance le jeu cumule plusieurs modules), puis par un appel en direct
-     *  `/api/meta/datasets?module_code=<m>&active=true`, qui renvoie directement les jeux du module
-     *  Suivis (filtrés par CRUVED). */
+     *  local OCCTAX (si par chance le jeu cumule plusieurs modules), puis dans celui des jeux du
+     *  protocole que remplit la synchro, enfin par un appel en direct
+     *  `/api/meta/datasets?module_code=<m>&active=true` (l'envoi est en ligne), qui renvoie
+     *  directement les jeux du module Suivis (filtrés par CRUVED). */
     private suspend fun trouverDatasetPourModule(config: GeoNatureConfig, moduleCode: String): Int? {
         // 1) Cache local.
         val json = config.datasetsCacheJson.takeIf { it.isNotEmpty() }
@@ -255,41 +260,12 @@ class MonitoringEnvoi(private val auth: GeoNatureAuth, private val clients: Clie
             listeDepuisJson(GeoNatureDataset.serializer(), json)
                 .firstOrNull { moduleCode in it.moduleCodes }?.let { return it.id }
         }
-        // 2) Appel en direct filtré par module (les jeux des Suivis ne sont pas dans le cache OCCTAX
-        // par défaut — la synchro filtre module_code=OCCTAX).
-        val arr = chargerDatasetsDuModuleLive(config, moduleCode) ?: return null
+        // 2) Jeux du protocole : ceux du cache de la synchro, sinon demandés au serveur (les jeux des
+        // Suivis ne sont pas dans le cache OCCTAX par défaut — la synchro filtre module_code=OCCTAX).
+        val arr = datalists.lireDatasetsDuModule(moduleCode)?.takeIf { it.length() > 0 }
+            ?: datalists.chargerDatasetsDuModule(config, moduleCode)
+            ?: return null
         return arr.optJSONObject(0)?.optInt("id_dataset", -1)?.takeIf { it > 0 }
-    }
-
-    /** Jeux de données ACTIFS rattachés à [moduleCode], en appel EN DIRECT (le cache OCCTAX ne les
-     *  contient pas — synchro filtrée `module_code=OCCTAX`). Essaie les deux casses du code module
-     *  (routes Flask sensibles à la casse). Renvoie le tableau brut (id_dataset, id_taxa_list…) non
-     *  vide, ou null si injoignable ou vide. Partagé entre [trouverDatasetPourModule] (id du jeu
-     *  pour le corps de la visite) et l'écran de nouvelle visite (id_taxa_list pour les champs
-     *  TAXON). */
-    internal suspend fun chargerDatasetsDuModuleLive(config: GeoNatureConfig, moduleCode: String): JSONArray? = try {
-        val base = config.urlServeur.trim().trimEnd('/')
-        val session = auth.loginAvecCookies(base, config.login, config.motDePasse)
-        if (session == null) {
-            null
-        } else {
-            val (token, _, cookies) = session
-            var trouve: JSONArray? = null
-            for (variante in listOf(moduleCode, moduleCode.lowercase()).distinct()) {
-                val reponse = clients.get("$base/api/meta/datasets?module_code=$variante&active=true&fields=modules", token, cookies, timeoutMs = 10_000)
-                if (reponse.status.value != 200) continue
-                val arr = reponse.bodyAsText().parserTableauJson("data") ?: continue
-                if (arr.length() > 0) {
-                    trouve = arr
-                    break
-                }
-            }
-            trouve
-        }
-    } catch (e: CancellationException) {
-        throw e
-    } catch (_: Exception) {
-        null
     }
 
     private companion object {

@@ -154,6 +154,30 @@ class OutboxEnvoiTest {
 
     private suspend fun envoyerTout(): OutboxEnvoi.Resultat = t.services.outboxEnvoi.envoyerTout(config) { _, _, _ -> }
 
+    // ── Report dans le cache ───────────────────────────────────────────────────────
+
+    /** Propre au portage (décision de l'utilisateur du 20 octobre) : les écrans ne lisent que le cache,
+     *  une saisie envoyée y est donc reportée sous son parent, sans attendre la synchro suivante. Le
+     *  type « visite » de [saisie] sert ici aux deux niveaux. */
+    @Test
+    fun une_saisie_envoyee_est_reportee_dans_la_fiche_de_son_parent() = runTest {
+        val cache = t.services.monitoringCache
+        cache.setJson(
+            cache.keyObjet("STOC", "site", 5),
+            """{"id":5,"properties":{"base_site_name":"Col"},"children":{"visite":[{"id":3,"properties":{"comments":"ancienne"}}]}}""",
+        )
+        outbox.ajouter(saisie("visite", parentObjectType = "site", parentIdServeur = 5))
+        outbox.ajouter(saisie("obs", parentUuidLocal = "visite", parentObjectType = "visite"))
+        assertEquals(2, envoyerTout().succes)
+        val visites = assertNotNull(t.services.monitoring.lireObjet("STOC", "site", 5)).enfants.getValue("visite")
+        assertEquals(listOf(3, 41), visites.map { it.id })
+        assertEquals("test visite", visites.last().proprietes["comments"])
+        assertEquals("5", visites.last().proprietes["id_base_site"], "la clé du parent est reportée")
+        // La visite a sa fiche, où l'observation envoyée après elle est reportée à son tour.
+        val visite = assertNotNull(t.services.monitoring.lireObjet("STOC", "visite", 41))
+        assertEquals(listOf(42), visite.enfants.getValue("visite").map { it.id })
+    }
+
     // ── Idempotence ────────────────────────────────────────────────────────────────
 
     @Test

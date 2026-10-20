@@ -89,6 +89,14 @@ fun FicheObjetScreen(
         }
         vm.erreur?.let { ErreurSuivi(it) }
         if (vm.proprietes.isNotEmpty()) Proprietes(vm.proprietes)
+        vm.note?.let {
+            Text(
+                it,
+                fontSize = if (ios) 13.sp else 12.sp,
+                color = if (ios) CouleursGeoMys.blanc70 else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = if (ios) Modifier else Modifier.padding(top = 8.dp),
+            )
+        }
         if (vm.elements.isNotEmpty()) {
             Column(
                 Modifier.fillMaxWidth().padding(top = if (ios) 4.dp else 16.dp),

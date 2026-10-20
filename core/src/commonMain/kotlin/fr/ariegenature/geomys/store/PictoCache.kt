@@ -25,14 +25,12 @@ package fr.ariegenature.geomys.store
 
 import fr.ariegenature.geomys.network.http.ClientsGeoNature
 import fr.ariegenature.geomys.network.http.urlAbsolue
-import fr.ariegenature.geomys.util.maintenantMillis
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.readRawBytes
 import io.ktor.http.HttpHeaders
-import io.ktor.http.Url
 import kotlin.coroutines.cancellation.CancellationException
 import okio.FileSystem
 import okio.Path
@@ -47,13 +45,14 @@ import okio.SYSTEM
  * re-télécharger à chaque ouverture de l'écran Suivis.
  *
  * Une seule instance dans l'appli, sur le dossier [dossier] (`filesDir/monitoring/pictos` sous
- * Android). Les téléchargements sont `suspend`.
+ * Android). Les téléchargements sont `suspend` et réservés à la synchro ([prefetch]) : l'écran
+ * Suivis ne lit que [fichierLocal] (décision de l'utilisateur du 20 octobre : rien n'est téléchargé
+ * hors synchro), ce qui rend sans objet le cache négatif d'un 404 de GeoMys-Android.
  */
 class PictoCache(
     private val dossier: Path,
     private val clients: ClientsGeoNature,
     private val systeme: FileSystem = FileSystem.SYSTEM,
-    private val horloge: () -> Long = ::maintenantMillis,
 ) {
 
     init {
@@ -62,12 +61,6 @@ class PictoCache(
 
     private fun fichier(moduleCode: String): Path =
         dossier / (moduleCode.replace('/', '_') + ".jpg")
-
-    /** Marqueur de cache NÉGATIF `<code>.absent` (fichier vide) : mémorise « pas d'image pour
-     *  ce protocole » (404 serveur) pour éviter une requête réseau à chaque ouverture de
-     *  l'écran Suivis. Fraîcheur jugée sur lastModified (cf. [TTL_ABSENT_MS]). */
-    private fun marqueurAbsent(moduleCode: String): Path =
-        dossier / (moduleCode.replace('/', '_') + ".absent")
 
     /** Fichier local du picto s'il est en cache (présent et non vide), sinon null. */
     fun fichierLocal(moduleCode: String): Path? =
@@ -86,10 +79,9 @@ class PictoCache(
     }
 
     /** Télécharge le picto depuis [url] et l'écrit sur disque (tmp + rename atomique). Renvoie le
-     *  fichier en cas de succès, null sinon (404, réseau…). Un 404 écrit le marqueur de cache
-     *  négatif (cf. [marqueurAbsent]) ; un succès le supprime. [token]/[cookies] optionnels :
-     *  posés en Authorization Bearer / Cookie si fournis (serveurs qui protègent les médias) —
-     *  jamais de login déclenché ici. */
+     *  fichier en cas de succès, null sinon (404, réseau…). [token]/[cookies] optionnels : posés en
+     *  Authorization Bearer / Cookie si fournis (serveurs qui protègent les médias) — jamais de
+     *  login déclenché ici. */
     suspend fun telecharger(
         moduleCode: String, url: String, token: String? = null, cookies: String? = null,
         /** URL de l'instance GeoNature : jeton et cookies ne partent QUE vers son hôte et son
@@ -108,14 +100,7 @@ class PictoCache(
                 cookies?.takeIf { it.isNotEmpty() }?.let { header(HttpHeaders.Cookie, it) }
             }
         }
-        val code = reponse.status.value
-        if (code != 200) {
-            // Cache NÉGATIF : seul un 404 franc (« pas d'image pour ce protocole ») est
-            // mémorisé. Les autres échecs (5xx, auth, réseau) sont transitoires → retentés.
-            if (code == 404) runCatching {
-                systeme.createDirectories(dossier)
-                systeme.write(marqueurAbsent(moduleCode)) {}
-            }
+        if (reponse.status.value != 200) {
             null
         } else {
             val octets = reponse.readRawBytes()
@@ -134,8 +119,6 @@ class PictoCache(
                 // reste servie ; sinon repli emoji côté UI) — dégradation sûre.
                 try {
                     systeme.atomicMove(tmp, cible)
-                    // Téléchargement réussi : le marqueur négatif éventuel ne vaut plus.
-                    runCatching { systeme.delete(marqueurAbsent(moduleCode)) }
                     cible
                 } catch (_: Exception) {
                     runCatching { systeme.delete(tmp) }
@@ -155,21 +138,6 @@ class PictoCache(
      *  les dimensions ; ici, la signature des formats qu'il décode (JPEG, PNG, GIF, WebP, BMP). */
     private fun estImageValide(octets: ByteArray): Boolean = estSignatureImage(octets)
 
-    /** Fichier local s'il existe (offline + instantané), sinon téléchargement + enregistrement.
-     *  Un 404 récent (marqueur `.absent` de moins de 24 h) court-circuite le réseau : renvoie
-     *  null sans requête. [token]/[cookies] optionnels, transmis à [telecharger]. Renvoie null si
-     *  aucune image (404) pour ce protocole. */
-    suspend fun fichierOuTelecharger(
-        base: String, moduleCode: String, modulePicto: String?,
-        token: String? = null, cookies: String? = null,
-    ): Path? {
-        fichierLocal(moduleCode)?.let { return it }
-        val marqueur = systeme.metadataOrNull(marqueurAbsent(moduleCode))
-        val dateMarqueur = marqueur?.lastModifiedAtMillis
-        if (marqueur?.isRegularFile == true && dateMarqueur != null && horloge() - dateMarqueur < TTL_ABSENT_MS) return null
-        return telecharger(moduleCode, urlPicto(base, moduleCode, modulePicto), token, cookies, base)
-    }
-
     /** true si [url] a le même hôte ET le même schéma que [base] (session transmissible). */
     internal fun memeOrigine(url: String, base: String?): Boolean {
         if (base.isNullOrBlank()) return false
@@ -182,24 +150,18 @@ class PictoCache(
 
     /** Prefetch (rafraîchissement) des pictos de [modules] (`module_code` → `module_picto`) pour
      *  l'usage HORS-LIGNE. Best-effort : un échec par module n'interrompt pas les autres. Re-écrit
-     *  les images existantes (rafraîchissement au « Recharger les données ») — passe donc OUTRE le
-     *  cache négatif (un 404 le rafraîchit, un succès le supprime). [token]/[cookies] optionnels,
-     *  transmis à [telecharger]. */
+     *  les images existantes (rafraîchissement au « Recharger les données »). [token]/[cookies]
+     *  optionnels, transmis à [telecharger]. */
     suspend fun prefetch(base: String, modules: List<Pair<String, String?>>, token: String? = null, cookies: String? = null) {
         modules.forEach { (code, picto) ->
             telecharger(code, urlPicto(base, code, picto), token, cookies, base)
         }
     }
 
-    /** Vide tout le cache des pictos (« Vider le cache » / changement d'identité serveur),
-     *  marqueurs négatifs `.absent` compris (listFiles ne filtre pas par extension). */
+    /** Vide tout le cache des pictos (« Vider le cache » / changement d'identité serveur), y
+     *  compris les marqueurs `.absent` des versions précédentes (list ne filtre pas par extension). */
     fun vider() {
         runCatching { systeme.list(dossier).forEach { systeme.delete(it) } }
-    }
-
-    private companion object {
-        /** TTL du cache NÉGATIF : un 404 mémorisé n'est pas retenté au réseau pendant 24 h. */
-        const val TTL_ABSENT_MS = 24L * 60L * 60L * 1000L
     }
 }
 

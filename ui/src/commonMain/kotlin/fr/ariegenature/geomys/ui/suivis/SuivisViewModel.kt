@@ -56,8 +56,9 @@ sealed interface Picto {
     data object Aucun : Picto
 }
 
-/** L'écran « Monitoring » (`SuivisFragment`) : les protocoles du serveur, le cache disque prenant
- *  le relais hors ligne. */
+/** L'écran « Monitoring » (`SuivisFragment`) : les protocoles que la dernière synchro a mis en cache,
+ *  sans requête (décisions du 20 octobre, comme GeoMys-IOS ; GeoMys-Android interrogeait le serveur à
+ *  chaque ouverture). Rien avant la première synchro. */
 class SuivisViewModel(private val services: ServicesGeoNature) : ViewModel() {
 
     var etat by mutableStateOf<EtatSuivis>(EtatSuivis.Chargement)
@@ -78,9 +79,12 @@ class SuivisViewModel(private val services: ServicesGeoNature) : ViewModel() {
         etat = EtatSuivis.Chargement
         viewModelScope.launch {
             etat = try {
-                val modules = services.monitoring.chargerModules(services.config)
-                if (modules.isEmpty()) EtatSuivis.Message(ListeProtocoles.messageAucunProtocole(services.config.login))
-                else EtatSuivis.Protocoles(modules)
+                val modules = services.monitoring.chargerModulesDepuisCache()
+                when {
+                    modules == null -> EtatSuivis.Message(ListeProtocoles.AUCUN_PROTOCOLE_EN_CACHE)
+                    modules.isEmpty() -> EtatSuivis.Message(ListeProtocoles.messageAucunProtocole(services.config.login))
+                    else -> EtatSuivis.Protocoles(modules)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -94,14 +98,14 @@ class SuivisViewModel(private val services: ServicesGeoNature) : ViewModel() {
         viewModelScope.launch { nbEnAttente = services.outbox.countEnAttente() }
     }
 
-    /** Les pictos des protocoles, du cache disque d'abord, réduits à [cotePx] (une vignette). En
-     *  l'absence d'image (404, erreur, hors ligne sans cache), l'emoji du code FontAwesome. */
+    /** Les pictos des protocoles, du cache de la synchro, réduits à [cotePx] (une vignette). En
+     *  l'absence d'image en cache, l'emoji du code FontAwesome. */
     fun chargerPictos(modules: List<MonitoringModule>, cotePx: Int) {
         modules.filter { it.moduleCode !in pictos }.forEach { m ->
             viewModelScope.launch {
                 val image = withContext(Dispatchers.IO) {
                     try {
-                        services.cheminPicto(m.moduleCode, m.modulePicto)?.let { lireMiniature(it, cotePx) }
+                        services.cheminPicto(m.moduleCode)?.let { lireMiniature(it, cotePx) }
                     } catch (e: CancellationException) {
                         throw e
                     } catch (_: Exception) {

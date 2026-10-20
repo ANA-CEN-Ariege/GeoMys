@@ -21,22 +21,28 @@ package fr.ariegenature.geomys.ui.composants
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
@@ -46,6 +52,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ariegenature.geomys.monitoring.FIL_TYPE_ACCUEIL
@@ -112,13 +119,15 @@ fun FilArianeSuivis(
         }
     }
     val accueil = segments.firstOrNull { it.type == FIL_TYPE_ACCUEIL }?.let { listOf(it) }
+    // La maison, en tête du fil, se touche sur toute la partie gauche du bandeau (ZoneMaison).
+    val versAccueil = accueil?.let { { onNiveau(it) } }
     if (ios) {
         val icone = InlineTextContent(Placeholder(TAILLE_MAISON.sp, TAILLE_MAISON.sp, PlaceholderVerticalAlign.TextCenter)) {
-            Box(Modifier.fillMaxSize().clickable(onClickLabel = "Accueil") { accueil?.let(onNiveau) }, contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 SymboleSf("house.fill", TAILLE_MAISON, listOf(CouleursGeoMys.jauneClair))
             }
         }
-        BandeIos(modifier) {
+        BandeIos(modifier, versAccueil) {
             Text(texte, inlineContent = mapOf("maison" to icone), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
     } else {
@@ -128,22 +137,21 @@ fun FilArianeSuivis(
                 painterResource(Res.drawable.ic_home),
                 contentDescription = "Accueil",
                 colorFilter = ColorFilter.tint(CouleursGeoMys.jauneClair),
-                modifier = Modifier.fillMaxSize().clickable { accueil?.let(onNiveau) },
+                modifier = Modifier.fillMaxSize(),
             )
         }
         val forme = RoundedCornerShape(12.dp)
-        Text(
-            texte,
-            inlineContent = mapOf("maison" to icone),
-            color = couleurs.onSurfaceVariant,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = modifier
-                .fillMaxWidth()
-                .shadow(6.dp, forme)
-                .background(couleurs.surfaceVariant, forme)
-                .padding(horizontal = 14.dp, vertical = MARGE_VERTICALE.dp),
-        )
+        Box(modifier.fillMaxWidth().shadow(6.dp, forme).background(couleurs.surfaceVariant, forme)) {
+            Text(
+                texte,
+                inlineContent = mapOf("maison" to icone),
+                color = couleurs.onSurfaceVariant,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = MARGE_VERTICALE.dp),
+            )
+            if (versAccueil != null) ZoneMaison(14.dp, versAccueil, Modifier.matchParentSize())
+        }
     }
 }
 
@@ -167,11 +175,11 @@ fun BandeauNavigation(libelle: String, onAccueil: () -> Unit, modifier: Modifier
             }
         }
         val icone = InlineTextContent(Placeholder(TAILLE_MAISON.sp, TAILLE_MAISON.sp, PlaceholderVerticalAlign.TextCenter)) {
-            Box(Modifier.fillMaxSize().clickable(onClickLabel = "Accueil", onClick = onAccueil), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 SymboleSf("house.fill", TAILLE_MAISON, listOf(CouleursGeoMys.jauneClair))
             }
         }
-        BandeIos(modifier) { Text(texte, inlineContent = mapOf("maison" to icone)) }
+        BandeIos(modifier, onAccueil) { Text(texte, inlineContent = mapOf("maison" to icone)) }
     } else {
         val couleurs = MaterialTheme.colorScheme
         val texte = buildAnnotatedString {
@@ -184,34 +192,59 @@ fun BandeauNavigation(libelle: String, onAccueil: () -> Unit, modifier: Modifier
                 painterResource(Res.drawable.ic_home),
                 contentDescription = "Accueil",
                 colorFilter = ColorFilter.tint(CouleursGeoMys.jauneClair),
-                modifier = Modifier.fillMaxSize().clickable(onClick = onAccueil),
+                modifier = Modifier.fillMaxSize(),
             )
         }
         val forme = RoundedCornerShape(12.dp)
-        Text(
-            texte,
-            inlineContent = mapOf("maison" to icone),
-            color = couleurs.onSurfaceVariant,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = modifier
-                .shadow(6.dp, forme)
-                .background(couleurs.surfaceVariant, forme)
-                .padding(horizontal = 14.dp, vertical = MARGE_VERTICALE.dp),
+        Box(modifier.shadow(6.dp, forme).background(couleurs.surfaceVariant, forme)) {
+            Text(
+                texte,
+                inlineContent = mapOf("maison" to icone),
+                color = couleurs.onSurfaceVariant,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = MARGE_VERTICALE.dp),
+            )
+            ZoneMaison(14.dp, onAccueil, Modifier.matchParentSize())
+        }
+    }
+}
+
+/** Ce qui ramène à l'accueil : toute la hauteur du bandeau, de son bord gauche jusqu'un peu après la
+ *  maison, comme le lien de la maison sous GeoMys-Android, qu'un `TextView` (LinkMovementMethod)
+ *  déclenche au caractère le plus proche du doigt. Le doigt n'a plus à tomber pile sur l'icône
+ *  (demande du 20 octobre : il fallait parfois toucher plusieurs fois). [margeGauche] : la marge du
+ *  bandeau avant la maison. */
+@Composable
+private fun ZoneMaison(margeGauche: Dp, onAccueil: () -> Unit, modifier: Modifier) {
+    val largeurMaison = with(LocalDensity.current) { TAILLE_MAISON.sp.toDp() }
+    Box(modifier) {
+        Box(
+            Modifier
+                .fillMaxHeight()
+                .width(margeGauche + largeurMaison + 4.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClickLabel = "Accueil",
+                    role = Role.Button,
+                    onClick = onAccueil,
+                ),
         )
     }
 }
 
 /** La bande des deux bandeaux sous iOS : pleine largeur, noir à 25 %, au moins
- *  [HAUTEUR_BANDEAU_IOS] de haut, le fil centré verticalement. */
+ *  [HAUTEUR_BANDEAU_IOS] de haut, le fil centré verticalement ; [onAccueil] : la maison en tête. */
 @Composable
-private fun BandeIos(modifier: Modifier, contenu: @Composable () -> Unit) {
+private fun BandeIos(modifier: Modifier, onAccueil: (() -> Unit)?, contenu: @Composable () -> Unit) {
     Box(
         modifier
             .fillMaxWidth()
             .heightIn(min = HAUTEUR_BANDEAU_IOS)
-            .background(Color.Black.copy(alpha = 0.25f))
-            .padding(horizontal = 12.dp, vertical = MARGE_VERTICALE.dp),
-        contentAlignment = Alignment.CenterStart,
-    ) { contenu() }
+            .background(Color.Black.copy(alpha = 0.25f)),
+    ) {
+        Box(Modifier.align(Alignment.CenterStart).padding(horizontal = 12.dp, vertical = MARGE_VERTICALE.dp)) { contenu() }
+        if (onAccueil != null) ZoneMaison(12.dp, onAccueil, Modifier.matchParentSize())
+    }
 }

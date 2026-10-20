@@ -83,15 +83,15 @@ class NouvelleVisiteTest {
         val optionsRendues: (MonitoringPropertySchema) -> List<OptionDatalist>?,
         override val datasetsCacheJson: String = "",
         override val idRoleUtilisateur: Int = 7,
-        val viaLive: Int? = null,
+        val viaJeuxDuModule: Int? = null,
     ) : SourcesFormulaire {
-        var appelsLive = 0
+        var appelsJeuxDuModule = 0
         override val urlServeur = "https://geonature.exemple.org/"
         override suspend fun schema(moduleCode: String) = schemaRendu
         override suspend fun options(prop: MonitoringPropertySchema) = optionsRendues(prop)
-        override suspend fun idListeViaDatasetLive(moduleCode: String): Int? {
-            appelsLive++
-            return viaLive
+        override suspend fun idListeViaDatasetsDuModule(moduleCode: String): Int? {
+            appelsJeuxDuModule++
+            return viaJeuxDuModule
         }
     }
 
@@ -188,9 +188,9 @@ class NouvelleVisiteTest {
         val f = prete.formulaire
         assertFalse(f.champs.any { it.code == "id_dalle" })
         assertEquals("id_dalle", f.parentIdField)
-        // La liste du module, sans aller la demander au serveur.
+        // La liste du module, sans la chercher dans les jeux du protocole.
         assertEquals(100, f.champs.single { it.viewType == ViewType.TAXON }.idListeTaxonomieRestreinte)
-        assertEquals(0, sources.appelsLive)
+        assertEquals(0, sources.appelsJeuxDuModule)
         assertEquals("observation", f.typeSaisieEnfant)
         assertEquals("Passage", f.labelType)
         assertEquals(visite.properties.keys.toList(), f.nomsChamps)
@@ -198,15 +198,15 @@ class NouvelleVisiteTest {
     }
 
     @Test
-    fun liste_taxonomique_du_jeu_de_donnees_puis_du_serveur() = runTest {
+    fun liste_taxonomique_du_jeu_de_donnees_puis_des_jeux_du_protocole() = runTest {
         val schema = mapOf("dalle" to dalle, "visit" to visite)
         val cache = """[{"id":1,"nom":"Autre","idTaxaList":5,"moduleCodes":["y"]},{"id":2,"nom":"STOM","idTaxaList":42,"moduleCodes":["x"]}]"""
-        val viaCache = Sources(schema, { p -> options[p.apiUrl] }, datasetsCacheJson = cache, viaLive = 9)
+        val viaCache = Sources(schema, { p -> options[p.apiUrl] }, datasetsCacheJson = cache, viaJeuxDuModule = 9)
         val f1 = assertIs<PreparationFormulaire.Prete>(NouvelleVisite.preparer(viaCache, "x", "visit", "dalle", null, emptyList())).formulaire
         assertEquals(42, f1.champs.single { it.viewType == ViewType.TAXON }.idListeTaxonomieRestreinte)
-        assertEquals(0, viaCache.appelsLive)
-        val viaServeur = Sources(schema, { p -> options[p.apiUrl] }, viaLive = 9)
-        val f2 = assertIs<PreparationFormulaire.Prete>(NouvelleVisite.preparer(viaServeur, "x", "visit", "dalle", null, emptyList())).formulaire
+        assertEquals(0, viaCache.appelsJeuxDuModule)
+        val viaJeux = Sources(schema, { p -> options[p.apiUrl] }, viaJeuxDuModule = 9)
+        val f2 = assertIs<PreparationFormulaire.Prete>(NouvelleVisite.preparer(viaJeux, "x", "visit", "dalle", null, emptyList())).formulaire
         assertEquals(9, f2.champs.single { it.viewType == ViewType.TAXON }.idListeTaxonomieRestreinte)
     }
 

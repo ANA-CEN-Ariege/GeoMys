@@ -119,6 +119,15 @@ class FicheObjetTest {
         }
     }
 
+    /** Propre au portage : une fiche reconstituée depuis son parent (visite passée, absente du cache)
+     *  ne dit pas « (0) » : ses enfants du serveur ne sont pas connus. */
+    @Test
+    fun une_fiche_reconstituee_ne_compte_pas_ses_enfants() {
+        val partielle = objetSite(null).copy(enfantsConnus = false)
+        assertEquals(listOf("Visites"), elements(partielle, emptyList()).filterIsInstance<ElementFiche.Entete>().map { it.texte })
+        assertEquals(listOf("Visites"), elements(partielle, listOf(saisie("p", 1L))).filterIsInstance<ElementFiche.Entete>().map { it.texte })
+    }
+
     @Test
     fun les_saisies_locales_d_un_type_que_le_serveur_ignore_apparaissent() {
         val els = elements(objetSite(null), listOf(saisie("p", 1L)))

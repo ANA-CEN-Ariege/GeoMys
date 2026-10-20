@@ -18,19 +18,14 @@
 
 // Porté de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/ui/OccHabDetailsDialog.kt) : le
 // dialogue « Informations obligatoires » / « Détails de la station », ses saisies gardées dans un état
-// ([EtatDetailsStation]) au lieu de ses vues ; les règles sont dans occhab/DetailsStation. Sous iOS, l'allure
-// d'OccHabInfosStationSheet de GeoMys-IOS.
+// ([EtatDetailsStation]) au lieu de ses vues ; les règles sont dans occhab/DetailsStation. Sous iOS, les sections
+// d'OccHabInfosStationSheet de GeoMys-IOS, dans la carte centrée des dialogues de détails (demande du 20 octobre).
 
 package fr.ariegenature.geomys.ui.occhab
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -41,12 +36,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -57,30 +48,25 @@ import fr.ariegenature.geomys.occhab.EditionAnaEval
 import fr.ariegenature.geomys.occhab.ListeNomenclatureOccHab
 import fr.ariegenature.geomys.occhab.OccHabDetailsSession
 import fr.ariegenature.geomys.occhab.SaisiesDetailsStation
-import fr.ariegenature.geomys.occtax.DetailsReleveFormulaire
 import fr.ariegenature.geomys.store.GeoNatureConfig
 import fr.ariegenature.geomys.store.NomenclatureCache
 import fr.ariegenature.geomys.ui.composants.ChampJour
 import fr.ariegenature.geomys.ui.composants.ChampTexteFormulaire
 import fr.ariegenature.geomys.ui.composants.DeroulantAndroid
-import fr.ariegenature.geomys.ui.composants.DialogueFeuilleFormulaire
-import fr.ariegenature.geomys.ui.composants.GraisseSymbole
-import fr.ariegenature.geomys.ui.composants.INVITE_IOS
+import fr.ariegenature.geomys.ui.composants.DialogueFormulaireAppCompat
 import fr.ariegenature.geomys.ui.composants.LigneChoixIos
 import fr.ariegenature.geomys.ui.composants.LigneIos
 import fr.ariegenature.geomys.ui.composants.LigneNombreIos
 import fr.ariegenature.geomys.ui.composants.LigneTexteIos
 import fr.ariegenature.geomys.ui.composants.LigneTexteSeulIos
+import fr.ariegenature.geomys.ui.composants.LignesObservateursIos
+import fr.ariegenature.geomys.ui.composants.LignesRechercheIos
 import fr.ariegenature.geomys.ui.composants.ListeDeroulante
 import fr.ariegenature.geomys.ui.composants.LocalToasts
-import fr.ariegenature.geomys.ui.composants.MenuSysteme
 import fr.ariegenature.geomys.ui.composants.ObservateursAndroid
 import fr.ariegenature.geomys.ui.composants.SectionIos
-import fr.ariegenature.geomys.ui.composants.SeparateurIos
-import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.afficher
 import fr.ariegenature.geomys.ui.composants.estIos
-import fr.ariegenature.geomys.ui.composants.styleSaisieIos
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import fr.ariegenature.geomys.util.maintenantMillis
 
@@ -213,7 +199,7 @@ fun DialogueDetailsStation(etat: EtatDetailsStation?, onAnnuler: () -> Unit, onV
     if (etat != null) dernier[0] = etat
     val e = etat ?: dernier[0] ?: return
     val toasts = LocalToasts.current
-    DialogueFeuilleFormulaire(
+    DialogueFormulaireAppCompat(
         visible = etat != null,
         titre = e.titre,
         onAnnuler = onAnnuler,
@@ -287,53 +273,30 @@ private fun ChampNombreAndroid(libelle: String, valeur: String, onChange: (Strin
 private fun ContenuIos(e: EtatDetailsStation) {
     SectionIos(DetailsStation.LIBELLE_JDD) {
         if (e.datasets.isEmpty()) LigneTexteSeulIos(DetailsStation.AUCUN_JDD, couleur = CouleursGeoMys.rougePastille, taille = 13f)
-        else ChampJddIos(e)
+        else LignesRechercheIos(DetailsStation.INVITE_JDD, e.datasets.map { it.second }, e.texteDataset, e::choisirDataset)
     }
     SectionIos(DetailsStation.LIBELLE_OBSERVATEURS) {
-        if (e.observateurs.isEmpty()) LigneTexteSeulIos("—", couleur = CouleursGeoMys.blanc70)
-        e.observateurs.forEachIndexed { i, (id, nom) ->
-            if (i > 0) SeparateurIos(Modifier.padding(start = 16.dp))
-            LigneIos {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(nom, fontSize = 17.sp, color = Color.White, modifier = Modifier.weight(1f))
-                    Box(Modifier.clickable(remember { MutableInteractionSource() }, indication = null) { e.retirerObservateur(id) }) {
-                        SymboleSf("xmark", 13f, listOf(CouleursGeoMys.rougePastille), graisse = GraisseSymbole.DEMI_GRASSE, description = "Retirer $nom")
-                    }
-                }
-            }
-        }
-        if (e.observateursProposes.isNotEmpty()) {
-            SeparateurIos(Modifier.padding(start = 16.dp))
-            LigneIos {
-                Box(Modifier.fillMaxWidth()) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("Ajouter un observateur", fontSize = 17.sp, color = CouleursGeoMys.blanc70, modifier = Modifier.weight(1f))
-                        SymboleSf("chevron.down", 12f, listOf(CouleursGeoMys.blanc70), graisse = GraisseSymbole.DEMI_GRASSE)
-                    }
-                    MenuSysteme(e.observateursProposes.map { it.second }, -1, e::ajouterObservateur, Modifier.matchParentSize())
-                }
-            }
-        }
+        LignesObservateursIos(e.observateursProposes, e.observateurs, e::ajouterObservateur, e::retirerObservateur)
     }
     if (e.dateMinVisible) SectionIos(DetailsStation.LIBELLE_DATE_MIN) { LigneIos { ChampJour(e.dateMin, { e.dateMin = it }, fondIos = FOND_LIGNE) } }
     if (e.dateMaxVisible) SectionIos(DetailsStation.LIBELLE_DATE_MAX) { LigneIos { ChampJour(e.dateMax, { e.dateMax = it }, fondIos = FOND_LIGNE) } }
     if (e.natureVisible) {
         SectionIos(DetailsStation.LIBELLE_NATURE) { LigneChoixIos("", e.natures.libelles, e.positionNature) { e.positionNature = it } }
     }
+    // Altitudes, surface et méthode comme les autres champs : le libellé sur le fond, au-dessus de sa ligne
+    // (demande du 20 octobre ; elles partageaient une section, leur libellé dans la ligne).
     val chiffres = KeyboardOptions(keyboardType = KeyboardType.Number)
-    val lignesDerivees = buildList<@Composable () -> Unit> {
-        if (e.altitudeMinVisible) add { LigneNombreIos(DetailsStation.LIBELLE_ALTITUDE_MIN, e.altitudeMin, { e.altitudeMin = it.filter(Char::isDigit) }, chiffres) }
-        if (e.altitudeMaxVisible) add { LigneNombreIos(DetailsStation.LIBELLE_ALTITUDE_MAX, e.altitudeMax, { e.altitudeMax = it.filter(Char::isDigit) }, chiffres) }
-        if (e.surfaceVisible) add { LigneNombreIos(DetailsStation.LIBELLE_SURFACE, e.surface, { e.surface = it.filter(Char::isDigit) }, chiffres) }
-        if (e.methodeVisible) add { LigneChoixIos(DetailsStation.LIBELLE_METHODE, e.methodes.libelles, e.positionMethode) { e.positionMethode = it } }
+    if (e.altitudeMinVisible) {
+        SectionIos(DetailsStation.LIBELLE_ALTITUDE_MIN) { LigneNombreIos("", e.altitudeMin, { e.altitudeMin = it.filter(Char::isDigit) }, chiffres) }
     }
-    if (lignesDerivees.isNotEmpty()) {
-        SectionIos(null) {
-            lignesDerivees.forEachIndexed { i, ligne ->
-                if (i > 0) SeparateurIos(Modifier.padding(start = 16.dp))
-                ligne()
-            }
-        }
+    if (e.altitudeMaxVisible) {
+        SectionIos(DetailsStation.LIBELLE_ALTITUDE_MAX) { LigneNombreIos("", e.altitudeMax, { e.altitudeMax = it.filter(Char::isDigit) }, chiffres) }
+    }
+    if (e.surfaceVisible) {
+        SectionIos(DetailsStation.LIBELLE_SURFACE) { LigneNombreIos("", e.surface, { e.surface = it.filter(Char::isDigit) }, chiffres) }
+    }
+    if (e.methodeVisible) {
+        SectionIos(DetailsStation.LIBELLE_METHODE) { LigneChoixIos("", e.methodes.libelles, e.positionMethode) { e.positionMethode = it } }
     }
     if (e.commentaireVisible) {
         SectionIos(DetailsStation.LIBELLE_COMMENTAIRE) {
@@ -352,48 +315,3 @@ private fun ContenuIos(e: EtatDetailsStation) {
 
 /** Fond des lignes d'une feuille, sous le sélecteur de date (vue native). */
 private val FOND_LIGNE = Color(0xFF2C2C2E)
-
-/** Le jeu de données : champ à filtre (certaines instances en exposent des dizaines), la liste
- *  filtrée dessous (cinq au plus) tant qu'il a le focus. Le toucher le vide et ouvre la liste ;
- *  quitté sans choix, il réaffiche le choix courant. */
-@Composable
-private fun ChampJddIos(e: EtatDetailsStation) {
-    val focus = LocalFocusManager.current
-    var recherche by remember { mutableStateOf(e.texteDataset) }
-    var ouverte by remember { mutableStateOf(false) }
-    LigneIos {
-        BasicTextField(
-            value = recherche,
-            onValueChange = { recherche = it },
-            singleLine = true,
-            textStyle = styleSaisieIos,
-            cursorBrush = SolidColor(CouleursGeoMys.jauneClair),
-            modifier = Modifier.fillMaxWidth().onFocusChanged {
-                if (it.isFocused) {
-                    recherche = ""
-                    ouverte = true
-                } else {
-                    recherche = e.texteDataset
-                    ouverte = false
-                }
-            },
-            decorationBox = { champ ->
-                Box {
-                    if (recherche.isEmpty()) Text(DetailsStation.INVITE_JDD, style = styleSaisieIos.copy(color = INVITE_IOS))
-                    champ()
-                }
-            },
-        )
-    }
-    if (ouverte) {
-        DetailsReleveFormulaire.filtrer(e.datasets.map { it.second }, recherche).take(5).forEach { i ->
-            SeparateurIos(Modifier.padding(start = 16.dp))
-            LigneIos(Modifier.clickable {
-                e.choisirDataset(i)
-                focus.clearFocus()
-            }) {
-                Text(e.datasets[i].second, fontSize = 17.sp, color = Color.White)
-            }
-        }
-    }
-}

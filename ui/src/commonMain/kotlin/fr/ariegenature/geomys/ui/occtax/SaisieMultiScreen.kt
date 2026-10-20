@@ -767,7 +767,7 @@ internal fun BoutonRondAndroid(icone: DrawableResource, fond: Color, fondAppuye:
 /** `boutonRond` de TraceView : disque de 56 pt ombré, symbole SF de 22 pt demi-gras, estompé à
  *  l'appui. */
 @Composable
-private fun BoutonRondIos(symbole: String, fond: Color, teinte: Color, description: String, onClick: () -> Unit) {
+internal fun BoutonRondIos(symbole: String, fond: Color, teinte: Color, description: String, onClick: () -> Unit) {
     BoutonIos(onClick, opaciteAppui = 0.6f) {
         Box(Modifier.size(56.dp).shadow(4.dp, CircleShape).background(fond, CircleShape), contentAlignment = Alignment.Center) {
             SymboleSf(symbole, 22f, listOf(teinte), graisse = GraisseSymbole.DEMI_GRASSE, description = description)

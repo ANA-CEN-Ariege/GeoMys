@@ -35,7 +35,6 @@ import fr.ariegenature.geomys.carte.enregistrerFondChoisi
 import fr.ariegenature.geomys.geo.LatLon
 import fr.ariegenature.geomys.model.OccHabSaisie
 import fr.ariegenature.geomys.model.OccHabStation
-import fr.ariegenature.geomys.network.humaniserErreurReseau
 import fr.ariegenature.geomys.occhab.CadrageOccHab
 import fr.ariegenature.geomys.occhab.CarteOccHab
 import fr.ariegenature.geomys.occhab.DetailsStation
@@ -44,8 +43,6 @@ import fr.ariegenature.geomys.occhab.ModeGeometrie
 import fr.ariegenature.geomys.occhab.PileAnnulationGeometrie
 import fr.ariegenature.geomys.occhab.SaisiesDetailsStation
 import fr.ariegenature.geomys.occhab.SessionOccHab
-import fr.ariegenature.geomys.occhab.chargerStationsDuJdd
-import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
@@ -262,11 +259,12 @@ class CarteOccHabViewModel(
         return stationsServeur.size
     }
 
-    /** Charge les stations de l'utilisateur DÉJÀ sur le serveur pour le JEU DE DONNÉES de la
-     *  station (demande terrain 2026-08-27). Hors-ligne ou en erreur : REPLI sur le cache, avec sa
-     *  date ; cache vide : l'erreur humanisée. [conserverLesAutresJdd] : les stations des autres
-     *  JDD restent affichées depuis le cache (demande utilisateur 2026-10-18). L'emprise n'est
-     *  jamais touchée : elle ne change que sur un geste de l'utilisateur. */
+    /** Les stations de l'utilisateur DÉJÀ sur le serveur pour le JEU DE DONNÉES de la station
+     *  (demande terrain 2026-08-27), depuis le cache de la synchro, avec sa date : rien n'est demandé
+     *  au serveur (décision de l'utilisateur du 20 octobre ; un envoi y reporte ses stations).
+     *  [conserverLesAutresJdd] : les stations des autres JDD restent affichées (demande utilisateur
+     *  2026-10-18). L'emprise n'est jamais touchée : elle ne change que sur un geste de
+     *  l'utilisateur. */
     private fun chargerServeur(conserverLesAutresJdd: Boolean = false) {
         val idJdd = session.details.idDataset
         if (idJdd == null || idJdd <= 0) {
@@ -274,21 +272,8 @@ class CarteOccHabViewModel(
             return
         }
         viewModelScope.launch {
-            var dateCache: Long? = null
-            var nbIgnorees = 0
-            val chargees = try {
-                services.chargerStationsDuJdd(idJdd).also { nbIgnorees = it.nbIgnorees }.stations
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                val cache = services.stationsServeur.lire(idJdd)
-                if (cache.isEmpty()) {
-                    message(humaniserErreurReseau(e), longue = true)
-                    return@launch
-                }
-                dateCache = services.stationsServeur.dateChargement
-                cache
-            }
+            val chargees = services.stationsServeur.lire(idJdd)
+            val dateCache = services.stationsServeur.dateChargement
             stationsServeur = if (conserverLesAutresJdd) chargees + services.stationsServeur.tout.filter { it.idDataset != idJdd } else chargees
             jddCharge = idJdd
             classer()
@@ -297,7 +282,7 @@ class CarteOccHabViewModel(
                 // message le dit.
                 val idsNonEnvoyes = store.charger().flatMap { it.stations }.filterNot { it.envoyeGeoNature }.mapNotNull { it.idStationServeur }.toSet()
                 val nbIci = chargees.count { st -> st.idStationServeur?.let { it in idsNonEnvoyes } == true }
-                message(CarteOccHab.messageChargement(chargees.size, dateCache, nbIci, nbReprisesAilleurs, nbIgnorees), longue = true)
+                message(CarteOccHab.messageChargement(chargees.size, dateCache, nbIci, nbReprisesAilleurs), longue = true)
                 if (aucuneGeometrieEnCours) bandeau = CarteOccHab.texteSelection(true)
                 rafraichirLocales()
             }
@@ -468,8 +453,9 @@ class CarteOccHabViewModel(
         }
     }
 
-    /** « Valider » : la géométrie (surface nette, altitudes MNT) est enregistrée AU FIL DE L'EAU,
-     *  puis l'écran de la station — ses détails et ses habitats, FACULTATIFS. */
+    /** « Valider » : la géométrie (surface nette) est enregistrée AU FIL DE L'EAU, puis l'écran de
+     *  la station — ses détails et ses habitats, FACULTATIFS. Ses altitudes du MNT seront demandées à
+     *  l'envoi (`EnvoiOccHab`) : celles d'une géométrie précédente sont effacées. */
     fun valider() {
         val g = edition.geometrie() ?: return
         // Dessinée de zéro (et non reprise) : l'écran de la station l'annoncera « Nouvelle station ».
@@ -477,7 +463,7 @@ class CarteOccHabViewModel(
         session.definirGeometrie(g)
         // Surface AUTO (parité web, arrondie au m²), calculée localement, trous déduits.
         session.definirSurface(edition.surfaceM2())
-        sessionVm.remplirAltitudes()
+        session.definirAltitudes(null, null)
         viewModelScope.launch {
             if (!store.upsertStation(session.saisieId, session.stationAEnregistrer())) {
                 echecEcriture = CarteOccHab.CONSIGNE_GEOMETRIE
@@ -488,8 +474,9 @@ class CarteOccHabViewModel(
         }
     }
 
-    /** Station SÉLECTIONNÉE : chaque geste est persisté au relâcher (surface recalculée,
-     *  altitudes MNT) — « Valider » enchaîne sur la station, il n'enregistre pas seul. */
+    /** Station SÉLECTIONNÉE : chaque geste est persisté au relâcher (surface recalculée, altitudes
+     *  effacées, redemandées à l'envoi) — « Valider » enchaîne sur la station, il n'enregistre pas
+     *  seul. */
     private fun persisterSelection() {
         if (!geometrieChargee) return
         val g = edition
@@ -502,7 +489,7 @@ class CarteOccHabViewModel(
             session.definirGeometrie(geo)
             session.definirSurface(g.surfaceM2())
         }
-        sessionVm.remplirAltitudes()
+        session.definirAltitudes(null, null)
         ecrire(CarteOccHab.CONSIGNE_SOMMET)
     }
 

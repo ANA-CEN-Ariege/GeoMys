@@ -50,11 +50,14 @@ private class VerrousEnvoiOccHab {
 /** Résultat d'un envoi de saisie OccHab : [succes] + [message] humanisé prêt à afficher. */
 data class ResultatEnvoiOccHab(val succes: Boolean, val message: String)
 
-/** L'envoi d'une saisie OccHab et la tenue du store, partagés par les écrans d'envoi. */
+/** L'envoi d'une saisie OccHab et la tenue du store, partagés par les écrans d'envoi.
+ *  [altitudesMnt] : les altitudes min/max du MNT du serveur pour une station, null hors ligne ou
+ *  en erreur. */
 class EnvoiOccHab(
     private val occHabUpload: OccHabUpload,
     private val store: OccHabStore,
     private val stationsServeur: StationsServeurCache,
+    private val altitudesMnt: suspend (OccHabStation) -> Pair<Int, Int>?,
 ) {
 
     private val verrous = VerrousEnvoiOccHab()
@@ -98,6 +101,18 @@ class EnvoiOccHab(
         }
     }
 
+    /** [station] avec les altitudes du MNT du serveur quand elle n'en a aucune : demandées à l'envoi,
+     *  qui est en ligne, et non plus au dessin — les écrans ne demandent rien au serveur (décision de
+     *  l'utilisateur du 20 octobre ; un changement de géométrie efface les anciennes). Reportées dans
+     *  la saisie. Best-effort : sans elles, la station part quand même. */
+    private suspend fun avecAltitudes(saisieId: String, station: OccHabStation): OccHabStation {
+        if (station.altitudeMin != null || station.altitudeMax != null) return station
+        val (min, max) = altitudesMnt(station) ?: return station
+        val completee = station.copy(altitudeMin = min, altitudeMax = max)
+        store.upsertStation(saisieId, completee)
+        return completee
+    }
+
     private suspend fun envoyerSousVerrou(
         saisie: OccHabSaisie,
         config: GeoNatureConfig,
@@ -118,7 +133,7 @@ class EnvoiOccHab(
 
         var nbCrees = 0
         var derniereErreur: String? = null
-        for (station in aEnvoyer) {
+        for (station in aEnvoyer.map { avecAltitudes(saisie.id, it) }) {
             // CRÉATION (pas d'id serveur) : « tentée » (statut INCERTAIN) persisté AVANT le POST — si
             // le processus meurt ou si la coroutine est annulée pendant l'appel, le prochain envoi
             // vérifiera l'existence par UUID au lieu de re-POSTer (audit 2026-08-27, modèle

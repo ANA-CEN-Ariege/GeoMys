@@ -18,15 +18,15 @@
 
 // Porté de GeoMys-Android @ cdd5196 (app/src/test/java/fr/ariegenature/geomys/PictoCacheTest.kt) :
 // MockWebServer remplacé par ServeurSimule, TemporaryFolder et java.io par okio, l'objet par une
-// instance ; le marqueur périmé, qu'okio ne sait pas antidater, l'est par l'horloge du cache.
-// Les deux derniers cas de téléchargement sont propres au portage : le contrôle d'image par
-// signature y rend testable le cas nominal, impossible sous Android (BitmapFactory du stub JVM).
+// instance. Les deux derniers cas de téléchargement sont propres au portage : le contrôle d'image par
+// signature y rend testable le cas nominal, impossible sous Android (BitmapFactory du stub JVM). Le
+// cache négatif d'un 404 et ses trois cas ont disparu le 20 octobre : seule la synchro télécharge les
+// pictos, l'écran Suivis ne lit que le cache.
 
 package fr.ariegenature.geomys.store
 
 import fr.ariegenature.geomys.network.ServeurSimule
 import fr.ariegenature.geomys.network.ServeurSimule.Companion.octets
-import fr.ariegenature.geomys.util.maintenantMillis
 import fr.ariegenature.geomys.util.uuidAleatoire
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -49,8 +49,7 @@ class PictoCacheTest {
     private val racine = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "geomys-test-${uuidAleatoire()}"
     private val dossier = racine / "pictos"
     private val serveur = ServeurSimule()
-    private var maintenant: Long? = null
-    private val pictos = PictoCache(dossier, serveur.clients, horloge = { maintenant ?: maintenantMillis() })
+    private val pictos = PictoCache(dossier, serveur.clients)
 
     @AfterTest
     fun supprimerLeDossier() {
@@ -134,21 +133,15 @@ class PictoCacheTest {
     // ------------------------------------------------------------------ telecharger
 
     @Test
-    fun telecharger_404_renvoie_null_et_ecrit_le_marqueur_negatif() = runTest {
+    fun telecharger_404_renvoie_null_et_n_ecrit_rien() = runTest {
         // Pas d'image.
         serveur.repondre(404)
         assertNull(pictos.telecharger("STOM", "${serveur.base}/api/media/monitorings/STOM/img.jpg"))
-        // Cache NÉGATIF : le 404 est mémorisé par un marqueur vide `STOM.absent` — et rien d'autre.
-        val marqueur = dossier / "STOM.absent"
-        val meta = systeme.metadata(marqueur)
-        assertTrue(meta.isRegularFile, "le marqueur négatif doit exister")
-        assertEquals(0L, meta.size, "le marqueur doit être vide")
-        assertEquals(listOf(marqueur), fichiers(), "aucun autre fichier ne doit être écrit")
+        assertEquals(0, fichiers().size)
     }
 
     @Test
-    fun telecharger_echec_non_404_renvoie_null_sans_marqueur_negatif() = runTest {
-        // Un échec transitoire (5xx, serveur en carafe) ne doit pas être mémorisé 24 h.
+    fun telecharger_erreur_serveur_renvoie_null_et_n_ecrit_rien() = runTest {
         serveur.repondre(500)
         assertNull(pictos.telecharger("STOM", "${serveur.base}/img.jpg"))
         assertEquals(0, fichiers().size)
@@ -212,13 +205,12 @@ class PictoCacheTest {
     }
 
     @Test
-    fun telecharger_vraie_image_persistee_et_marqueur_negatif_supprime() = runTest {
-        ecrire("STOM.absent", ByteArray(0))
+    fun telecharger_vraie_image_persistee() = runTest {
         val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 1, 2, 3)
         serveur.repondre(octets(jpeg, "image/jpeg"))
         assertEquals(dossier / "STOM.jpg", pictos.telecharger("STOM", "${serveur.base}/img.jpg"))
         assertTrue(jpeg.contentEquals(systeme.read(dossier / "STOM.jpg") { readByteArray() }))
-        assertEquals(listOf(dossier / "STOM.jpg"), fichiers(), "ni marqueur ni .tmp ne doivent rester")
+        assertEquals(listOf(dossier / "STOM.jpg"), fichiers(), "aucun .tmp ne doit rester")
     }
 
     @Test
@@ -226,39 +218,6 @@ class PictoCacheTest {
         val png = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0)
         serveur.repondre(octets(png, "image/png"))
         assertEquals(dossier / "STOM.jpg", pictos.telecharger("STOM", "${serveur.base}/img.png"))
-    }
-
-    // ------------------------------------------------------------------ fichierOuTelecharger (cache négatif)
-
-    @Test
-    fun fichier_ou_telecharger_marqueur_negatif_frais_court_circuite_le_reseau() = runTest {
-        ecrire("STOM.absent", ByteArray(0)) // lastModified = maintenant
-        assertNull(pictos.fichierOuTelecharger("${serveur.base}/gn", "STOM", null))
-        assertEquals(0, serveur.requetes.size, "aucune requête réseau ne doit partir")
-    }
-
-    @Test
-    fun fichier_ou_telecharger_marqueur_negatif_perime_retente_le_reseau_et_rafraichit_le_marqueur() = runTest {
-        // Un octet dans le marqueur : sa réécriture par le 404 se voit à sa taille, revenue à 0.
-        ecrire("STOM.absent", byteArrayOf(1))
-        maintenant = maintenantMillis() + 25L * 60 * 60 * 1000 // 25 h > TTL 24 h
-        serveur.repondre(404)
-        assertNull(pictos.fichierOuTelecharger("${serveur.base}/gn", "STOM", null))
-        assertEquals(1, serveur.requetes.size, "le réseau doit être retenté")
-        assertEquals(0L, systeme.metadata(dossier / "STOM.absent").size, "le 404 doit rafraîchir le marqueur")
-    }
-
-    @Test
-    fun fichier_ou_telecharger_image_en_cache_prime_sur_le_marqueur_negatif() = runTest {
-        // État incohérent possible (image posée par prefetch après un vieux 404) : le fichier
-        // local gagne, sans requête réseau.
-        ecrire("STOM.jpg", byteArrayOf(1, 2, 3))
-        ecrire("STOM.absent", ByteArray(0))
-        assertEquals(
-            dossier / "STOM.jpg",
-            pictos.fichierOuTelecharger("${serveur.base}/gn", "STOM", null),
-        )
-        assertEquals(0, serveur.requetes.size)
     }
 
     // ------------------------------------------------------------------ vider

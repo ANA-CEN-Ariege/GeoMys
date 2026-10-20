@@ -232,7 +232,7 @@ private fun ContenuAndroid(etat: EtatAccueil, actions: ActionsAccueil, nomAppli:
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
             RangeeSaisiesAndroid(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
                 BoutonAccueilAndroid("Saisie multi-taxons", etat.saisieValide, actions.saisieMulti, Modifier, 18.dp)
-                BoutonAccueilAndroid("Saisie mono-taxons", etat.saisieValide, actions.saisieMono, Modifier, 6.dp)
+                BoutonAccueilAndroid("Saisie mono-taxon", etat.saisieValide, actions.saisieMono, Modifier, 6.dp)
             }
             if (etat.monitoringDisponible) {
                 BoutonAccueilAndroid("Monitoring", etat.saisieValide, actions.monitoring, Modifier.fillMaxWidth().padding(bottom = 12.dp), 16.dp)
@@ -260,7 +260,7 @@ private fun ContenuAndroid(etat: EtatAccueil, actions: ActionsAccueil, nomAppli:
 
 /** La rangée des deux boutons de saisie, comme son LinearLayout : deux colonnes de même largeur
  *  (les 8 dp de `layout_marginStart` retirés avant le partage des poids) ; la rangée prend la
- *  hauteur du bouton multi-taxons (`wrap_content`) et le bouton mono-taxons s'y étire
+ *  hauteur du bouton multi-taxons (`wrap_content`) et le bouton mono-taxon s'y étire
  *  (`match_parent`). */
 @Composable
 private fun RangeeSaisiesAndroid(modifier: Modifier, boutons: @Composable () -> Unit) {
@@ -376,7 +376,7 @@ private fun ContenuIos(etat: EtatAccueil, actions: ActionsAccueil, nomAppli: Str
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 BoutonAccueilIos("Saisie\nmulti-taxons", etat.saisieValide, actions.saisieMulti, Modifier.weight(1f), 18.dp)
-                BoutonAccueilIos("Saisie\nmono-taxons", etat.saisieValide, actions.saisieMono, Modifier.weight(1f), 18.dp)
+                BoutonAccueilIos("Saisie\nmono-taxon", etat.saisieValide, actions.saisieMono, Modifier.weight(1f), 18.dp)
             }
             if (etat.monitoringDisponible) {
                 BoutonAccueilIos("Monitoring", etat.saisieValide, actions.monitoring, Modifier.fillMaxWidth(), 16.dp)

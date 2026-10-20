@@ -136,6 +136,10 @@ class MonitoringCache(private val dir: Path, private val systeme: FileSystem = F
      *  l'autocomplétion observateurs et la résolution id_role → nom complet en offline. */
     fun keyObservateurs(idListe: Int): String = "observateurs_$idListe.json"
 
+    /** Jeux de données actifs d'un protocole (`/api/meta/datasets?module_code=…`), mis en cache par
+     *  la synchro : id du jeu d'une visite envoyée, liste taxonomique d'une nouvelle saisie. */
+    fun keyDatasetsModule(moduleCode: String): String = "datasets_${safeKey(moduleCode)}.json"
+
     /** Cache local des OPTIONS d'un widget datalist/nomenclature de formulaire monitoring,
      *  indexé par son `apiUrl` (query params compris → clé unique par filtre). Peuplé au 1er
      *  fetch live ET au prefetch de synchro ; relu hors-ligne pour ne pas bloquer la saisie

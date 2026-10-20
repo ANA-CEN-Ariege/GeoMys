@@ -32,7 +32,7 @@ import fr.ariegenature.geomys.servicesGeoNature
 import fr.ariegenature.geomys.ui.GeoMysApp
 import fr.ariegenature.geomys.ui.carte.ConfigurationCarte
 
-private val CLES_LANCEMENT = listOf("ecran", "fond", "zoom", "action", "taxons", "lecture", "url", "login", "mdp")
+private val CLES_LANCEMENT = listOf("ecran", "fond", "zoom", "action", "taxons", "lecture")
 
 /** Point d'entrée Android : il ne fait qu'afficher l'interface commune (module ui). */
 class MainActivity : ComponentActivity() {
@@ -50,8 +50,14 @@ class MainActivity : ComponentActivity() {
         )
         createNotificationChannel()
         ConfigurationCarte.initialiser(infos)
-        // Paramètres d'essai : adb shell am start … --es ecran prototype-carte --es fond serveur-test
-        val lancement = CLES_LANCEMENT.mapNotNull { cle -> intent.getStringExtra(cle)?.let { cle to it } }.toMap()
+        // Paramètres d'essai : adb shell am start … --es ecran prototype-carte --es fond serveur-test. Ignorés
+        // dans une release : une autre appli du téléphone pourrait sinon lancer GeoMys Common avec, et y
+        // écrire des données d'essai (action=…-essai).
+        val lancement = if (!BuildConfig.ESSAIS) {
+            emptyMap()
+        } else {
+            CLES_LANCEMENT.mapNotNull { cle -> intent.getStringExtra(cle)?.let { cle to it } }.toMap()
+        }
         val services = servicesGeoNature(applicationContext, ExecutionLongueAndroid(applicationContext), SuiviGpsAndroid(applicationContext))
         setContent { GeoMysApp(infos, services, lancement) }
     }

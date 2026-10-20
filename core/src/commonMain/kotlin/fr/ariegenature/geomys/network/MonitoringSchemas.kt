@@ -33,6 +33,8 @@ import fr.ariegenature.geomys.store.GeoNatureConfig
 import fr.ariegenature.geomys.store.MonitoringCache
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.decodeURLQueryComponent
+import kotlinx.atomicfu.locks.SynchronizedObject
+import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
@@ -54,7 +56,8 @@ class MonitoringSchemas(
     /** GET /api/monitorings/config/<module_code> — récupère le schéma déclaratif du protocole
      *  (fichier objects.json côté serveur). Pour chaque object_type expose le label, le
      *  `name_field`, le `parent_type` et les `children`. Permet de driver l'affichage et la
-     *  navigation au lieu d'utiliser des heuristiques. Null si l'endpoint échoue. */
+     *  navigation au lieu d'utiliser des heuristiques. Null si l'endpoint échoue. Réservé à la
+     *  synchro : les écrans lisent le cache ([lireSchemaProtocole]). */
     suspend fun chargerSchemaProtocole(config: GeoNatureConfig, moduleCode: String): Map<String, MonitoringSchemaObjet>? =
         withContext(Dispatchers.IO) {
             val base = config.urlServeur.trim().trimEnd('/')
@@ -86,114 +89,138 @@ class MonitoringSchemas(
                 cache.getJson(cache.keySchema(moduleCode))
             }
             if (text.isNullOrEmpty()) return@withContext null
-            val obj = try { JSONObject(text) } catch (_: Exception) { return@withContext null }
-            // Substitution des variables `__MODULE.XXX` (parité substituteVariables de
-            // gn_mobile_monitoring) : certains schémas embarquent ces placeholders dans des
-            // chaînes (api, id_list…). On les remplace par leur valeur lue dans le bloc `custom`.
-            substituerVariablesModule(obj)
-            val result = linkedMapOf<String, MonitoringSchemaObjet>()
-            val it = obj.keys()
-            while (it.hasNext()) {
-                val type = it.next()
-                val v = obj.optJSONObject(type) ?: continue
-                val childrenArr = v.optJSONArray("children")
-                val children = mutableListOf<String>()
-                if (childrenArr != null) {
-                    for (i in 0 until childrenArr.length()) {
-                        val s = childrenArr.optString(i, "")
-                        if (s.isNotEmpty()) children.add(s)
-                    }
-                }
-                // gn_module_monitoring varie d'une version à l'autre : on essaie plusieurs noms
-                // de clé pour le champ "nom".
-                val nameField = v.optString("description_field_name", "")
-                    .ifEmpty { v.optString("display_field_name", "") }
-                    .ifEmpty { v.optString("name_field", "") }
-                    .takeIf { it.isNotEmpty() }
-                val displayPropsArr = v.optJSONArray("display_properties")
-                val displayProps = mutableListOf<String>()
-                if (displayPropsArr != null) {
-                    for (i in 0 until displayPropsArr.length()) {
-                        displayPropsArr.optString(i, "").takeIf { it.isNotEmpty() }?.let { displayProps.add(it) }
-                    }
-                }
-                val displayListArr = v.optJSONArray("display_list")
-                val displayListNoms = mutableListOf<String>()
-                if (displayListArr != null) {
-                    for (i in 0 until displayListArr.length()) {
-                        displayListArr.optString(i, "").takeIf { it.isNotEmpty() }?.let { displayListNoms.add(it) }
-                    }
-                }
-                val displayFormArr = v.optJSONArray("display_form")
-                val displayFormNoms = mutableListOf<String>()
-                if (displayFormArr != null) {
-                    for (i in 0 until displayFormArr.length()) {
-                        displayFormArr.optString(i, "").takeIf { it.isNotEmpty() }?.let { displayFormNoms.add(it) }
-                    }
-                }
-                // `change` : tableau de lignes JS conservé brut pour l'évaluateur de règles.
-                val changeArr = v.optJSONArray("change")
-                val changeLignes = mutableListOf<String>()
-                if (changeArr != null) {
-                    for (i in 0 until changeArr.length()) {
-                        changeArr.optString(i, "").let { changeLignes.add(it) }
-                    }
-                }
-                val sortsArr = v.optJSONArray("sorts")
-                val sortsList = mutableListOf<Pair<String, String>>()
-                if (sortsArr != null) {
-                    for (i in 0 until sortsArr.length()) {
-                        val s = sortsArr.optJSONObject(i) ?: continue
-                        val prop = s.optString("prop", "").takeIf { it.isNotEmpty() } ?: continue
-                        val dir = s.optString("dir", "asc").lowercase()
-                        sortsList.add(prop to dir)
-                    }
-                }
-                // gn_module_monitoring expose les propriétés saisissables dans DEUX blocs côte à
-                // côte : `generic` (champs hérités du modèle de base — id, dates système, etc.)
-                // et `specific` (champs custom du protocole). Le merge fait que specific peut
-                // surcharger generic. Et `parent_types` est un array, pas un scalar.
-                val parentTypeFromArr = v.optJSONArray("parent_types")?.optString(0, "")
-                    ?.takeIf { it.isNotEmpty() }
-                val childrenFromTypesArr = v.optJSONArray("children_types")?.let { arr ->
-                    (0 until arr.length()).mapNotNull { i -> arr.optString(i, "").takeIf { it.isNotEmpty() } }
-                }.orEmpty()
-                result[type] = MonitoringSchemaObjet(
-                    type = type,
-                    label = v.optString("label", "").takeIf { it.isNotEmpty() },
-                    labelList = v.optString("label_list", "").takeIf { it.isNotEmpty() },
-                    nameField = nameField,
-                    parentType = v.optString("parent_type", "")
-                        .ifEmpty { parentTypeFromArr ?: "" }
-                        .takeIf { it.isNotEmpty() },
-                    childrenTypes = children.ifEmpty { childrenFromTypesArr },
-                    properties = parserPropertiesFusionnees(v),
-                    displayProperties = displayProps,
-                    displayForm = displayFormNoms,
-                    changeRules = changeLignes,
-                    displayList = displayListNoms,
-                    sorts = sortsList,
-                    idFieldName = v.optString("id_field_name", "").takeIf { it.isNotEmpty() },
-                    idListObserver = v.optInt("id_list_observer", -1).takeIf { it > 0 },
-                    idListTaxonomy = v.optInt("id_list_taxonomy", -1).takeIf { it > 0 },
-                    geometryType = v.optString("geometry_type", "").takeIf { it.isNotEmpty() && it != "null" },
-                    uuidFieldName = v.optString("uuid_field_name", "").takeIf { it.isNotEmpty() },
-                    genre = v.optString("genre", "").takeIf { it.isNotEmpty() },
-                )
-            }
-            // Post-processing : dérive l'URL des widgets `observers`/`dataset`/`taxonomy_list`
-            // qui n'ont pas d'`api` explicite dans le schéma (raccourci natif gn_module_monitoring
-            // — le client est censé connaître l'URL standard). Utilise les ID de listes déclarés
-            // au niveau du module.
-            val moduleBloc = obj.optJSONObject("module")
-            val idListObserver = moduleBloc?.optInt("id_list_observer", -1)?.takeIf { it > 0 }
-            val idListTaxonomy = moduleBloc?.optInt("id_list_taxonomy", -1)?.takeIf { it > 0 }
-            result.mapValues { (_, schemaObjet) ->
-                schemaObjet.copy(properties = schemaObjet.properties.mapValues { (_, prop) ->
-                    derirverApiSiManquant(prop, idListObserver, idListTaxonomy, moduleCode)
-                })
-            }
+            analyser(text, moduleCode)
         }
+
+    /** Le schéma du protocole pour les écrans : celui que la synchro a mis en cache, sans requête
+     *  (décision de l'utilisateur du 20 octobre : rien n'est téléchargé hors synchro). Null s'il n'y
+     *  est pas. Analysé une fois par version du cache : les écrans le relisent à chaque ouverture. */
+    suspend fun lireSchemaProtocole(moduleCode: String): Map<String, MonitoringSchemaObjet>? =
+        withContext(Dispatchers.IO) {
+            val json = cache.getJson(cache.keySchema(moduleCode)) ?: return@withContext null
+            synchronized(verrouAnalyses) { analyses[moduleCode] }
+                ?.let { (brut, schema) -> if (brut === json) return@withContext schema }
+            val schema = analyser(json, moduleCode) ?: return@withContext null
+            synchronized(verrouAnalyses) { analyses[moduleCode] = json to schema }
+            schema
+        }
+
+    /** Les schémas déjà analysés, par module : (JSON brut, schéma). Le JSON brut sert de clé :
+     *  [MonitoringCache] rend la même chaîne tant que le schéma n'est pas réécrit. */
+    private val analyses = HashMap<String, Pair<String, Map<String, MonitoringSchemaObjet>>>()
+    private val verrouAnalyses = SynchronizedObject()
+
+    /** Le schéma [text] analysé : types d'objets, propriétés fusionnées, variables substituées. Null
+     *  si le JSON est illisible. */
+    private fun analyser(text: String, moduleCode: String): Map<String, MonitoringSchemaObjet>? {
+        val obj = try { JSONObject(text) } catch (_: Exception) { return null }
+        // Substitution des variables `__MODULE.XXX` (parité substituteVariables de
+        // gn_mobile_monitoring) : certains schémas embarquent ces placeholders dans des
+        // chaînes (api, id_list…). On les remplace par leur valeur lue dans le bloc `custom`.
+        substituerVariablesModule(obj)
+        val result = linkedMapOf<String, MonitoringSchemaObjet>()
+        val it = obj.keys()
+        while (it.hasNext()) {
+            val type = it.next()
+            val v = obj.optJSONObject(type) ?: continue
+            val childrenArr = v.optJSONArray("children")
+            val children = mutableListOf<String>()
+            if (childrenArr != null) {
+                for (i in 0 until childrenArr.length()) {
+                    val s = childrenArr.optString(i, "")
+                    if (s.isNotEmpty()) children.add(s)
+                }
+            }
+            // gn_module_monitoring varie d'une version à l'autre : on essaie plusieurs noms
+            // de clé pour le champ "nom".
+            val nameField = v.optString("description_field_name", "")
+                .ifEmpty { v.optString("display_field_name", "") }
+                .ifEmpty { v.optString("name_field", "") }
+                .takeIf { it.isNotEmpty() }
+            val displayPropsArr = v.optJSONArray("display_properties")
+            val displayProps = mutableListOf<String>()
+            if (displayPropsArr != null) {
+                for (i in 0 until displayPropsArr.length()) {
+                    displayPropsArr.optString(i, "").takeIf { it.isNotEmpty() }?.let { displayProps.add(it) }
+                }
+            }
+            val displayListArr = v.optJSONArray("display_list")
+            val displayListNoms = mutableListOf<String>()
+            if (displayListArr != null) {
+                for (i in 0 until displayListArr.length()) {
+                    displayListArr.optString(i, "").takeIf { it.isNotEmpty() }?.let { displayListNoms.add(it) }
+                }
+            }
+            val displayFormArr = v.optJSONArray("display_form")
+            val displayFormNoms = mutableListOf<String>()
+            if (displayFormArr != null) {
+                for (i in 0 until displayFormArr.length()) {
+                    displayFormArr.optString(i, "").takeIf { it.isNotEmpty() }?.let { displayFormNoms.add(it) }
+                }
+            }
+            // `change` : tableau de lignes JS conservé brut pour l'évaluateur de règles.
+            val changeArr = v.optJSONArray("change")
+            val changeLignes = mutableListOf<String>()
+            if (changeArr != null) {
+                for (i in 0 until changeArr.length()) {
+                    changeArr.optString(i, "").let { changeLignes.add(it) }
+                }
+            }
+            val sortsArr = v.optJSONArray("sorts")
+            val sortsList = mutableListOf<Pair<String, String>>()
+            if (sortsArr != null) {
+                for (i in 0 until sortsArr.length()) {
+                    val s = sortsArr.optJSONObject(i) ?: continue
+                    val prop = s.optString("prop", "").takeIf { it.isNotEmpty() } ?: continue
+                    val dir = s.optString("dir", "asc").lowercase()
+                    sortsList.add(prop to dir)
+                }
+            }
+            // gn_module_monitoring expose les propriétés saisissables dans DEUX blocs côte à
+            // côte : `generic` (champs hérités du modèle de base — id, dates système, etc.)
+            // et `specific` (champs custom du protocole). Le merge fait que specific peut
+            // surcharger generic. Et `parent_types` est un array, pas un scalar.
+            val parentTypeFromArr = v.optJSONArray("parent_types")?.optString(0, "")
+                ?.takeIf { it.isNotEmpty() }
+            val childrenFromTypesArr = v.optJSONArray("children_types")?.let { arr ->
+                (0 until arr.length()).mapNotNull { i -> arr.optString(i, "").takeIf { it.isNotEmpty() } }
+            }.orEmpty()
+            result[type] = MonitoringSchemaObjet(
+                type = type,
+                label = v.optString("label", "").takeIf { it.isNotEmpty() },
+                labelList = v.optString("label_list", "").takeIf { it.isNotEmpty() },
+                nameField = nameField,
+                parentType = v.optString("parent_type", "")
+                    .ifEmpty { parentTypeFromArr ?: "" }
+                    .takeIf { it.isNotEmpty() },
+                childrenTypes = children.ifEmpty { childrenFromTypesArr },
+                properties = parserPropertiesFusionnees(v),
+                displayProperties = displayProps,
+                displayForm = displayFormNoms,
+                changeRules = changeLignes,
+                displayList = displayListNoms,
+                sorts = sortsList,
+                idFieldName = v.optString("id_field_name", "").takeIf { it.isNotEmpty() },
+                idListObserver = v.optInt("id_list_observer", -1).takeIf { it > 0 },
+                idListTaxonomy = v.optInt("id_list_taxonomy", -1).takeIf { it > 0 },
+                geometryType = v.optString("geometry_type", "").takeIf { it.isNotEmpty() && it != "null" },
+                uuidFieldName = v.optString("uuid_field_name", "").takeIf { it.isNotEmpty() },
+                genre = v.optString("genre", "").takeIf { it.isNotEmpty() },
+            )
+        }
+        // Post-processing : dérive l'URL des widgets `observers`/`dataset`/`taxonomy_list`
+        // qui n'ont pas d'`api` explicite dans le schéma (raccourci natif gn_module_monitoring
+        // — le client est censé connaître l'URL standard). Utilise les ID de listes déclarés
+        // au niveau du module.
+        val moduleBloc = obj.optJSONObject("module")
+        val idListObserver = moduleBloc?.optInt("id_list_observer", -1)?.takeIf { it > 0 }
+        val idListTaxonomy = moduleBloc?.optInt("id_list_taxonomy", -1)?.takeIf { it > 0 }
+        return result.mapValues { (_, schemaObjet) ->
+            schemaObjet.copy(properties = schemaObjet.properties.mapValues { (_, prop) ->
+                derirverApiSiManquant(prop, idListObserver, idListTaxonomy, moduleCode)
+            })
+        }
+    }
 
     companion object {
 

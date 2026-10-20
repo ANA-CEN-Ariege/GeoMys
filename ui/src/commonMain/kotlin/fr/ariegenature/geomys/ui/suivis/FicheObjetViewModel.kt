@@ -30,13 +30,13 @@ import androidx.lifecycle.viewModelScope
 import fr.ariegenature.geomys.ServicesGeoNature
 import fr.ariegenature.geomys.monitoring.AffichageSuivis
 import fr.ariegenature.geomys.monitoring.ElementFiche
+import fr.ariegenature.geomys.monitoring.FIL_TYPE_MODULE
 import fr.ariegenature.geomys.monitoring.FicheObjet
 import fr.ariegenature.geomys.monitoring.FilSegment
 import fr.ariegenature.geomys.network.MonitoringApi.LabelResolver
 import fr.ariegenature.geomys.network.MonitoringApi.MonitoringObjet
 import fr.ariegenature.geomys.network.MonitoringApi.MonitoringSchemaObjet
-import fr.ariegenature.geomys.network.humaniserErreurReseau
-import kotlinx.coroutines.async
+import fr.ariegenature.geomys.network.MonitoringSync
 import kotlinx.coroutines.launch
 
 /** La fiche d'un objet de suivi (`FicheObjetFragment`) : son type, son nom, ses propriétés et ses
@@ -62,6 +62,11 @@ class FicheObjetViewModel(
     var elements by mutableStateOf<List<ElementFiche>>(emptyList())
         private set
 
+    /** Fiche reconstituée depuis son parent : ses saisies rattachées ne sont pas dans le cache, ou
+     *  sont demandées au serveur. */
+    var note by mutableStateOf<String?>(null)
+        private set
+
     // Le dernier rendu, pour relister les enfants au retour sans refaire les requêtes.
     private var objet: MonitoringObjet? = null
     private var schema: Map<String, MonitoringSchemaObjet>? = null
@@ -79,26 +84,59 @@ class FicheObjetViewModel(
         titre = ""
         proprietes = emptyList()
         elements = emptyList()
+        note = null
+        objet = null
         viewModelScope.launch {
-            val config = services.config
-            val objetAttendu = async { resultat { services.monitoring.chargerObjet(config, moduleCode, objectType, id) } }
-            val schemaAttendu = async { resultat { services.monitoring.chargerSchemaProtocole(config, moduleCode) } }
-            val charge = objetAttendu.await().getOrElse { e ->
-                chargement = false
-                erreur = humaniserErreurReseau(e)
-                return@launch
-            }
-            val s = schemaAttendu.await().getOrNull()
-            resolveur = s?.let { resultat { services.monitoringDatalists.chargerResolveurLabels(config, moduleCode, it) }.getOrNull() }
-                ?: LabelResolver()
-            chargement = false
-            objet = charge
+            // Tout vient du cache de la synchro, rien n'est demandé au serveur (décision de
+            // l'utilisateur du 20 octobre) — sauf pour une saisie (visite, observation), que la
+            // synchro ne charge pas : avec du réseau, sa fiche se met à jour depuis le serveur
+            // après s'être affichée (demande du même jour). Hors réseau, le cache reste affiché.
+            val s = resultat { services.monitoring.lireSchemaProtocole(moduleCode) }.getOrNull()
             schema = s
-            val schemaCe = s?.get(charge.type)
-            titre = AffichageSuivis.nomObjet(charge, schemaCe)
-            type = AffichageSuivis.libelleType(charge.type, schemaCe)
-            proprietes = AffichageSuivis.proprietesAffichees(charge, schemaCe, resolveur)
-            listerEnfants(charge)
+            resolveur = s?.let { resultat { services.monitoringDatalists.lireResolveurLabels(services.config, it) }.getOrNull() }
+                ?: LabelResolver()
+            val enCache = resultat { lireFiche() }.getOrNull()
+            val saisie = MonitoringSync.estSaisie(objectType, s)
+            if (enCache != null) afficher(enCache, miseAJourEnCours = saisie)
+            if (saisie) {
+                val serveur = resultat { services.monitoring.chargerObjet(services.config, moduleCode, objectType, id) }.getOrNull()
+                when {
+                    serveur != null -> afficher(serveur, miseAJourEnCours = false)
+                    enCache != null -> note = if (enCache.enfantsConnus) null else AffichageSuivis.ENFANTS_HORS_CACHE
+                }
+            }
+            if (objet == null) {
+                chargement = false
+                erreur = AffichageSuivis.FICHE_HORS_CACHE
+            }
+        }
+    }
+
+    /** Affiche la fiche [o] ; [miseAJourEnCours] : sa version du serveur est demandée. */
+    private suspend fun afficher(o: MonitoringObjet, miseAJourEnCours: Boolean) {
+        chargement = false
+        objet = o
+        val schemaCe = schema?.get(o.type)
+        titre = AffichageSuivis.nomObjet(o, schemaCe)
+        type = AffichageSuivis.libelleType(o.type, schemaCe)
+        proprietes = AffichageSuivis.proprietesAffichees(o, schemaCe, resolveur)
+        note = when {
+            o.enfantsConnus -> null
+            miseAJourEnCours -> AffichageSuivis.ENFANTS_EN_CHARGEMENT
+            else -> AffichageSuivis.ENFANTS_HORS_CACHE
+        }
+        listerEnfants(o)
+    }
+
+    /** La fiche en cache ; à défaut, reconstituée depuis sa ligne chez son parent, le niveau
+     *  précédent du fil (une visite passée : la synchro ne charge pas l'historique). */
+    private suspend fun lireFiche(): MonitoringObjet? {
+        services.monitoring.lireObjet(moduleCode, objectType, id)?.let { return it }
+        val parent = fil.getOrNull(fil.lastIndex - 1) ?: return null
+        return when {
+            parent.type == FIL_TYPE_MODULE -> services.monitoring.lireObjetDepuisParent(moduleCode, objectType, id, null, -1)
+            parent.id > 0 -> services.monitoring.lireObjetDepuisParent(moduleCode, objectType, id, parent.type, parent.id)
+            else -> null
         }
     }
 
@@ -113,8 +151,8 @@ class FicheObjetViewModel(
     }
 
     /** Retour sur la fiche : si une saisie rattachée a été ajoutée ou envoyée entre-temps, la fiche
-     *  est rechargée (une visite envoyée n'est plus dans la file, mais sur le serveur) ; sinon ses
-     *  enfants sont seulement relistés. */
+     *  est relue (une visite envoyée n'est plus dans la file, mais dans le cache, où l'envoi l'a
+     *  reportée) ; sinon ses enfants sont seulement relistés. */
     fun aLaReprise() {
         val o = objet ?: return
         viewModelScope.launch {

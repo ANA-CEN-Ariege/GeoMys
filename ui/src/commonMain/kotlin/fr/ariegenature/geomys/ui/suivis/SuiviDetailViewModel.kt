@@ -32,10 +32,12 @@ import fr.ariegenature.geomys.monitoring.AffichageSuivis
 import fr.ariegenature.geomys.monitoring.FilSegment
 import fr.ariegenature.geomys.monitoring.filRacineSuivis
 import fr.ariegenature.geomys.network.MonitoringApi.LabelResolver
-import fr.ariegenature.geomys.network.humaniserErreurReseau
+import fr.ariegenature.geomys.network.MonitoringApi.MonitoringEnfant
+import fr.ariegenature.geomys.network.MonitoringApi.MonitoringSchemaObjet
 import kotlin.coroutines.cancellation.CancellationException
-import kotlinx.coroutines.async
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Une ligne d'objet d'un protocole (site, groupe de sites…) et ses actions. */
 data class LigneObjetSuivi(
@@ -82,50 +84,65 @@ class SuiviDetailViewModel(private val services: ServicesGeoNature, val moduleCo
 
     private fun charger() {
         viewModelScope.launch {
-            val config = services.config
-            // Enfants et schéma en parallèle ; chacun rend son échec au lieu de le propager.
-            val enfantsAttendus = async { resultat { services.monitoring.chargerEnfants(config, moduleCode) } }
-            val schemaAttendu = async { resultat { services.monitoring.chargerSchemaProtocole(config, moduleCode) } }
-            val enfantsBruts = enfantsAttendus.await().getOrElse { e ->
+            // Tout vient du cache de la synchro : rien n'est demandé au serveur (décision de
+            // l'utilisateur du 20 octobre).
+            val enfantsBruts = resultat { services.monitoring.lireEnfants(moduleCode) }.getOrNull()
+            if (enfantsBruts == null) {
                 resume = null
-                erreur = humaniserErreurReseau(e)
+                erreur = AffichageSuivis.PROTOCOLE_HORS_CACHE
                 return@launch
             }
-            val schema = schemaAttendu.await().getOrNull()
             if (enfantsBruts.isEmpty()) {
                 resume = null
                 return@launch
             }
-            // Résolveur des libellés (id_role, id_nomenclature, id_dataset → nom lisible).
-            val resolveur = schema?.let { s ->
-                resultat { services.monitoringDatalists.chargerResolveurLabels(config, moduleCode, s) }.getOrNull()
-            } ?: LabelResolver()
-            val enfants = AffichageSuivis.enfantsDuProtocole(enfantsBruts, schema)
-            // Sur un protocole avec hiérarchie (sites_group → site), seul le niveau macro est
-            // listé ; les niveaux inférieurs restent visibles dans la fiche de leur parent.
-            val types = AffichageSuivis.typesAfficherEnListe(enfants.keys.toList(), schema)
-            resume = AffichageSuivis.resume(types, schema, enfants.mapValues { it.value.size })
-            val plusieursTypes = types.size > 1
-            sections = types.mapNotNull { type ->
-                val items = enfants[type].orEmpty().takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                val schemaType = schema?.get(type)
-                val saisie = AffichageSuivis.typeSaisieEnfantServeur(type, schemaType)
-                SectionSuivi(
-                    entete = if (plusieursTypes) AffichageSuivis.libelleListe(type, schema) else null,
-                    lignes = items.map { e ->
-                        LigneObjetSuivi(
-                            type = type,
-                            id = e.id,
-                            nom = e.nom,
-                            sousTitre = AffichageSuivis.sousTitrePourEnfant(e, schemaType, resolveur),
-                            carte = schemaType?.geometryType != null,
-                            saisieEnfant = saisie,
-                            libelleNouveau = saisie?.let { services.monitoringObjets.libelleNouveau(moduleCode, it) },
-                        )
-                    },
-                )
+            // Les centaines de lignes d'un gros protocole se préparent hors du fil de l'interface.
+            val (resumeListe, sectionsListe) = withContext(Dispatchers.Default) {
+                val schema = resultat { services.monitoring.lireSchemaProtocole(moduleCode) }.getOrNull()
+                // Résolveur des libellés (id_role, id_nomenclature, id_dataset → nom lisible).
+                val resolveur = schema?.let { s ->
+                    resultat { services.monitoringDatalists.lireResolveurLabels(services.config, s) }.getOrNull()
+                } ?: LabelResolver()
+                lignes(enfantsBruts, schema, resolveur)
             }
+            resume = resumeListe
+            sections = sectionsListe
         }
+    }
+
+    /** Le résumé et les sections de la liste des [enfantsBruts]. */
+    private fun lignes(
+        enfantsBruts: Map<String, List<MonitoringEnfant>>,
+        schema: Map<String, MonitoringSchemaObjet>?,
+        resolveur: LabelResolver,
+    ): Pair<String, List<SectionSuivi>> {
+        val enfants = AffichageSuivis.enfantsDuProtocole(enfantsBruts, schema)
+        // Sur un protocole avec hiérarchie (sites_group → site), seul le niveau macro est
+        // listé ; les niveaux inférieurs restent visibles dans la fiche de leur parent.
+        val types = AffichageSuivis.typesAfficherEnListe(enfants.keys.toList(), schema)
+        val plusieursTypes = types.size > 1
+        val sections = types.mapNotNull { type ->
+            val items = enfants[type].orEmpty().takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            val schemaType = schema?.get(type)
+            val saisie = AffichageSuivis.typeSaisieEnfantServeur(type, schemaType)
+            // « Nouvelle visite » : le même pour toutes les lignes du type.
+            val libelleNouveau = saisie?.let { services.monitoringObjets.libelleNouveau(moduleCode, it) }
+            SectionSuivi(
+                entete = if (plusieursTypes) AffichageSuivis.libelleListe(type, schema) else null,
+                lignes = items.map { e ->
+                    LigneObjetSuivi(
+                        type = type,
+                        id = e.id,
+                        nom = e.nom,
+                        sousTitre = AffichageSuivis.sousTitrePourEnfant(e, schemaType, resolveur),
+                        carte = schemaType?.geometryType != null,
+                        saisieEnfant = saisie,
+                        libelleNouveau = libelleNouveau,
+                    )
+                },
+            )
+        }
+        return AffichageSuivis.resume(types, schema, enfants.mapValues { it.value.size }) to sections
     }
 }
 

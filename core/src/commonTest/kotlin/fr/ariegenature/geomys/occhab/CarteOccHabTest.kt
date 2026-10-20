@@ -98,12 +98,11 @@ class CarteOccHabTest {
 
     @Test
     fun message_du_chargement_des_stations_du_serveur() {
-        assertEquals("12 station(s) du serveur affichée(s)", CarteOccHab.messageChargement(12, null, 0, 0, 0))
+        assertEquals("12 station(s) du serveur affichée(s)", CarteOccHab.messageChargement(12, null, 0, 0))
         assertTrue(
-            CarteOccHab.messageChargement(12, dateCache = 0L, nbIci = 2, nbAilleurs = 1, nbIgnorees = 0)
-                .matches(Regex("""Hors-ligne : 12 station\(s\) du \d\d/\d\d/\d{4} \(dont 2 déjà dans cette saisie, 1 reprise\(s\) dans une autre saisie\)""")),
+            CarteOccHab.messageChargement(12, dateCache = 0L, nbIci = 2, nbAilleurs = 1)
+                .matches(Regex("""12 station\(s\) du serveur \(dont 2 déjà dans cette saisie, 1 reprise\(s\) dans une autre saisie\) — synchro du \d\d/\d\d/\d{4}""")),
         )
-        assertTrue(CarteOccHab.messageChargement(3, null, 0, 0, 2).endsWith("\n⚠ 2 station(s) à géométrie non prise en charge par l'application (à corriger sur le serveur) — non affichée(s)."))
     }
 
     @Test

@@ -84,11 +84,13 @@ class MonitoringSync(
             progression(idx + 1, modules.size, objetsCharges)
             try {
                 // Le schéma + les enfants directs sont indépendants → fetch en parallèle pour
-                // gagner ~1 RTT par module.
+                // gagner ~1 RTT par module. Les jeux de données du protocole aussi : la nouvelle
+                // saisie y lit sa liste taxonomique, sans requête (best-effort).
                 val (schema, enfantsParType) = coroutineScope {
                     val schemaDef = async { essayer { api.chargerSchemaProtocole(config, module.moduleCode) }.getOrNull() }
                     val enfantsDef = async { essayer { api.chargerEnfants(config, module.moduleCode) }.getOrDefault(emptyMap()) }
-                    awaitAll(schemaDef, enfantsDef)
+                    val jeuxDef = async { essayer { datalists.chargerDatasetsDuModule(config, module.moduleCode) } }
+                    awaitAll(schemaDef, enfantsDef, jeuxDef)
                     schemaDef.await() to enfantsDef.await()
                 }
                 // Le `id_list_observer` est porté par le type "module" du schéma. On le
@@ -97,27 +99,22 @@ class MonitoringSync(
                     ?.let { listesObserversAFetch.add(it) }
 
                 // Collecte des datalists/nomenclatures de tous les types du schéma (dédup par apiUrl).
+                // Une liste d'observateurs propre à un champ (`users/menu/<id>`) rejoint celles du
+                // module : le formulaire ne lit plus que le cache (décision du 20 octobre).
                 schema?.values?.forEach { objet ->
                     objet.properties.values.forEach { p ->
                         p.apiUrl?.let { propsDatalistAPrefetch.getOrPut(it) { p } }
+                        p.apiUrl?.let { LISTE_OBSERVATEURS.find(it) }?.groupValues?.get(1)?.toIntOrNull()
+                            ?.takeIf { it > 0 }?.let { listesObserversAFetch.add(it) }
                     }
                 }
 
-                // Discriminateur structurel/saisie piloté par le SCHÉMA serveur : un objet
-                // structurel (sites_group, site, secteur, dalle…) porte une `geometry_type`,
-                // alors qu'un enregistrement (visite, observation) n'en a pas. On préfère ce
-                // signal serveur au nommage ; on ne retombe sur l'heuristique [estTypeSaisie]
-                // que si le type est absent du schéma (vieux protocole / schéma indisponible).
-                fun estSaisie(type: String): Boolean {
-                    val obj = schema?.get(type)
-                    return if (obj != null) obj.geometryType == null else estTypeSaisie(type)
-                }
                 // BFS sur l'arborescence STRUCTURELLE — on filtre les types de saisie pour
                 // ne pas précharger l'historique des visites/obs. Chaque "tâche" = (type, id)
                 // à charger via chargerObjet.
                 val visitees = HashSet<Pair<String, Int>>() // dédoublonne (type, id) si réfs croisés
                 var niveau: List<Pair<String, Int>> = enfantsParType
-                    .filterKeys { !estSaisie(it) }
+                    .filterKeys { !estSaisie(it, schema) }
                     .flatMap { (type, l) -> l.map { type to it.id } }
                     .filter { visitees.add(it) }
 
@@ -143,7 +140,7 @@ class MonitoringSync(
                             // si l'utilisateur les consulte (cache write-through prend le
                             // relais ensuite pour l'offline ultérieur).
                             for ((sousType, liste) in fiche.enfants) {
-                                if (estSaisie(sousType)) continue
+                                if (estSaisie(sousType, schema)) continue
                                 for (enfant in liste) {
                                     val cle = sousType to enfant.id
                                     if (visitees.add(cle)) prochain.add(cle)
@@ -244,7 +241,20 @@ class MonitoringSync(
          *  faire monter la charge serveur. */
         private const val CHUNK_SIZE = 5
 
-        /** Vrai si [type] est un type de saisie (ne pas pré-charger l'historique). */
+        /** L'api d'un champ observateurs : `users/menu/<id_liste>`. */
+        private val LISTE_OBSERVATEURS = Regex("""users/menu/(\d+)""")
+
+        /** Discriminateur structurel/saisie piloté par le SCHÉMA serveur : un objet structurel
+         *  (sites_group, site, secteur, dalle…) porte une `geometry_type`, alors qu'un
+         *  enregistrement (visite, observation) n'en a pas. On préfère ce signal serveur au
+         *  nommage ; on ne retombe sur l'heuristique [estTypeSaisie] que si le type est absent du
+         *  schéma (vieux protocole / schéma indisponible). La synchro ne charge que les objets
+         *  structurels ; la fiche d'une saisie se met à jour depuis le serveur à son ouverture. */
+        fun estSaisie(type: String, schema: Map<String, MonitoringApi.MonitoringSchemaObjet>?): Boolean {
+            val obj = schema?.get(type)
+            return if (obj != null) obj.geometryType == null else estTypeSaisie(type)
+        }
+
         /** Vrai si [type] est un type de "saisie" (visite, observation, occurrence, …).
          *  Exposé pour que les écrans qui décident d'afficher un bouton "+ Nouveau X" puissent
          *  s'aligner sur la même heuristique de nommage. */

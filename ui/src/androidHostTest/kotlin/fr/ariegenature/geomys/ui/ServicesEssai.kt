@@ -38,8 +38,9 @@ import okio.Path
 import okio.SYSTEM
 
 /** Les vrais services de l'appli pour les tests des écrans : dossier temporaire, réglages en
- *  mémoire, aucun réseau (toute requête échoue), aucun GPS. Le test appelle [nettoyer] à la fin. */
-internal class ServicesEssai {
+ *  mémoire, aucun réseau (toute requête échoue, sauf [serveur] fourni), aucun GPS. Le test appelle
+ *  [nettoyer] à la fin. */
+internal class ServicesEssai(serveur: MockEngine = MockEngine { respondError(HttpStatusCode.ServiceUnavailable) }) {
     private val dossier = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "geomys-ui-test-${uuidAleatoire()}"
     private val reglages = mutableMapOf<String, MapSettings>()
 
@@ -59,7 +60,7 @@ internal class ServicesEssai {
                 }
                 override fun disponible() = true
             },
-            clients = ClientsGeoNature(MockEngine { respondError(HttpStatusCode.ServiceUnavailable) }),
+            clients = ClientsGeoNature(serveur),
             executionLongue = ExecutionLongue { _, _, _ -> },
             positions = object : SourcePositions {
                 override fun brancher(recepteur: (PositionGps) -> Unit) {}

@@ -45,12 +45,14 @@ import platform.Foundation.NSDate
 import platform.Foundation.dateWithTimeIntervalSince1970
 import platform.Foundation.timeIntervalSince1970
 import platform.UIKit.UIAction
+import platform.UIKit.UIControlContentHorizontalAlignmentLeading
 import platform.UIKit.UIControlEventValueChanged
 import platform.UIKit.UIDatePicker
 import platform.UIKit.UIDatePickerMode
 import platform.UIKit.UIDatePickerStyle
 
-/** `UIDatePicker` compact en mode date, teinté jaune clair, sans date maximale. */
+/** `UIDatePicker` compact en mode date, teinté jaune clair, sans date maximale, calé à gauche comme les
+ *  autres valeurs des détails d'une station (demande du 20 octobre). */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 actual fun ChampJour(millis: Long?, onChoix: (Long) -> Unit, modifier: Modifier, fondIos: Color) {
@@ -61,6 +63,7 @@ actual fun ChampJour(millis: Long?, onChoix: (Long) -> Unit, modifier: Modifier,
             UIDatePicker().apply {
                 preferredDatePickerStyle = UIDatePickerStyle.UIDatePickerStyleCompact
                 datePickerMode = UIDatePickerMode.UIDatePickerModeDate
+                contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeading
                 tintColor = CouleursGeoMys.jauneClair.versUIColor()
                 addAction(
                     UIAction.actionWithHandler { action ->
@@ -76,7 +79,7 @@ actual fun ChampJour(millis: Long?, onChoix: (Long) -> Unit, modifier: Modifier,
             selecteur.backgroundColor = fondIos.versUIColor()
             selecteur.setDate(NSDate.dateWithTimeIntervalSince1970((millis ?: debutDuJour(maintenantMillis())) / 1000.0), animated = false)
             // Sans taille intrinsèque, le sélecteur rend la largeur proposée : il prend toute la largeur
-            // offerte, sa pastille à droite. À sa taille compressée, il passait au format court
+            // offerte, sa pastille à gauche. À sa taille compressée, il passait au format court
             // (« 28/05/2026 ») selon les jours.
             selecteur.sizeThatFits(CGSizeMake(1000.0, 1000.0)).useContents { taille = DpSize(width.dp, height.dp) }
         },

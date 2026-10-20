@@ -118,7 +118,7 @@ class EditeurCarteOccHabTest {
     /** La carte rouverte sur la saisie d'essai à envoyer (deux stations : aucune ne s'impose), en
      *  CONSULTATION, ses stations dessinées. */
     private fun carteEnConsultation(): CarteOccHabViewModel {
-        val session = vm { SessionOccHabViewModel(services) }
+        val session = vm { SessionOccHabViewModel() }
         val saisie = runBlocking { services.occHabStore.charger() }.first { it.id == SAISIE }
         session.session.reprendreSaisie(saisie)
         val carte = vm { CarteOccHabViewModel(services, session) }
@@ -353,7 +353,7 @@ class EditeurCarteOccHabTest {
         carte.toucherCarte(p1, null)
         carte.valider()
         attendreEvenement("l'écran de la station") { it == EvenementCarteOccHab.OuvrirStation }
-        val ecran = vm { StationOccHabViewModel(services, vm { SessionOccHabViewModel(services) }) }
+        val ecran = vm { StationOccHabViewModel(services, vm { SessionOccHabViewModel() }) }
         ecran.ouverture()
         assertEquals("Nouvelle station", ecran.titre)
     }
@@ -364,7 +364,7 @@ class EditeurCarteOccHabTest {
         selectionner(carte, PELOUSE)
         carte.valider()
         attendreEvenement("l'écran de la station") { it == EvenementCarteOccHab.OuvrirStation }
-        val ecran = vm { StationOccHabViewModel(services, vm { SessionOccHabViewModel(services) }) }
+        val ecran = vm { StationOccHabViewModel(services, vm { SessionOccHabViewModel() }) }
         ecran.ouverture()
         assertEquals("Modifier la station", ecran.titre)
     }
@@ -374,7 +374,7 @@ class EditeurCarteOccHabTest {
     @Test
     fun refuser_de_modifier_une_station_envoyee_laisse_la_carte_en_consultation() {
         val carte = carteEnConsultation()
-        val session = vm { SessionOccHabViewModel(services) }.session
+        val session = vm { SessionOccHabViewModel() }.session
         val envoyee = runBlocking { services.occHabStore.charger() }.first { it.id == SAISIE_ENVOYEE }
         carte.ouvrirCopieLocale(envoyee, envoyee.stations.single())
         attendre("la question sur la station envoyée") { carte.dialogue is DialogueCarteOccHab.ModifierEnvoyee }

@@ -109,11 +109,11 @@ sealed interface EvenementMapsManager {
 class MapsManagerViewModel(
     private val services: ServicesGeoNature,
     private val zones: ZonesHorsLigne = ZonesMapLibre(),
-    private val modules: suspend () -> List<MonitoringModule> = { services.monitoring.chargerModules(services.config) },
+    private val modules: suspend () -> List<MonitoringModule> = { services.monitoring.chargerModulesDepuisCache().orEmpty() },
     private val sites: suspend (String) -> SitesProtocole = { code ->
         CiblageProtocole.charger(
-            enfants = { services.monitoring.chargerEnfants(services.config, code) },
-            geometrie = { type, id -> services.monitoring.chargerObjet(services.config, code, type, id).geometrieGeoJson },
+            enfants = { services.monitoring.lireEnfants(code).orEmpty() },
+            geometrie = { type, id -> services.monitoring.lireObjet(code, type, id)?.geometrieGeoJson },
         )
     },
     private val cartes: CartesMbtiles = services.cartesMbtiles,

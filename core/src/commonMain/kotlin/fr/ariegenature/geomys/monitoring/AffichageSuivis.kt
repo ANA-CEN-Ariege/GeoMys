@@ -41,6 +41,20 @@ object AffichageSuivis {
     /** Détail d'un protocole absent de la liste chargée (cache mémoire vide). */
     const val MESSAGE_PROTOCOLE_INCONNU = "Recharge la liste pour voir les détails."
 
+    /** Détail d'un protocole dont la synchro n'a pas mis les sites en cache : les écrans ne lisent
+     *  que le cache (décision de l'utilisateur du 20 octobre). */
+    const val PROTOCOLE_HORS_CACHE = "Sites absents du cache — lancez « Recharger les données »."
+
+    /** Fiche absente du cache, et de la fiche de son parent. */
+    const val FICHE_HORS_CACHE = "Fiche absente du cache — lancez « Recharger les données »."
+
+    /** Fiche reconstituée depuis sa ligne chez son parent (la synchro ne charge pas l'historique :
+     *  une visite passée et ses observations), et le serveur n'a pas répondu. */
+    const val ENFANTS_HORS_CACHE = "Saisies rattachées absentes du téléphone : ouvrez cette fiche avec du réseau pour les charger."
+
+    /** La même, pendant que sa mise à jour est demandée au serveur. */
+    const val ENFANTS_EN_CHARGEMENT = "Chargement des saisies rattachées depuis le serveur…"
+
     /** Fallback générique quand le schéma serveur ne fournit pas de `label_list`. Capitalise
      *  le code technique et remplace les `_` par des espaces — pas de mapping FR figé qui
      *  dépendrait des conventions d'un protocole. Pour un rendu propre, c'est à l'admin

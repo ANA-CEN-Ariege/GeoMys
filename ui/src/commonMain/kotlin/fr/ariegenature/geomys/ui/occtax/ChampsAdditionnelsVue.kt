@@ -19,12 +19,14 @@
 // Les widgets des champs additionnels OccTax : buildWidget d'AdditionalFieldsRenderer (GeoMys-Android
 // @ cdd5196, ui/saisie/AdditionalFieldsRenderer.kt) sous Android, AdditionalFieldsRenderer de GeoMys-IOS
 // (UI/Saisie/AdditionalFieldsRenderer.swift) sous iOS. L'état et l'encodage des valeurs sont dans le socle
-// (saisie/ChampsAdditionnels.kt).
+// (saisie/ChampsAdditionnels.kt). Dans la carte des détails d'un relevé, sous iOS, chaque champ a sa section,
+// comme les champs d'une station OccHab (demande du 20 octobre).
 
 package fr.ariegenature.geomys.ui.occtax
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,10 +65,18 @@ import fr.ariegenature.geomys.saisie.ChampsAdditionnels
 import fr.ariegenature.geomys.saisie.EtatChampsAdditionnels
 import fr.ariegenature.geomys.ui.composants.ClavierNombresEtPonctuation
 import fr.ariegenature.geomys.ui.composants.ClavierNumeriqueSigne
+import fr.ariegenature.geomys.ui.composants.FOND_LIGNE_FEUILLE_IOS
 import fr.ariegenature.geomys.ui.composants.GRIS_TITRE_CHAMP
 import fr.ariegenature.geomys.ui.composants.Interrupteur
+import fr.ariegenature.geomys.ui.composants.LigneChoixIos
+import fr.ariegenature.geomys.ui.composants.LigneIos
+import fr.ariegenature.geomys.ui.composants.LigneNombreIos
+import fr.ariegenature.geomys.ui.composants.LigneTexteIos
+import fr.ariegenature.geomys.ui.composants.LigneTexteSeulIos
 import fr.ariegenature.geomys.ui.composants.ListeDeroulante
 import fr.ariegenature.geomys.ui.composants.MenuSysteme
+import fr.ariegenature.geomys.ui.composants.SectionIos
+import fr.ariegenature.geomys.ui.composants.SeparateurIos
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.composants.styleSaisieIos
@@ -94,6 +104,18 @@ fun ChampsAdditionnelsVue(etat: EtatChampsAdditionnels, modifier: Modifier = Mod
             for (def in etat.defs) ChampAdditionnelAndroid(def, etat, relire)
         }
     }
+}
+
+/** Les champs additionnels [etat] dans la carte des détails d'un relevé, sous iOS : une [SectionIos]
+ *  par champ, son libellé sur le fond, sa description dessous. Les widgets d'[ChampAdditionnelIos], en
+ *  lignes de formulaire. */
+@Composable
+internal fun ChampsAdditionnelsSectionsIos(etat: EtatChampsAdditionnels) {
+    var revision by remember(etat) { mutableIntStateOf(0) }
+    val relire: () -> Unit = { revision++ }
+    // Lu ici : chaque saisie recompose les sections.
+    revision.let {}
+    for (def in etat.defs) SectionChampAdditionnelIos(def, etat, relire)
 }
 
 private fun libelleChamp(def: AdditionalFieldDef) = def.fieldLabel + if (def.required) " *" else ""
@@ -255,5 +277,91 @@ private fun ChampAdditionnelIos(def: AdditionalFieldDef, etat: EtatChampsAdditio
             )
         }
         def.description?.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 11.sp, color = SECONDAIRE_IOS) }
+    }
+}
+
+@NonSkippableComposable
+@Composable
+private fun SectionChampAdditionnelIos(def: AdditionalFieldDef, etat: EtatChampsAdditionnels, relire: () -> Unit) {
+    val nom = def.fieldName
+    Column {
+        SectionIos(libelleChamp(def)) {
+            when (def.widget) {
+                WidgetType.SELECT, WidgetType.NOMENCLATURE -> {
+                    val libelles = ChampsAdditionnels.libellesListe(def)
+                    if (libelles.size <= 1) {
+                        LigneTexteSeulIos(
+                            if (def.widget == WidgetType.SELECT) "— pas d'options disponibles —" else "— nomenclature non chargée —",
+                            couleur = Color(0xFFFF9500),
+                            taille = 13f,
+                        )
+                    } else {
+                        LigneChoixIos("", libelles, etat.position(nom)) { etat.choisirPosition(nom, it); relire() }
+                    }
+                }
+                WidgetType.RADIO -> {
+                    val codes = ChampsAdditionnels.codesListe(def)
+                    def.fieldValues.forEachIndexed { i, libelle ->
+                        val code = codes.getOrElse(i) { libelle }
+                        if (i > 0) SeparateurIos(Modifier.padding(start = 16.dp))
+                        LigneOptionIos(libelle, etat.selectionRadio(nom) == code, "largecircle.fill.circle", "circle") {
+                            etat.cliquerRadio(nom, code)
+                            relire()
+                        }
+                    }
+                }
+                WidgetType.CHECKBOX -> if (ChampsAdditionnels.estCasesMultiples(def)) {
+                    val cases = etat.cases(nom)
+                    def.fieldValues.forEachIndexed { i, libelle ->
+                        val coche = cases.getOrElse(i) { false }
+                        if (i > 0) SeparateurIos(Modifier.padding(start = 16.dp))
+                        LigneOptionIos(libelle, coche, "checkmark.square.fill", "square") {
+                            etat.cocherCase(nom, i, !coche)
+                            relire()
+                        }
+                    }
+                } else {
+                    LigneIos {
+                        Interrupteur(
+                            etat.cases(nom).firstOrNull() == true,
+                            { etat.cocher(nom, it); relire() },
+                            teinteIos = CouleursGeoMys.vert,
+                            fondIos = FOND_LIGNE_FEUILLE_IOS,
+                        )
+                    }
+                }
+                WidgetType.TEXTAREA -> LigneTexteIos(
+                    etat.texte(nom),
+                    { etat.saisirTexte(nom, it); relire() },
+                    etat.indication(def).orEmpty(),
+                    lignesMin = 2,
+                    lignesMax = 5,
+                    clavier = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                )
+                // La virgule des claviers français est gardée : l'envoi la convertit en point.
+                WidgetType.NUMBER -> LigneNombreIos("", etat.texte(nom), { v -> etat.saisirTexte(nom, v.filter { it in "0123456789.,-" }); relire() })
+                else -> LigneTexteIos(
+                    etat.texte(nom),
+                    { etat.saisirTexte(nom, it); relire() },
+                    etat.indication(def).orEmpty(),
+                    clavier = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                )
+            }
+        }
+        def.description?.takeIf { it.isNotEmpty() }?.let {
+            Text(it, fontSize = 13.sp, color = SECONDAIRE_IOS, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp))
+        }
+    }
+}
+
+/** Une option d'un bouton radio ou d'une case multiple, sur sa ligne : le symbole [plein] (vert) ou
+ *  [vide], puis le libellé. */
+@Composable
+private fun LigneOptionIos(libelle: String, choisie: Boolean, plein: String, vide: String, onClick: () -> Unit) {
+    LigneIos(Modifier.clickable(remember { MutableInteractionSource() }, indication = null, onClick = onClick)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            SymboleSf(if (choisie) plein else vide, 20f, listOf(if (choisie) CouleursGeoMys.vert else SECONDAIRE_IOS))
+            Text(libelle, fontSize = 17.sp, color = Color.White)
+        }
     }
 }

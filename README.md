@@ -64,7 +64,9 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 
 **Android**
 - `./gradlew :androidApp:assembleDebug` produit l'APK dans `androidApp/build/outputs/apk/debug/`.
-- `./gradlew :androidApp:assembleMesure` produit une release signée avec la clé de debug, pour mesurer durées et mémoire sans les ralentissements d'une appli débogable.
+- `./gradlew :androidApp:assembleRelease` produit la version à distribuer, dans `androidApp/build/outputs/apk/release/` : 14 Mo. Le code y est réduit par R8, sans renommage (les messages d'erreur citent des noms de classes). Seules les architectures des téléphones sont gardées (ARM 64 et 32 bits), et le moteur de MapLibre y est compressé. Elle est signée avec la clé de GeoMys-Android si `keystore.properties` est présent à la racine (gabarit : `storeFile`, `storePassword`, `keyAlias`, `keyPassword`), comme pour GeoMys-Android ; ce fichier et la clé ne vont jamais dans le dépôt (`.gitignore`). Une release ne s'installe pas par-dessus une version de debug : il faut désinstaller celle-ci, et ses données locales avec.
+- `./gradlew :androidApp:assembleMesure` produit une release (réduite par R8) signée avec la clé de debug, pour mesurer durées et mémoire sans les ralentissements d'une appli débogable.
+- Les paramètres de lancement des essais (`--es ecran …`, `--es action …`) ne sont lus que par les versions de debug et de mesure : une release les ignore, pour qu'aucune autre appli du téléphone ne puisse y écrire de données d'essai.
 - Dans Android Studio, ouvrir le dossier racine et lancer la configuration `androidApp`.
 
 **iOS**

@@ -161,4 +161,27 @@ class EnvoiOccHabTest {
         assertTrue(res.succes)
         assertTrue(saisie().envoyeGeoNature)
     }
+
+    /** Propre au portage (décision de l'utilisateur du 20 octobre) : les altitudes du MNT ne sont plus
+     *  demandées au dessin, mais à l'envoi, pour la seule station qui n'en a aucune ; reportées dans la
+     *  saisie. Une station aux altitudes saisies à la main les garde. */
+    @Test
+    fun les_altitudes_du_mnt_sont_demandees_a_l_envoi() = runTest {
+        store.upsertStation("sa", station("A"))
+        store.upsertStation("sa", station("B").copy(altitudeMin = 800, altitudeMax = 820))
+        val demandees = mutableListOf<String>()
+        val envoiMnt = EnvoiOccHab(t.services.occHabUpload, store, t.services.stationsServeur) { st ->
+            demandees.add(st.id)
+            1200 to 1350
+        }
+        val parties = mutableMapOf<String, Pair<Int?, Int?>>()
+        val res = envoiMnt.envoyerSaisieOccHabVersGeoNature(saisie(), config) { st, _ ->
+            parties[st.id] = st.altitudeMin to st.altitudeMax
+            OccHabEnvoiResult(idStationServeur = 300 + parties.size, nbHabitats = 1)
+        }
+        assertTrue(res.succes)
+        assertEquals(listOf("A"), demandees, "seule la station sans altitude les demande")
+        assertEquals<Map<String, Pair<Int?, Int?>>>(mapOf("A" to (1200 to 1350), "B" to (800 to 820)), parties)
+        assertEquals(1200, store.stationsDeSaisie("sa").first { it.id == "A" }.altitudeMin, "reportées dans la saisie")
+    }
 }

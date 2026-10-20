@@ -31,6 +31,10 @@ object ListeProtocoles {
 
     fun messageErreur(erreur: Throwable): String = "Erreur de chargement : ${erreur.message}"
 
+    /** Aucune liste en cache : la synchro des Suivis n'a jamais abouti (les écrans ne lisent que le
+     *  cache, décision de l'utilisateur du 20 octobre). */
+    const val AUCUN_PROTOCOLE_EN_CACHE = "Aucun protocole en cache — lancez « Recharger les données »."
+
     /** Liste vide : neuf fois sur dix, un droit CRUVED à 0 sur le serveur. */
     fun messageAucunProtocole(login: String): String =
         "Aucun protocole accessible pour $login.\n" +

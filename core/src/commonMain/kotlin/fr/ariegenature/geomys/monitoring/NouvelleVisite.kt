@@ -76,7 +76,8 @@ sealed interface PreparationFormulaire {
     data class Impossible(val messages: List<String>) : PreparationFormulaire
 }
 
-/** Ce dont la préparation a besoin du serveur, ou du cache des Suivis hors ligne. */
+/** Ce dont la préparation a besoin : le cache des Suivis, que remplit la synchro (rien n'est
+ *  demandé au serveur, décision de l'utilisateur du 20 octobre). */
 interface SourcesFormulaire {
     val urlServeur: String
 
@@ -91,25 +92,25 @@ interface SourcesFormulaire {
     /** Les options d'un champ `datalist`, null si elles n'ont pu être chargées. */
     suspend fun options(prop: MonitoringPropertySchema): List<OptionDatalist>?
 
-    /** L'id_taxa_list du premier jeu de données actif du protocole qui en déclare une, demandé au
-     *  serveur. */
-    suspend fun idListeViaDatasetLive(moduleCode: String): Int?
+    /** L'id_taxa_list du premier jeu de données actif du protocole qui en déclare une, dans le
+     *  cache des jeux du protocole. */
+    suspend fun idListeViaDatasetsDuModule(moduleCode: String): Int?
 }
 
-/** Les sources de la préparation : le serveur configuré, le cache des Suivis hors ligne. */
+/** Les sources de la préparation : le cache des Suivis. */
 fun ServicesGeoNature.sourcesFormulaire(): SourcesFormulaire = object : SourcesFormulaire {
     override val urlServeur: String get() = config.urlServeur
     override val datasetsCacheJson: String get() = config.datasetsCacheJson
     override val idRoleUtilisateur: Int get() = config.idRoleUtilisateur
 
-    override suspend fun schema(moduleCode: String) = monitoring.chargerSchemaProtocole(config, moduleCode)
+    override suspend fun schema(moduleCode: String) = monitoring.lireSchemaProtocole(moduleCode)
 
-    override suspend fun options(prop: MonitoringPropertySchema) = monitoring.chargerOptionsDatalist(config, prop)
+    override suspend fun options(prop: MonitoringPropertySchema) = monitoring.lireOptionsDatalist(config, prop)
 
-    override suspend fun idListeViaDatasetLive(moduleCode: String): Int? {
-        // Requête partagée avec l'envoi (jeux actifs du protocole, casses essayées) : seul
-        // l'id_taxa_list du premier jeu qui en déclare une sert ici.
-        val jeux = monitoringEnvoi.chargerDatasetsDuModuleLive(config, moduleCode) ?: return null
+    override suspend fun idListeViaDatasetsDuModule(moduleCode: String): Int? {
+        // Les jeux actifs du protocole, que la synchro partage avec l'envoi : seul l'id_taxa_list
+        // du premier jeu qui en déclare une sert ici.
+        val jeux = monitoringDatalists.lireDatasetsDuModule(moduleCode) ?: return null
         for (i in 0 until jeux.length()) {
             val d = jeux.optJSONObject(i) ?: continue
             if (!d.has("id_taxa_list") || d.isNull("id_taxa_list")) continue
@@ -377,7 +378,7 @@ object NouvelleVisite {
         val idListe = visitSchema.idListTaxonomy
             ?: schema.values.firstNotNullOfOrNull { it.idListTaxonomy }
             ?: idListeViaDataset(sources.datasetsCacheJson, moduleCode)
-            ?: sources.idListeViaDatasetLive(moduleCode)
+            ?: sources.idListeViaDatasetsDuModule(moduleCode)
         if (construction.ignores.isNotEmpty()) {
             val recap = construction.ignores.joinToString(", ") { "${it.first} (${it.second})" }
             avertissements += "⚠ ${construction.ignores.size} champ(s) non supporté(s) : $recap"

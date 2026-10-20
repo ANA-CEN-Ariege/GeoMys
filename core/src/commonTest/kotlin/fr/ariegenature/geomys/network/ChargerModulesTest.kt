@@ -27,6 +27,7 @@ import fr.ariegenature.geomys.network.ServeurSimule.Companion.statut
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 
@@ -106,5 +107,34 @@ class ChargerModulesTest {
         } finally {
             horsLigne.nettoyer()
         }
+    }
+
+    /** Décisions de l'utilisateur du 20 octobre : les écrans lisent la liste que la synchro a mise en
+     *  cache, comme GeoMys-IOS, et ne demandent jamais rien au serveur — rien avant la première synchro. */
+    @Test
+    fun les_ecrans_lisent_la_liste_en_cache_sans_requete() = runTest {
+        router {
+            json(
+                """
+                [{"id_module":1,"module_code":"STOM","module_label":"STOM","cruved":{"R":1}},
+                 {"id_module":2,"module_code":"MARES","module_label":"Mares","cruved":{"R":1}}]
+                """.trimIndent(),
+            )
+        }
+        // Aucune synchro : pas de liste, et pas de requête.
+        assertNull(m.api.chargerModulesDepuisCache())
+        assertEquals(0, m.serveur.chemins.count { it.startsWith("/api/monitorings/modules") })
+        // La synchro interroge le serveur et met la liste en cache, que les écrans lisent.
+        assertEquals(listOf("Mares", "STOM"), m.api.chargerModules(m.config).map { it.moduleLabel })
+        assertEquals(listOf("Mares", "STOM"), m.api.chargerModulesDepuisCache()?.map { it.moduleLabel })
+        assertEquals(1, m.serveur.chemins.count { it.startsWith("/api/monitorings/modules") })
+        // Le serveur change : les écrans gardent la liste en cache, sans le rappeler.
+        router { json("""[{"id_module":3,"module_code":"NOUVEAU","module_label":"Nouveau","cruved":{"R":1}}]""") }
+        assertEquals(listOf("MARES", "STOM"), m.api.chargerModulesDepuisCache()?.map { it.moduleCode })
+        assertEquals(1, m.serveur.chemins.count { it.startsWith("/api/monitorings/modules") })
+        assertEquals("STOM", m.modules.moduleParCode("STOM")?.moduleCode, "la liste lue sert au détail d'un protocole")
+        // La synchro suivante rafraîchit le cache.
+        assertEquals(listOf("NOUVEAU"), m.api.chargerModules(m.config).map { it.moduleCode })
+        assertEquals(listOf("NOUVEAU"), m.api.chargerModulesDepuisCache()?.map { it.moduleCode })
     }
 }

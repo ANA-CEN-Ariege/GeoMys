@@ -92,6 +92,8 @@ object FicheObjet {
      *     d'abord), puis ses enfants du serveur (chronologie décroissante) ;
      *  2. les saisies locales d'un type que le serveur ne déclare pas encore (première visite) ;
      *  3. les types de saisie du schéma sans aucune occurrence : un en-tête « (0) » et son « + ».
+     *  Une fiche reconstituée depuis son parent ([MonitoringObjet.enfantsConnus] faux) ne compte pas
+     *  ses enfants : ceux du serveur ne sont pas dans le cache.
      *  [labelTypeEnCache] et [libelleNouveau] : ceux de `MonitoringObjets`. */
     fun elements(
         objet: MonitoringObjet,
@@ -106,7 +108,7 @@ object FicheObjet {
         val saisiesLocalesIci = saisiesLocalesAttacheesA(objet, toutes)
         val schemaObjet = schema?.get(objet.type)
 
-        fun entete(type: String, label: String, nombre: Int): ElementFiche.Entete {
+        fun entete(type: String, label: String, nombre: Int?): ElementFiche.Entete {
             val nouvelle = if (MonitoringSync.estTypeSaisie(type)) NouvelleSaisie(
                 parentObjectType = objet.type,
                 parentId = objet.id,
@@ -115,7 +117,7 @@ object FicheObjet {
                 libelle = libelleNouveau(objet.moduleCode, type),
                 fil = fil,
             ) else null
-            return ElementFiche.Entete("$label ($nombre)", nouvelle)
+            return ElementFiche.Entete(if (nombre == null) label else "$label ($nombre)", nouvelle)
         }
 
         fun locale(type: String, saisie: SaisieEnAttente, typeSaisieEnfant: String?): ElementFiche.Locale {
@@ -180,7 +182,7 @@ object FicheObjet {
         val orphelines = saisiesLocalesIci.filterNot { it.objectType in typesDejaRendus }
         orphelines.groupBy { it.objectType }.forEach { (type, saisies) ->
             val schemaType = schema?.get(type)
-            elements += entete(type, AffichageSuivis.libelleListe(type, schema), saisies.size)
+            elements += entete(type, AffichageSuivis.libelleListe(type, schema), saisies.size.takeIf { objet.enfantsConnus })
             saisies.sortedByDescending { it.dateLocale }.forEach {
                 elements += locale(type, it, AffichageSuivis.premierTypeSaisie(schemaType))
             }
@@ -194,7 +196,7 @@ object FicheObjet {
         }.keys + orphelines.map { it.objectType }.toSet()
         schemaObjet?.childrenTypes.orEmpty()
             .filter { MonitoringSync.estTypeSaisie(it) && it !in typesDejaAffiches }
-            .forEach { type -> elements += entete(type, AffichageSuivis.libelleListe(type, schema), 0) }
+            .forEach { type -> elements += entete(type, AffichageSuivis.libelleListe(type, schema), 0.takeIf { objet.enfantsConnus }) }
         return elements
     }
 }

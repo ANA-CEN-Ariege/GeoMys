@@ -77,7 +77,7 @@ object CarteOccHab {
 
     // ─── Messages ───
 
-    const val AUCUNE_STATION = "Aucune station enregistrée — appuyez sur « Ajouter une station »"
+    const val AUCUNE_STATION = "Aucune station enregistrée — appuyez sur « + »"
     const val ACQUISITION_GPS = "Acquisition GPS en cours…"
     const val STATION_CHARGEE = "Station chargée — déplacez ses sommets ; « Annuler » pour quitter l'édition"
     const val ENVOYEE_NON_MODIFIABLE = "Station déjà envoyée — non modifiable."
@@ -239,23 +239,16 @@ object CarteOccHab {
 
     // ─── Chargement des stations du serveur ───
 
-    /** Le message affiché après un chargement des stations du serveur qui en a trouvé :
-     *  « 12 station(s) du serveur affichée(s) », en ligne, ou « Hors-ligne : 12 station(s) du
-     *  18/10/2026 (dont 2 déjà dans cette saisie) » sur le repli du cache ; les stations à
-     *  géométrie non modélisable sont signalées à part. */
-    fun messageChargement(nbCharges: Int, dateCache: Long?, nbIci: Int, nbAilleurs: Int, nbIgnorees: Int): String {
+    /** Le message affiché quand la carte montre les stations du serveur d'un jeu de données, lues dans
+     *  le cache de la synchro : « 12 station(s) du serveur affichée(s) — synchro du 18/10/2026 », ou
+     *  « 12 station(s) du serveur (dont 2 déjà dans cette saisie) — synchro du 18/10/2026 ». */
+    fun messageChargement(nbCharges: Int, dateCache: Long?, nbIci: Int, nbAilleurs: Int): String {
         val detail = buildList {
             if (nbIci > 0) add("$nbIci déjà dans cette saisie")
             if (nbAilleurs > 0) add("$nbAilleurs reprise(s) dans une autre saisie")
         }
-        val enTete = dateCache?.let { "Hors-ligne : $nbCharges station(s) du ${FormatDate.jour(it)}" }
-            ?: "$nbCharges station(s) du serveur"
-        val suffixeIgnorees = if (nbIgnorees > 0) {
-            "\n⚠ $nbIgnorees station(s) à géométrie non prise en charge par l'application " +
-                "(à corriger sur le serveur) — non affichée(s)."
-        } else {
-            ""
-        }
-        return enTete + (if (detail.isEmpty()) " affichée(s)" else " (dont ${detail.joinToString(", ")})") + suffixeIgnorees
+        val stations = "$nbCharges station(s) du serveur" +
+            if (detail.isEmpty()) " affichée(s)" else " (dont ${detail.joinToString(", ")})"
+        return stations + (dateCache?.let { " — synchro du ${FormatDate.jour(it)}" } ?: "")
     }
 }

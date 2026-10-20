@@ -208,70 +208,84 @@ class MonitoringModules(
             } catch (e: IOException) {
                 cache.getJson(cache.keyModules()) ?: throw e
             }
-            val array: JSONArray = text.parserTableauJson("data", "items", "modules")
-                ?: throw GNErreur.EnvoiEchoue(0, "Modules monitoring : format JSON inattendu")
-            // Parsing en deux temps pour pouvoir filtrer CRUVED ET ré-écrire le cache disque
-            // avec uniquement les items accessibles. On conserve le JSONObject brut de chaque
-            // module à côté du modèle Kotlin, ainsi on n'a pas à re-sérialiser depuis le data
-            // class (on garderait moins de champs que le serveur n'en envoie).
-            val parsed = mutableListOf<Pair<MonitoringModule, JSONObject>>()
-            for (i in 0 until array.length()) {
-                val item = array.getJSONObject(i)
-                val idModule = item.optInt("id_module", -1).takeIf { it > 0 } ?: continue
-                val moduleCode = item.optString("module_code", "").ifEmpty { continue }
-                val label = item.optString("module_label", moduleCode).ifEmpty { moduleCode }
-                val desc = item.optString("module_desc", "").takeIf { it.isNotEmpty() }
-                val m = MonitoringModule(
-                    idModule = idModule,
-                    moduleCode = moduleCode,
-                    moduleLabel = label,
-                    moduleDesc = desc,
-                    modulePicto = item.optString("module_picto", "").takeIf { it.isNotEmpty() },
-                    activeFrontend = if (item.has("active_frontend")) item.optBoolean("active_frontend") else null,
-                    activeBackend = if (item.has("active_backend")) item.optBoolean("active_backend") else null,
-                    bSynthese = if (item.has("b_synthese")) item.optBoolean("b_synthese") else null,
-                    idListObserver = item.optInt("id_list_observer", -1).takeIf { it > 0 },
-                    idListTaxonomy = item.optInt("id_list_taxonomy", -1).takeIf { it > 0 },
-                    metaCreateDate = item.optString("meta_create_date", "").takeIf { it.isNotEmpty() },
-                    metaUpdateDate = item.optString("meta_update_date", "").takeIf { it.isNotEmpty() },
-                    cruved = parserCruved(item.optJSONObject("cruved")),
-                )
-                parsed.add(m to item)
-            }
-            // Note : `active_frontend: false` est fréquent sur les protocoles ariégeois — ça
-            // signifie "pas dans le menu web GeoNature" et non "désactivé". Ne pas filtrer
-            // dessus sinon on cache tous les protocoles légitimes.
-            //
-            // Filtrage CRUVED : on n'expose à l'utilisateur que les modules sur lesquels il a
-            // au moins UN droit > 0 (parité gn_mobile_monitoring). Le serveur renvoie déjà le
-            // bloc personnalisé par utilisateur dans la réponse — il suffit de l'appliquer.
-            // Les modules avec `cruved` absent (vieux serveurs, ou cache antérieur à cette
-            // version) sont préservés via [MonitoringModule.aAuMoinsUnDroit] pour ne pas
-            // disparaître silencieusement.
-            val total = parsed.size
-            val filtres = parsed.filter { (m, _) -> m.aAuMoinsUnDroit }
-            if (filtres.size < total) {
-                Journal.i(
-                    "MonitoringApi",
-                    // Pas de login dans le message : les logs de prod ne doivent pas exposer
-                    // d'identifiant utilisateur.
-                    "chargerModules : ${total - filtres.size} module(s) masqué(s) par CRUVED " +
-                        "(droits nuls pour l'utilisateur), ${filtres.size} conservé(s)",
-                )
-            }
-            // Réécrit le cache disque avec uniquement les items accessibles, dans le même
-            // format que le serveur (JSONArray d'items bruts). Préserve donc tous les champs
-            // serveur sans avoir à les re-sérialiser depuis MonitoringModule. Pas de
-            // réécriture quand on lit déjà depuis le cache (déjà filtré au tour précédent).
-            if (depuisReseau) {
-                val arr = JSONArray()
-                filtres.forEach { (_, raw) -> arr.put(raw) }
-                cache.setJson(cache.keyModules(), arr.toString())
-            }
-            filtres.map { (m, _) -> m }
-                .sortedBy { it.moduleLabel.lowercase() }
-                .also { dernierChargement = it }
+            lireModules(text, depuisReseau)
         }
+
+    /** La liste des protocoles pour les écrans (Suivis, Maps Manager) : celle que la dernière synchro a
+     *  mise en cache, sans requête, comme GeoMys-IOS (décisions de l'utilisateur du 20 octobre : le
+     *  cache d'abord, puis rien de téléchargé hors synchro ; GeoMys-Android interrogeait le serveur à
+     *  chaque ouverture). Null avant toute synchro. La synchro, elle, passe par [chargerModules]. */
+    suspend fun chargerModulesDepuisCache(): List<MonitoringModule>? =
+        withContext(Dispatchers.IO) { cache.getJson(cache.keyModules()) }
+            ?.let { lireModules(it, depuisReseau = false) }
+
+    /** La réponse du serveur, ou le cache : filtrée CRUVED, triée par libellé, et mise en cache si elle
+     *  vient d'un appel réussi ([depuisReseau]). */
+    private fun lireModules(text: String, depuisReseau: Boolean): List<MonitoringModule> {
+        val array: JSONArray = text.parserTableauJson("data", "items", "modules")
+            ?: throw GNErreur.EnvoiEchoue(0, "Modules monitoring : format JSON inattendu")
+        // Parsing en deux temps pour pouvoir filtrer CRUVED ET ré-écrire le cache disque
+        // avec uniquement les items accessibles. On conserve le JSONObject brut de chaque
+        // module à côté du modèle Kotlin, ainsi on n'a pas à re-sérialiser depuis le data
+        // class (on garderait moins de champs que le serveur n'en envoie).
+        val parsed = mutableListOf<Pair<MonitoringModule, JSONObject>>()
+        for (i in 0 until array.length()) {
+            val item = array.getJSONObject(i)
+            val idModule = item.optInt("id_module", -1).takeIf { it > 0 } ?: continue
+            val moduleCode = item.optString("module_code", "").ifEmpty { continue }
+            val label = item.optString("module_label", moduleCode).ifEmpty { moduleCode }
+            val desc = item.optString("module_desc", "").takeIf { it.isNotEmpty() }
+            val m = MonitoringModule(
+                idModule = idModule,
+                moduleCode = moduleCode,
+                moduleLabel = label,
+                moduleDesc = desc,
+                modulePicto = item.optString("module_picto", "").takeIf { it.isNotEmpty() },
+                activeFrontend = if (item.has("active_frontend")) item.optBoolean("active_frontend") else null,
+                activeBackend = if (item.has("active_backend")) item.optBoolean("active_backend") else null,
+                bSynthese = if (item.has("b_synthese")) item.optBoolean("b_synthese") else null,
+                idListObserver = item.optInt("id_list_observer", -1).takeIf { it > 0 },
+                idListTaxonomy = item.optInt("id_list_taxonomy", -1).takeIf { it > 0 },
+                metaCreateDate = item.optString("meta_create_date", "").takeIf { it.isNotEmpty() },
+                metaUpdateDate = item.optString("meta_update_date", "").takeIf { it.isNotEmpty() },
+                cruved = parserCruved(item.optJSONObject("cruved")),
+            )
+            parsed.add(m to item)
+        }
+        // Note : `active_frontend: false` est fréquent sur les protocoles ariégeois — ça
+        // signifie "pas dans le menu web GeoNature" et non "désactivé". Ne pas filtrer
+        // dessus sinon on cache tous les protocoles légitimes.
+        //
+        // Filtrage CRUVED : on n'expose à l'utilisateur que les modules sur lesquels il a
+        // au moins UN droit > 0 (parité gn_mobile_monitoring). Le serveur renvoie déjà le
+        // bloc personnalisé par utilisateur dans la réponse — il suffit de l'appliquer.
+        // Les modules avec `cruved` absent (vieux serveurs, ou cache antérieur à cette
+        // version) sont préservés via [MonitoringModule.aAuMoinsUnDroit] pour ne pas
+        // disparaître silencieusement.
+        val total = parsed.size
+        val filtres = parsed.filter { (m, _) -> m.aAuMoinsUnDroit }
+        if (filtres.size < total) {
+            Journal.i(
+                "MonitoringApi",
+                // Pas de login dans le message : les logs de prod ne doivent pas exposer
+                // d'identifiant utilisateur.
+                "chargerModules : ${total - filtres.size} module(s) masqué(s) par CRUVED " +
+                    "(droits nuls pour l'utilisateur), ${filtres.size} conservé(s)",
+            )
+        }
+        // Réécrit le cache disque avec uniquement les items accessibles, dans le même
+        // format que le serveur (JSONArray d'items bruts). Préserve donc tous les champs
+        // serveur sans avoir à les re-sérialiser depuis MonitoringModule. Pas de
+        // réécriture quand on lit déjà depuis le cache (déjà filtré au tour précédent).
+        if (depuisReseau) {
+            val arr = JSONArray()
+            filtres.forEach { (_, raw) -> arr.put(raw) }
+            cache.setJson(cache.keyModules(), arr.toString())
+        }
+        return filtres.map { (m, _) -> m }
+            .sortedBy { it.moduleLabel.lowercase() }
+            .also { dernierChargement = it }
+    }
 
     companion object {
         /** Parse le bloc `cruved` d'un module monitoring en Map<lettre, niveau>. Le serveur
