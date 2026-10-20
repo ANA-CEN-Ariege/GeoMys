@@ -67,7 +67,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -125,7 +124,6 @@ import fr.ariegenature.geomys.ui.ressources.ic_map
 import fr.ariegenature.geomys.ui.ressources.ic_pin_drop
 import fr.ariegenature.geomys.ui.ressources.ic_remove
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
-import fr.ariegenature.geomys.ui.theme.FormeContinue
 import kotlin.math.hypot
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -587,9 +585,10 @@ private fun BoutonMode(mode: ModeGeometrie, vm: CarteOccHabViewModel, descriptio
     }
 }
 
-/** Le bas de la carte (Android). En consultation, le « + » de la saisie multi-taxons (disque bleu de
- *  48 dp), sans bandeau : une nouvelle station (demande du 20 octobre ; GeoMys-Android y avait « Ajouter
- *  une station » sur la bande `panel_bg`). En création, « Annuler » et « Valider » sur cette bande. */
+/** Le bas de la carte (Android), sans bandeau (demandes du 20 octobre ; GeoMys-Android y avait la bande
+ *  `panel_bg`). En consultation, le « + » de la saisie multi-taxons (disque bleu de 48 dp) : une nouvelle
+ *  station. En création ou en édition d'une station, « Annuler » et « Valider » seuls, posés sur la
+ *  carte. */
 @Composable
 private fun PanneauAndroid(vm: CarteOccHabViewModel, modifier: Modifier) {
     if (!vm.enCreation) {
@@ -599,7 +598,7 @@ private fun PanneauAndroid(vm: CarteOccHabViewModel, modifier: Modifier) {
         return
     }
     Row(
-        modifier.fillMaxWidth().background(CouleursGeoMys.fondBas).padding(horizontal = 12.dp, vertical = 10.dp),
+        modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BoutonPlein("Annuler", vm::annuler, Modifier.weight(1f), actif = vm.peutAnnuler)
@@ -608,10 +607,11 @@ private fun PanneauAndroid(vm: CarteOccHabViewModel, modifier: Modifier) {
     }
 }
 
-/** Le bas de la carte (iOS). En consultation, le « + » de la saisie multi-taxons (disque bleu ombré de
- *  56 pt), sans bandeau : une nouvelle station (demande du 20 octobre ; GeoMys-IOS y avait « Ajouter une
- *  station » sur le dégradé). En création, sur le dégradé, « Annuler » en texte et « Valider » sur fond
- *  vert, estompés quand ils sont inactifs. */
+/** Le bas de la carte (iOS), sans bandeau (demandes du 20 octobre ; GeoMys-IOS y avait son dégradé). En
+ *  consultation, le « + » de la saisie multi-taxons (disque bleu ombré de 56 pt) : une nouvelle station.
+ *  En création ou en édition d'une station, « Annuler » et « Valider » seuls, posés sur la carte : les
+ *  pilules bleue et verte de GeoMys-IOS, estompées quand elles sont inactives (« Annuler », un texte
+ *  blanc sur le dégradé, serait illisible sur la carte). */
 @Composable
 private fun PanneauIos(vm: CarteOccHabViewModel) {
     if (!vm.enCreation) {
@@ -620,33 +620,16 @@ private fun PanneauIos(vm: CarteOccHabViewModel) {
         }
         return
     }
-    val forme = FormeContinue(10.dp)
     Row(
         Modifier
             .fillMaxWidth()
-            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(CouleursGeoMys.fondHaut, CouleursGeoMys.fondBas), Offset.Zero, Offset.Infinite))
             .windowInsetsPadding(WindowInsets.navigationBars)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BoutonIos(vm::annuler, Modifier.weight(1f), actif = vm.peutAnnuler, opaciteAppui = 0.6f) {
-            Text(
-                "Annuler",
-                color = if (vm.peutAnnuler) Color.White else CouleursGeoMys.blanc70.copy(alpha = 0.4f),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(vertical = 12.dp),
-            )
-        }
-        BoutonIos(vm::valider, Modifier.weight(1f), actif = vm.peutValider, opaciteAppui = 0.6f) {
-            Box(
-                Modifier.fillMaxWidth().background(CouleursGeoMys.vert.copy(alpha = if (vm.peutValider) 1f else 0.4f), forme).padding(vertical = 12.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("Valider", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            }
-        }
+        BoutonPlein("Annuler", vm::annuler, Modifier.weight(1f), actif = vm.peutAnnuler)
+        BoutonVert("Valider", vm::valider, Modifier.weight(1f), actif = vm.peutValider)
     }
 }
 
