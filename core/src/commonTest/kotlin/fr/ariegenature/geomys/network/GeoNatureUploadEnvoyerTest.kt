@@ -245,13 +245,14 @@ class GeoNatureUploadEnvoyerTest {
     }
 
     @Test
-    fun dataset_invalide_leve_une_erreur() = runTest {
+    fun releve_sans_jeu_de_donnees_leve_une_erreur_claire() = runTest {
+        // Ni jeu figé dans le relevé, ni jeu par défaut : le jeu est obligatoire, comme sur le web.
         router()
-        config.idDataset = "0"
+        config.idDataset = ""
         val e = assertFailsWith<GNErreur.EnvoiEchoue>("attendu : GNErreur.EnvoiEchoue (dataset)") {
             upload.envoyer(Sortie(observations = listOf(obs("o1"))), config)
         }
-        assertTrue(e.message!!.contains("id_dataset"))
+        assertTrue(e.message!!.contains("Jeu de données manquant"), e.message)
     }
 
     // ── Envoi partiel & ré-envoi (audit 2026-07 : une seule occurrence créée verrouillait toute la

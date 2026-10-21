@@ -42,6 +42,9 @@ data class NouvelleSaisie(
     val libelle: String,
     /** Le fil d'Ariane du formulaire (ses ancêtres). */
     val fil: List<FilSegment>,
+    /** L'utilisateur a le droit de créer ce type d'objet ; sinon le « + » est grisé, comme sur le
+     *  web (cf. [DroitsSuivis]). */
+    val permise: Boolean = true,
 )
 
 /** Un élément de la liste des enfants d'une fiche. */
@@ -103,6 +106,7 @@ object FicheObjet {
         fil: List<FilSegment>,
         labelTypeEnCache: (moduleCode: String, type: String) -> String?,
         libelleNouveau: (moduleCode: String, type: String) -> String,
+        peutCreer: (moduleCode: String, type: String) -> Boolean = { _, _ -> true },
     ): List<ElementFiche> {
         val elements = mutableListOf<ElementFiche>()
         val saisiesLocalesIci = saisiesLocalesAttacheesA(objet, toutes)
@@ -116,6 +120,7 @@ object FicheObjet {
                 childObjectType = type,
                 libelle = libelleNouveau(objet.moduleCode, type),
                 fil = fil,
+                permise = peutCreer(objet.moduleCode, type),
             ) else null
             return ElementFiche.Entete(if (nombre == null) label else "$label ($nombre)", nouvelle)
         }
@@ -138,6 +143,7 @@ object FicheObjet {
                     childObjectType = it,
                     libelle = libelleNouveau(objet.moduleCode, it),
                     fil = fil,
+                    permise = peutCreer(objet.moduleCode, it),
                 )
             }
             return ElementFiche.Locale(saisie.uuid, "$icone $labelLocal (local)", "$date · à envoyer", nouvelle)
@@ -147,7 +153,7 @@ object FicheObjet {
             val saisiesLocalesCeType = saisiesLocalesIci.filter { it.objectType == type }
             if (itemsBruts.isEmpty() && saisiesLocalesCeType.isEmpty()) return@forEach
             val schemaType = schema?.get(type)
-            val items = AffichageSuivis.trierChronologique(AffichageSuivis.renommer(itemsBruts, schemaType), schemaType)
+            val items = AffichageSuivis.trierChronologique(AffichageSuivis.renommer(itemsBruts, schemaType, resolver), schemaType)
             val typeSaisieEnfant = AffichageSuivis.premierTypeSaisie(schemaType)
             // Sur un enfant SERVEUR, pas de « + » s'il est lui-même une saisie historisée.
             val typeSaisieEnfantServeur = AffichageSuivis.typeSaisieEnfantServeur(type, schemaType)
@@ -169,6 +175,7 @@ object FicheObjet {
                             childObjectType = it,
                             libelle = libelleNouveau(objet.moduleCode, it),
                             fil = filEnfant,
+                            permise = peutCreer(objet.moduleCode, it),
                         )
                     },
                     fil = filEnfant,

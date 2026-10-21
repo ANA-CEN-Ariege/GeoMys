@@ -159,6 +159,7 @@ class EcritureIndexEnEchecTest {
         val config = GeoNatureConfig(MapSettings(), CoffreEnMemoire()).apply {
             urlServeur = serveur.base
             listesCacheJson = """[{"id":100,"nom":"Faune"}]"""
+            taxaListeId = "100"
             datasetsCacheJson = """[{"id":1,"nom":"JDD"}]"""
         }
         serveur.router(

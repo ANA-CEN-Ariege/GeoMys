@@ -53,7 +53,8 @@ class TaxRefService(private val taxRef: TaxRefCache, private val taxRefLocal: Ta
     suspend fun rechercherParmiCandidats(
         candidats: List<String>,
         taxon: Taxon? = null,
-        gnConfig: GeoNatureConfig? = null,
+        /** La liste de taxons du relevé ([GeoNatureConfig.listeTaxonsOcctax]), null : toutes. */
+        idListe: Int? = null,
         scientifique: Boolean = false,
     ): Pair<TaxRefStatut, String?> = withContext(Dispatchers.IO) {
         val liste = candidats.map { it.trim() }.filter { it.isNotEmpty() }
@@ -62,11 +63,11 @@ class TaxRefService(private val taxRef: TaxRefCache, private val taxRefLocal: Ta
         // (Levenshtein) du 1er — sinon « Rouge-gorge » approché sur l'hypothèse n°1 gagnait sur
         // l'hypothèse n°2 exacte (audit 2026-08-27).
         for (cand in liste) {
-            val statut = rechercher(cand, taxon, gnConfig, scientifique, avecRechercheEtendue = false)
+            val statut = rechercher(cand, taxon, idListe, scientifique, avecRechercheEtendue = false)
             if (statut is TaxRefStatut.Trouve) return@withContext Pair(statut, cand)
         }
         for (cand in liste) {
-            val statut = rechercher(cand, taxon, gnConfig, scientifique, avecRechercheEtendue = true)
+            val statut = rechercher(cand, taxon, idListe, scientifique, avecRechercheEtendue = true)
             if (statut is TaxRefStatut.Trouve) return@withContext Pair(statut, cand)
         }
         Pair(TaxRefStatut.NonTrouve, liste.first())
@@ -87,7 +88,8 @@ class TaxRefService(private val taxRef: TaxRefCache, private val taxRefLocal: Ta
     suspend fun rechercher(
         nom: String,
         taxon: Taxon? = null,
-        gnConfig: GeoNatureConfig? = null,
+        /** La liste de taxons du relevé ([GeoNatureConfig.listeTaxonsOcctax]), null : toutes. */
+        idListe: Int? = null,
         /** Mode d'affichage de l'autocomplétion : il définit l'ensemble des noms PROPOSÉS, donc
          *  celui des noms acceptables. */
         scientifique: Boolean = false,
@@ -97,11 +99,11 @@ class TaxRefService(private val taxRef: TaxRefCache, private val taxRefLocal: Ta
         avecRechercheEtendue: Boolean = false,
     ): TaxRefStatut =
         withContext(Dispatchers.IO) {
-            // Périmètre = groupe sélectionné ET liste de saisie configurée : le même que celui
-            // des propositions d'autocomplétion (règle 2026-09-17 — seuls les noms proposés sont
-            // acceptés). Liste absente du cache ⇒ [indexParTaxon] rend une liste vide et on
-            // reste permissif (groupe seul), comme pour un index de groupe non synchronisé.
-            val idListeFiltre = gnConfig?.taxaListeId?.trim()?.toIntOrNull()
+            // Périmètre = groupe sélectionné ET liste du relevé : le même que celui des propositions
+            // d'autocomplétion (règle 2026-09-17 — seuls les noms proposés sont acceptés). Liste
+            // absente du cache ⇒ [indexParTaxon] rend une liste vide et on reste permissif (groupe
+            // seul), comme pour un index de groupe non synchronisé.
+            val idListeFiltre = idListe
             // Liste configurée absente du cache : la saisie ne propose rien, elle ne doit rien
             // accepter non plus (décision produit 2026-09-17).
             if (idListeFiltre != null && taxRef.listeAbsenteDuCache(idListeFiltre)) {

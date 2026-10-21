@@ -23,37 +23,27 @@ import fr.ariegenature.geomys.model.GeoNatureListe
 import fr.ariegenature.geomys.model.GeoNatureObservateur
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
-/** Règles de sélection des Paramètres, telles que les appliquait ConfigGeoNatureFragment
- *  (GeoMys-Android) dans ses menus déroulants. */
+/** Les sélections par défaut des Paramètres, facultatives : les jeux du formulaire du web, les
+ *  listes, l'observateur (l'utilisateur connecté au départ) et la purge des sélections fantômes. */
 class ReglesSelectionOcctaxTest {
 
     private val occtax = GeoNatureDataset(1, "Occtax", moduleCodes = listOf("OCCTAX"))
     private val sansModule = GeoNatureDataset(2, "Sans module")
     private val autreModule = GeoNatureDataset(3, "Suivi", moduleCodes = listOf("MONITORING"))
     private val inactif = GeoNatureDataset(4, "Ancien", actif = false, moduleCodes = listOf("OCCTAX"))
-    private val listes = listOf(GeoNatureListe(100, "Saisie"), GeoNatureListe(200, "Flore"))
-    private val observateurs = listOf(GeoNatureObservateur(7, "DUPONT Jean"), GeoNatureObservateur(9, "MARTIN Lea"))
 
     @Test
-    fun seuls_les_jeux_actifs_rattaches_a_occtax_ou_sans_module_sont_proposes() {
-        val proposes = ReglesSelectionOcctax.datasetsProposes(listOf(occtax, sansModule, autreModule, inactif), emptySet())
-        assertEquals(listOf(occtax, sansModule), proposes)
-    }
-
-    @Test
-    fun les_jeux_creables_restreignent_la_proposition() {
-        val proposes = ReglesSelectionOcctax.datasetsProposes(listOf(occtax, sansModule), creables = setOf(2))
-        assertEquals(listOf(sansModule), proposes)
+    fun seuls_les_jeux_actifs_occtax_et_creables_sont_proposes_comme_sur_le_web() {
+        val proposes = ReglesSelectionOcctax.datasetsProposes(listOf(occtax, sansModule, autreModule, inactif), setOf(1, 2, 3, 4))
+        assertEquals(listOf(occtax), proposes)
+        assertEquals(emptyList(), ReglesSelectionOcctax.datasetsProposes(listOf(occtax), emptySet()), "sans liste des créables, aucun")
     }
 
     @Test
     fun libelles_nom_et_id() {
         assertEquals("Occtax (1)", ReglesSelectionOcctax.libelle(occtax))
-        assertEquals("Flore (200)", ReglesSelectionOcctax.libelle(listes[1]))
     }
 
     @Test
@@ -63,52 +53,39 @@ class ReglesSelectionOcctaxTest {
         assertNull(ReglesSelectionOcctax.datasetValide("", listOf(occtax)))
     }
 
+    private val liste100 = GeoNatureListe(100, "Saisie")
+    private val liste200 = GeoNatureListe(200, "Flore")
+
     @Test
-    fun un_jeu_qui_impose_sa_liste_ne_laisse_qu_elle() {
-        val impose = occtax.copy(idTaxaList = 200)
-        assertEquals(ListesProposees(listOf(listes[1]), imposee = true), ReglesSelectionOcctax.listesProposees(listes, impose))
-        assertEquals(ListesProposees(listes, imposee = false), ReglesSelectionOcctax.listesProposees(listes, occtax))
-        assertEquals(ListesProposees(listes, imposee = false), ReglesSelectionOcctax.listesProposees(listes, null))
+    fun aucune_liste_n_est_choisie_d_office_meme_unique() {
+        assertNull(ReglesSelectionOcctax.listeChoisie("", listOf(liste100)))
+        assertEquals(liste200, ReglesSelectionOcctax.listeChoisie("200", listOf(liste100, liste200)))
+        assertNull(ReglesSelectionOcctax.listeChoisie("300", listOf(liste100)), "liste fantôme")
     }
 
     @Test
-    fun une_liste_imposee_absente_du_serveur_est_synthetisee() {
-        val proposees = ReglesSelectionOcctax.listesProposees(listes, occtax.copy(idTaxaList = 300))
-        assertEquals(listOf(GeoNatureListe(300, "Liste 300")), proposees.listes)
-        assertTrue(proposees.imposee)
+    fun un_jeu_qui_porte_une_liste_l_impose() {
+        val jeu = GeoNatureDataset(1, "Occtax", idTaxaList = 200, moduleCodes = listOf("OCCTAX"))
+        assertEquals(ListesProposees(listOf(liste200), imposee = true), ReglesSelectionOcctax.listesProposees(listOf(liste100, liste200), jeu))
+        assertEquals(ListesProposees(listOf(liste100, liste200), imposee = false), ReglesSelectionOcctax.listesProposees(listOf(liste100, liste200), occtax))
+        assertEquals(
+            ListesProposees(listOf(GeoNatureListe(300, "Liste 300")), imposee = true),
+            ReglesSelectionOcctax.listesProposees(listOf(liste100), jeu.copy(idTaxaList = 300)),
+            "liste absente de /biblistes : synthétisée",
+        )
     }
 
-    @Test
-    fun la_liste_imposee_l_emporte_sur_la_selection_stockee() {
-        val proposees = ListesProposees(listOf(listes[1]), imposee = true)
-        assertEquals("200", ReglesSelectionOcctax.listeChoisie("100", proposees, selectionsReinitialisees = true))
-    }
+    private val alice = GeoNatureObservateur(3, "DUPONT Alice")
+    private val paul = GeoNatureObservateur(8, "MARTIN Paul")
 
     @Test
-    fun la_selection_stockee_est_gardee_si_elle_est_proposee() {
-        val proposees = ListesProposees(listes, imposee = false)
-        assertEquals("200", ReglesSelectionOcctax.listeChoisie("200", proposees, selectionsReinitialisees = false))
-        assertEquals("", ReglesSelectionOcctax.listeChoisie("999", proposees, selectionsReinitialisees = false))
-    }
-
-    @Test
-    fun une_liste_unique_est_choisie_d_office_sauf_apres_vider_le_cache() {
-        val unique = ListesProposees(listOf(listes[0]), imposee = false)
-        assertEquals("100", ReglesSelectionOcctax.listeChoisie("", unique, selectionsReinitialisees = false))
-        assertEquals("", ReglesSelectionOcctax.listeChoisie("", unique, selectionsReinitialisees = true))
-    }
-
-    @Test
-    fun l_observateur_stocke_puis_l_utilisateur_connecte() {
-        assertEquals(observateurs[1], ReglesSelectionOcctax.observateurChoisi("9", observateurs, idRoleConnecte = 7))
-        assertEquals(observateurs[0], ReglesSelectionOcctax.observateurChoisi("", observateurs, idRoleConnecte = 7))
-        assertEquals(observateurs[0], ReglesSelectionOcctax.observateurChoisi("42", observateurs, idRoleConnecte = 7))
-    }
-
-    @Test
-    fun sans_utilisateur_connecte_connu_aucun_observateur() {
-        assertNull(ReglesSelectionOcctax.observateurChoisi("", observateurs, idRoleConnecte = 0))
-        assertNull(ReglesSelectionOcctax.observateurChoisi("", observateurs, idRoleConnecte = 42))
-        assertFalse(observateurs.any { it.idRole == 42 })
+    fun l_utilisateur_connecte_est_propose_et_choisi_par_defaut() {
+        val proposes = ReglesSelectionOcctax.observateursProposes(listOf(paul), 3, "DUPONT Alice")
+        assertEquals(listOf(paul, alice), proposes, "ajouté s'il manque à la liste, comme le web")
+        assertEquals(alice, ReglesSelectionOcctax.observateurChoisi("", proposes, 3))
+        assertEquals(paul, ReglesSelectionOcctax.observateurChoisi("8", proposes, 3))
+        assertEquals(alice, ReglesSelectionOcctax.observateurChoisi("99", proposes, 3), "fantôme : retour à l'utilisateur connecté")
+        assertEquals(listOf(paul, alice), ReglesSelectionOcctax.observateursProposes(listOf(paul, alice), 3, "DUPONT Alice"))
+        assertNull(ReglesSelectionOcctax.observateurChoisi("", listOf(paul), -1), "inconnu tant qu'on n'est pas connecté")
     }
 }

@@ -31,6 +31,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
@@ -94,6 +95,63 @@ class MonitoringEnvoiTest {
         assertTrue(props.isNull("visit_date_min"), "champ du schéma absent → null explicite")
         assertEquals(0, props.getJSONArray("medias").length(), "medias absent → tableau vide")
         assertTrue(!props.has("vide"), "valeur vide retirée")
+    }
+
+    @Test
+    fun formats_du_web_dates_sans_zeros_textes_gardes_et_pas_de_date_max_copiee() = runTest {
+        val corps = mutableListOf<String>()
+        serveur.routerRequetes { requete ->
+            val chemin = requete.url.encodedPathAndQuery
+            when {
+                chemin.startsWith("/api/auth/login") -> login()
+                chemin == "/api/monitorings/object/stom/visit" && requete.method == HttpMethod.Post -> {
+                    corps.add(requete.texte); json("""{"id":79}""")
+                }
+                else -> statut(404)
+            }
+        }
+        val res = t.services.monitoringEnvoi.envoyerVisite(
+            config, moduleCode = "stom", objectType = "visit", parentIdField = "id_base_site", parentId = 5,
+            valeurs = mapOf(
+                "visit_date_min" to "2026-03-05", "date_ponte" to "2026-11-20",
+                "nb_adulte" to "1", "methodes" to listOf("1", "2"), "observers" to listOf(121), "id_dataset" to 12,
+            ),
+            nomsChampsSchema = listOf("visit_date_min", "visit_date_max", "date_ponte", "nb_adulte", "methodes", "observers", "id_dataset"),
+            champsTexteLibre = listOf("visit_date_min", "date_ponte", "nb_adulte", "methodes"),
+            champsDate = listOf("visit_date_min", "visit_date_max", "date_ponte"),
+        )
+        assertEquals(79, res.getOrThrow())
+        val props = JSONObject(corps.single()).getJSONObject("properties")
+        assertEquals("2026-3-5", props.getString("visit_date_min"), "date du web, sans zéros")
+        assertEquals("2026-11-20", props.getString("date_ponte"))
+        assertEquals("1", props.get("nb_adulte"), "une option « 1 » reste un texte")
+        assertEquals("1", props.getJSONArray("methodes").get(0), "dans une liste aussi")
+        assertEquals(121, props.getJSONArray("observers").get(0))
+        assertTrue(props.isNull("visit_date_max"), "plus copiée de visit_date_min : le formulaire la fournit")
+    }
+
+    @Test
+    fun aucun_jeu_de_donnees_n_est_invente() = runTest {
+        // Une observation n'a pas de jeu de données : l'appli en ajoutait un (premier jeu du module,
+        // puis celui d'OccTax), que le serveur rangeait dans ses données spécifiques.
+        val corps = mutableListOf<String>()
+        serveur.routerRequetes { requete ->
+            val chemin = requete.url.encodedPathAndQuery
+            when {
+                chemin.startsWith("/api/auth/login") -> login()
+                chemin == "/api/monitorings/object/stom/observation" && requete.method == HttpMethod.Post -> {
+                    corps.add(requete.texte); json("""{"id":78}""")
+                }
+                else -> statut(404)
+            }
+        }
+        val res = t.services.monitoringEnvoi.envoyerVisite(
+            config, moduleCode = "stom", objectType = "observation",
+            parentIdField = "id_base_visit", parentId = 77,
+            valeurs = mapOf("cd_nom" to 4117), nomsChampsSchema = listOf("cd_nom", "comments"),
+        )
+        assertEquals(78, res.getOrThrow())
+        assertFalse(JSONObject(corps.single()).getJSONObject("properties").has("id_dataset"))
     }
 
     @Test

@@ -107,6 +107,60 @@ class AdditionalFieldsServerParsingTest {
     }
 
     @Test
+    fun widgets_du_formulaire_web() {
+        val noms = listOf(
+            "date" to WidgetType.DATE, "time" to WidgetType.TIME, "multiselect" to WidgetType.MULTISELECT,
+            "bool_checkbox" to WidgetType.BOOL_CHECKBOX, "bool_radio" to WidgetType.BOOL_RADIO, "taxonomy" to WidgetType.TAXONOMY,
+            "observers" to WidgetType.OBSERVERS, "observers-text" to WidgetType.OBSERVERS_TEXT, "html" to WidgetType.HTML,
+            // Le web ne rend pas ces types : ni champ ni libellé.
+            "integer" to WidgetType.INCONNU, "areas" to WidgetType.INCONNU, "medias" to WidgetType.INCONNU,
+        )
+        for ((nom, attendu) in noms) {
+            val arr = JSONArray("""[{"id_field":1,"field_name":"c","type_widget":{"widget_name":"$nom"}}]""")
+            assertEquals(attendu, AdditionalFieldsApi.parserChamps(arr)[0].widget, nom)
+        }
+        // Une datalist sans `values` est servie par une API : pas hors ligne.
+        val api = JSONArray("""[{"id_field":1,"field_name":"c","type_widget":"datalist","additional_attributes":{"api":"x"}}]""")
+        assertEquals(WidgetType.INCONNU, AdditionalFieldsApi.parserChamps(api)[0].widget)
+    }
+
+    @Test
+    fun valeurs_typees_et_attributs_du_web() {
+        val arr = JSONArray(
+            """
+            [{"id_field":1,"field_name":"c","type_widget":"select","required":false,
+              "field_values":[{"value":1,"label":"Un"},"deux",{"value":true,"label":"Vrai"}],
+              "additional_attributes":{"required":true,"help":"Aide","definition":"Déf","pattern":"[0-9]+",
+                "pattern_message":"Chiffres","max_length":4,"rows":3,"noNullOption":true,"hidden":true,"disabled":true}},
+             {"id_field":2,"field_name":"d","type_widget":"datalist",
+              "additional_attributes":{"values":[{"code":"a","nom":"A"}],"keyValue":"code","keyLabel":"nom","multiple":true,"nullDefault":true}},
+             {"id_field":3,"field_name":"n","type_widget":"nomenclature","code_nomenclature_type":"STATUT_OBS",
+              "additional_attributes":{"multi_select":true}},
+             {"id_field":4,"field_name":"h","type_widget":"html","additional_attributes":{"html":"<b>Texte</b>"}}]
+            """.trimIndent(),
+        )
+        val (select, datalist, nomenclature, html) = AdditionalFieldsApi.parserChamps(arr)
+        assertEquals(listOf("Un", "deux", "Vrai"), select.fieldValues)
+        assertEquals(listOf("1", "deux", "true"), select.fieldValueCodes)
+        assertEquals(listOf("1", "\"deux\"", "true"), select.valeursBrutes, "chaque valeur garde son type JSON")
+        assertTrue(select.required, "additional_attributes l'emporte, comme le web l'étale")
+        assertEquals("Aide", select.aide)
+        assertEquals("Déf", select.definition)
+        assertEquals("[0-9]+", select.motif)
+        assertEquals("Chiffres", select.messageMotif)
+        assertEquals(4, select.longueurMax)
+        assertEquals(3, select.lignes)
+        assertTrue(select.sansOptionVide && select.masque && select.desactive)
+        assertEquals(WidgetType.DATALIST, datalist.widget)
+        assertEquals(listOf("A"), datalist.fieldValues)
+        assertEquals(listOf("a"), datalist.fieldValueCodes)
+        assertTrue(datalist.choixMultiple && datalist.avecAucun)
+        assertEquals("STATUT_OBS", nomenclature.codeNomenclatureType)
+        assertTrue(nomenclature.choixMultiple)
+        assertEquals("<b>Texte</b>", html.html)
+    }
+
+    @Test
     fun label_defaut_sur_field_name_si_absent() {
         val arr = JSONArray("""[{"id_field":9,"field_name":"code_zh","type_widget":"text"}]""")
         assertEquals("code_zh", AdditionalFieldsApi.parserChamps(arr)[0].fieldLabel)

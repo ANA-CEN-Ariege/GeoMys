@@ -45,6 +45,19 @@ class BuildOccurrenceTest {
     )
 
     @Test
+    fun technique_d_observation_vide_le_defaut_du_serveur_et_non_vu() {
+        // GeoMys-Android envoyait « Vu » ; le web envoie le défaut du serveur (METH_OBS).
+        val tables = mapOf("METH_OBS" to mapOf("vu" to 21, "entendu" to 22, "non renseigné" to 23))
+        val avecDefaut = GeoNatureUpload.buildOccurrence(obs(), tables, defautTechniqueObs = "23")
+        assertEquals(23, avecDefaut.getInt("id_nomenclature_obs_technique"))
+        // Sans défaut connu : rien, la base applique le sien.
+        assertFalse(GeoNatureUpload.buildOccurrence(obs(), tables).has("id_nomenclature_obs_technique"))
+        // Une technique choisie part telle quelle.
+        val choisie = obs().copy(techniqueObs = "22")
+        assertEquals(22, GeoNatureUpload.buildOccurrence(choisie, tables, defautTechniqueObs = "23").getInt("id_nomenclature_obs_technique"))
+    }
+
+    @Test
     fun occurrence_minimale_structure_de_base() {
         val o = GeoNatureUpload.buildOccurrence(obs(nombre = 2), sansNomenclatures)
         assertEquals(4001, o.getInt("cd_nom"))

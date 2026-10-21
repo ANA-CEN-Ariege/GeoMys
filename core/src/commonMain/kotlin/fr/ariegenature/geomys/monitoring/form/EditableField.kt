@@ -60,6 +60,9 @@ enum class ViewType {
      *  lieu à l'envoi de la file des Suivis (OutboxEnvoi), après création de l'objet parent (le
      *  serveur attend uuid_attached_row pour l'y rattacher). */
     MEDIA,
+    /** Texte du protocole (widget serveur `html`), affiché comme sur le web, sans saisie : il n'a pas
+     *  de valeur et ne part pas au serveur. */
+    HTML,
 }
 
 /** Valeur d'une option d'un widget SELECT, RADIO ou à cases. [value] est la valeur technique
@@ -71,6 +74,9 @@ data class PropertyValue(
      *  moteur d'expressions sous `<code>__cd` pour évaluer les conditions
      *  `meta.nomenclatures[value.X].cd_nomenclature == '…'` des schémas (loutre, blaireau…). */
     val cdNomenclature: String? = null,
+    /** [value] avec son type JSON (nombre, booléen, texte), celui qu'envoie le formulaire web ;
+     *  null quand l'option n'est connue que par son texte. */
+    val brut: Any? = null,
 )
 
 /** Un champ éditable d'un formulaire dynamique. Construit à partir du schéma serveur
@@ -84,7 +90,7 @@ data class EditableField(
     var value: Any? = null,
     val values: List<PropertyValue> = emptyList(),
     val obligatoire: Boolean = false,
-    /** Texte d'aide affiché sous le champ (vient du `definition` du schéma serveur). */
+    /** Texte d'aide affiché sous le champ (le `help` du schéma serveur). */
     val aide: String? = null,
     /** Expression `hidden` du schéma serveur (forme Angular `${champ}` etc.). Évaluée par l'état
      *  du formulaire pour masquer ou afficher le champ selon les autres valeurs. */
@@ -108,14 +114,28 @@ data class EditableField(
      *  depuis `schema_dot_table` du schéma serveur, résolu en id_table_location par
      *  /api/gn_commons/get_id_table_location/<schema_dot_table> au moment de l'envoi. */
     val schemaDotTable: String? = null,
-    /** Masque le champ dans le formulaire tout en conservant sa valeur (choisie d'office par
-     *  [value]). Utilisé quand une datalist n'expose qu'une seule option (ex. un protocole rattaché
-     *  à un unique jeu de données) : un sélecteur à choix unique est inutile, on choisit d'office et
-     *  on masque. [FormulaireEtat.lireValeurs] lit quand même sa valeur. */
-    val masque: Boolean = false,
     /** NUMBER uniquement : true si le widget serveur accepte les décimaux (`number`, `float`,
      *  `decimal` — par opposition à `integer`). Pilote le clavier et la lecture de la valeur. Sans
      *  lui, une mesure décimale (température, pH, recouvrement — RHOMEO…) était IMPOSSIBLE à taper,
      *  et une valeur décimale posée par une règle `change` était relue null → perdue en silence. */
     val decimal: Boolean = false,
+    /** HTML uniquement : le contenu du widget (`html` du schéma). */
+    val html: String? = null,
+    /** `definition` du schéma : l'info-bulle du libellé sur le web. ([aide] : le `help`, sous le
+     *  champ.) */
+    val definition: String? = null,
+    /** `pattern` d'un texte (le web l'encadre de `^…$`), son message ; `max_length`. */
+    val motif: String? = null,
+    val messageMotif: String? = null,
+    val longueurMax: Int? = null,
+    /** `rows` d'une zone de texte. */
+    val lignes: Int? = null,
+    /** SELECT : le libellé de l'entrée vide du web (« - » d'un `select`, « -- Aucun -- » d'une
+     *  datalist à `nullDefault`), null s'il n'y en a pas. */
+    val optionVide: String? = null,
+    /** SELECT : une croix vide le choix (`clearable` d'une nomenclature, des observateurs, d'un jeu de
+     *  données). */
+    val effacable: Boolean = false,
+    /** SELECT d'un vrai `select` : une valeur hors de ses options reste, grisée, comme sur le web. */
+    val selectSimple: Boolean = false,
 )

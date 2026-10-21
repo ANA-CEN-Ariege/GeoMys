@@ -53,8 +53,11 @@ sealed interface EvenementHabitatOccHab {
 }
 
 /** Une liste de nomenclature du formulaire, si `OCCHAB.formConfig` la montre. */
-class ChampNomenclatureHabitat(val definition: NomenclatureHabitat, val liste: ListeNomenclatureOccHab, initiale: Int?) {
+class ChampNomenclatureHabitat(val definition: NomenclatureHabitat, val liste: ListeNomenclatureOccHab, private val initiale: Int?) {
     var position by mutableStateOf(liste.position(initiale))
+
+    /** La valeur retenue ([ListeNomenclatureOccHab.retenue]). */
+    val valeur: Int? get() = liste.retenue(initiale, position)
 }
 
 /** Le formulaire de création ([habitatId] null) ou d'édition d'UN habitat de la station
@@ -73,29 +76,40 @@ class HabitatOccHabViewModel(
 
     // ─── Habitat HABREF : autocomplétion du cache OccHab, sinon du serveur ───
 
-    var texteHabitat by mutableStateOf(existant?.habitatLabel.orEmpty())
+    /** Le champ montre le nom cité de l'habitat édité, comme le web. */
+    var texteHabitat by mutableStateOf(existant?.nomCite?.takeIf { it.isNotBlank() } ?: existant?.habitatLabel.orEmpty())
         private set
     var cdHab by mutableStateOf(existant?.cdHab?.takeIf { it > 0 })
         private set
     val resultats = mutableStateListOf<HabitatSuggestion>()
     var resultatsDeroules by mutableStateOf(false)
+
+    /** La dernière recherche n'a rien trouvé : « Aucun élément trouvé » sous le champ, comme le
+     *  web, qui ne le dit qu'à partir de 3 caractères, que le champ ait le focus ou non. */
+    var aucunResultat by mutableStateOf(false)
+        private set
+
+    val aucunResultatAffiche: Boolean get() = aucunResultat && texteHabitat.length >= 3
+    private var habitatChoisi = false
     private var tache: Job? = null
 
-    /** Frappe : l'habitat choisi est oublié ; recherche 300 ms après la dernière frappe, dès 2
-     *  caractères, 20 résultats. */
+    /** Frappe : l'habitat choisi est oublié ; recherche 400 ms après la dernière frappe, dès 2
+     *  caractères, 20 résultats, comme l'autocomplétion du web. */
     fun saisirHabitat(texte: String) {
         if (texte == texteHabitat) return
         texteHabitat = texte
         cdHab = null
         tache?.cancel()
+        aucunResultat = false
         resultatsDeroules = resultats.isNotEmpty()
-        if (texte.trim().length < 2) return
+        if (texte.length < 2) return
         tache = viewModelScope.launch {
-            delay(300)
+            delay(400)
             val trouves = services.habitats.rechercher(texte, 20, occhab = true)
             resultats.clear()
             resultats.addAll(trouves)
-            resultatsDeroules = resultats.isNotEmpty()
+            aucunResultat = trouves.isEmpty()
+            resultatsDeroules = true
         }
     }
 
@@ -111,6 +125,7 @@ class HabitatOccHabViewModel(
     fun choisirHabitat(h: HabitatSuggestion) {
         cdHab = h.cdHab
         texteHabitat = h.libelle
+        habitatChoisi = true
         resultatsDeroules = false
     }
 
@@ -118,7 +133,11 @@ class HabitatOccHabViewModel(
 
     private fun nomenclature(d: NomenclatureHabitat, existante: Int?): ChampNomenclatureHabitat? =
         if (!visible(d.cle)) null
-        else ChampNomenclatureHabitat(d, ListeNomenclatureOccHab(services.nomenclatures.get(d.type)), HabitatOccHab.valeurInitiale(existante, d.type, nouveau, config))
+        else ChampNomenclatureHabitat(
+            d,
+            ListeNomenclatureOccHab(services.nomenclatures.get(d.type), HabitatOccHab.avecEntreeVide(d)),
+            HabitatOccHab.valeurInitiale(existante, d.type, nouveau, config),
+        )
 
     val interet = nomenclature(HabitatOccHab.INTERET, existant?.idNomInteretCommunautaire)
     val determinateurVisible = visible("determiner")
@@ -134,15 +153,39 @@ class HabitatOccHabViewModel(
     /** La section ANA-EVAL : seulement quand l'habitat édité porte un bloc (habitat lu du serveur). */
     val anaEval: EtatSectionAnaEval? = EditionAnaEval.habitat(existant?.anaEvalJson)?.let(::EtatSectionAnaEval)
 
-    private val idTechnique: Int? get() = technique?.let { it.liste.id(it.position) } ?: existant?.idNomTechniqueCollecte
+    /** Les valeurs saisissables, pour la garde de sortie. */
+    private fun valeurs(): List<Any?> = listOf(
+        texteHabitat, cdHab, determinateur, precision, recouvrement,
+        interet?.position, typeDetermination?.position, technique?.position, abondance?.position, anaEval?.json(),
+    )
 
-    /** « Précision technique » requise : technique de collecte = « Autre, préciser ». */
+    private val initiales = valeurs()
+
+    /** L'écran a changé depuis son ouverture. */
+    fun modifie(): Boolean = valeurs() != initiales
+
+    /** La valeur d'une liste : celle retenue si le champ est affiché (l'entrée vide la vide), sinon
+     *  celle de l'habitat édité, ou pour un nouvel habitat le défaut que le web pose aussi sur un
+     *  champ masqué. */
+    private fun choisie(champ: ChampNomenclatureHabitat?, d: NomenclatureHabitat, existante: Int?): Int? =
+        champ?.valeur ?: if (champ != null) null else HabitatOccHab.valeurInitiale(existante, d.type, nouveau, config)
+
+    private val idTechnique: Int? get() = choisie(technique, HabitatOccHab.TECHNIQUE, existant?.idNomTechniqueCollecte)
+
+    /** Précision requise : technique de collecte = « Autre, préciser », la précision affichée ou
+     *  non (masquée, elle reste vide et le web bloque). */
     val precisionRequise: Boolean
-        get() = precisionVisible && HabitatOccHab.techniqueEstAutre(idTechnique, services.nomenclatures.get(HabitatOccHab.TECHNIQUE.type))
+        get() = HabitatOccHab.techniqueEstAutre(idTechnique, services.nomenclatures.get(HabitatOccHab.TECHNIQUE.type))
 
-    /** « Valider l'habitat » actif quand les champs requis sont remplis. */
+    /** Les champs requis du web encore vides, marqués de la barre rouge : l'habitat HABREF, la
+     *  technique de collecte affichée, et sa précision pour « Autre, préciser ». */
+    val habitatManquant: Boolean get() = (cdHab ?: 0) <= 0
+    val techniqueManquante: Boolean get() = technique != null && idTechnique == null
+    val precisionManquante: Boolean get() = precisionVisible && precisionRequise && precision.isBlank()
+
+    /** « Valider cet habitat » actif quand les champs requis sont remplis. */
     val peutValider: Boolean
-        get() = HabitatOccHab.peutValider(cdHab, technique != null, idTechnique, precisionRequise, precision.takeIf { precisionVisible })
+        get() = HabitatOccHab.peutValider(cdHab, idTechnique, precisionRequise, precision.takeIf { precisionVisible })
 
     /** Mort du process pendant la saisie (session reconstruite VIERGE) : valider un habitat créerait
      *  une station fantôme (0,0) envoyable — retour à l'accueil (audit 2026-08-27). */
@@ -163,7 +206,7 @@ class HabitatOccHabViewModel(
      *  sur la station, et la station enregistrée au fil de l'eau. */
     fun valider() {
         val precisionSaisie = precision.takeIf { precisionVisible }
-        HabitatOccHab.manque(cdHab, technique != null, idTechnique, precisionRequise, precisionSaisie)?.let {
+        HabitatOccHab.manque(cdHab, idTechnique, precisionRequise, precisionSaisie)?.let {
             _evenements.trySend(EvenementHabitatOccHab.Message(it))
             return
         }
@@ -175,11 +218,12 @@ class HabitatOccHabViewModel(
                 determinateur = determinateur.takeIf { determinateurVisible },
                 precision = precisionSaisie,
                 recouvrement = recouvrement.takeIf { recouvrementVisible },
-                interet = interet?.let { it.liste.id(it.position) } ?: existant?.idNomInteretCommunautaire,
-                typeDetermination = typeDetermination?.let { it.liste.id(it.position) } ?: existant?.idNomTypeDetermination,
+                interet = choisie(interet, HabitatOccHab.INTERET, existant?.idNomInteretCommunautaire),
+                typeDetermination = choisie(typeDetermination, HabitatOccHab.TYPE_DETERMINATION, existant?.idNomTypeDetermination),
                 technique = idTechnique,
-                abondance = abondance?.let { it.liste.id(it.position) } ?: existant?.idNomAbondance,
+                abondance = choisie(abondance, HabitatOccHab.ABONDANCE, existant?.idNomAbondance),
                 anaEval = anaEval?.let { e -> { e.json() } },
+                choisiDansLaListe = habitatChoisi,
             ),
         )
         session.ajouterOuMajHabitat(habitat)

@@ -40,7 +40,7 @@ class ParametresGeoNatureTest {
     @AfterTest
     fun nettoyer() = t.nettoyer()
 
-    /** Connexion enregistrée et testée, avec ses trois sélections et leurs caches. */
+    /** Connexion enregistrée et testée, avec son jeu de données par défaut et ses caches. */
     private fun connexionEtSelections() = config.apply {
         urlServeur = "https://exemple.test"
         login = "u"
@@ -51,10 +51,7 @@ class ParametresGeoNatureTest {
         idDataset = "1"
         nomDataset = "JDD"
         listesCacheJson = """[{"id":100,"nom":"Saisie"}]"""
-        taxaListeId = "100"
         observateursCacheJson = """[{"idRole":7,"nomComplet":"DUPONT Jean"}]"""
-        observateurDefautId = "7"
-        observateurDefautNom = "DUPONT Jean"
         additionalFieldsOcctaxJson = "[]"
     }
 
@@ -77,9 +74,8 @@ class ParametresGeoNatureTest {
         assertEquals(ChangementConnexion.MOT_DE_PASSE, services.enregistrerConnexion("https://exemple.test", "u", "p2"))
         assertEquals("p2", config.motDePasse)
         assertEquals("1", config.idDataset)
-        assertEquals("100", config.taxaListeId)
-        assertEquals("7", config.observateurDefautId)
         assertTrue(config.listesCacheJson.isNotEmpty())
+        assertTrue(config.observateursCacheJson.isNotEmpty())
         // Caches de session et version de l'instance : à re-relever au prochain test.
         assertEquals(0, services.stationsServeur.count)
         assertEquals("", config.versionGeoNatureServeur)
@@ -87,14 +83,14 @@ class ParametresGeoNatureTest {
     }
 
     @Test
-    fun changer_de_serveur_reinitialise_les_trois_selections() {
+    fun changer_de_serveur_reinitialise_les_selections() {
         connexionEtSelections()
         assertEquals(ChangementConnexion.IDENTITE, services.enregistrerConnexion("https://autre.test", "u", "p"))
         verifierSelectionsVides()
     }
 
     @Test
-    fun changer_de_compte_reinitialise_les_trois_selections() {
+    fun changer_de_compte_reinitialise_les_selections() {
         connexionEtSelections()
         assertEquals(ChangementConnexion.IDENTITE, services.enregistrerConnexion("https://exemple.test", "v", "p"))
         verifierSelectionsVides()
@@ -102,18 +98,22 @@ class ParametresGeoNatureTest {
 
     private fun verifierSelectionsVides() {
         for (valeur in listOf(
-            config.idDataset, config.nomDataset, config.taxaListeId, config.observateurDefautId,
-            config.observateurDefautNom, config.datasetsCacheJson, config.listesCacheJson,
+            config.idDataset, config.nomDataset, config.datasetsCacheJson, config.listesCacheJson,
             config.observateursCacheJson, config.additionalFieldsOcctaxJson,
         )) assertEquals("", valeur)
         assertEquals("", config.versionGeoNatureServeur)
     }
 
     @Test
-    fun bandeau_du_rechargement_impose_par_une_mise_a_jour() {
-        config.rechargementRequisApresMaj = true
+    fun bandeau_d_une_mise_a_jour_qui_lit_des_donnees_nouvelles() {
+        // Depuis le 21 octobre, il suggère de recharger sans rien bloquer.
+        services.taxRef.versionSauvegardee = "17"
+        config.versionDonneesChargees = GeoNatureConfig.VERSION_DONNEES_REQUISE - 1
         val texte = assertNotNull(texteBandeauRechargement(config, services.taxRef))
-        assertTrue(texte.startsWith("Mise à jour de l'application : les données doivent être rechargées"))
+        assertTrue(texte.startsWith("Mise à jour de l'application : rechargez les données quand vous aurez du réseau"))
+        assertTrue(texte.endsWith("L'application reste utilisable d'ici là."))
+        config.versionDonneesChargees = GeoNatureConfig.VERSION_DONNEES_REQUISE
+        assertNull(texteBandeauRechargement(config, services.taxRef), "données à jour")
     }
 
     @Test
@@ -127,9 +127,8 @@ class ParametresGeoNatureTest {
      *  Le bandeau ne renvoie à aucun accès de secours vers les saisies. */
     @Test
     fun le_bandeau_n_ouvre_aucune_porte_derobee_vers_les_saisies() {
-        config.rechargementRequisApresMaj = true
+        services.taxRef.versionSauvegardee = "17"
         val requis = assertNotNull(texteBandeauRechargement(config, services.taxRef))
-        config.rechargementRequisApresMaj = false
         services.taxRef.listesIncompletes = listOf(100)
         val incomplet = assertNotNull(texteBandeauRechargement(config, services.taxRef))
         for (texte in listOf(requis, incomplet)) assertFalse(texte.contains("ci-dessous"))

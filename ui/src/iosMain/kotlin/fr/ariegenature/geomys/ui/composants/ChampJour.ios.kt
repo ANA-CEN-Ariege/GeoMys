@@ -51,8 +51,8 @@ import platform.UIKit.UIDatePicker
 import platform.UIKit.UIDatePickerMode
 import platform.UIKit.UIDatePickerStyle
 
-/** `UIDatePicker` compact en mode date, teinté jaune clair, sans date maximale, calé à gauche comme les
- *  autres valeurs des détails d'une station (demande du 20 octobre). */
+/** `UIDatePicker` compact en mode date, teinté jaune clair, du 1ᵉʳ janvier 1735 à aujourd'hui comme le
+ *  web, calé à gauche comme les autres valeurs des détails d'une station (demande du 20 octobre). */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 actual fun ChampJour(millis: Long?, onChoix: (Long) -> Unit, modifier: Modifier, fondIos: Color) {
@@ -77,6 +77,8 @@ actual fun ChampJour(millis: Long?, onChoix: (Long) -> Unit, modifier: Modifier,
         modifier = modifier.size(taille),
         update = { selecteur ->
             selecteur.backgroundColor = fondIos.versUIColor()
+            selecteur.minimumDate = NSDate.dateWithTimeIntervalSince1970(PREMIER_JOUR_WEB / 1000.0)
+            selecteur.maximumDate = NSDate()
             selecteur.setDate(NSDate.dateWithTimeIntervalSince1970((millis ?: debutDuJour(maintenantMillis())) / 1000.0), animated = false)
             // Sans taille intrinsèque, le sélecteur rend la largeur proposée : il prend toute la largeur
             // offerte, sa pastille à gauche. À sa taille compressée, il passait au format court

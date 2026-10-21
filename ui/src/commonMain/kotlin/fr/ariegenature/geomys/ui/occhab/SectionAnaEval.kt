@@ -138,8 +138,7 @@ private fun SectionAnaEvalIos(etat: EtatSectionAnaEval, fond: Color) {
                     champ.libelle,
                     listOf(EditionAnaEval.NON_RENSEIGNE) + ref.map { it.second },
                     etat.positions[champ.cle] ?: 0,
-                    { etat.positions[champ.cle] = it },
-                )
+                ) { etat.positions[champ.cle] = it }
                 champ.entier -> LigneNombreIos(
                     champ.libelle,
                     etat.textes[champ.cle].orEmpty(),

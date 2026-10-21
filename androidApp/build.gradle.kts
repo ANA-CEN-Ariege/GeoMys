@@ -78,6 +78,9 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        // kotlinx-datetime s'appuie sur java.time, absent avant Android 8 : sans ce désucrage, la
+        // première date manipulée plantait sous Android 7 (minSdk 24).
+        isCoreLibraryDesugaringEnabled = true
     }
 }
 
@@ -94,4 +97,5 @@ dependencies {
     // Moteur de rendu de la carte MapLibre. OpenGL plutôt que Vulkan : compatible avec plus
     // d'appareils (minSdk 24) et avec l'émulateur.
     runtimeOnly(libs.maplibre.compose.runtime.opengl.android)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 }

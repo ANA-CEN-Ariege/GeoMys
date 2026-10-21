@@ -26,6 +26,8 @@ package fr.ariegenature.geomys.network
 import fr.ariegenature.geomys.journal.Journal
 import fr.ariegenature.geomys.json.JSONObject
 import fr.ariegenature.geomys.model.SaisieEnAttente
+import fr.ariegenature.geomys.plateforme.ExecutionLongue
+import fr.ariegenature.geomys.plateforme.proteger
 import fr.ariegenature.geomys.store.GeoNatureConfig
 import fr.ariegenature.geomys.store.OutboxMonitoring
 import fr.ariegenature.geomys.util.uuidAleatoire
@@ -58,6 +60,8 @@ class OutboxEnvoi(
     private val monitoringEnvoi: MonitoringEnvoi,
     private val upload: GeoNatureUpload,
     private val objets: MonitoringObjets,
+    /** Garde l'envoi de la mise en veille (tâche d'arrière-plan sous iOS). */
+    private val executionLongue: ExecutionLongue? = null,
 ) {
 
     data class Resultat(val succes: Int, val echecs: Int, val messages: List<String>)
@@ -92,6 +96,12 @@ class OutboxEnvoi(
      *  [uuidsACibler], ou toute la file si null. Ordre parent → enfant par tri topologique
      *  itératif. */
     private suspend fun envoyerSelection(
+        config: GeoNatureConfig,
+        uuidsACibler: Set<String>?,
+        progression: (envoyees: Int, total: Int, message: String) -> Unit,
+    ): Resultat = executionLongue.proteger("Envoi des Suivis") { envoyerSelectionSansVeille(config, uuidsACibler, progression) }
+
+    private suspend fun envoyerSelectionSansVeille(
         config: GeoNatureConfig,
         uuidsACibler: Set<String>?,
         progression: (envoyees: Int, total: Int, message: String) -> Unit,
@@ -453,6 +463,8 @@ class OutboxEnvoi(
                         valeurs = valeurs,
                         nomsChampsSchema = s.nomsChampsSchema,
                         champsTexteLibre = s.champsTexteLibre,
+                        champsDate = s.champsDate,
+                        champsVidesGardes = s.champsVidesGardes,
                         uuidClient = s.uuidPayload,
                         uuidFieldName = s.uuidFieldName,
                     )
@@ -492,15 +504,14 @@ class OutboxEnvoi(
             // « Réessayer » après un échec partiel renvoyait la liste complète et empilait les
             // doublons dans gn_commons.t_medias — trois essais échouant sur la 3ᵉ photo laissaient
             // trois exemplaires des deux premières (audit 2026-09-14, R1-M3).
-            val medias = s.mediasARenvoyer()
-            if (medias.isNotEmpty() && s.mediaSchemaDotTable != null && s.uuidPayload != null) {
+            val medias = s.mediasDetaillesARenvoyer()
+            if (medias.isNotEmpty() && s.uuidPayload != null) {
                 val resMedia = upload.uploaderMediaMonitoring(
                     config = config,
-                    mediaPaths = medias,
-                    schemaDotTable = s.mediaSchemaDotTable,
+                    medias = medias,
                     uuidAttachedRow = s.uuidPayload,
-                    titre = "${s.objectType} ${s.uuidPayload.take(8)}",
-                    author = config.nomUtilisateur.ifEmpty { config.login },
+                    titreParDefaut = "${s.objectType} ${s.uuidPayload.take(8)}",
+                    auteurParDefaut = config.nomUtilisateur.ifEmpty { config.login },
                     // NOUVEL ESSAI : l'objet existait déjà, ou des médias ont déjà été acquis. On
                     // demande alors au serveur ce qu'il détient avant de renvoyer quoi que ce soit —
                     // un POST dont la RÉPONSE s'est perdue n'a laissé aucune trace locale, et c'est

@@ -46,6 +46,8 @@ class SyncRunnerTest {
         s.config.urlServeur = t.serveur.base
         s.config.login = "alice"
         s.config.motDePasse = "pwd"
+        // La liste choisie dans Paramètres : depuis le 21 octobre, seules les listes utiles se chargent.
+        s.config.taxaListeId = "100"
     }
 
     @Test
@@ -165,5 +167,22 @@ class SyncRunnerTest {
         t.travauxLongs.forEach { it.invoke() }
         assertTrue(s.synchro.etat.value.succes)
         assertFalse(s.synchro.actif)
+    }
+
+    @Test
+    fun un_premier_chargement_sans_liste_choisie_n_est_pas_un_echec() = runTest {
+        // Aucune liste encore utile (ni choisie, ni imposée) : TaxRef reste vide mais daté, pour que
+        // Paramètres propose les sélections, dont le choix de la liste (21 octobre).
+        configurer()
+        s.config.taxaListeId = ""
+        t.serveur.routerGeoNatureComplet()
+        s.synchro.executer()
+        val fin = s.synchro.etat.value
+        assertTrue(fin.succes, fin.resume)
+        assertFalse(fin.resume.orEmpty().contains("TaxRef"), fin.resume)
+        assertTrue(s.taxRef.aDesDonnees, "le cache existe : les sélections s'affichent")
+        assertEquals("17", s.taxRef.versionSauvegardee)
+        assertEquals(emptyList(), s.taxRef.listesSynchronisees, "rien n'est téléchargé")
+        assertTrue(t.serveur.requetes.none { "id_liste=" in it.url.encodedPathAndQuery }, "aucune page de taxons demandée")
     }
 }

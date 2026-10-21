@@ -23,6 +23,7 @@
 package fr.ariegenature.geomys.network
 
 import fr.ariegenature.geomys.ServicesDeTest
+import fr.ariegenature.geomys.json.JSONObject
 import fr.ariegenature.geomys.model.Observation
 import fr.ariegenature.geomys.model.Sortie
 import fr.ariegenature.geomys.network.ServeurSimule.Companion.json
@@ -64,6 +65,7 @@ class EnvoiReleveAntiDoublonTest {
     private var occurrencesPostees = 0
     private val relevesCibles = mutableListOf<String>()
     private var corpsReleve: String? = null
+    private var appelsAltitude = 0
 
     private val typesNomenclature = listOf(
         "METH_OBS", "STATUT_OBS", "SEXE", "STADE_VIE", "STATUT_BIO", "ETA_BIO",
@@ -77,7 +79,7 @@ class EnvoiReleveAntiDoublonTest {
             urlServeur = serveur.base
             login = "alice"; motDePasse = "pwd"; idDataset = "12"
         }
-        relevesCrees = 0; occurrencesPostees = 0
+        relevesCrees = 0; occurrencesPostees = 0; appelsAltitude = 0
         relevesCibles.clear(); corpsReleve = null
     }
 
@@ -94,11 +96,15 @@ class EnvoiReleveAntiDoublonTest {
     private fun uuidDuGroupe() = GeoNatureUpload.uuidReleveGroupe("grp1")
 
     /** [reponseRecherche] = corps renvoyé par GET /releves (la recherche par uuid). */
-    private fun router(reponseRecherche: String) {
+    private fun router(reponseRecherche: String, altitudes: String = "{}") {
         serveur.routerRequetes { requete ->
             val chemin = requete.url.encodedPathAndQuery
             when {
                 chemin.startsWith("/api/auth/login") -> json(LOGIN)
+                chemin == "/api/geo/altitude" -> {
+                    appelsAltitude++
+                    json(altitudes)
+                }
                 chemin.contains("/releves?") -> json(reponseRecherche)
                 chemin.endsWith("/only/releve") -> {
                     corpsReleve = requete.texte
@@ -120,6 +126,43 @@ class EnvoiReleveAntiDoublonTest {
             """{"type":"Feature","properties":{"id_releve_occtax":$idReleve,"unique_id_sinp_grp":"$uuid"}}]}}"""
 
     private val reponseVide = """{"total":0,"items":{"type":"FeatureCollection","features":[]}}"""
+
+    @Test
+    fun les_heures_ne_partent_que_si_elles_ont_ete_saisies() = runTest {
+        // Le web laisse hour_min et hour_max nuls tant qu'on ne les tape pas (sous le « + » des
+        // dates) ; l'appli envoyait l'heure de saisie, ou 00:00 et 23:59.
+        store.ajouter(Sortie(id = "s1", observations = listOf(obs("o1"))))
+        router(reponseVide)
+        envoi.envoyerSortieVersGeoNature(store.charger().first(), config)
+        val sansHeures = JSONObject(corpsReleve!!).getJSONObject("properties")
+        assertFalse(sansHeures.has("hour_min"), "aucune heure saisie : $sansHeures")
+        assertFalse(sansHeures.has("hour_max"))
+
+        store.ajouter(Sortie(id = "s2", observations = listOf(obs("o2").copy(heureDebutReleve = "8:30", heureFinReleve = "09:15"))))
+        envoi.envoyerSortieVersGeoNature(store.charger().first { it.id == "s2" }, config)
+        val avecHeures = JSONObject(corpsReleve!!).getJSONObject("properties")
+        assertEquals("8:30", avecHeures.getString("hour_min"), "telle que tapée, comme le web")
+        assertEquals("09:15", avecHeures.getString("hour_max"))
+    }
+
+    @Test
+    fun les_altitudes_vides_viennent_du_mnt_du_serveur_comme_sur_le_web() = runTest {
+        store.ajouter(Sortie(id = "s1", observations = listOf(obs("o1"))))
+        router(reponseVide, altitudes = """{"altitude_min":812.4,"altitude_max":830}""")
+        envoi.envoyerSortieVersGeoNature(store.charger().first(), config)
+        val proprietes = JSONObject(corpsReleve!!).getJSONObject("properties")
+        assertEquals(812, proprietes.getInt("altitude_min"))
+        assertEquals(830, proprietes.getInt("altitude_max"))
+        assertEquals(1, appelsAltitude)
+
+        // Saisies : elles partent telles quelles, sans appel au serveur.
+        store.ajouter(Sortie(id = "s2", observations = listOf(obs("o2").copy(champsReleveExtra = mapOf("altitude_min" to "1200")))))
+        envoi.envoyerSortieVersGeoNature(store.charger().first { it.id == "s2" }, config)
+        val saisies = JSONObject(corpsReleve!!).getJSONObject("properties")
+        assertEquals(1200, saisies.getInt("altitude_min"))
+        assertFalse(saisies.has("altitude_max"))
+        assertEquals(1, appelsAltitude)
+    }
 
     @Test
     fun le_releve_part_avec_son_uuid_client() = runTest {

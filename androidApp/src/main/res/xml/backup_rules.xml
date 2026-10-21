@@ -4,12 +4,14 @@
      l'Android Keystore et ne quitte jamais l'appareil, donc le blob serait inutilisable après
      restauration — et c'est un secret, il ne doit jamais partir en sauvegarde. URL et login
      (gn_config) restent sauvegardés.
-     On EXCLUT aussi les caches synchronisés (retéléchargeables) et les médias : au-delà de 25 Mo,
-     Android n'effectue AUCUNE sauvegarde, et même les réglages et les saisies seraient perdus. -->
+     On EXCLUT aussi les caches synchronisés, retéléchargeables (taxref, monitoring, et caches : HABREF
+     et stations du serveur), et les médias : au-delà de 25 Mo, Android n'effectue AUCUNE sauvegarde,
+     et même les réglages et les saisies seraient perdus. -->
 <full-backup-content>
     <exclude domain="sharedpref" path="gn_secure_v2.xml" />
     <exclude domain="file" path="taxref" />
     <exclude domain="file" path="monitoring" />
     <exclude domain="file" path="mbtiles" />
     <exclude domain="file" path="medias" />
+    <exclude domain="file" path="caches" />
 </full-backup-content>

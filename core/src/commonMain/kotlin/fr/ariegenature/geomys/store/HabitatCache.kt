@@ -45,12 +45,12 @@ import okio.SYSTEM
  * (`OCCTAX.ID_LIST_HABITAT` vs `OCCHAB.ID_LIST_HABITAT`) : l'appli en crée deux, Occtax et OccHab.
  */
 class HabitatCacheStore(
-    /** Le dossier des fichiers de l'appli (`filesDir` sous Android). */
+    /** Le dossier des caches retéléchargeables (`filesDir/caches`), exclu des sauvegardes. */
     private val dir: Path,
     private val nomFichier: String,
-    /** true (OccHab) = recherche IDENTIQUE au serveur (`ilike` : insensible à la casse mais
-     *  SENSIBLE aux accents — « Foret » ne matche pas « Forêts ») pour que la liste locale soit
-     *  la même que le web. false (Occtax, historique) = insensible aux accents aussi. */
+    /** true = recherche IDENTIQUE au serveur (`ilike` : insensible à la casse mais SENSIBLE aux
+     *  accents — « Foret » ne matche pas « Forêts ») pour que la liste locale soit la même que le
+     *  web, celle d'OccTax comme celle d'OccHab. false = insensible aux accents aussi. */
     private val sensibleAuxAccents: Boolean = false,
     private val systeme: FileSystem = FileSystem.SYSTEM,
 ) : HabitatCacheAcces {
@@ -123,11 +123,12 @@ class HabitatCacheStore(
      *    même ordre, même top-N que le web.
      *  - Mode Occtax (historique) : *contains* insensible accents/casse, priorité aux libellés
      *    qui commencent par le terme, puis tri alphabétique. */
-    override fun rechercher(terme: String, limite: Int): List<HabitatSuggestion> {
+    override fun rechercher(terme: String, limite: Int, cdTypo: Int?): List<HabitatSuggestion> {
         if (sensibleAuxAccents) {
             val mots = terme.lowercase().trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
             if (mots.sumOf { it.length } < 2) return emptyList()
             return indexer().asSequence()
+                .filter { cdTypo == null || it.s.cdTypo == cdTypo }
                 .filter { contientMotsDansLOrdre(it.cleMatch, mots) }
                 .sortedWith(compareBy({ it.cleTri }, { it.cleMatch }))
                 .map { it.s }.take(limite).toList()
@@ -135,6 +136,7 @@ class HabitatCacheStore(
         val t = normaliser(terme)
         if (t.length < 2) return emptyList()
         val (debut, autres) = indexer().asSequence()
+            .filter { cdTypo == null || it.s.cdTypo == cdTypo }
             .filter { it.cleMatch.contains(t) }
             .partition { it.cleMatch.startsWith(t) }
         return (debut.sortedBy { it.cleMatch } + autres.sortedBy { it.cleMatch })
@@ -172,5 +174,6 @@ class HabitatCacheStore(
  *  contexte dans [fr.ariegenature.geomys.network.HabitatService]. */
 interface HabitatCacheAcces {
     val estDisponible: Boolean
-    fun rechercher(terme: String, limite: Int = 20): List<HabitatSuggestion>
+    /** [cdTypo] : seulement les habitats de cette typologie (`cd_typo` du web). */
+    fun rechercher(terme: String, limite: Int = 20, cdTypo: Int? = null): List<HabitatSuggestion>
 }

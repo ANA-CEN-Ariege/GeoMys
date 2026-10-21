@@ -89,6 +89,7 @@ fun FicheObjetScreen(
         }
         vm.erreur?.let { ErreurSuivi(it) }
         if (vm.proprietes.isNotEmpty()) Proprietes(vm.proprietes)
+        if (vm.proprietesSpecifiques.isNotEmpty()) Proprietes(vm.proprietesSpecifiques, titre = TITRE_PROPRIETES_SPECIFIQUES)
         vm.note?.let {
             Text(
                 it,
@@ -105,7 +106,7 @@ fun FicheObjetScreen(
                 vm.elements.forEach { element ->
                     when (element) {
                         is ElementFiche.Entete -> EnteteSuivi(element.texte) {
-                            element.nouvelle?.let { n -> BoutonSuivi(ActionSuivi.NOUVELLE, n.libelle, compactIos = true) { onNouvelle(n) } }
+                            element.nouvelle?.let { n -> BoutonSuivi(ActionSuivi.NOUVELLE, n.libelle, compactIos = true, permis = n.permise) { onNouvelle(n) } }
                         }
                         is ElementFiche.Locale -> LigneLocale(element, onNouvelle)
                         is ElementFiche.Serveur -> LigneServeur(element, onFiche, onCarte, onNouvelle)
@@ -116,10 +117,13 @@ fun FicheObjetScreen(
     }
 }
 
+/** L'onglet des champs propres aux types d'un site, sur le web. */
+internal const val TITRE_PROPRIETES_SPECIFIQUES = "Propriétés spécifiques"
+
 /** « Libellé » au-dessus de « valeur ». Android : lignes à marges verticales de 6 dp (12 et 15 sp).
- *  iOS : la carte translucide de GeoMys-IOS (11 et 14 pt). */
+ *  iOS : la carte translucide de GeoMys-IOS (11 et 14 pt). [titre] : celui d'un second bloc, en tête. */
 @Composable
-private fun Proprietes(proprietes: List<Pair<String, String>>) {
+private fun Proprietes(proprietes: List<Pair<String, String>>, titre: String? = null) {
     if (estIos) {
         Column(
             Modifier
@@ -128,6 +132,7 @@ private fun Proprietes(proprietes: List<Pair<String, String>>) {
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            titre?.let { Text(it, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
             proprietes.forEach { (libelle, valeur) ->
                 Column(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text(libelle, fontSize = 11.sp, color = CouleursGeoMys.blanc70)
@@ -137,6 +142,7 @@ private fun Proprietes(proprietes: List<Pair<String, String>>) {
         }
     } else {
         Column(Modifier.fillMaxWidth().padding(top = 16.dp)) {
+            titre?.let { Text(it, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 2.dp)) }
             proprietes.forEach { (libelle, valeur) ->
                 Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                     Text(libelle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -164,7 +170,7 @@ private fun LigneLocale(element: ElementFiche.Locale, onNouvelle: (NouvelleSaisi
                 Text(element.titre, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 Text(element.sousTitre, fontSize = 11.sp, color = CouleursGeoMys.orange)
             }
-            element.nouvelle?.let { n -> BoutonSuivi(ActionSuivi.NOUVELLE, n.libelle, compactIos = true, tailleIos = 15f) { onNouvelle(n) } }
+            element.nouvelle?.let { n -> BoutonSuivi(ActionSuivi.NOUVELLE, n.libelle, compactIos = true, tailleIos = 15f, permis = n.permise) { onNouvelle(n) } }
         }
     } else {
         Row(
@@ -179,7 +185,7 @@ private fun LigneLocale(element: ElementFiche.Locale, onNouvelle: (NouvelleSaisi
                 // colorSecondary du thème sombre : l'orange de l'accent.
                 Text(element.sousTitre, fontSize = 12.sp, color = CouleursGeoMys.orange)
             }
-            element.nouvelle?.let { n -> BoutonSuivi(ActionSuivi.NOUVELLE, n.libelle) { onNouvelle(n) } }
+            element.nouvelle?.let { n -> BoutonSuivi(ActionSuivi.NOUVELLE, n.libelle, permis = n.permise) { onNouvelle(n) } }
         }
     }
 }
@@ -196,7 +202,7 @@ private fun LigneServeur(
     val boutons: @Composable () -> Unit = {
         BoutonSuivi(ActionSuivi.FICHE, "Détails") { if (element.id > 0) onFiche(element) }
         if (element.carte) BoutonSuivi(ActionSuivi.CARTE, "Voir sur carte") { if (element.id > 0) onCarte(element) }
-        element.nouvelle?.let { n -> BoutonSuivi(ActionSuivi.NOUVELLE, n.libelle) { if (element.id > 0) onNouvelle(n) } }
+        element.nouvelle?.let { n -> BoutonSuivi(ActionSuivi.NOUVELLE, n.libelle, permis = n.permise) { if (element.id > 0) onNouvelle(n) } }
     }
     if (estIos) {
         Row(

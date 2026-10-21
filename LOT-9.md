@@ -129,7 +129,7 @@ GeoMys-Android n'a aucun test de ces deux écrans. Les tests des écrans ont ét
 ## 9. Reste à faire
 
 - **La recette** (§ 8), avec celles des lots 6 à 8.
-- **Lot 10** : la distribution, et avec elle la mise à jour intégrée (`MiseAJour`, pour un APK distribué hors Play).
+- **Lot 10** : la distribution. La mise à jour intégrée hors Google Play (`MiseAJour` de la variante GitHub de GeoMys-Android) n'est pas reprise (décision du 21 octobre, § 18).
 
 ## 10. Outils
 
@@ -153,3 +153,242 @@ Prises par l'utilisateur après le commit du lot, sur les divergences du § 8.3 
 - **Topologie partagée de la carte OccHab** (« pour un polygone d'une station avec un sommet qui est aimanté sur le sommet d'une autre station, si je déplace ce sommet, le sommet de l'autre station doit suivre. Du coup, l'autre station doit aussi être mise à jour sur le serveur. De même, si une arête est commune à 2 stations et que j'ajoute un sommet sur cette arête, le même sommet doit être ajouté aux 2 stations ») : celle de GeoMys-Android du 30 août (v1.3.14), retirée le 18 octobre (cdd5196), revient. Au relâcher, les sommets des voisines confondus avec le sommet déplacé le suivent ; un sommet inséré sur une arête commune s'ajoute aux deux contours (`TopologiePolygone`, `CarteOccHab.voisineDeplacee`, `CarteOccHabViewModel.propagerAuxVoisines`). Elle s'étend aux stations de toutes les saisies et du serveur, et non plus de la seule saisie : une voisine du serveur sans copie locale est importée dans la saisie courante ; une voisine déjà envoyée repasse « à envoyer », en mise à jour ; celles d'autres saisies partent avec l'envoi de la saisie courante (`SessionOccHab.voisinesAEnvoyer`, `EnvoiOccHab` limité à ces stations). Contours extérieurs seulement, comme sous Android ; une voisine en plusieurs parties n'est pas touchée, avec un message. « Annuler » ne défait toujours que la station éditée (décision du 17 octobre).
 
 Tests : 1 025 sur la JVM (dont `LectureCacheSuivisTest`), 55 tests d'écran sur la JVM et 4 sur le simulateur.
+
+## 12. Corrections après l'audit du 20 octobre
+
+Audit complet de l'appli le 20 octobre (`AUDIT-2026-10-20.md`, fichier local que git ignore). Corrigés le même jour, à la demande de l'utilisateur :
+- **« Centrer » coupait le suivi GPS sous Android** (C1, hérité de GeoMys-Android).
+  - La mesure ponctuelle prenait l'écouteur du suivi continu, et Android remplaçait l'un par l'autre. La trace et la position se figeaient ; en mono-taxon, les observations suivantes partaient à la dernière position reçue.
+  - La mesure ponctuelle a maintenant son propre écouteur (`SourcePositionsAndroid`). Défaut et correction constatés sur l'émulateur, avec `dumpsys location`.
+  - Sous iOS, `requestLocation()` ne fait rien quand le suivi tourne (documentation d'Apple) : rien à corriger.
+- **Mise à jour d'une station OccHab fusionnée avec le serveur** (C2).
+  - Le défaut : une station importée, rééditée ou voisine déplacée par la topologie partagée repartait avec la version de la dernière synchro. Le serveur supprimait alors un habitat ajouté sur le web entre-temps.
+  - La station garde sa version d'origine (`OccHabStation.origineJson`), figée à l'import, à la remise en édition et au déplacement d'une voisine.
+  - À l'envoi, `OccHabUpload` relit la station sur le serveur (`GET /stations/<id>/`). `FusionStation` garde ce que l'appli a changé ; le reste vient du serveur. Une voisine ne renvoie ainsi que sa géométrie.
+  - Une station supprimée sur le web n'est pas recréée.
+  - Après un envoi, les habitats prennent les ids que le serveur leur a donnés (`avecIdsHabitats`), et la version partie devient la copie locale et l'état du cache.
+- **Sauvegardes iOS** (M1).
+  - Le défaut : l'exclusion des caches HABREF et des stations du serveur visait la racine des données. Elle retirait aussi des sauvegardes de l'iPhone les saisies non envoyées et leurs médias.
+  - Ces caches vont désormais dans `filesDir/caches`, seul dossier exclu. Au lancement, la racine est rendue aux sauvegardes, et les fichiers des installations existantes sont rangés dans `caches`.
+  - Sous iOS, les cartes MBTiles importées sont exclues, comme sous Android et dans GeoMys-IOS.
+  - Sous Android, `caches` rejoint les exclusions des règles de sauvegarde. La base de MapLibre est dans le dossier cache, qu'Android ne sauvegarde pas.
+- **Envois iOS gardés de la mise en veille** (M6). Les trois envois (OccTax, Suivis, OccHab) passent par `ExecutionLongue.pendant`, une tâche d'arrière-plan sous iOS, comme dans GeoMys-IOS. Rien ne change sous Android, comme dans GeoMys-Android.
+- **Gardes de sortie des formulaires** (M9, M11).
+  - Écrans concernés : caractérisation, dénombrement, habitat OccHab, Détails intercalés.
+  - Modifiés, ces écrans demandent « Quitter sans enregistrer ? » au retour système, au balayage depuis le bord et à la maison (`rememberGardeSortie`). Intacts, ils se quittent aussitôt.
+  - Le fil d'Ariane et la maison du formulaire d'une visite passent par sa garde (`allerVers`). « Enregistrer et quitter » mène au niveau choisi.
+  - Les médias retirés d'un dénombrement ne s'effacent qu'à sa validation. Ceux importés s'effacent si l'on quitte sans enregistrer.
+  - Les Détails du relevé s'enregistrent dès leur validation.
+  - « Vider le cache » demande confirmation.
+  - Sous iOS, ces écrans acceptent de nouveau le balayage, désormais gardé ; GeoMys-IOS l'avalait.
+- **Android 7** (M18).
+  - Désucrage des bibliothèques Java (`desugar_jdk_libs` 2.1.5), dont kotlinx-datetime a besoin pour `java.time`.
+  - Garde de version de la vibration.
+  - Vérifié dans le code Dalvik de l'APK et par Lint ; faute d'appareil Android 7, pas d'essai réel.
+
+## 13. Vérification des champs proposés (20 octobre)
+
+Demande de l'utilisateur : « verifie que tous les champs proposés dans les saisies et dans monitoring soient exactement ceux fournis ar le serveur et/ou lié au protocle selectionné ». Référence : le formulaire web de GeoNature 2.17.5 (version du serveur de l'ANA), gn_module_monitoring 1.3.2 et pypnnomenclature 1.6.6. Presque tous les écarts venaient de GeoMys-Android.
+
+- **Suivis.**
+  - Champs : ceux du schéma qui ont un `type_widget`, specific puis generic, `medias` et `types_site` à la fin, puis l'ordre de `display_properties` (`ordreDesChamps`). Plus de liste de champs exclus par leur nom (`observers_txt`, `nb_observations` redéfinis visibles par un protocole sont proposés) ; un widget inconnu est écarté et signalé, plus saisi en texte.
+  - Listes : restriction `cd_nomenclatures`, `params` de la requête, `filters` sur toute clé dans leur ordre, `orderBy`, libellé `label_fr` des nomenclatures, `code_list` des observateurs. Une liste vide reçue du serveur fait foi : plus de jeux de données sans le filtre `create`, ni de jeux OccTax du module.
+  - Valeurs initiales du web : la `value` du schéma (cd_nom d'un champ espèce compris), l'option unique d'une liste ou d'un jeu de données requis (le champ reste affiché), le `default` d'une datalist seulement s'il porte la clé de valeur, la date du jour dans les seules dates de visite, l'utilisateur connecté dans le seul champ `observers`. Plus de date ni d'heure du moment dans les autres champs.
+  - Les propriétés `hidden: true` partent avec leur `value` (`FormulairePrepare.valeursFixes`) : le cd_nom fixe d'un protocole mono-espèce, une nomenclature fixe résolue par le cache, le jeu de données unique requis.
+  - Règles : une règle `change` qui pose un taxon le pose (POPAmphibien « Amphibiens ») ; `change` accepté en une chaîne ; une case à cocher vaut `false` une fois touchée ; `meta.dataset` (jeu de données masqué quand il n'y en a qu'un) ; comparaisons d'ordre à la JavaScript (un champ vide vaut 0).
+  - Envoi : plus de jeu de données inventé (premier jeu du module, puis celui d'OccTax), qui partait aussi dans les données spécifiques d'une observation. La synchro ne met donc plus en cache les jeux de données de chaque protocole (`keyDatasetsModule`, § 11), qui ne servaient qu'à ces replis et à la liste taxonomique d'un jeu.
+- **OccTax.**
+  - Listes : plus de « Non renseigné » ajouté qui masquait la vraie valeur du serveur ; toutes ses valeurs, sans dédoublonnage ; une entrée vide distincte (« — Non renseigné — ») ; aucune liste de repli inventée. Les listes requises du web (technique d'observation, état biologique, objet du dénombrement, stade, sexe) bloquent la validation vides. Une valeur hors de la liste du taxon reste tant qu'on n'y touche pas.
+  - Filtre taxonomique du serveur : règne, groupe 2 et groupe 3 réels du taxon, sur une même ligne ; une valeur sans ligne est exclue ; `ENABLE_NOMENCLATURE_TAXONOMIC_FILTERS` lu. Le groupe 3 des taxons est désormais en cache.
+  - Champs additionnels : ceux du jeu de données du relevé (« Détails » les recalcule au changement de jeu), sans filtre par `id_list` ; dans l'ordre du serveur ; une nomenclature enregistre son `label_default` ; défaut = `default_value` seul ; `cd_nomenclatures`, `min` et `max`, `hidden` lus ; un bloc `html` n'est plus un champ ; des cases multiples requises en veulent une cochée. Une liste vide du serveur remplace le cache.
+  - Preuves d'existence affichées et exigées seulement pour « Oui », adresse exigée (`digital_proof_validator`) ; médias selon `ENABLE_MEDIAS` ; effectif 0 permis ; heures envoyées seulement si le formulaire les montre ; technique d'observation vide = défaut du serveur (et non « Vu ») ; `form_fields` absent = défauts du schéma (10 champs masqués), et gardé si la synchro échoue ; profondeur max avec la profondeur min ; comportement seul pas ouvert si `behaviour` est masqué ; défauts de nomenclature gardés si leur appel échoue ; observateur par défaut à l'envoi celui que propose « Détails ».
+- **OccHab.**
+  - Champs ajoutés : profondeurs, exposition, type de sol (défaut du serveur). Les profondeurs s'ouvrent comme sur le web, par un « ＋ » au bout de la dernière altitude, offert si le serveur en montre une (`depth_min`, `depth_max`) ; le bloc est replié à chaque ouverture et garde ses valeurs, et le « ＋ » le referme.
+  - Observateurs : texte libre si `OBSERVER_AS_TXT`, sinon la liste `OBSERVER_LIST_ID` (celle d'OccTax jusqu'à la synchro suivante).
+  - « — Non renseigné — » vide la valeur d'un habitat ; une mise à jour envoie les valeurs vidées en null, comme le web (une création les omet, pour les défauts du serveur) ; une valeur absente de la liste en cache est gardée.
+  - Défauts d'un nouvel habitat : type de détermination et technique de collecte seulement ; recouvrement masqué par défaut ; date de fin avant le début refusée ; jeu de données mémorisé repris seulement s'il est encore proposé.
+- **Recharger les données** : `VERSION_DONNEES_REQUISE` passe à 2, pour que la synchro lise tout cela.
+- **Gardé, contre le web** (décisions de la vérification) : un champ masqué par une condition n'est pas envoyé (audit du 14 septembre) ; `visit_date_max` copiée de `visit_date_min` ; les formats d'envoi ; observateurs OccHab en choix multiple ; listes de taxons des Paramètres ; libellés et ordre des blocs de GeoMys-Android ; défaut sans organisme ; un champ requis masqué ne bloque pas.
+- **Non repris** : les widgets additionnels date, choix multiple, taxon et observateurs restent saisis en texte ; altitudes OccTax du MNT (réseau) ; clés `observers_txt`, `DATE_FORM_WITH_TODAY`, `EXPANDED_TAXON_ADVANCED_DETAILS`, `CD_TYPO_HABITAT`, `id_taxon_list` d'OccTax.
+
+Tests : 1 062 sur la JVM et 1 058 sur le simulateur pour le module commun, 73 et 5 pour l'interface ; 17 mutations des nouvelles règles, plus 3 pour le « ＋ » des profondeurs, toutes détectées. Essayé sur l'émulateur (détails d'une station OccHab, caractérisation sans nomenclature en cache, nouvelle visite des Suivis) ; installé sur l'A12 et l'iPhone 16.
+
+## 14. Alignement des formulaires sur le web (20 octobre)
+
+Demandes de l'utilisateur : « Il faut respecter entierement ce que fournit le serveur », puis « supprime tous ces écarts pour s'aligner sur le web ». Les formulaires d'OccTax, d'OccHab et des Suivis suivent désormais le web (GeoNature 2.17.5, gn_module_monitoring 1.3.2) en tout : champs, libellés, ordre, valeurs, contrôles et envoi. L'allure reste celle de GeoMys-Android sous Android et de GeoMys-IOS sous iOS. Cette section remplace les lignes « Gardé, contre le web » et « Non repris » du § 13.
+
+- **OccTax, relevé.**
+  - Ordre et libellés du web : précision, nom du lieu, observateurs, « Jeux de données », « Date début » et son « ＋ » (date fin, « Heure début », « Heure fin » au format « hh:mm », facultatives), altitudes, profondeurs, regroupement, nature de l'objet, technique de collecte, habitat (« Tapez les premières lettres... », « Aucun élement trouvé », recherche à 400 ms, filtrée par `CD_TYPO_HABITAT`), commentaire, puis les champs additionnels sans titre. Plus de ligne « Géométrie ».
+  - Contrôles du web : jeu de données et observateurs requis, dates et heures inversées, heure de début sans heure de fin, altitudes et profondeurs inversées (0 ne compte pas), nombres signés, dates du 1ᵉʳ janvier 1735 à aujourd'hui ; `date_min` masquée reste exigée.
+  - Défauts du web : l'utilisateur connecté comme observateur (ou son nom complet, « NOM Prénom », en texte libre si `observers_txt`) et comme déterminateur ; défauts de nomenclature de son organisme (`defaultNomenclatures?organism=`, organisme et nom complet lus à la connexion).
+  - Altitudes : celles du MNT du serveur (`/geo/altitude`) quand aucune n'est saisie, demandées à l'envoi (rien n'est téléchargé pendant la saisie) ; un relevé déplacé perd les siennes, que le web recalcule.
+  - Liste de taxons d'un relevé : celle de son jeu de données, sinon `OCCTAX.id_taxon_list` (synchronisée), sinon toutes ; elle suit un changement de jeu dans « Détails ».
+  - Erreur 409 d'un cadre d'acquisition fermé traduite (« Cadre d'acquisition fermé, action impossible »).
+- **OccTax, espèce et dénombrement.**
+  - Libellés du fr.json d'OccTax, orthographe comprise : « Technique de collecte du relevé (Campanule) », « Statut source », « Floutage », « Etat biologique », « Naturalite », « Preuve numérique », « Stade de vie » aussi pour une plante, « Dénombrement #N ». Section « Avancé » (ouverte d'emblée si `EXPANDED_TAXON_ADVANCED_DETAILS`), commentaire sans libellé.
+  - Listes de nomenclatures : `label_fr`, triées par `label_default`, sans entrée vide (le libellé en invite, une croix vide le choix) ; statut d'observation, statut source et floutage non filtrés par taxon.
+  - Messages du web : « Veuillez indiquer la technique d'observation », « … l'état biologique », « … l'objet du dénombrement », « … le stade de vie », « … le sexe », preuves (« Si 'preuve d'existence = Oui', … »), et « Le dénombrement maximum ne peut pas être inférieur au dénombrement minimum » (plus de correction silencieuse des effectifs, requis).
+  - Ordre du dénombrement : objet, type, effectifs, stade, sexe, champs additionnels, médias.
+  - Taxon déjà dans le relevé : la confirmation du web (« Le taxon saisi est déjà dans la liste des taxons enregistrés… Voulez-vous continuer ? »).
+  - « TAXREF - Nom valide » sous le taxon choisi si `display_nom_valide` (`nom_valide` mis en cache à la synchro).
+- **Champs additionnels d'OccTax** (`ChampsAdditionnels`, `ChampsAdditionnelsVue`) : les widgets du formulaire dynamique du web (texte, zone de texte, nombre, date, heure, select avec « - », radio et bool_radio décochables, cases, bool_checkbox, multiselect, nomenclature, datalist, taxon, observateurs, observers-text, bloc html mis en forme) ; un widget que le web ne rend pas n'est pas montré, sa valeur par défaut part. Valeurs avec leur type JSON (`valeursBrutes`), `help` sous le champ, `definition` derrière « ⓘ », plus de « * » ni de description. Contrôles du web, champs masqués compris : requis, `pattern` et `pattern_message`, `max_length`, bornes. Champs globaux puis ceux du jeu de données. À l'envoi, chaque champ du formulaire part, avec sa valeur par défaut s'il n'a jamais été ouvert, `null` s'il est vide.
+- **Paramètres** : plus de choix de la liste de taxons ni de l'observateur par défaut, devenus sans objet ; seul le jeu de données par défaut reste, parmi ceux que propose le web.
+- **OccHab** : libellés et ordre du web, jeux de données (OCCHAB, créables), observateur unique effaçable, dates recopiées et bornées, nature requise, `label_fr`, entrée vide seulement pour l'intérêt communautaire et l'abondance, « N°. nom cité » des habitats, stations du serveur non modifiables (droits, cadre fermé) refusées avec le texte du web.
+- **Suivis** : champs masqués envoyés et contrôlés ; une propriété masquée requise sans valeur (`id_dataset` de pyrales et suivi_nardaie avec plusieurs jeux) bloque l'enregistrement, comme sur le web ; options avec leur type JSON ; dates `aaaa-m-j` bornées ; vides du web (« "" » pour un texte ou une heure vidés, « [] » pour une liste vidée, sans retirer d'espaces) ; `pattern`, `max_length` ; « - » d'un select, « -- Aucun -- » d'une datalist à `nullDefault`, croix des nomenclatures, observateurs et jeux de données ; valeur hors liste d'un select gardée grisée ; libellés sans « * », `help` sous le champ, `definition` derrière « ⓘ », `rows` ; observers-text d'une ligne, « Observateurs » ; bloc html mis en forme (gras, liens) ; l'utilisateur connecté posé même hors de la liste ; jeux triés par nom ; recherche d'espèce dès 3 lettres, 20 propositions ; listes taxonomiques propres à un champ synchronisées.
+- **Gardé, et pourquoi.**
+  - Hors ligne : saisie « à compléter » des visites, médias envoyés après l'objet (titre, auteur et description automatiques), recherche de taxon dans le cache, taxon inconnu bloquant, altitudes demandées à l'envoi plutôt qu'au dessin, date du jour locale (le web la prend en UTC).
+  - Décisions de terrain de l'utilisateur : station précédente comme défauts et station sans habitat (OccHab), parcours et flux d'OccTax (relevé puis espèces, mono-taxon, palette des groupes, écran intercalé, relevé d'absence, caractérisation « comportement » des nicheurs).
+  - Défauts du web non repris : `Releve.GroupType` et `Taxon.NonDigitalProof` (clés absentes du fr.json, le web affiche la clé brute), case à cocher seule envoyée `[null]`, date d'un champ de dénombrement envoyée en objet.
+- **Recharger les données** : `VERSION_DONNEES_REQUISE` passe à 3.
+
+Tests : 1 080 sur la JVM et 1 076 sur le simulateur pour le module commun, 79 et 5 pour l'interface. Essayé sur l'émulateur (détails du relevé, caractérisation, dénombrement, protocoles et nouvelle visite des Suivis) et sur le simulateur (les mêmes écrans, détails d'une station OccHab) ; deux défauts trouvés ainsi et corrigés : l'invite des observateurs du relevé (« Observateur(s) » du web) et, sous iOS, la croix d'une date ou d'une heure remplie (Suivis, champs additionnels), que le sélecteur repoussait hors de la ligne. Installé sur l'A12 et l'iPhone 16.
+
+## 15. Réponses du 20 octobre : sélections, barre rouge, Suivis
+
+Réponses de l'utilisateur aux questions du § 14 : « 1. pas de de données par défaut. 2. non. 3. oui. 4. oui. 4. coorige. » (la seconde « 4. » répond à la question 5), avec trois demandes de plus : le bloc « Sélections par défaut » des Paramètres n'apparaît qu'à la fin du chargement des données ; « Aucune valeurs par défaut pour le LDD et la liste. Observateur par défaut : utilisateur connecté » ; « certaines champs obligatoires ne sont plus marqués avec le barre rouge, corrige ça ». Précisé ensuite : trois sélections, jeu de données et liste vides ; la barre rouge partout, comme le web ; puis « dans paramètres, les champs dans selections par défaut sont obligatoires ».
+
+- **Paramètres, « Sélections par défaut »** (remplace la ligne « Paramètres » du § 14).
+  - Le bloc n'apparaît qu'une fois des données chargées, et se cache pendant un chargement (`sectionDonneesVisible`).
+  - Trois choix obligatoires, comme sous GeoMys-Android : le jeu de données, parmi ceux que propose le web ; la liste de taxons, celle qu'impose le jeu choisi, sinon toutes ; l'observateur par défaut.
+  - Aucune valeur d'office pour le jeu et la liste : vides, ils portent la barre rouge, et la coche refuse de quitter les Paramètres (« Configuration incomplète : … puis choisissez jeu de données / liste / observateur. »). L'observateur est l'utilisateur connecté tant qu'on n'en choisit pas un autre.
+  - Une liste imposée par le jeu choisi suffit ; sans aucune liste en cache, il n'y a rien à exiger (`GeoNatureConfig.listeParDefautValide`, `observateurParDefautValide`, `saisieOcctaxValide`).
+  - Sous Android, plus de croix d'effacement : on change de choix en touchant le champ. Sous iOS, la croix de la pastille reste, comme dans GeoMys-IOS : elle vide le choix, et la barre revient.
+  - À la mise à jour, le jeu, la liste et l'observateur des versions précédentes, qui pouvaient avoir été posés d'office, sont vidés une fois (`viderSelectionsParDefautUneFois`) : ils sont à choisir de nouveau. Les relevés en attente gardent le jeu figé à leur enregistrement.
+  - Relevé sans jeu de données (filet de sécurité, le jeu des Paramètres étant obligatoire) : « Détails du relevé » s'ouvre d'office, et le relevé ne se termine pas sans jeu (« Choisissez un jeu de données »). Même règle en mono-taxon.
+  - Jeu d'un relevé : celui choisi, sinon celui du relevé précédent de la saisie, sinon celui des Paramètres. Liste de taxons : celle du jeu, sinon celle des Paramètres, sinon `OCCTAX.id_taxon_list`.
+  - Envoi : OccHab ne se rabat plus sur le jeu d'OccTax. Un jeu manquant arrête l'envoi, avec un message qui dit où le choisir.
+  - L'observateur par défaut sert aussi de déterminateur et d'auteur des médias, comme l'utilisateur connecté sur le web.
+- **Barre rouge des champs obligatoires, partout** (`BarreObligatoire.kt`). Comme le `ng-invalid` du web, elle marque dès l'ouverture chaque champ requis vide ou refusé. Sous Android, 3 dp de rouge collés au champ ; sous iOS, 3 pt de rouge foncé à 8 pt du champ.
+  - Suivis : champs requis vides, valeurs refusées (motif, longueur, bornes), titre d'une photo.
+  - OccTax : jeu de données, observateurs et heures mal formées des détails du relevé ; nomenclatures requises de la caractérisation et du dénombrement ; effectifs vides ; champs additionnels requis vides ou refusés.
+  - OccHab : observateurs, jeu de données, dates et nature de la station ; habitat, technique de collecte et sa précision.
+  - Écran intercalé : « Les champs marqués d'une barre rouge sont obligatoires. »
+- **Fautes du web corrigées** : « État biologique », « Naturalité », « Habitat d'intérêt communautaire », « Aucun élément trouvé », « Privilégiez », « Enchaîner les saisies ». Elles remplacent l'orthographe du web citée au § 14.
+- **Inchangés** (réponses 2 et 3) : le `nom_cite` d'OccTax reste le nom choisi. Une station OccHab du serveur saisie à plusieurs ne garde que le premier observateur une fois modifiée, comme sur le web.
+- **Suivis, droits de création** (`DroitsSuivis`).
+  - La synchro lit le C du CRUVED de chaque protocole et de ses objets de permission (`/api/gn_commons/modules`, `MONITORINGS.PERMISSION_LEVEL`).
+  - Sans ce droit, le « + » est grisé ; touché, il affiche le message du web, « Vous n'avez pas les permissions nécessaires ». « Nouveau passage » sur la carte donne le même message, et le formulaire refuse la création.
+  - Tant qu'aucune synchro ne les a lus, rien n'est bloqué : le serveur tranche à l'envoi.
+- **Suivis, boutons et enchaînement du web.**
+  - Interrupteur « Enchaîner les saisies » quand le type le permet (`chained`).
+  - Boutons « Valider et saisir des … » (enfant unique, en création), « Annuler » et « Valider ». Ce dernier devient « Valider et enchaîner les saisies » quand l'interrupteur est mis.
+  - Après l'enregistrement : le formulaire de l'enfant ; ou un nouveau formulaire du même type, qui reprend les champs `keep` ; sinon la fiche du parent.
+  - Le mode chaîné de GeoMys-Android et son bouton « Terminer » disparaissent ; la saisie « à compléter » hors ligne reste.
+- **Suivis, médias** : chaque photo a son titre (requis, barre rouge tant qu'il est vide), sa description et son auteur, envoyés tels quels à gn_commons. Les photos des saisies plus anciennes gardent le titre automatique. Seules les photos sont proposées : ni type de média, ni adresse URL.
+- **Suivis, listes alimentées par une API** (`datalist` à `api`) : adresse de TaxHub, de GeoNature ou absolue ; requête POST avec `data` ; clés `value` et `label` par défaut ; options mises en cache par la synchro. Une datalist de taxons de TaxHub reste un champ espèce.
+- **Défauts trouvés en route, corrigés.**
+  - Une synchro qui échouait sur les jeux de données créables les vidait, et plus aucun jeu n'était proposé. `chargerIdsDatasetsCreables` rend désormais null en échec, et la liste précédente est gardée.
+  - La caractérisation plantait sur un bloc html des champs additionnels.
+- **Essais** : les données d'essai portent des droits (visites du STOM permises, passages des mares refusés), une photo sans titre, `chained`, `keep` et `redirect_to_parent`. `-ecran parametres-selections` ouvre les Paramètres sur leurs sélections.
+- **Recharger les données** : `VERSION_DONNEES_REQUISE` passe à 4, pour que la synchro lise les droits et les listes alimentées par une API.
+
+Tests : 1 095 sur la JVM et 1 091 sur le simulateur pour le module commun, 82 et 6 pour l'interface ; après le passage des sélections en obligatoires, 1 097 et 85 sur la JVM (dont `SelectionsObligatoiresTest`, trois mutations détectées), sans essai sur l'émulateur ni le simulateur, à la demande de l'utilisateur. Essayé sur l'émulateur : sélections des Paramètres, détails du relevé, caractérisation, dénombrement, nouvelle visite avec enchaînement, « + » grisé et messages du suivi des mares, champs d'une photo, station et habitat OccHab. Sur le simulateur, les mêmes écrans, sans les gestes ; les champs d'une photo sous iOS sont vérifiés par un test de mise en page, dont la contre-épreuve échoue comme prévu. Installé sur l'A12 et l'iPhone 16.
+
+## 16. Retouches du 21 octobre
+
+Demandes de l'utilisateur, essayées par lui sur les téléphones (pas d'essai sur l'émulateur ni le simulateur) :
+- **Listes de choix sans clavier sous 20 valeurs** (`SEUIL_RECHERCHE_LISTE`) : le champ ne se tape plus, le toucher déroule toute la liste. À partir de 20 valeurs, rien ne change : on tape pour filtrer. Cela vaut pour le jeu de données et les observateurs des détails d'un relevé et d'une station OccHab, et pour les trois sélections des Paramètres. Sous iOS, la ligne de choix et le menu du système remplacent alors le champ de recherche.
+- **Jeu de données des détails sous iOS** : à partir de 20 valeurs, toute la liste filtrée défile sous le champ. On n'en voyait que les cinq premières.
+- **Détails en écran plein**, comme la caractérisation et le dénombrement, et non plus en dialogue (`FormulaireEnEcranPlein`) : le bandeau du flux, la coche de validation en haut à droite et la même garde de sortie (« Détails non enregistrés »). Le retour (bouton d'Android, balayage sous iOS) les annule, la maison les annule puis mène à l'accueil. Cela vaut pour les détails du relevé, ceux de la saisie mono-taxon, les détails communs (`EcranDetailsReleve`) et, demandé ensuite, les détails et les informations obligatoires d'une station OccHab (`EcranDetailsStation`). Le dialogue des informations obligatoires ne se fermait que par « Annuler » ; l'écran se quitte par le retour.
+- **Bouton « Détails » d'une station OccHab sous iOS** : la pilule au contour jaune très arrondi du relevé OccTax (`BoutonDetailsIos`), au lieu du cadre aux coins de 8 pt.
+- **Paramètres sous iOS** : la liste d'une sélection s'affiche au-dessus de son champ, que le clavier ne cache plus.
+
+Tests : 1 097 sur la JVM pour le module commun, 87 pour l'interface (dont les gardes des détails d'un relevé et d'une station, mutations détectées) ; le test iOS du jeu de données à filtrer est adapté (25 valeurs, défilement), compilé mais pas lancé.
+
+## 17. Réinstaller sans rien avoir à faire (21 octobre)
+
+Demande de l'utilisateur : « avec geomys android, qd je réinstallais, tous les parametres etaient preservés […] et je n'avais rien à faire. De plus, recharger les données ne doit recharger taxref que si sa version a changé sur le serveur ». GeoMys-Android n'a jamais relevé sa version des données (restée à 1) ; GeoMys Common l'a relevée trois fois le 20 octobre (2, 3, 4), et chaque relèvement imposait un rechargement complet, TaxRef compris.
+- **Plus de rechargement forcé après une mise à jour** : `armerRechargementSiRequis`, le drapeau `rechargementRequisApresMaj` et la purge de SyncRunner sont retirés. Une installation en retard n'est ni bloquée ni purgée ; ses données servent. Paramètres suggère seulement, sans rien bloquer, de recharger les données (« L'application reste utilisable d'ici là ») ; la synchro suivante efface ce bandeau.
+- **TaxRef n'est retéléchargé que si nécessaire** : sa version a changé sur le serveur, son cache est vide, une liste à charger y manque ou y est restée incomplète, ou le format de son cache a changé (`TaxRefCache.VERSION_FORMAT`, 1 : groupes 3 et noms valides). Ce format remplace, pour TaxRef, le relèvement de la version des données ; un TaxRef chargé par une version qui lisait déjà les groupes 3 et les noms valides (données en version 3 ou plus) est tenu pour à jour. L'appui long sur « Recharger les données » force toujours le rechargement complet.
+- **Les réglages sont gardés** : le vidage unique des sélections par défaut (`viderSelectionsParDefautUneFois`) est retiré.
+
+- **Paramètres s'affiche sans attendre TaxRef** (constaté ensuite sur l'A12 : l'écran restait sans ses données ni ses sélections). Il savait qu'il y avait des données en chargeant tout le cache, de 10 à 30 s sur un téléphone d'entrée de gamme, et plus en version de débogage : jusque-là, depuis qu'aucun rechargement forcé ne le mettait en mémoire, l'écran restait vide. La présence du fichier suffit désormais (`TaxRefCache.aDesDonnees`) ; seuls les compteurs et le message de la liste attendent le chargement, à part, sans retenir le reste de l'écran ni le suivi de la synchro.
+
+- **TaxRef se lit à la main, comme sous GeoMys-Android** (« je n'avais pas ce problème avec geomys-android ») : son gros fichier (`cache_v3.json`) était décodé en flux par kotlinx-serialization ; GeoMys-Android le parcourt champ par champ avec le JsonReader de Gson. `LecteurCacheTaxRef` fait de même sur les octets du fichier, sans arbre intermédiaire ni String géante : 15 ms au lieu de 59 pour 75 000 noms, 65 au lieu de 175 pour 225 000 (JVM, 21 octobre). Les compteurs de Paramètres et les premières propositions d'espèces arrivent d'autant plus tôt. La version installée sur l'A12 pour les essais était celle de débogage, plus lente qu'une version publiée comme celle de GeoMys-Android : depuis le 21 octobre, c'est la version optimisée `mesure` (R8, non débogable, clé de debug, qui remplace la précédente en gardant les données), avec l'accord de l'utilisateur.
+
+Tests : 1 100 sur la JVM pour le module commun (dont TaxRef gardé à version égale après une mise à jour, retéléchargé pour un format ancien, l'application utilisable et le bandeau, la présence des données sans chargement, et le lecteur de TaxRef, qui relit à l'identique ce qu'écrit la synchro, noms difficiles compris ; trois mutations détectées), 87 pour l'interface.
+
+## 18. Décisions du 21 octobre (suite)
+
+Demandes de l'utilisateur : « Il ne doit pas y avoir de déterminateur par défaut », « un taxon déjà présent dans le relevé ne doit pas demandé confirmation », « Ne met pas en place la mise a jour has google play », et, pour les essais, de revenir à la version de débogage.
+- **Déterminateur par défaut : l'utilisateur connecté.** Retiré d'abord (« Il ne doit pas y avoir de déterminateur par défaut »), il revient le même jour (« remet le déterminateur par défaut sur l'utilisateur connecté ») : son nom complet, comme le web (`currentUser.nom_complet`), sinon son identifiant (`determinateurParDefaut`), et non plus l'observateur par défaut des Paramètres (§ 15), comme GeoMys-Android. En relevé comme en saisie mono-taxon ; la caractérisation garde celui déjà saisi.
+- **Un taxon déjà dans le relevé s'ajoute sans confirmation** : la question du web (« Le taxon saisi est déjà dans la liste des taxons enregistrés… Voulez-vous continuer ? », § 14) est retirée.
+- **Pas de mise à jour hors Google Play** : la mise à jour intégrée de la variante GitHub de GeoMys-Android (`MiseAJour`) n'est pas reprise ; la distribution passera par Google Play.
+- **Essais sur l'A12** : la version de débogage revient, à la place de la version optimisée `mesure` (§ 17).
+
+Tests : 1 100 sur la JVM pour le module commun, 88 pour l'interface (dont le déterminateur par défaut, l'utilisateur connecté et non l'observateur par défaut, mutation détectée, et le taxon ajouté deux fois sans question) ; l'attente du test des sélections obligatoires, sensible au fil sur lequel l'écran reprend sous le dispatcher de test, est corrigée.
+
+## 19. Respect de ce qu'envoie le serveur : corrections du 21 octobre
+
+Question de l'utilisateur : « est ce que tous les écrans, formulaires, listes et taxons proposés en fonction du contexte (protocole, etc.), champs (libellés, comportement…) respectent bien les infos envoyées par le serveur geonature ». Quatre audits (OccTax, OccHab, Suivis, commun) ont comparé l'appli au web de GeoNature 2.17.5 et de gn_module_monitoring 1.3.2 ; le rapport, local, est `AUDIT-2026-10-21.md`. La saisie était conforme ; les écarts portaient surtout sur la consultation des Suivis. L'utilisateur a dit « fait les corrections », puis tranché : une station importée garde ses dates, les sites se trient comme sur le web ; ni accès sans droit OccTax, ni Explorer aligné, ni reprise des observateurs, dates et heures du relevé précédent.
+
+Suivis :
+- **Une liste par type enfant du module**, comme le web (`sites-groups.resolver.ts`) : stom et les quatre RHOMEO, dont `tree.module` porte les groupes de sites et les sites, montrent les deux listes ; un site sans groupe n'était joignable que par la carte.
+- **Les valeurs multiples s'affichent** (observateurs d'une visite, nomenclatures et cases multiples) : les tableaux du serveur sont gardés à part (`valeursMultiples`), chaque identifiant résolu et les valeurs jointes par « , », comme `getUtils` du web.
+- **Les identifiants affichés comme sur le web** : le champ des `display_field_names` du protocole pour chaque `type_util` (groupe de sites, site, habitat, module… par les listes en cache), les observateurs des listes propres aux champs, et un taxon selon `taxonomy` (« nom_vern,lb_nom » : le nom vernaculaire, à défaut le nom latin) au lieu de « nom latin (nom vernaculaire) ».
+- **Dates en jj/mm/aaaa** dans les fiches, les lignes et les titres (une visite s'intitule par sa date).
+- **« Visites », « Observations »** : sans `label_list`, le `label` suivi d'un « s », comme le web.
+- **Propriétés spécifiques** : la fiche d'un site montre les champs propres à ses types de site (`config.specific`, cache de la datalist `types_site`), rangés par nom comme l'onglet du web. Aucun type de site du serveur de l'ANA n'en déclare aujourd'hui.
+- **Tri des listes du protocole comme le web** : le premier critère de `sorts` (par exemple `last_visit desc`), un site jamais visité en tête comme sous PostgreSQL ; par nom, à la française, quand le protocole n'en déclare pas ou que la propriété n'est pas dans les données (le serveur n'envoie d'un enfant que sa `display_list`).
+- **Liste des protocoles** : ceux que l'utilisateur peut lire (`R` > 0), comme le web, et non plus ceux où il a un droit quelconque.
+- **Boutons radio sous iOS** (demande du même jour) : la règle d'Android, une option par ligne sauf peu d'options courtes (`radioEnLigne`) ; la fiabilité d'une visite STERF-eBMS s'écrasait sur une ligne. Les champs radio additionnels d'OccTax sous iOS passent aussi à une option par ligne, comme sous Android.
+
+OccHab :
+- **Une station importée du serveur garde ses dates**, comme le web ; GeoMys-Android lui donnait celles de la session, qui remplaçaient les siennes à l'envoi.
+- **Dates d'une station de plusieurs jours** : changer l'une ne recopie plus l'autre, comme le web, qui les tient toutes deux pour modifiées à l'ouverture quand elles diffèrent.
+
+OccTax et synchro :
+- **Changement de jeu de données** : passer à un jeu sans champ de relevé n'envoie plus les champs de l'ancien jeu (sur le serveur de l'ANA, les 398 champs additionnels dépendent tous d'un jeu).
+- **Observateurs** : la liste d'OccTax seule, comme le web ; le repli sur tous les utilisateurs (`/users/roles`) est retiré. Une liste illisible laisse celle du cache.
+- **La config du formulaire du web (`gn_commons/config`) se lit même si `t_mobile_apps` échoue** : `form_fields`, filtre taxonomique, réglages OCCTAX et droits des Suivis ne restent plus figés sans message.
+- **Les champs additionnels ne dépendent plus du réglage mobile `nomenclature.additional_fields`**, que le web ignore (il vaut vrai sur le serveur de l'ANA).
+
+Rien de nouveau n'est lu à la synchro : `VERSION_DONNEES_REQUISE` reste à 4.
+
+Tests : 1 110 sur la JVM pour le module commun (listes du module, valeurs multiples, tri, libellés, dates, résolveur en cache, taxons, propriétés spécifiques, changement de jeu, observateurs, config lue sans t_mobile_apps), 92 pour l'interface (dates d'une station, station importée, règle des boutons radio) ; cinq mutations détectées ; tests iOS compilés.
+
+## 20. Outils du serveur repris de GeoMys-Android (21 octobre)
+
+Question de l'utilisateur : « as tu bien repris toutes les infos utiles de geomys-android, en particulier les infos sur les endpoints geonature etc ». Toutes les routes de GeoMys-Android existent dans GeoMys Common (comparaison des sources) et la table de l'inventaire (`inventaire/1-reseau-sync.md` § 3) les décrit ; manquaient les deux scripts de `tools/` et les notes de travail sur le serveur. Avec l'accord de l'utilisateur :
+- `outils/lister_endpoints_geonature.py` : la liste statique des routes qu'appelle GeoMys Common (OccTax, OccHab, Suivis, Explorer, envoi), avec leur accès (public, connecté, écriture), mise à jour d'après le code.
+- `outils/verifier_serveur_geonature.py <url> [--public]` : un verdict OK / ATTENTION / ÉCHEC route par route, en lecture seulement, étendu aux Suivis, à OccHab, à l'Explorer et aux lectures de l'envoi. L'identifiant et le mot de passe se tapent au clavier, jamais en argument. Essayé sur un faux serveur local seulement.
+- Les notes de travail (filtres lus dans le corps JSON ou dans l'adresse, sources de référence, portabilité, inspection des caches du téléphone, HABREF) sont reprises dans la mémoire de travail, hors du dépôt.
+
+## 21. Essai sur un autre serveur : la démonstration de GeoNature (21 octobre)
+
+Demande de l'utilisateur : utiliser le serveur de démonstration de GeoNature « pour vérifier qu'il n'y a pas de pb avec un autre serveur ». Le compte public de la démonstration (donné par le README de GeoNature) a servi ; rien n'a été envoyé au serveur.
+- `outils/verifier_serveur_geonature.py` : 28 routes sur 28 conformes (GeoNature 2.17.2).
+- `EssaiServeurReelTest` (module commun, essai JVM, ignoré sans `GEOMYS_ESSAI_URL`, `GEOMYS_ESSAI_IDENTIFIANT` et `GEOMYS_ESSAI_MOT_DE_PASSE`) fait tourner les vrais services de l'appli sur le serveur : connexion, « Recharger les données » complet (30 s, aucune étape en échec : 782 taxons, 421 nomenclatures, 70 jeux, 63 observateurs, 39 champs additionnels, 29 425 habitats, 15 stations OccHab, 33 protocoles), sélections de Paramètres, puis, pour chaque protocole, listes, fiche et formulaire de chaque type de saisie, règles comprises ; et l'Explorer.
+
+Deux défauts de l'appli, corrigés :
+- **Nom de fichier du cache trop long** : une liste dont l'adresse porte beaucoup de filtres (le « Code phénologique » de pt_ecoute_avifaune, restreint à 17 codes : 449 octets) ne s'écrivait pas, sans erreur, et restait vide ; le champ, obligatoire, bloquait l'observation. Au-delà de 200 caractères, le nom garde son début et prend une empreinte de l'adresse (`MonitoringCache.keyOptionsDatalist`). Défaut venu de l'alignement du 20 octobre, qui a mis la restriction d'une nomenclature dans l'adresse ; sur le serveur de l'ANA, la plus longue clé fait 103 caractères.
+- **Explorer** : GeoNature 2.17 envoie le nom dans `nom_vern_or_lb_nom`, que l'appli ne lisait pas ; un taxon sans nom français en cache restait « Espèce inconnue ». Le reste de l'Explorer est inchangé (décision du même jour) : il ne montre toujours que les points (24 lignes et polygones sur 279 observations à la démonstration). Il écartait aussi une observation dont le taxon n'est pas dans le TaxRef du téléphone quand le serveur n'envoie pas son groupe (171 sur 279 à la démonstration, où la liste « Saisie Occtax » compte 8 taxons) : changé ensuite, § 23.
+
+Ce que la démonstration montre de sa propre configuration, à l'identique sur le web : deux protocoles sans liste d'observateurs (`users/menu/None`), deux sans jeu de données (pas de visite possible), un champ « individus » non pris en charge (test_indi). À vérifier par l'utilisateur sur son serveur : le « Statut d'observation » masqué et obligatoire de micromam, dont le défaut ne désigne pas sa valeur par son identifiant, que ni le web ni l'appli n'appliquent.
+
+Tests : 1 113 sur la JVM pour le module commun (le nom de cache d'une longue adresse, relu par un nouveau processus, et le nom de `for_web` ; deux mutations détectées), 92 pour l'interface ; tests iOS compilés.
+
+## 22. Quinze autres serveurs GeoNature (21 octobre)
+
+Demande de l'utilisateur : « fait les tests sur ces serveurs », quinze serveurs GeoNature d'autres structures (leurs adresses restent hors du dépôt). Sans compte : seules les routes publiques, en lecture, une dizaine de requêtes par serveur (version, formulaires, réglages mobiles, champs additionnels, TaxHub, listes, habitats). Aucune clé de formulaire inconnue de l'appli, aucun type de champ additionnel non géré. Puis, à sa demande (« Pour 2, si les champs additionnels sont obligatoires pour une espèce ou un dénombrement, est ce tu peux les afficher comme tels quand c'est le cas ? Pour 4, ok pour ne charger que les listes nécéssaires. Pour 5, refuse les serveurs trop anciens. Fait 1 et 3 ») :
+
+1. **TaxHub du web d'abord.** La synchro interroge le TaxHub intégré (`<URL>/api/taxhub`, celui du web) et ne garde l'adresse publiée pour les applis mobiles (`sync.taxhub_url`) que s'il ne répond pas. Sur l'un des serveurs, celle-ci (un autre domaine) a un certificat invalide : aucun taxon ne se chargeait.
+2. **Champs additionnels obligatoires d'une espèce ou d'un dénombrement montrés comme tels** (un serveur en a dix, quatre autres un) : un champ obligatoire, montré, sans valeur par défaut, du jeu du relevé (`RequisEspece`).
+   - À l'ajout d'une espèce, la caractérisation (ou, à défaut, le dénombrement) qui le porte s'ouvre d'office, comme le web montre le formulaire du taxon avant de l'enregistrer.
+   - Tant qu'il est vide, la ligne de l'espèce porte la barre rouge, et le « i » ou le « × N » qui y mène passe au rouge ; en saisie mono-taxon, la barre rouge sur les boutons « Caractérisation » et « Dénombrement ».
+   - « Terminer » n'est pas refusé pour autant (non demandé).
+3. **Date vide au départ quand le serveur le demande** (`OCCTAX.DATE_FORM_WITH_TODAY` à faux, sur un des serveurs) : dans « Détails », la date est à choisir, avec la barre rouge (Android : « — » qui ouvre le sélecteur ; iOS : « Choisir une date ») ; le relevé ou la série s'ouvrent sur leurs détails, et « Terminer » ou « Démarrer la saisie » sont refusés tant qu'elle manque (« Choisissez une date de début »).
+4. **Seules les listes de taxons utiles se téléchargent** : la liste choisie dans Paramètres, celles des jeux de données, des protocoles et de la configuration d'OccTax, et non plus toutes les listes publiques (jusqu'à 416 000 taxons cumulés sur un serveur, plus de 280 000 sur deux autres). Un premier chargement sans liste utile laisse TaxRef vide mais daté (Paramètres propose alors les sélections), sans compter comme un échec ; choisir une liste absente du téléphone lance son chargement ; la configuration n'est complète qu'avec la liste de saisie chargée (`listeDeSaisieChargee`). Sur le serveur de démonstration : 7 listes au premier chargement, la 8ᵉ au choix de la liste, puis la configuration complète. Sur le serveur de l'ANA, les installations déjà chargées gardent leurs listes jusqu'au prochain changement de version de TaxRef. Précision demandée ensuite (« il faut charger toutes les listes nécessaires et potentiellement sélectionnées dans les saisies, les protocoles de suivis et occhab ») : sont chargées les listes de tous les jeux de données qu'un relevé peut prendre, la liste par défaut, celle de la configuration d'OccTax, et, pour chaque protocole lisible, celles du protocole, de ses types d'objets et de ses champs espèce (`listesDesSuivis`). Un champ espèce sans aucune liste (RHOMEOOrthoptere sur le serveur de l'ANA), auquel le web propose tout TaxRef, fait charger toutes les listes publiques, comme avant. OccHab ne demande aucune liste de taxons : sa liste d'habitats (`OCCHAB.ID_LIST_HABITAT`) se charge comme avant.
+5. **Serveur trop ancien refusé** : une version illisible (`gn_commons/config` absent, d'avant la 2.12, sur un des serveurs) fait échouer le test de connexion, comme une version inférieure à 2.15 (deux des serveurs, en 2.13 et 2.14) ; le bénéfice du doute est retiré. La lecture de la version attend 10 s au lieu de 5.
+
+Tests : 1 121 sur la JVM pour le module commun, 96 pour l'interface ; huit mutations détectées ; tests iOS compilés.
+
+## 23. Explorer : les taxons absents du téléphone (21 octobre)
+
+Question posée après l'essai sur la démonstration : « dans l'Explorer, je garde les observations dont le taxon n'est pas sur le téléphone, avec une icône neutre ? ». Réponse de l'utilisateur : « oui ».
+- Une observation dont le groupe ne vient ni de la Synthèse (`group2_inpn`, que `for_web` n'envoie pas par défaut) ni du cache TaxRef du téléphone n'est plus écartée : elle est gardée sans groupe (`ObsExplorer.taxon` nul). De même pour une observation sans `cd_nom`, et pour un taxon du cache sans groupe, que GeoMys-Android rangeait aux oiseaux. Un groupe hors des six groupes d'animaux, dont le règne n'est pas en cache, n'est plus classé d'office parmi les autres invertébrés.
+- Son marqueur : un disque gris (gris 600 de Material) et un œil blanc, sous Android et sous iOS. Le marqueur de plusieurs observations prend le groupe de la première qui en a un : les marqueurs déjà montrés gardent leur couleur, seul leur effectif augmente.
+- Le filtre par groupe ne les montre pas ; sans filtre, elles sont comptées et listées comme les autres.
+- Sur la démonstration : 255 observations affichées au lieu de 84, dont 171 sans groupe.
+
+Tests : `GeoNatureBrowseTest` (groupe de la Synthèse, du cache ou absent : sept cas), `ExplorerTest` (filtre et couleur du marqueur) ; quatre mutations détectées. 1 123 tests sur la JVM et 1 118 sur le simulateur iOS pour le module commun, 96 tests d'écran sur la JVM et 6 sur le simulateur ; `outils/verifier.sh` sans erreur.

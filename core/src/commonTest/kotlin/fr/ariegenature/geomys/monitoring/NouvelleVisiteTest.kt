@@ -29,6 +29,7 @@ import fr.ariegenature.geomys.monitoring.form.construireFormulaire
 import fr.ariegenature.geomys.network.MonitoringApi.MonitoringPropertySchema
 import fr.ariegenature.geomys.network.MonitoringApi.MonitoringSchemaObjet
 import fr.ariegenature.geomys.network.MonitoringApi.OptionDatalist
+import fr.ariegenature.geomys.util.DateHeureDefaut
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -50,7 +51,7 @@ class NouvelleVisiteTest {
             "id_dalle" to prop("id_dalle", "datalist", apiUrl = "monitorings/list/x/dalle"),
             "visit_date_min" to prop("visit_date_min", "date", "Date", obligatoire = true),
             "heure" to prop("heure", "time"),
-            "id_dataset" to prop("id_dataset", "dataset", "Jeu de données", apiUrl = "meta/datasets?module_code=x"),
+            "id_dataset" to prop("id_dataset", "dataset", "Jeu de données", obligatoire = true, apiUrl = "meta/datasets?module_code=x"),
             "observers" to prop("observers", "observers", "Observateurs", apiUrl = "users/menu/1", multiple = true),
             "stade" to prop("stade", "nomenclature", "Stade", apiUrl = "nomenclatures/nomenclature/STADE")
                 .copy(defaultObjet = mapOf("cd_nomenclature" to "2")),
@@ -81,18 +82,11 @@ class NouvelleVisiteTest {
     private class Sources(
         val schemaRendu: Map<String, MonitoringSchemaObjet>?,
         val optionsRendues: (MonitoringPropertySchema) -> List<OptionDatalist>?,
-        override val datasetsCacheJson: String = "",
         override val idRoleUtilisateur: Int = 7,
-        val viaJeuxDuModule: Int? = null,
     ) : SourcesFormulaire {
-        var appelsJeuxDuModule = 0
         override val urlServeur = "https://geonature.exemple.org/"
         override suspend fun schema(moduleCode: String) = schemaRendu
         override suspend fun options(prop: MonitoringPropertySchema) = optionsRendues(prop)
-        override suspend fun idListeViaDatasetsDuModule(moduleCode: String): Int? {
-            appelsJeuxDuModule++
-            return viaJeuxDuModule
-        }
     }
 
     @Test
@@ -115,11 +109,6 @@ class NouvelleVisiteTest {
         val passage = NouvelleVisite.Accords("Passage", "M")
         assertEquals("Passage non enregistré", passage.titreNonEnregistre)
         assertEquals("Continuer le passage", passage.boutonContinuer)
-        assertEquals(
-            "Le passage en cours est incomplet (champ obligatoire manquant ou valeur hors limites) et ne peut pas " +
-                "être enregistré. Quitter et le perdre ?",
-            passage.messageQuitterIncomplet,
-        )
         val observation = NouvelleVisite.Accords("Observation", "F")
         assertEquals("Continuer l'observation", observation.boutonContinuer)
         assertEquals("Observation enregistrée localement — envoi à la demande depuis « Mes visites »", observation.messageEnregistre(emptyList()))
@@ -146,26 +135,151 @@ class NouvelleVisiteTest {
     }
 
     @Test
-    fun options_chargees_puis_defauts_poses() = runTest {
+    fun l_utilisateur_connecte_est_pose_meme_hors_de_la_liste_comme_le_web() = runTest {
+        val champs = construireFormulaire(visite).fields
+        val (enrichis, _) = NouvelleVisite.enrichirAvecOptions(champs, visite, null, 42, "MARTIN Alice") { p -> options[p.apiUrl] }
+        val observateurs = enrichis.single { it.code == "observers" }
+        assertEquals(listOf("42"), observateurs.value)
+        assertEquals("MARTIN Alice", observateurs.values.single { it.value == "42" }.label, "le menu le montre")
+    }
+
+    @Test
+    fun une_propriete_masquee_requise_sans_valeur_bloque_comme_sur_le_web() {
+        val schema = visite.copy(
+            properties = visite.properties +
+                ("id_jdd" to prop("id_jdd", "datalist", "JDD associé", apiUrl = "meta/datasets?module_code=x").copy(hiddenBool = true, obligatoire = true)) +
+                ("id_digitiser" to prop("id_digitiser", "text", "Numérisateur").copy(hiddenBool = true, obligatoire = true)),
+        )
+        assertEquals(listOf("JDD associé"), NouvelleVisite.proprietesMasqueesManquantes(schema, "id_dalle", emptyMap()))
+        assertEquals(emptyList(), NouvelleVisite.proprietesMasqueesManquantes(schema, "id_dalle", mapOf("id_jdd" to 12)))
+    }
+
+    @Test
+    fun options_chargees_puis_valeurs_initiales_du_web() = runTest {
         val champs = construireFormulaire(visite).fields
         val (enrichis, echecs) = NouvelleVisite.enrichirAvecOptions(champs, visite, null, 7) { p -> options[p.apiUrl] }
         val parCode = enrichis.associateBy { it.code }
         // Le champ du parent n'a pas d'options : échec signalé.
         assertEquals(listOf("id_dalle (fetch options échoué)"), echecs)
-        // Jeu de données unique : choisi d'office et masqué.
+        // Jeu de données unique et requis : choisi d'office, et le champ reste affiché.
         assertEquals("12", parCode.getValue("id_dataset").value)
-        assertTrue(parCode.getValue("id_dataset").masque)
         // L'utilisateur connecté parmi les observateurs.
         assertEquals(listOf("7"), parCode.getValue("observers").value)
-        assertFalse(parCode.getValue("observers").masque)
-        // Défaut objet résolu par son cd_nomenclature.
+        // `value` objet résolue par son cd_nomenclature.
         assertEquals("802", parCode.getValue("stade").value)
-        // Jamais de défaut sur un champ espèce.
-        assertNull(parCode.getValue("cd_nom").value)
-        // Date du jour, heure actuelle.
+        // `value` d'un champ espèce : son cd_nom, comme le web.
+        assertEquals(4117, parCode.getValue("cd_nom").value)
+        // La date du jour dans la date de visite ; aucune heure par défaut.
         assertNotNull(parCode.getValue("visit_date_min").value)
-        assertNotNull(parCode.getValue("heure").value)
+        assertNull(parCode.getValue("heure").value)
         assertNull(parCode.getValue("comments").value)
+    }
+
+    @Test
+    fun valeurs_initiales_que_le_web_ne_pose_pas() = runTest {
+        val objet = MonitoringSchemaObjet(
+            type = "observation", label = "Observation", labelList = null, nameField = null, parentType = "visit", childrenTypes = emptyList(),
+            properties = linkedMapOf(
+                // Option unique d'une liste NON requise : rien n'est choisi.
+                "methode" to prop("methode", "datalist", apiUrl = "nomenclatures/nomenclature/METH").copy(keyValue = "id_nomenclature"),
+                // `default` sans la clé de valeur de la liste : ignoré, comme le composant datalist du web.
+                "stade" to prop("stade", "datalist", apiUrl = "nomenclatures/nomenclature/STADE")
+                    .copy(keyValue = "id_nomenclature", defautDatalist = mapOf("label_default" to "Juvénile")),
+                // `default` qui porte la clé de valeur : appliqué.
+                "sexe" to prop("sexe", "datalist", apiUrl = "nomenclatures/nomenclature/SEXE")
+                    .copy(keyValue = "id_nomenclature", defautDatalist = mapOf("id_nomenclature" to "902")),
+                // Une date autre que celles de la visite : pas de date du jour.
+                "date_ponte" to prop("date_ponte", "date"),
+                // Un champ d'observateurs autre que `observers` : pas d'utilisateur connecté.
+                "id_operateur" to prop("id_operateur", "observers", apiUrl = "users/menu/1"),
+                "nb" to prop("nb", "number").copy(defaultValue = "0"),
+            ),
+        )
+        val opts = mapOf(
+            "nomenclatures/nomenclature/METH" to listOf(OptionDatalist("701", "À vue", cdNomenclature = "1")),
+            "nomenclatures/nomenclature/STADE" to options.getValue("nomenclatures/nomenclature/STADE"),
+            "nomenclatures/nomenclature/SEXE" to listOf(OptionDatalist("901", "Femelle"), OptionDatalist("902", "Mâle")),
+            "users/menu/1" to options.getValue("users/menu/1"),
+        )
+        val (enrichis, _) = NouvelleVisite.enrichirAvecOptions(construireFormulaire(objet).fields, objet, null, 7) { p -> opts[p.apiUrl] }
+        val parCode = enrichis.associateBy { it.code }
+        assertNull(parCode.getValue("methode").value)
+        assertNull(parCode.getValue("stade").value)
+        assertEquals("902", parCode.getValue("sexe").value)
+        assertNull(parCode.getValue("date_ponte").value)
+        assertNull(parCode.getValue("id_operateur").value)
+        assertEquals("0", parCode.getValue("nb").value, "la `value` du schéma")
+    }
+
+    @Test
+    fun observateur_masque_sans_utilisateur_connecte() = runTest {
+        val avecObservateursMasques = visite.copy(
+            properties = visite.properties + ("observers" to visite.properties.getValue("observers").copy(hiddenBool = true)),
+        )
+        val (enrichis, _) = NouvelleVisite.enrichirAvecOptions(
+            construireFormulaire(visite).fields, avecObservateursMasques, null, 7,
+        ) { p -> options[p.apiUrl] }
+        assertNull(enrichis.single { it.code == "observers" }.value)
+    }
+
+    @Test
+    fun valeurs_fixes_des_proprietes_masquees() = runTest {
+        val objet = MonitoringSchemaObjet(
+            type = "observation", label = "Observation", labelList = null, nameField = null, parentType = "visit", childrenTypes = emptyList(),
+            properties = linkedMapOf(
+                "id_base_visit" to prop("id_base_visit", "number").copy(hiddenBool = true),
+                // Protocole mono-espèce : le cd_nom fixe (nidif_gypa).
+                "cd_nom" to prop("cd_nom", "text").copy(hiddenBool = true, defaultValue = "2852", valeurTypee = 2852),
+                "code" to prop("code", "text").copy(hiddenBool = true, defaultValue = "007", valeurTypee = "007"),
+                // Objet nomenclature d'un champ texte masqué (suivi_nardaie).
+                "technique" to prop("technique", "text", apiUrl = "nomenclatures/nomenclature/TECHNIQUE_OBS")
+                    .copy(hiddenBool = true, defaultObjet = mapOf("code_nomenclature_type" to "TECHNIQUE_OBS", "cd_nomenclature" to "133")),
+                // Jeu de données masqué et requis : son option unique.
+                "id_dataset" to prop("id_dataset", "dataset", obligatoire = true, apiUrl = "meta/datasets?module_code=x").copy(hiddenBool = true),
+                // Masqué sans valeur : rien (l'envoi le complète à null).
+                "id_digitiser" to prop("id_digitiser", "text", obligatoire = true).copy(hiddenBool = true),
+                "comments" to prop("comments", "text"),
+            ),
+        )
+        val opts = mapOf(
+            "nomenclatures/nomenclature/TECHNIQUE_OBS" to listOf(OptionDatalist("1330", "Vu", cdNomenclature = "133")),
+            "meta/datasets?module_code=x" to options.getValue("meta/datasets?module_code=x"),
+        )
+        val fixes = NouvelleVisite.valeursFixes(objet, "id_base_visit") { p -> opts[p.apiUrl] }
+        assertEquals(mapOf<String, Any>("cd_nom" to 2852, "code" to "007", "technique" to 1330, "id_dataset" to 12), fixes)
+
+        // À l'enregistrement : elles partent, le texte reste un texte, le formulaire l'emporte.
+        val enregistrement = ValeursFormulaire.preparerEnregistrement(
+            construireFormulaire(objet).fields, mapOf("comments" to "RAS", "cd_nom" to 3511), fixes,
+        )
+        val valeurs = ValeursFormulaire.parseValeursJson(enregistrement.valeursJson)
+        assertEquals(3511, valeurs["cd_nom"])
+        assertEquals(1330, valeurs["technique"])
+        assertTrue("code" in enregistrement.champsTexteLibre)
+        assertFalse("cd_nom" in enregistrement.champsTexteLibre)
+    }
+
+    @Test
+    fun valeurs_fixes_dates_du_jour_types_du_web_et_saisie_rouverte() = runTest {
+        val objet = MonitoringSchemaObjet(
+            type = "visit", label = "Visite", labelList = null, nameField = null, parentType = "site", childrenTypes = emptyList(),
+            properties = linkedMapOf(
+                // Masquée dans le schéma générique : le web la met au jour (setDefaultFormValue).
+                "visit_date_max" to prop("visit_date_max", "date").copy(hiddenBool = true),
+                "id_dataset" to prop("id_dataset", "dataset", obligatoire = true, apiUrl = "meta/datasets?module_code=x").copy(hiddenBool = true),
+                "code" to prop("code", "text").copy(hiddenBool = true, defaultValue = "007", valeurTypee = "007"),
+                "nb_observations" to prop("nb_observations", "number").copy(hiddenBool = true),
+            ),
+        )
+        val opts = listOf(OptionDatalist("12", "Jeu 12", brut = 12))
+        val neuve = NouvelleVisite.valeursFixes(objet, null) { opts }
+        assertEquals(mapOf<String, Any>("visit_date_max" to DateHeureDefaut.dateDuJour(), "id_dataset" to 12, "code" to "007"), neuve)
+
+        // Rouverte : chaque propriété masquée garde la valeur enregistrée, comme le web garde celle
+        // de l'objet.
+        val rouverte = NouvelleVisite.valeursFixes(objet, null, mapOf("visit_date_max" to "2026-10-01", "code" to "008")) { opts }
+        assertEquals("2026-10-01", rouverte["visit_date_max"])
+        assertEquals("008", rouverte["code"])
     }
 
     @Test
@@ -188,9 +302,8 @@ class NouvelleVisiteTest {
         val f = prete.formulaire
         assertFalse(f.champs.any { it.code == "id_dalle" })
         assertEquals("id_dalle", f.parentIdField)
-        // La liste du module, sans la chercher dans les jeux du protocole.
+        // La liste du module.
         assertEquals(100, f.champs.single { it.viewType == ViewType.TAXON }.idListeTaxonomieRestreinte)
-        assertEquals(0, sources.appelsJeuxDuModule)
         assertEquals("observation", f.typeSaisieEnfant)
         assertEquals("Passage", f.labelType)
         assertEquals(visite.properties.keys.toList(), f.nomsChamps)
@@ -198,16 +311,11 @@ class NouvelleVisiteTest {
     }
 
     @Test
-    fun liste_taxonomique_du_jeu_de_donnees_puis_des_jeux_du_protocole() = runTest {
-        val schema = mapOf("dalle" to dalle, "visit" to visite)
-        val cache = """[{"id":1,"nom":"Autre","idTaxaList":5,"moduleCodes":["y"]},{"id":2,"nom":"STOM","idTaxaList":42,"moduleCodes":["x"]}]"""
-        val viaCache = Sources(schema, { p -> options[p.apiUrl] }, datasetsCacheJson = cache, viaJeuxDuModule = 9)
-        val f1 = assertIs<PreparationFormulaire.Prete>(NouvelleVisite.preparer(viaCache, "x", "visit", "dalle", null, emptyList())).formulaire
-        assertEquals(42, f1.champs.single { it.viewType == ViewType.TAXON }.idListeTaxonomieRestreinte)
-        assertEquals(0, viaCache.appelsJeuxDuModule)
-        val viaJeux = Sources(schema, { p -> options[p.apiUrl] }, viaJeuxDuModule = 9)
-        val f2 = assertIs<PreparationFormulaire.Prete>(NouvelleVisite.preparer(viaJeux, "x", "visit", "dalle", null, emptyList())).formulaire
-        assertEquals(9, f2.champs.single { it.viewType == ViewType.TAXON }.idListeTaxonomieRestreinte)
+    fun sans_liste_du_protocole_le_champ_espece_n_est_pas_restreint() = runTest {
+        // Le web ne restreint pas un champ espèce à la liste d'un jeu de données.
+        val sources = Sources(mapOf("dalle" to dalle, "visit" to visite), { p -> options[p.apiUrl] })
+        val f = assertIs<PreparationFormulaire.Prete>(NouvelleVisite.preparer(sources, "x", "visit", "dalle", null, emptyList())).formulaire
+        assertNull(f.champs.single { it.viewType == ViewType.TAXON }.idListeTaxonomieRestreinte)
     }
 
     @Test
@@ -230,23 +338,39 @@ class NouvelleVisiteTest {
         assertNotNull(saisie.uuidPayload)
         assertEquals("id_dalle", saisie.parentIdField)
         assertEquals(listOf("Heure"), saisie.champsManquants)
+        // Les boutons du web : « Valider et saisir des … » ouvre l'enfant unique sous la saisie.
+        assertEquals("observation", f.enfantUnique)
         assertEquals(
             SuiteEnregistrement.Enchainer("visit", saisie.uuid, "observation", "Passage (local)"),
-            NouvelleVisite.suiteApresCreation(saisie, f, puisTerminer = false, chaine = false),
+            NouvelleVisite.suiteApresCreation(saisie, f, ActionValider.SAISIR_ENFANTS, enchainer = false, puisTerminer = false),
         )
-        assertEquals(SuiteEnregistrement.TerminerOuCompleter, NouvelleVisite.suiteApresCreation(saisie, f, puisTerminer = true, chaine = false))
-        val sansEnfant = f.copy(typeSaisieEnfant = null)
-        assertEquals(SuiteEnregistrement.Reinitialiser, NouvelleVisite.suiteApresCreation(saisie, sansEnfant, puisTerminer = false, chaine = true))
-        assertEquals(SuiteEnregistrement.Retour, NouvelleVisite.suiteApresCreation(saisie, sansEnfant, puisTerminer = false, chaine = false))
-        // Modification : complétion → retour ; sortie explicite → la fiche du parent serveur.
+        // « Valider » : la page du parent serveur (la saisie locale n'a pas de page).
+        assertEquals(
+            SuiteEnregistrement.Fiche("dalle", 31),
+            NouvelleVisite.suiteApresCreation(saisie, f, ActionValider.VALIDER, enchainer = false, puisTerminer = false),
+        )
+        // « Valider et enchaîner les saisies » : formulaire suivant, les champs `keep` repris.
+        val avecGardes = f.copy(schemaObjet = f.schemaObjet.copy(gardes = listOf("heure", "absent")))
+        assertEquals(
+            SuiteEnregistrement.Reinitialiser(mapOf("heure" to "06:30")),
+            NouvelleVisite.suiteApresCreation(saisie, avecGardes, ActionValider.VALIDER, enchainer = true, puisTerminer = false, mapOf("heure" to "06:30", "meteo" to "Beau")),
+        )
+        // Sous une saisie locale : fin de ses saisies (visite parente à compléter) ; sortie par la garde.
+        val sousVisite = saisie.copy(parentObjectType = "visit", parentIdServeur = null, parentUuidLocal = "u-visite")
+        assertEquals(SuiteEnregistrement.TerminerOuCompleter, NouvelleVisite.suiteApresCreation(sousVisite, f, ActionValider.VALIDER, false, false))
+        assertEquals(SuiteEnregistrement.TerminerOuCompleter, NouvelleVisite.suiteApresCreation(saisie, f, ActionValider.VALIDER, false, puisTerminer = true))
+        assertEquals(
+            SuiteEnregistrement.Retour,
+            NouvelleVisite.suiteApresCreation(saisie.copy(parentIdServeur = null), f, ActionValider.VALIDER, false, false),
+        )
+        // Modification : complétion → retour ; sinon la fiche du parent serveur.
         val ancienne = saisie.copy(etat = SaisieEnAttente.Etat.ERROR, messageErreur = "400")
         val modifiee = NouvelleVisite.saisieModifiee(ancienne, f, enregistrement, emptyList())
         assertEquals(SaisieEnAttente.Etat.PENDING, modifiee.etat)
         assertNull(modifiee.messageErreur)
         assertNull(modifiee.champsManquants)
-        assertEquals(SuiteEnregistrement.Retour, NouvelleVisite.suiteApresEdition(modifiee.uuid, f, true, false, "dalle", 31))
-        assertEquals(SuiteEnregistrement.Fiche("dalle", 31), NouvelleVisite.suiteApresEdition(modifiee.uuid, f, false, true, "dalle", 31))
-        assertIs<SuiteEnregistrement.Enchainer>(NouvelleVisite.suiteApresEdition(modifiee.uuid, f, false, false, "dalle", 31))
-        assertEquals(SuiteEnregistrement.Retour, NouvelleVisite.suiteApresEdition(modifiee.uuid, sansEnfant, false, false, null, null))
+        assertEquals(SuiteEnregistrement.Retour, NouvelleVisite.suiteApresEdition(true, "dalle", 31))
+        assertEquals(SuiteEnregistrement.Fiche("dalle", 31), NouvelleVisite.suiteApresEdition(false, "dalle", 31))
+        assertEquals(SuiteEnregistrement.Retour, NouvelleVisite.suiteApresEdition(false, null, null))
     }
 }

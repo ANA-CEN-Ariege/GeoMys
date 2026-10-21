@@ -23,28 +23,42 @@
 package fr.ariegenature.geomys.occtax
 
 import fr.ariegenature.geomys.model.Denombrement
-import fr.ariegenature.geomys.model.Taxon
 import fr.ariegenature.geomys.plateforme.comparateurFrancais
+import fr.ariegenature.geomys.store.GroupeTaxonomique
 import fr.ariegenature.geomys.store.NomenclatureCache
 import fr.ariegenature.geomys.store.OcctaxFieldsConfig
 import fr.ariegenature.geomys.store.OcctaxFieldsConfig.OcctaxField
 import fr.ariegenature.geomys.store.champFormVisible
 
-/** Un champ de nomenclature affiché : son [libelle] et ses entrées, « Non renseigné » d'abord
- *  ([libelles] et [codes] alignés, code vide pour la première). */
+/** Un champ de nomenclature affiché : son [libelle] et ses entrées, l'entrée vide
+ *  ([FormulairesEspece.VIDE]) d'abord ([libelles] et [codes] alignés, code vide pour la première). */
 data class ChampNomenclature(
     val champ: OcctaxField,
     val libelle: String,
     val libelles: List<String>,
     val codes: List<String>,
 ) {
-    /** La position d'un code ; absent des entrées, « Non renseigné ». */
+    /** Le formulaire web exige une valeur ([FormulairesEspece.OBLIGATOIRES]). */
+    val obligatoire: Boolean get() = champ.code in FormulairesEspece.OBLIGATOIRES
+
+    /** Aucune valeur du serveur en cache pour ce taxon : seule l'entrée vide. */
+    val sansValeurs: Boolean get() = codes.size <= 1
+
+    /** La position d'un code ; absent des entrées, l'entrée vide. */
     fun position(code: String): Int = codes.indexOf(code).coerceAtLeast(0)
 
     fun code(position: Int): String = codes.getOrNull(position) ?: ""
 }
 
 object FormulairesEspece {
+
+    /** L'entrée vide d'une liste, distincte de la valeur « Non renseigné » que portent plusieurs
+     *  nomenclatures du serveur. */
+    const val VIDE = "— Non renseigné —"
+
+    /** Les nomenclatures que le formulaire web rend obligatoires (occurrence.service.ts,
+     *  counting.service.ts) : l'entrée vide n'y est pas une réponse. */
+    val OBLIGATOIRES = setOf("METH_OBS", "ETA_BIO", "STADE_VIE", "SEXE", "OBJ_DENBR")
 
     /** Caractérisation : les champs toujours visibles (code de nomenclature, clé form_fields). */
     val OCC_BASIQUES = listOf("METH_OBS" to "obs_tech", "ETA_BIO" to "bio_condition")
@@ -70,46 +84,72 @@ object FormulairesEspece {
 
     /** Les preuves de la section « Plus de champs » : (clé form_fields, libellé, URL ?). */
     val PREUVES = listOf(
-        Triple("digital_proof", "Preuve numérique (URL)", true),
+        Triple("digital_proof", "Preuve numérique", true),
         Triple("non_digital_proof", "Preuve non numérique", false),
     )
 
     /** Dénombrement : les nomenclatures d'un dénombrement, dans l'ordre du web. */
     val COUNTING = listOf("OBJ_DENBR" to "obj_count", "TYP_DENBR" to "type_count", "STADE_VIE" to "life_stage", "SEXE" to "sex")
 
+    /** Celles que le web place au-dessus des effectifs. */
+    val COUNTING_AVANT_EFFECTIFS = setOf("OBJ_DENBR", "TYP_DENBR")
+
+    /** Les messages du web pour une nomenclature obligatoire laissée vide (fr.json d'OccTax). */
+    private val MESSAGES_OBLIGATOIRES = mapOf(
+        "METH_OBS" to "Veuillez indiquer la technique d'observation",
+        "ETA_BIO" to "Veuillez indiquer l'état biologique",
+        "OBJ_DENBR" to "Veuillez indiquer l'objet du dénombrement",
+        "STADE_VIE" to "Veuillez indiquer le stade de vie",
+        "SEXE" to "Veuillez indiquer le sexe",
+    )
+
     /** Les champs de [liste] que form_fields montre. */
     fun champsVisibles(liste: List<Pair<String, String>>, formFieldsJson: String): List<OcctaxField> =
         liste.mapNotNull { (code, cle) -> if (champFormVisible(formFieldsJson, cle)) OcctaxFieldsConfig.parCode[code] else null }
 
-    /** Les entrées d'un champ : les valeurs du serveur filtrées par groupe et règne, « Non
-     *  renseigné » d'abord, sinon les valeurs de repli du registre ; un libellé déjà vu est retiré
-     *  (le premier reste), puis l'ordre alphabétique français, le « Non renseigné » restant en tête. */
+    /** Les nomenclatures que le web ne filtre pas par taxon (sans `regne` dans
+     *  occurrence.component.html). */
+    val SANS_FILTRE_TAXON = setOf("STATUT_OBS", "STATUT_SOURCE", "DEE_FLOU")
+
+    /** Les entrées d'un champ : l'entrée vide, puis les valeurs du serveur que le web propose pour le
+     *  [taxon] ([NomenclatureCache.filtrerPourTaxon] ; [filtresActifs] :
+     *  `ENABLE_NOMENCLATURE_TAXONOMIC_FILTERS` ; jamais pour [SANS_FILTRE_TAXON]), toutes (deux
+     *  valeurs de même libellé restent deux valeurs), sous leur `label_fr`, dans l'ordre de leur
+     *  `label_default` (`orderby: 'label_default'` du web). Sans valeur en cache, rien d'autre :
+     *  aucune valeur n'est inventée. */
     fun champ(
         champ: OcctaxField,
         nomenclatures: NomenclatureCache,
-        groupes: Set<String>,
-        regno: String,
+        taxon: GroupeTaxonomique,
+        filtresActifs: Boolean,
         libelle: String = champ.label,
     ): ChampNomenclature {
-        val valeurs = if (nomenclatures.estDisponible) nomenclatures.filtrerPourGroupes(champ.code, groupes, regno) else emptyList()
-        val (libellesBruts, codesBruts) = if (valeurs.isNotEmpty()) {
-            Pair(listOf("Non renseigné") + valeurs.map { it.label }, listOf("") + valeurs.map { it.id.toString() })
-        } else {
-            Pair(champ.fallbackLabels, champ.fallbackCodes)
-        }
-        val vus = HashSet<String>()
-        val paires = libellesBruts.indices
-            .filter { vus.add(libellesBruts[it].trim().lowercase()) }
-            .map { libellesBruts[it] to codesBruts.getOrElse(it) { "" } }
-        val (vides, autres) = paires.partition { it.second.isEmpty() }
+        val filtre = if (champ.code in SANS_FILTRE_TAXON) GroupeTaxonomique.AUCUN else taxon
+        val valeurs = nomenclatures.filtrerPourTaxon(champ.code, filtre, filtresActifs)
         val comparateur = comparateurFrancais()
-        val triees = vides + autres.sortedWith { a, b -> comparateur.compare(a.first, b.first) }
-        return ChampNomenclature(champ, libelle, triees.map { it.first }, triees.map { it.second })
+        val triees = valeurs.sortedWith { a, b -> comparateur.compare(a.label, b.label) }
+        return ChampNomenclature(champ, libelle, listOf(VIDE) + triees.map { it.libelle }, listOf("") + triees.map { it.id.toString() })
     }
 
     /** Position de départ d'un champ : la valeur portée ([courant]), sinon le défaut du serveur. */
     fun positionInitiale(champ: ChampNomenclature, courant: String, nomenclatures: NomenclatureCache): Int =
         champ.position(courant.ifEmpty { nomenclatures.defautPour(champ.champ.code) ?: "" })
+
+    /** La valeur à retenir d'un champ ouvert sur [courant] à [positionInitiale] et laissé à
+     *  [position] : celle de la liste si l'utilisateur en a changé ; sinon [courant], ou à défaut le
+     *  [defaut] du serveur, même absents des valeurs proposées pour ce taxon (affichés vides, ils
+     *  auraient été effacés ; le web garde de même le défaut qu'il pose dans le champ). */
+    fun valeurRetenue(champ: ChampNomenclature, courant: String, defaut: String?, positionInitiale: Int, position: Int): String =
+        if (position == positionInitiale) courant.ifEmpty { defaut.orEmpty() } else champ.code(position)
+
+    /** Le message du premier champ [champs] obligatoire laissé vide ([valeurs] : code → valeur
+     *  retenue), celui du web, ou null. Une liste sans valeur en cache appelle un rechargement des
+     *  données. */
+    fun manque(champs: List<ChampNomenclature>, valeurs: Map<String, String>): String? {
+        val vide = champs.firstOrNull { it.obligatoire && valeurs[it.champ.code].isNullOrEmpty() } ?: return null
+        return if (vide.sansValeurs) "« ${vide.libelle} » : liste vide, rechargez les données"
+        else MESSAGES_OBLIGATOIRES[vide.champ.code] ?: "Choisissez : ${vide.libelle}"
+    }
 
     /** La valeur d'une nomenclature de caractérisation portée par l'espèce. */
     fun valeurOccurrence(espece: EspeceReleve, champ: OcctaxField): String = when (champ.code) {
@@ -169,19 +209,6 @@ object FormulairesEspece {
         return e
     }
 
-    /** Le groupe INPN (group2_inpn) de l'espèce, pour filtrer les nomenclatures : celui du cache
-     *  TaxRef ([groupes2] par cd_nom), sinon celui du groupe de la palette. */
-    fun groupe2Inpn(espece: EspeceReleve, groupes2: Map<String, String>): String? =
-        espece.cdNom?.let { groupes2[it.toString()] } ?: when (espece.taxon) {
-            Taxon.MAMMIFERE -> "Mammifères"
-            Taxon.REPTILE -> "Reptiles"
-            Taxon.BATRACIEN -> "Amphibiens"
-            Taxon.POISSON -> "Poissons"
-            Taxon.INSECTE -> "Insectes"
-            Taxon.PLANTE, Taxon.FONGE, Taxon.MOLLUSQUE, Taxon.INVERTEBRES -> null
-            Taxon.OISEAU -> "Oiseaux"
-        }
-
     // ── Dénombrement ──
 
     /** La valeur d'une nomenclature d'un dénombrement. */
@@ -203,13 +230,28 @@ object FormulairesEspece {
     fun ajuster(texte: String, delta: Int, plancher: Int): String =
         ((texte.toIntOrNull() ?: plancher) + delta).coerceAtLeast(plancher).toString()
 
-    /** Le plancher du nombre max : le min, au moins 1. */
-    fun plancherMax(min: String): Int = min.toIntOrNull()?.coerceAtLeast(1) ?: 1
+    /** Le plancher du nombre min : 0, comme le web (`min="0"`) et la base (`count_min >= 0`). */
+    const val PLANCHER_MIN = 0
 
-    /** Les effectifs relus : le min (au moins 1, 1 s'il est illisible), le max (au moins le min, le
+    /** Le plancher du nombre max : le min, au moins 0. */
+    fun plancherMax(min: String): Int = min.toIntOrNull()?.coerceAtLeast(PLANCHER_MIN) ?: PLANCHER_MIN
+
+    /** Les contrôles des effectifs du web (counting.service.ts) : nombre min et max requis, entiers
+     *  positifs (`[0-9]+`), et le max pas sous le min ; null si tout va. */
+    fun refusEffectifs(min: String, max: String): String? {
+        val entier = Regex("[0-9]+")
+        if (min.isEmpty()) return "Renseignez le nombre min"
+        if (max.isEmpty()) return "Renseignez le nombre max"
+        if (!entier.matches(min) || !entier.matches(max)) return "Nombre entier attendu"
+        val n = min.toIntOrNull() ?: return "Nombre entier attendu"
+        val m = max.toIntOrNull() ?: return "Nombre entier attendu"
+        return if (m < n) "Le dénombrement maximum ne peut pas être inférieur au dénombrement minimum" else null
+    }
+
+    /** Les effectifs relus : le min (au moins 0, 1 s'il est illisible), le max (au moins le min, le
      *  min s'il est illisible). */
     fun effectifs(min: String, max: String): Pair<Int, Int> {
-        val n = min.toIntOrNull()?.coerceAtLeast(1) ?: 1
+        val n = min.toIntOrNull()?.coerceAtLeast(PLANCHER_MIN) ?: 1
         return n to (max.toIntOrNull() ?: n).coerceAtLeast(n)
     }
 

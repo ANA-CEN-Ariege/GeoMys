@@ -22,6 +22,7 @@
 package fr.ariegenature.geomys.monitoring.form
 
 import fr.ariegenature.geomys.network.MonitoringApi.MonitoringPropertySchema
+import fr.ariegenature.geomys.network.MonitoringApi.MonitoringSchemaObjet
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -49,28 +50,27 @@ class WidgetMappingTest {
     )
 
     @Test
-    fun seuls_les_widgets_number_float_decimal_acceptent_les_decimaux() {
+    fun le_widget_number_accepte_les_decimaux() {
         // Audit 2026-07 : sans FLAG_DECIMAL, une mesure décimale (température, pH, RHOMEO…)
-        // était intapable au clavier et relue null (toIntOrNull) → perdue en silence.
-        assertTrue(estWidgetDecimal("float"))
-        assertTrue(estWidgetDecimal("decimal"))
+        // était intapable au clavier et relue null (toIntOrNull) → perdue en silence. Le web n'a que
+        // `number`, un <input type="number"> qui accepte les décimaux.
         assertTrue(estWidgetDecimal("number"))
-        assertFalse(estWidgetDecimal("integer"))
         assertFalse(estWidgetDecimal("text"))
     }
 
     @Test
-    fun widgets_scalaires_simples() {
+    fun widgets_scalaires_du_formulaire_web_seulement() {
         assertEquals(ViewType.TEXT, mapperViewType(prop("text")))
-        assertEquals(ViewType.TEXT, mapperViewType(prop("string")))
         assertEquals(ViewType.TEXTAREA, mapperViewType(prop("textarea")))
-        assertEquals(ViewType.NUMBER, mapperViewType(prop("integer")))
-        assertEquals(ViewType.NUMBER, mapperViewType(prop("float")))
+        assertEquals(ViewType.TEXT, mapperViewType(prop("observers-text")), "le pnx-observers-text du web : une ligne")
+        assertEquals(ViewType.NUMBER, mapperViewType(prop("number")))
         assertEquals(ViewType.DATE, mapperViewType(prop("date")))
         assertEquals(ViewType.TIME, mapperViewType(prop("time")))
-        assertEquals(ViewType.DATETIME, mapperViewType(prop("datetime")))
-        assertEquals(ViewType.DATETIME, mapperViewType(prop("timestamp")))
         assertEquals(ViewType.CHECKBOX, mapperViewType(prop("bool_checkbox")))
+        // Le formulaire dynamique du web ne rend pas ces types : ni champ ni libellé.
+        for (inconnu in listOf("string", "integer", "float", "decimal", "datetime", "timestamp", "bool", "boolean", "taxon")) {
+            assertNull(mapperViewType(prop(inconnu)), inconnu)
+        }
     }
 
     @Test
@@ -81,11 +81,13 @@ class WidgetMappingTest {
 
     @Test
     fun select_et_radio_single_vs_multiple() {
+        // Le `<select>` et les radios du web sont toujours à choix unique.
         assertEquals(ViewType.SELECT, mapperViewType(prop("select")))
-        assertEquals(ViewType.SELECT_MULTIPLE, mapperViewType(prop("select", multiple = true)))
+        assertEquals(ViewType.SELECT, mapperViewType(prop("select", multiple = true)))
         assertEquals(ViewType.RADIO, mapperViewType(prop("radio")))
-        // radio multiple n'a pas de sens → multi-sélection à cases
-        assertEquals(ViewType.SELECT_MULTIPLE, mapperViewType(prop("radio", multiple = true)))
+        assertEquals(ViewType.RADIO, mapperViewType(prop("radio", multiple = true)))
+        assertEquals(ViewType.RADIO, mapperViewType(prop("bool_radio")))
+        assertEquals(ViewType.SELECT_MULTIPLE, mapperViewType(prop("multiselect")))
     }
 
     @Test
@@ -97,17 +99,13 @@ class WidgetMappingTest {
     }
 
     @Test
-    fun champ_taxon_detecte_par_plusieurs_signaux() {
+    fun champ_taxon_le_widget_taxonomy_ou_une_datalist_de_taxons() {
         assertEquals(ViewType.TAXON, mapperViewType(prop("taxonomy")))
-        // nom == cd_nom force TAXON même sur un widget datalist
-        assertEquals(ViewType.TAXON, mapperViewType(prop("datalist", nom = "cd_nom")))
-        // type_util == taxonomy
-        assertEquals(ViewType.TAXON, mapperViewType(prop("text", typeUtil = "taxonomy")))
-        // api allnamebylist/<id>
-        assertEquals(
-            ViewType.TAXON,
-            mapperViewType(prop("datalist", apiUrl = "taxref/allnamebylist/100")),
-        )
+        assertEquals(ViewType.TAXON, mapperViewType(prop("datalist", typeUtil = "taxonomy")))
+        assertEquals(ViewType.TAXON, mapperViewType(prop("datalist", apiUrl = "taxref/allnamebylist/100")))
+        // Le web rend un autre widget tel quel, même nommé cd_nom ou de type_util taxonomy.
+        assertEquals(ViewType.TEXT, mapperViewType(prop("text", typeUtil = "taxonomy")))
+        assertEquals(ViewType.SELECT, mapperViewType(prop("datalist", nom = "cd_nom")))
     }
 
     @Test
@@ -116,12 +114,48 @@ class WidgetMappingTest {
     }
 
     @Test
-    fun html_ignore() {
-        assertNull(mapperViewType(prop("html")))
+    fun html_affiche_sans_saisie_comme_sur_le_web() {
+        assertEquals(ViewType.HTML, mapperViewType(prop("html")))
     }
 
     @Test
-    fun widget_inconnu_degrade_en_text() {
-        assertEquals(ViewType.TEXT, mapperViewType(prop("widget_exotique_inconnu")))
+    fun widget_inconnu_ecarte() {
+        // Le formulaire web n'affiche rien pour un widget qu'il ne connaît pas.
+        assertNull(mapperViewType(prop("widget_exotique_inconnu")))
+    }
+
+    @Test
+    fun ordre_des_champs_du_formulaire_web() {
+        // L'ordre du schéma, `medias` puis `types_site` renvoyés à la fin, puis ceux de
+        // display_properties en tête, dans leur ordre ; les autres gardent leur place.
+        assertEquals(
+            listOf("visit_date_min", "observers", "num_passage", "comments", "id_dataset", "medias", "types_site"),
+            ordreDesChamps(
+                listOf("num_passage", "types_site", "medias", "comments", "observers", "visit_date_min", "id_dataset"),
+                listOf("visit_date_min", "observers", "absent"),
+            ),
+        )
+        // Un média listé dans display_properties remonte avec eux.
+        assertEquals(listOf("medias", "a", "b"), ordreDesChamps(listOf("a", "medias", "b"), listOf("medias")))
+    }
+
+    @Test
+    fun formulaire_sans_champs_masques_ni_widgets_inconnus() {
+        val schema = MonitoringSchemaObjet(
+            type = "visit", label = "Visite", labelList = null, nameField = null, parentType = "site", childrenTypes = emptyList(),
+            properties = linkedMapOf(
+                "medias" to prop("medias", nom = "medias"),
+                "id_base_visit" to prop("number", nom = "id_base_visit").copy(hiddenBool = true),
+                "carte" to prop("geometry", nom = "carte"),
+                "observers_txt" to prop("observers-text", nom = "observers_txt"),
+                "nb_observations" to prop("number", nom = "nb_observations"),
+                "comments" to prop("text", nom = "comments"),
+            ),
+            displayProperties = listOf("comments"),
+        )
+        val construction = construireFormulaire(schema)
+        // Un champ redéfini visible par le protocole (observers_txt, nb_observations) est proposé.
+        assertEquals(listOf("comments", "observers_txt", "nb_observations", "medias"), construction.fields.map { it.code })
+        assertEquals(listOf("carte" to "geometry"), construction.ignores)
     }
 }

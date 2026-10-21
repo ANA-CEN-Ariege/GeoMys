@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ariegenature.geomys.model.Taxon
 import fr.ariegenature.geomys.occtax.EspeceReleve
+import fr.ariegenature.geomys.occtax.RequisEspece
 import fr.ariegenature.geomys.ui.composants.BandeauNavigation
 import fr.ariegenature.geomys.ui.composants.BoutonContour
 import fr.ariegenature.geomys.ui.composants.BoutonIos
@@ -82,6 +83,7 @@ import fr.ariegenature.geomys.ui.composants.Interrupteur
 import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.afficher
+import fr.ariegenature.geomys.ui.composants.barreChampObligatoire
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.composants.rememberDictee
 import fr.ariegenature.geomys.ui.ressources.Res
@@ -160,6 +162,7 @@ fun SaisieReleveScreen(
                         },
                         ligne = ligne,
                         synchroEnCours = vm.synchroEnCours,
+                        nomValide = vm.champ.nomValide,
                         dictee = dictee,
                         onMicro = { dictee.basculer(vm.vocabulaire()) },
                         modifier = Modifier.padding(horizontal = 16.dp),
@@ -169,8 +172,9 @@ fun SaisieReleveScreen(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         // La DERNIÈRE espèce saisie en tête de liste.
+                        val requis = vm.requis()
                         for (index in especes.indices.reversed()) {
-                            LigneEspece(especes[index], vm.nomScientifiqueSous(especes[index]), index, vm)
+                            LigneEspece(especes[index], vm.nomScientifiqueSous(especes[index]), index, vm, requis)
                         }
                     }
                 }
@@ -207,13 +211,15 @@ fun SaisieReleveScreen(
                         onChoisir = vm::choisirSuggestion,
                         ligne = ligne,
                         synchroEnCours = vm.synchroEnCours,
+                        nomValide = vm.champ.nomValide,
                         dictee = dictee,
                         onMicro = { dictee.basculer(emptyList()) },
                     )
                     Column(Modifier.padding(top = 16.dp)) {
                         // La DERNIÈRE espèce saisie en tête de liste.
+                        val requis = vm.requis()
                         for (index in especes.indices.reversed()) {
-                            LigneEspece(especes[index], vm.nomScientifiqueSous(especes[index]), index, vm)
+                            LigneEspece(especes[index], vm.nomScientifiqueSous(especes[index]), index, vm, requis)
                         }
                     }
                 }
@@ -230,7 +236,7 @@ fun SaisieReleveScreen(
                 )
             }
         }
-        DialogueDetailsReleve(vm.details, vm::fermerDetails, vm::validerDetails)
+        EcranDetailsReleve(vm.details, vm.typeSaisieLabel, onAccueil, vm::fermerDetails, vm::validerDetails)
     }
     // Un échec de l'enregistrement au fil de l'eau est signalé par la carte, au retour (comme sous
     // Android, où seuls TraceFragment et SaisieRapideFragment observent echecEcritureBrouillon).
@@ -306,25 +312,36 @@ internal fun BoutonDetailsIos(onClick: () -> Unit) {
  *  dénombrement, « i » la caractérisation, et la corbeille.
  *  - Android : item_pending_obs (icône teintée du texte, compteur dans un disque blanc de 24 dp,
  *    « i » blanc de 28 dp, corbeille rouge de 24 dp, zones de 36 dp) ;
- *  - iOS : LigneEspeceView (icône teintée du groupe, pastilles blanches de 28 pt, corbeille SF). */
+ *  - iOS : LigneEspeceView (icône teintée du groupe, pastilles blanches de 28 pt, corbeille SF).
+ *  Un champ additionnel obligatoire vide ([requis]) : la barre rouge sur la ligne, et le « i » ou le
+ *  « × N » qui y mène en rouge (21 octobre). */
 @Composable
-private fun LigneEspece(espece: EspeceReleve, sci: String?, index: Int, vm: SaisieReleveViewModel) {
+private fun LigneEspece(espece: EspeceReleve, sci: String?, index: Int, vm: SaisieReleveViewModel, requis: RequisEspece) {
+    val caracterisation = requis.caracterisationIncomplete(espece)
+    val denombrement = requis.denombrementIncomplet(espece)
     if (estIos) {
-        Row(Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.barreChampObligatoire(caracterisation || denombrement).padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) { IconeGroupe(espece.taxon, 18, espece.taxon.couleur) }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(espece.espece, fontSize = 15.sp, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (sci != null) Text(sci, fontSize = 13.sp, fontStyle = FontStyle.Italic, color = CouleursGeoMys.blanc70, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            PastilleIos("× ${espece.total}", "Dénombrement") { vm.ouvrirDenombrement(index) }
-            PastilleIos("i", "Caractérisation") { vm.ouvrirCaracterisation(index) }
+            PastilleIos("× ${espece.total}", "Dénombrement", alerte = denombrement) { vm.ouvrirDenombrement(index) }
+            PastilleIos("i", "Caractérisation", alerte = caracterisation) { vm.ouvrirCaracterisation(index) }
             BoutonIos({ vm.supprimer(index) }, Modifier.size(36.dp), opaciteAppui = 0.6f) {
                 SymboleSf("trash", 18f, listOf(CouleursGeoMys.rougePastille), description = "Supprimer")
             }
         }
     } else {
         val texte = MaterialTheme.colorScheme.onSurface
-        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.fillMaxWidth().barreChampObligatoire(caracterisation || denombrement).padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Image(
                 painterResource(espece.taxon.icone),
                 contentDescription = null,
@@ -337,16 +354,17 @@ private fun LigneEspece(espece: EspeceReleve, sci: String?, index: Int, vm: Sais
                     Text(sci, fontSize = 13.sp, fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            CompteurAndroid("× ${espece.total}") { vm.ouvrirDenombrement(index) }
-            BoutonLigneAndroid(Res.drawable.ic_info, "Détails", Color.White, marge = 4) { vm.ouvrirCaracterisation(index) }
+            CompteurAndroid("× ${espece.total}", alerte = denombrement) { vm.ouvrirDenombrement(index) }
+            BoutonLigneAndroid(Res.drawable.ic_info, "Détails", if (caracterisation) CouleursGeoMys.holoRougeFonce else Color.White, marge = 4) { vm.ouvrirCaracterisation(index) }
             BoutonLigneAndroid(Res.drawable.ic_delete, "Supprimer", CouleursGeoMys.holoRougeFonce, marge = 6) { vm.supprimer(index) }
         }
     }
 }
 
-/** Compteur « × N » d'Android : texte gras de 11 sp dans un disque blanc de 24 dp (gris appuyé). */
+/** Compteur « × N » d'Android : texte gras de 11 sp dans un disque blanc de 24 dp (gris appuyé) ;
+ *  rouge, texte blanc, quand il mène à un champ obligatoire vide ([alerte]). */
 @Composable
-private fun CompteurAndroid(texte: String, onClick: () -> Unit) {
+private fun CompteurAndroid(texte: String, alerte: Boolean = false, onClick: () -> Unit) {
     val interactions = remember { MutableInteractionSource() }
     val appuye by interactions.collectIsPressedAsState()
     Box(
@@ -356,8 +374,13 @@ private fun CompteurAndroid(texte: String, onClick: () -> Unit) {
             .clickable(interactions, indication = null, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.size(24.dp).background(if (appuye) Color(0xFFE0E0E0) else Color.White, CircleShape), contentAlignment = Alignment.Center) {
-            Text(texte, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF212121), maxLines = 1)
+        val fond = when {
+            alerte -> CouleursGeoMys.holoRougeFonce
+            appuye -> Color(0xFFE0E0E0)
+            else -> Color.White
+        }
+        Box(Modifier.size(24.dp).background(fond, CircleShape), contentAlignment = Alignment.Center) {
+            Text(texte, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (alerte) Color.White else Color(0xFF212121), maxLines = 1)
         }
     }
 }
@@ -377,12 +400,13 @@ private fun BoutonLigneAndroid(icone: DrawableResource, description: String, tei
     }
 }
 
-/** BoutonRondInline de GeoMys-IOS : disque blanc de 28 pt, texte gras de 12 pt gris très foncé. */
+/** BoutonRondInline de GeoMys-IOS : disque blanc de 28 pt, texte gras de 12 pt gris très foncé ;
+ *  rouge, texte blanc, quand il mène à un champ obligatoire vide ([alerte]). */
 @Composable
-private fun PastilleIos(texte: String, description: String, onClick: () -> Unit) {
+private fun PastilleIos(texte: String, description: String, alerte: Boolean = false, onClick: () -> Unit) {
     BoutonIos(onClick, Modifier.semantics { contentDescription = description }, opaciteAppui = 0.6f) {
-        Box(Modifier.size(28.dp).background(Color.White, CircleShape), contentAlignment = Alignment.Center) {
-            Text(texte, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF212121), maxLines = 1)
+        Box(Modifier.size(28.dp).background(if (alerte) CouleursGeoMys.rougePastille else Color.White, CircleShape), contentAlignment = Alignment.Center) {
+            Text(texte, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (alerte) Color.White else Color(0xFF212121), maxLines = 1)
         }
     }
 }

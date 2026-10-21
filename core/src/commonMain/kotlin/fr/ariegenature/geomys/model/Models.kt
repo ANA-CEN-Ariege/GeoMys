@@ -38,9 +38,18 @@ data class PointTrace(
 /** Option d'un champ additionnel de type `nomenclature` : identifiant de nomenclature et
  *  libellé affiché. Classe dédiée, et non une `Pair`, comme dans GeoMys-Android depuis d72b8da :
  *  le cache des champs additionnels survit aux mises à jour, ses noms JSON (`code`, `label`)
- *  restent fixes. */
+ *  restent fixes. [labelDefault] et [cd] manquent à un cache d'avant la vérification des champs
+ *  du 20 octobre. */
 @Serializable
-data class OptionNomenclature(val code: String, val label: String)
+data class OptionNomenclature(
+    val code: String,
+    val label: String,
+    val labelDefault: String? = null,
+    val cd: String? = null,
+) {
+    /** La valeur enregistrée, celle du web : le `label_default` de la nomenclature. */
+    val valeur: String get() = labelDefault ?: label
+}
 
 /** Un dénombrement (counting) GeoNature : 1 occurrence peut en avoir plusieurs.
  *  Chacun a sa propre tranche d'effectif + caractéristiques (sexe, stade…) + médias attachés. */
@@ -146,8 +155,14 @@ data class Observation(
     /** Date+heure de DÉBUT du relevé (epoch millis), saisie dans « Détails ». null = on utilise les
      *  dates de saisie des obs (→ `date_min`/`hour_min`). */
     var dateDebutReleve: Long? = null,
-    /** Date+heure de FIN du relevé (epoch millis). null = même que le début (→ `date_max`/`hour_max`). */
+    /** Date+heure de FIN du relevé (epoch millis). null = même que le début (→ `date_max`). */
     var dateFinReleve: Long? = null,
+    /** Heures du relevé (`hour_min` / `hour_max`, « hh:mm ») saisies dans « Détails » : facultatives
+     *  comme sur le web, null tant qu'elles ne sont pas saisies. */
+    var heureDebutReleve: String? = null,
+    var heureFinReleve: String? = null,
+    /** Observateurs du relevé en texte libre (`observers_txt`), quand le serveur le demande. */
+    var observateursReleveTxt: String? = null,
     /** Champs relevé supplémentaires pilotés par `form_fields` du serveur (altitude_min/max,
      *  depth_min/max, place_name, precision, grp_method, geo_object_nature). Clé = clé `form_fields`,
      *  valeur = saisie en texte (entier pour les numériques, code mnémonique pour geo_object_nature).

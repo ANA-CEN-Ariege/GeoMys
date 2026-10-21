@@ -17,7 +17,8 @@
  */
 
 // Porté de GeoMys-Android @ cdd5196 (app/src/test/java/fr/ariegenature/geomys/ExtraireDefautTest.kt) :
-// org.json remplacé par son portage, JUnit par kotlin.test.
+// org.json remplacé par son portage, JUnit par kotlin.test ; réécrit à la vérification des champs du
+// 20 octobre, la règle étant désormais celle du web.
 
 package fr.ariegenature.geomys.network
 
@@ -26,35 +27,30 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
-/** Extraction de la valeur par défaut d'un champ additionnel depuis les formes variées
- *  renvoyées par GeoNature (clé directe, additional_attributes, field_values default==true). */
+/** La valeur par défaut d'un champ additionnel, celle du web (getadditionalFields) : `default_value`,
+ *  que remplace `additional_attributes.value`. */
 class ExtraireDefautTest {
 
-    private fun defaut(json: String): String? =
-        AdditionalFieldsApi.extraireDefautToutesClés(JSONObject(json), "champ", "TEXT")
+    private fun defaut(json: String): String? = AdditionalFieldsApi.defautDuChamp(JSONObject(json))
 
     @Test
-    fun cle_directe_string_et_number() {
+    fun default_value_texte_ou_nombre() {
         assertEquals("RAS", defaut("""{"default_value":"RAS"}"""))
-        assertEquals("12", defaut("""{"value":12}"""))
-        assertEquals("3.5", defaut("""{"default":3.5}"""))
+        assertEquals("12", defaut("""{"default_value":12}"""))
     }
 
     @Test
-    fun variantes_de_cles() {
-        assertEquals("x", defaut("""{"value_default":"x"}"""))
-        assertEquals("y", defaut("""{"defaultValue":"y"}"""))
+    fun additional_attributes_value_l_emporte() {
+        assertEquals("z", defaut("""{"default_value":"a","additional_attributes":{"value":"z"}}"""))
+        assertEquals("a", defaut("""{"default_value":"a","additional_attributes":{"min":0}}"""))
     }
 
     @Test
-    fun dans_additional_attributes() {
-        assertEquals("z", defaut("""{"additional_attributes":{"default_value":"z"}}"""))
-    }
-
-    @Test
-    fun field_values_avec_default_true() {
-        val json = """{"field_values":[{"value":"a","label":"A"},{"value":"b","default":true}]}"""
-        assertEquals("b", defaut(json))
+    fun les_autres_cles_ne_sont_pas_des_defauts() {
+        // GeoMys-Android les lisait ; le web non.
+        assertNull(defaut("""{"value":12}"""))
+        assertNull(defaut("""{"default":3.5}"""))
+        assertNull(defaut("""{"field_values":[{"value":"a","label":"A"},{"value":"b","default":true}]}"""))
     }
 
     @Test
@@ -64,8 +60,9 @@ class ExtraireDefautTest {
     }
 
     @Test
-    fun tableau_prend_le_premier() {
-        assertEquals("premier", defaut("""{"default_value":["premier","second"]}"""))
+    fun tableau_garde_toutes_ses_valeurs() {
+        // Le défaut d'un choix multiple : le tableau entier, que l'état relit en cases cochées.
+        assertEquals("""["premier","second"]""", defaut("""{"default_value":["premier","second"]}"""))
     }
 
     @Test

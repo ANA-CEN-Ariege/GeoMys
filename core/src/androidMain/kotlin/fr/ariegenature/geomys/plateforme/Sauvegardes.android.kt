@@ -23,3 +23,7 @@ import okio.Path
 actual fun exclureDesSauvegardes(dossier: Path) {
     // Règles de sauvegarde de l'appli (backup_rules.xml, data_extraction_rules.xml).
 }
+
+actual fun rendreAuxSauvegardes(dossier: Path) {
+    // Idem : les règles de sauvegarde.
+}

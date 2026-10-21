@@ -50,7 +50,10 @@ actual fun ChampJour(millis: Long?, onChoix: (Long) -> Unit, modifier: Modifier,
             .fillMaxWidth()
             .clickable {
                 val (annee, mois, jour) = DetailsReleveFormulaire.jourDe(valeur ?: maintenantMillis())
-                DatePickerDialog(contexte, { _, a, m, j -> rappel(DetailsStation.jour(a, m + 1, j)) }, annee, mois - 1, jour).show()
+                DatePickerDialog(contexte, { _, a, m, j -> rappel(DetailsStation.jour(a, m + 1, j)) }, annee, mois - 1, jour).apply {
+                    datePicker.minDate = PREMIER_JOUR_WEB
+                    datePicker.maxDate = maintenantMillis()
+                }.show()
             }
             .padding(horizontal = 4.dp, vertical = 10.dp),
     )

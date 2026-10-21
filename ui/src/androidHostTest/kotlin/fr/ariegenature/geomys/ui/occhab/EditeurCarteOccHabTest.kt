@@ -38,12 +38,14 @@ import fr.ariegenature.geomys.occhab.ModeGeometrie
 import fr.ariegenature.geomys.occhab.TopologiePolygone
 import fr.ariegenature.geomys.outils.ajouterOccHabEssai
 import fr.ariegenature.geomys.ui.ServicesEssai
+import fr.ariegenature.geomys.ui.laisserFinirLeTravailDeFond
 import fr.ariegenature.geomys.util.GeoJsonCoords
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
 import kotlinx.coroutines.CoroutineScope
@@ -87,6 +89,7 @@ class EditeurCarteOccHabTest {
     fun nettoyer() {
         portee.cancel()
         magasin.clear()
+        laisserFinirLeTravailDeFond()
         Dispatchers.resetMain()
         essai.nettoyer()
     }
@@ -391,6 +394,21 @@ class EditeurCarteOccHabTest {
         carte.modifierEnvoyee((carte.dialogue as DialogueCarteOccHab.ModifierEnvoyee).station)
         attendre("la station envoyée en édition") { carte.geometrieChargee }
         assertTrue(carte.enCreation, "acceptée, la station s'ouvre en édition")
+    }
+
+    @Test
+    fun une_station_du_serveur_importee_garde_ses_dates() {
+        // Comme le web (décision de l'utilisateur du 21 octobre) ; GeoMys-Android lui donnait les
+        // dates de la session, qui remplaçaient les siennes à l'envoi.
+        val carte = carteEnConsultation()
+        val session = vm { SessionOccHabViewModel() }.session
+        val prairie = carte.stationsViolettes.first { it.idStationServeur == 501 }
+        assertNotEquals(prairie.dateMin, session.defautsSession.dateMin, "l'essai n'aurait rien prouvé")
+        carte.toucherStationServeur(prairie.id)
+        attendre("la proposition d'import") { carte.dialogue is DialogueCarteOccHab.Import }
+        carte.importer((carte.dialogue as DialogueCarteOccHab.Import).station)
+        attendre("la prairie sélectionnée") { carte.geometrieChargee }
+        assertEquals(prairie.dateMin to prairie.dateMax, session.station.dateMin to session.station.dateMax)
     }
 
     // ─── Trous (station du serveur importée) ───

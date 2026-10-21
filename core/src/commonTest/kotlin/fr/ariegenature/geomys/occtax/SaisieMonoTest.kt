@@ -100,6 +100,9 @@ class SaisieMonoTest {
 
     @Test
     fun chaque_plus_enregistre_une_copie_du_modele_relevee_a_part() = runTest {
+        // Le jeu par défaut des Paramètres, choisi parmi les jeux proposés.
+        config.datasetsCacheJson = """[{"id":12,"nom":"JDD","moduleCodes":["OCCTAX"]}]"""
+        config.datasetsCreablesOcctax = setOf(12)
         config.idDataset = "12"
         val session = session()
         val mono = SaisieMono(session, config, Taxon.MAMMIFERE)

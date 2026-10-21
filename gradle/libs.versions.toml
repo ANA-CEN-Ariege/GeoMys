@@ -10,6 +10,8 @@ androidx-core = "1.18.0"
 # Lecture des cartes MBTiles (des bases SQLite) : le SQLite du système, sous Android comme sous iOS.
 androidx-sqlite = "2.7.1"
 atomicfu = "0.33.0"
+# java.time et les autres API Java récentes sous Android 7 (minSdk 24) : kotlinx-datetime s'en sert.
+desugar-jdk-libs = "2.1.5"
 compose-multiplatform = "1.12.2"
 # material3 de Compose Multiplatform suit sa propre numérotation (version associée à CMP 1.12).
 compose-material3 = "1.12.0-alpha03"
@@ -33,6 +35,7 @@ androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx
 androidx-sqlite = { module = "androidx.sqlite:sqlite", version.ref = "androidx-sqlite" }
 androidx-sqlite-framework = { module = "androidx.sqlite:sqlite-framework", version.ref = "androidx-sqlite" }
 atomicfu = { module = "org.jetbrains.kotlinx:atomicfu", version.ref = "atomicfu" }
+desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar-jdk-libs" }
 compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "compose-multiplatform" }
 compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "compose-multiplatform" }
 compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "compose-material3" }

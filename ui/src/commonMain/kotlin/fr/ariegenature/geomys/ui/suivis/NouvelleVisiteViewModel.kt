@@ -18,8 +18,10 @@
 
 // Porté de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/ui/NouvelleVisiteFragment.kt) :
 // l'ouverture (contexte restitué d'une saisie rouverte), l'état du bouton d'enregistrement, l'enregistrement
-// dans la file d'envoi, la garde de sortie, « Terminer » et la complétion de la visite parente. Les règles
-// et les textes sont dans monitoring/NouvelleVisite ; l'écran traduit les événements en navigation.
+// dans la file d'envoi, la garde de sortie et la complétion de la visite parente. Les boutons et
+// l'enchaînement des saisies sont ceux du web (monitoring-form de gn_module_monitoring, 20 octobre 2026).
+// Les règles et les textes sont dans monitoring/NouvelleVisite ; l'écran traduit les événements en
+// navigation.
 
 package fr.ariegenature.geomys.ui.suivis
 
@@ -29,7 +31,10 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import fr.ariegenature.geomys.ServicesGeoNature
+import fr.ariegenature.geomys.model.MediaSuivi
 import fr.ariegenature.geomys.model.SaisieEnAttente
+import fr.ariegenature.geomys.monitoring.ActionValider
+import fr.ariegenature.geomys.monitoring.DroitsSuivis
 import fr.ariegenature.geomys.monitoring.FilSegment
 import fr.ariegenature.geomys.monitoring.FormulairePrepare
 import fr.ariegenature.geomys.monitoring.NouvelleVisite
@@ -63,9 +68,6 @@ sealed interface DialogueNouvelleVisite {
     /** Retour sur un formulaire modifié : enregistrer ([enregistrable]), quitter, ou continuer. */
     data class GardeSortie(val titre: String, val message: String, val enregistrable: Boolean, val continuer: String) : DialogueNouvelleVisite
 
-    /** « Terminer » sur une saisie qu'on ne peut pas enregistrer : la perdre, ou continuer. */
-    data class TerminerBloque(val titre: String, val message: String, val continuer: String) : DialogueNouvelleVisite
-
     /** Fin de visite : la visite parente enregistrée « à compléter ». */
     data class Completer(val parent: SaisieEnAttente) : DialogueNouvelleVisite
 
@@ -79,6 +81,9 @@ sealed interface EvenementNouvelleVisite {
 
     /** Retour à l'écran précédent. */
     data object Retour : EvenementNouvelleVisite
+
+    /** Un niveau du fil d'Ariane, ou la maison. */
+    data class Niveau(val cible: List<FilSegment>) : EvenementNouvelleVisite
 
     /** Un autre formulaire remplace celui-ci : saisie enfant, ou complétion de la visite parente. */
     data class Remplacer(val ouverture: OuvertureNouvelleVisite) : EvenementNouvelleVisite
@@ -127,10 +132,23 @@ class NouvelleVisiteViewModel(
     var impossible by mutableStateOf(false)
         private set
 
-    /** Chaîne de saisies : le bouton « Terminer » est montré. */
-    var modeChaine by mutableStateOf(false)
+    /** L'interrupteur « Enchaîner les saisies » du web : proposé sur un nouvel objet d'un type
+     *  `chained`, éteint à l'ouverture, gardé d'une saisie enchaînée à la suivante. */
+    var enchainementPropose by mutableStateOf(false)
         private set
-    var libelleBouton by mutableStateOf(NouvelleVisite.libelleBouton(edition, chaine = false))
+    var enchainer by mutableStateOf(false)
+
+    /** « Valider » ou « Valider et enchaîner les saisies ». */
+    val libelleBouton: String get() = NouvelleVisite.libelleBouton(edition, enchainer)
+
+    /** « Valider et saisir des Observations » : l'enfant unique du type, sur un nouvel objet et
+     *  hors enchaînement ; null sans ce bouton. */
+    val libelleSaisirEnfants: String?
+        get() = formulaire?.takeIf { !edition && !enchainer && it.enfantUnique != null }
+            ?.let { NouvelleVisite.libelleSaisirEnfants(it.libelleEnfants ?: it.enfantUnique.orEmpty()) }
+
+    /** Le droit de créer l'enfant unique ; sinon son bouton est grisé, comme le « + » du web. */
+    var saisirEnfantsPermis by mutableStateOf(true)
         private set
 
     private val _evenements = Channel<EvenementNouvelleVisite>(Channel.BUFFERED)
@@ -140,7 +158,7 @@ class NouvelleVisiteViewModel(
     private var accords = NouvelleVisite.Accords(null, null)
     private var contexteDeBase = ""
     private var valeursPreremplies: Map<String, Any?>? = null
-    private var mediaPaths: List<String> = emptyList()
+    private var medias: List<MediaSuivi> = emptyList()
     private var messageEphemere = ouverture.messageEphemere.takeIf { it.isNotBlank() }
 
     /** Les valeurs juste après la préparation : seule une saisie de l'utilisateur les change. */
@@ -171,7 +189,7 @@ class NouvelleVisiteViewModel(
             saisie.parentIdServeur?.let { parentId = it }
             saisie.parentUuidLocal?.let { parentUuidLocal = it }
             valeursPreremplies = NouvelleVisite.valeursPourEdition(saisie)
-            mediaPaths = saisie.mediasLocaux()
+            medias = saisie.mediasDetailles()
         }
         titre = NouvelleVisite.titreProvisoire(
             edition,
@@ -179,14 +197,12 @@ class NouvelleVisiteViewModel(
         )
         contexteDeBase = NouvelleVisite.contexte(ouverture.titreSite, moduleCode)
         contexte = contexteDeBase
-        modeChaine = NouvelleVisite.estModeChaine(parentObjectType, edition)
-        libelleBouton = NouvelleVisite.libelleBouton(edition, modeChaine)
     }
 
     private suspend fun chargerFormulaire() {
         if (moduleCode.isEmpty()) return
         val preparation = NouvelleVisite.preparer(
-            services.sourcesFormulaire(), moduleCode, childObjectType, parentObjectType, valeursPreremplies, mediaPaths,
+            services.sourcesFormulaire(), moduleCode, childObjectType, parentObjectType, valeursPreremplies, medias,
         )
         when (preparation) {
             // Pas de faux formulaire (le mode démo d'Android) : le contexte dit pourquoi, sans rien à enregistrer.
@@ -199,6 +215,8 @@ class NouvelleVisiteViewModel(
             is PreparationFormulaire.Prete -> {
                 val f = preparation.formulaire
                 formulaire = f
+                enchainementPropose = !edition && f.schemaObjet.enchainable
+                saisirEnfantsPermis = f.enfantUnique?.let { services.monitoringModules.peutCreer(services.config, moduleCode, it) } ?: true
                 accords = NouvelleVisite.Accords(f.labelType, f.genre)
                 titre = if (edition) NouvelleVisite.titreEdition(f.labelType, f.genre) else NouvelleVisite.titreNouvelle(f.labelType, f.genre)
                 val nouvel = FormulaireEtat(f.champs, services.taxRef, viewModelScope, f.champsDirtyInitiaux) { services.synchro.actif }
@@ -206,7 +224,7 @@ class NouvelleVisiteViewModel(
                 nouvel.setReglesChange(f.schemaObjet.changeRules)
                 // Posées dans les champs, les valeurs reprises ne servent plus (formulaire suivant d'une chaîne).
                 valeursPreremplies = null
-                mediaPaths = emptyList()
+                medias = emptyList()
                 // Référence « formulaire vierge », après les règles et les pré-remplissages.
                 valeursApresRendu = nouvel.lireValeurs()
                 enCoursEnvoi = false
@@ -225,17 +243,23 @@ class NouvelleVisiteViewModel(
     /** Seule une valeur INVALIDE (hors bornes, espèce non reconnue) bloque l'enregistrement d'une
      *  visite : ses obligatoires vides la font partir « à compléter » (heure et conditions de fin ne
      *  sont connues qu'en partant). Une saisie d'espèce, elle, doit être complète. Les barres rouges
-     *  s'arment en complétion, et dès que le bouton reste grisé : il faut voir CE qui bloque. */
+     *  marquent, comme le web, chaque obligatoire vide et chaque valeur refusée. */
     private fun majBouton(e: FormulaireEtat) {
         if (!enCoursEnvoi) {
-            val sansInvalide = e.champsInvalides().isEmpty()
+            // Une propriété masquée requise sans valeur : le web ne permet jamais l'enregistrement.
+            val sansInvalide = e.champsInvalides().isEmpty() && formulaire?.proprietesMasqueesManquantes.isNullOrEmpty()
             boutonActif = if (incompletAutorise) sansInvalide else sansInvalide && e.champsObligatoiresManquants().isEmpty()
         }
-        barres = e.barresRouges(ouverture.modeCompletion || !boutonActif)
+        barres = e.barresRouges()
     }
 
+    /** Un champ requis masqué compte, comme sur le web, et il est dit masqué : on ne le voit pas. */
     private fun manquants(e: FormulaireEtat, f: FormulairePrepare): List<String> =
-        if (incompletAutorise) NouvelleVisite.libellesManquants(e.champsObligatoiresManquants(), f.champs) else emptyList()
+        if (incompletAutorise) {
+            NouvelleVisite.libellesManquants(e.champsObligatoiresManquants(), f.champs, f.champs.map { it.code }.filterNot(e::estVisible).toSet())
+        } else {
+            emptyList()
+        }
 
     /** Le formulaire a-t-il été touché depuis sa préparation ? Le recalcul différé de la frappe est
      *  appliqué d'abord : la décision se prend sur l'état à jour. */
@@ -247,20 +271,42 @@ class NouvelleVisiteViewModel(
 
     fun fermerDialogue() {
         dialogue = null
+        // Après l'action du bouton : « Continuer » renonce à la sortie demandée par le fil.
+        destination = null
     }
 
     fun ajouterMedias(code: String, uris: List<String>) {
         etat?.ajouterMedias(code, uris)
     }
 
+    /** Le niveau du fil d'Ariane (ou la maison) où aller une fois la garde de sortie passée ; null :
+     *  le retour. */
+    private var destination: List<FilSegment>? = null
+
     /** Retour système : formulaire intact, on sort (en proposant la visite parente à compléter) ;
      *  modifié, on demande. */
     fun retour() {
+        destination = null
         if (!modifie() || enCoursEnvoi) {
             viewModelScope.launch { terminerOuCompleterLaVisite() }
             return
         }
-        dialogue = if (boutonActif) {
+        dialogue = gardeSortie()
+    }
+
+    /** Fil d'Ariane ou maison : formulaire intact, on va au niveau [cible] ; modifié, la même garde
+     *  que le retour. Ils quittaient le formulaire sans rien demander. */
+    fun allerVers(cible: List<FilSegment>) {
+        if (!modifie() || enCoursEnvoi) {
+            _evenements.trySend(EvenementNouvelleVisite.Niveau(cible))
+            return
+        }
+        destination = cible
+        dialogue = gardeSortie()
+    }
+
+    private fun gardeSortie(): DialogueNouvelleVisite.GardeSortie =
+        if (boutonActif) {
             DialogueNouvelleVisite.GardeSortie(
                 accords.titreNonEnregistre,
                 accords.questionEnregistrer(etat?.let { e -> formulaire?.let { manquants(e, it) } }.orEmpty()),
@@ -270,23 +316,10 @@ class NouvelleVisiteViewModel(
         } else {
             DialogueNouvelleVisite.GardeSortie(accords.titreNonEnregistre, accords.messageIncomplet, enregistrable = false, continuer = accords.boutonContinuer)
         }
-    }
 
-    /** « Quitter sans enregistrer ». */
+    /** « Quitter sans enregistrer » : le retour, ou le niveau du fil choisi. */
     fun quitter() {
-        _evenements.trySend(EvenementNouvelleVisite.Retour)
-    }
-
-    /** « Terminer » (chaîne de saisies) : la saisie en cours n'est pas perdue en silence.
-     *  - intacte : on sort ;
-     *  - modifiée et enregistrable : on l'enregistre, puis on sort ;
-     *  - modifiée mais bloquée : on demande avant de la perdre. */
-    fun terminer() {
-        when {
-            !modifie() -> viewModelScope.launch { terminerOuCompleterLaVisite() }
-            boutonActif -> enregistrer(puisTerminer = true)
-            else -> dialogue = DialogueNouvelleVisite.TerminerBloque(accords.titreNonEnregistre, accords.messageQuitterIncomplet, accords.boutonContinuer)
-        }
+        _evenements.trySend(destination?.let { EvenementNouvelleVisite.Niveau(it) } ?: EvenementNouvelleVisite.Retour)
     }
 
     /** Sortie de la chaîne : si la VISITE PARENTE a été enregistrée « à compléter », son formulaire
@@ -308,26 +341,40 @@ class NouvelleVisiteViewModel(
     }
 
     /** Enregistre la saisie dans la file d'envoi (l'envoi au serveur se fait à la demande, depuis
-     *  « Mes visites »). [puisTerminer] : sortie par « Terminer » ou par la garde de sortie. */
-    fun enregistrer(puisTerminer: Boolean = false) {
+     *  « Mes visites »). [action] : le bouton du web touché ; [puisTerminer] : sortie par la garde
+     *  de sortie. */
+    fun enregistrer(puisTerminer: Boolean = false, action: ActionValider = ActionValider.VALIDER) {
         if (enCoursEnvoi) return
         val e = etat ?: return
         val f = formulaire ?: return
         // Le recalcul différé peut griser le bouton (champ requis vidé dans les 220 ms) : on s'arrête.
         e.flushChangementsEnAttente()
         if (!boutonActif) return
+        // Sans le droit de créer, le message du web (notAllowedMessage), comme le « + » grisé.
+        if (!edition && !services.monitoringModules.peutCreer(services.config, moduleCode, f.schemaObjet.type)) {
+            _evenements.trySend(EvenementNouvelleVisite.Toast(DroitsSuivis.SANS_PERMISSION_EDITION, longue = true))
+            return
+        }
+        if (action == ActionValider.SAISIR_ENFANTS && !saisirEnfantsPermis) {
+            _evenements.trySend(EvenementNouvelleVisite.Toast(DroitsSuivis.SANS_PERMISSION, longue = false))
+            return
+        }
         enCoursEnvoi = true
         boutonActif = false
-        // Pour l'envoi : un champ masqué par une règle garde sa valeur à l'écran, mais ne part pas.
-        val enregistrement = ValeursFormulaire.preparerEnregistrement(f.champs, e.lireValeursPourEnvoi())
+        // Pour l'envoi : un champ masqué par une règle garde sa valeur à l'écran, mais ne part pas ;
+        // les propriétés masquées du schéma partent avec leurs valeurs fixes.
+        val enregistrement = ValeursFormulaire.preparerEnregistrement(f.champs, e.lireValeursPourEnvoi(), f.valeursFixes, e.mediasPourEnvoi())
         val manquants = manquants(e, f)
+        // « Enregistrer et quitter » vers un niveau du fil : lu avant que la fermeture du dialogue ne
+        // l'oublie.
+        val vers = destination.takeIf { puisTerminer }
         viewModelScope.launch {
             val suite = if (editUuid != null) {
                 val ok = services.outbox.mettreAJour(editUuid) { ancien -> NouvelleVisite.saisieModifiee(ancien, f, enregistrement, manquants) }
                 if (!ok) return@launch echecEcriture(e)
                 _evenements.send(EvenementNouvelleVisite.Toast(NouvelleVisite.messageModifie(manquants), longue = manquants.isNotEmpty()))
                 NouvelleVisite.suiteApresEdition(
-                    editUuid, f, ouverture.modeCompletion, puisTerminer,
+                    ouverture.modeCompletion,
                     parentObjectType.takeIf { it.isNotEmpty() }, parentId.takeIf { it > 0 },
                 )
             } else {
@@ -342,9 +389,9 @@ class NouvelleVisiteViewModel(
                 // doit pas quitter l'écran en croyant le contraire.
                 if (!services.outbox.ajouter(saisie)) return@launch echecEcriture(e)
                 _evenements.send(EvenementNouvelleVisite.Toast(accords.messageEnregistre(manquants), longue = true))
-                NouvelleVisite.suiteApresCreation(saisie, f, puisTerminer, NouvelleVisite.estModeChaine(parentObjectType, edition = false))
+                NouvelleVisite.suiteApresCreation(saisie, f, action, enchainer, puisTerminer, NouvelleVisite.valeursPourEdition(saisie))
             }
-            suivre(suite)
+            if (vers != null) _evenements.send(EvenementNouvelleVisite.Niveau(vers)) else suivre(suite)
         }
     }
 
@@ -358,7 +405,16 @@ class NouvelleVisiteViewModel(
         when (suite) {
             SuiteEnregistrement.Retour -> _evenements.send(EvenementNouvelleVisite.Retour)
             SuiteEnregistrement.TerminerOuCompleter -> terminerOuCompleterLaVisite()
-            is SuiteEnregistrement.Fiche -> _evenements.send(EvenementNouvelleVisite.Fiche(moduleCode, suite.objectType, suite.id, fil))
+            // La page du parent : son niveau du fil s'il le termine (sans empiler une seconde fiche),
+            // sinon sa fiche.
+            is SuiteEnregistrement.Fiche -> {
+                val dernier = fil.lastOrNull()
+                if (dernier != null && dernier.type == suite.objectType && dernier.id == suite.id) {
+                    _evenements.send(EvenementNouvelleVisite.Niveau(fil))
+                } else {
+                    _evenements.send(EvenementNouvelleVisite.Fiche(moduleCode, suite.objectType, suite.id, fil))
+                }
+            }
             is SuiteEnregistrement.Enchainer -> _evenements.send(
                 EvenementNouvelleVisite.Remplacer(
                     OuvertureNouvelleVisite(
@@ -372,11 +428,15 @@ class NouvelleVisiteViewModel(
                 ),
             )
             // Saisie suivante sur le même parent : tout est repréparé (défauts, datalists, utilisateur
-            // connecté), sans rien garder de la précédente. La ligne « Sur : … — Protocole : … » est
-            // reposée avec le nouveau formulaire, ses éventuels diagnostics à la suite (GeoMys-Android
-            // `5b981f3` : la purge du bandeau l'emportait). Le bouton reste grisé jusqu'au nouveau
-            // formulaire, pour qu'un second toucher n'enregistre pas deux fois la même saisie.
-            SuiteEnregistrement.Reinitialiser -> chargerFormulaire()
+            // connecté), seuls les champs `keep` repris de la précédente, comme le web (resetObjForm).
+            // La ligne « Sur : … — Protocole : … » est reposée avec le nouveau formulaire, ses
+            // éventuels diagnostics à la suite (GeoMys-Android `5b981f3` : la purge du bandeau
+            // l'emportait). Le bouton reste grisé jusqu'au nouveau formulaire, pour qu'un second
+            // toucher n'enregistre pas deux fois la même saisie.
+            is SuiteEnregistrement.Reinitialiser -> {
+                valeursPreremplies = suite.gardes.takeIf { it.isNotEmpty() }
+                chargerFormulaire()
+            }
         }
     }
 }

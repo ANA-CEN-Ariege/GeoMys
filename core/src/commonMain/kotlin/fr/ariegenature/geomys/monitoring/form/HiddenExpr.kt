@@ -32,7 +32,9 @@ import fr.ariegenature.geomys.journal.Journal
  *
  *  - champ seul / négation / parenthèses : `!value.x`, `!(value.x == 2)`
  *  - comparaisons : `==`, `===`, `!=`, `!==`, `>`, `<`, `>=`, `<=` (champ, littéral entre
- *    guillemets, nombre, true/false, null de chaque côté)
+ *    guillemets, nombre, true/false, null de chaque côté) ; pour l'ordre, la conversion du JS (un
+ *    champ vide vaut 0, un texte non numérique ne se compare à aucun nombre)
+ *  - `meta.dataset` : le nombre de jeux de données proposés ([NB_JEUX_DE_DONNEES])
  *  - combinaisons : `&&`, `||` (précédence JS : && lie plus fort)
  *  - `['a','b',null].includes(value.x)`
  *  - chemins imbriqués aplatis : `value.cd_nom.cd_nom` → valeur du champ `cd_nom` (les valeurs de
@@ -49,6 +51,10 @@ import fr.ariegenature.geomys.journal.Journal
  *  - [masquer] renvoie `true` quand le champ doit être **masqué** (sémantique `hidden`). */
 object HiddenExpr {
 
+    /** Le pseudo-champ du nombre de jeux de données proposés, que fournit l'état du formulaire :
+     *  `meta.dataset` (jeux connus du web) y est ramené. */
+    const val NB_JEUX_DE_DONNEES = "__meta_dataset_nb"
+
     private val LAMBDA = Regex("""(?s)^\s*(?:\(\s*\{[^}]*\}\s*\)|\(\s*value\s*\)|value)\s*=>\s*(.+?)\s*$""")
     private val BLOC_RETURN = Regex("""(?s)^\{\s*return\s+(.+?)\s*;?\s*\}$""")
     private val FONCTION = Regex("""(?s)^\s*function\s*\(\s*\{?\s*value\s*\}?\s*\)\s*\{\s*return\s+(.+?)\s*;?\s*\}\s*$""")
@@ -56,6 +62,8 @@ object HiddenExpr {
     private val META_NOMENCLATURE_GARDEE =
         Regex("""\(\s*meta\.nomenclatures\[\s*value\.(\w+)\s*\]\s*\|\|\s*\{\s*\}\s*\)\s*\.cd_nomenclature""")
     private val META_NOMENCLATURE = Regex("""meta\.nomenclatures\[\s*value\.(\w+)\s*\]\s*\.cd_nomenclature""")
+    private val META_DATASET_NB = Regex("""Object\.keys\(\s*meta\.dataset\s*\)\.length""")
+    private val META_DATASET = Regex("""meta\.dataset\b""")
     private val CHEMIN_IMBRIQUE = Regex("""value\.(\w+)(?:\.\w+)+""")
     private val VALUE_POINT = Regex("""value\.(\w+)""")
     private val VALUE_CROCHETS = Regex("""value\[['"](\w+)['"]\]""")
@@ -113,6 +121,10 @@ object HiddenExpr {
         // remplacements `value.X` génériques.
         corps = corps.replace(META_NOMENCLATURE_GARDEE) { "\${${it.groupValues[1]}__cd}" }
         corps = corps.replace(META_NOMENCLATURE) { "\${${it.groupValues[1]}__cd}" }
+        // `meta.dataset && Object.keys(meta.dataset).length == 1` (jeu de données masqué quand il n'y
+        // en a qu'un) : le nombre de jeux de données proposés, vrai dès qu'il y en a un.
+        corps = corps.replace(META_DATASET_NB) { "\${$NB_JEUX_DE_DONNEES}" }
+        corps = corps.replace(META_DATASET) { "\${$NB_JEUX_DE_DONNEES}" }
         // Chemins imbriqués `value.cd_nom.cd_nom` → ${cd_nom} : les valeurs du formulaire sont
         // scalaires dans l'appli (le champ taxon PORTE le cd_nom), là où le web manipule un objet.
         // Doit passer AVANT le remplacement simple.
@@ -191,13 +203,22 @@ object HiddenExpr {
                 "===", "==" -> egalite(gauche, droite)
                 "!==", "!=" -> !egalite(gauche, droite)
                 else -> {
-                    val g = gauche.valeur?.toString()?.toDoubleOrNull() ?: return null
-                    val d = droite.valeur?.toString()?.toDoubleOrNull() ?: return null
+                    val (va, vb) = gauche.valeur to droite.valeur
+                    // Deux textes non numériques : l'ordre des chaînes, comme en JS.
+                    val ordre = if (va is String && vb is String && nombreJs(va) == null && nombreJs(vb) == null) {
+                        va.compareTo(vb)
+                    } else {
+                        // Sinon la conversion numérique du JS : un champ vide vaut 0 (`null < 5` est
+                        // vrai), un texte non numérique ne se compare à rien (NaN).
+                        val g = nombreJs(va) ?: return false
+                        val d = nombreJs(vb) ?: return false
+                        g.compareTo(d)
+                    }
                     when (op) {
-                        ">=" -> g >= d
-                        "<=" -> g <= d
-                        ">" -> g > d
-                        else -> g < d
+                        ">=" -> ordre >= 0
+                        "<=" -> ordre <= 0
+                        ">" -> ordre > 0
+                        else -> ordre < 0
                     }
                 }
             }
@@ -242,6 +263,20 @@ object HiddenExpr {
         val nb = vb.toString().toDoubleOrNull()
         if (na != null && nb != null) return na == nb
         return va.toString() == vb.toString()
+    }
+
+    /** La conversion `Number(v)` du JS, null pour NaN : vide et `null` valent 0, un booléen 1 ou 0,
+     *  une liste d'un élément cet élément. */
+    private fun nombreJs(v: Any?): Double? = when (v) {
+        null -> 0.0
+        is Boolean -> if (v) 1.0 else 0.0
+        is Number -> v.toDouble()
+        is List<*> -> when (v.size) {
+            0 -> 0.0
+            1 -> nombreJs(v[0]?.toString().orEmpty())
+            else -> null
+        }
+        else -> v.toString().trim().let { t -> if (t.isEmpty()) 0.0 else t.toDoubleOrNull() }
     }
 
     /** Sémantique JS de la vérité : `false`, `""`, `0`, `null`, listes vides = faux. */

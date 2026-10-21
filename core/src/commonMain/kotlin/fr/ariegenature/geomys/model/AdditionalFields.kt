@@ -33,9 +33,14 @@ object AdditionalFieldsObject {
     const val COUNTING = "OCCTAX_DENOMBREMENT"
 }
 
-/** Types de widgets supportés (couvrent ~95% des configs Occtax réelles).
- *  Les autres widgets serveur sont rendus en texte libre (best-effort) avec un hint. */
-enum class WidgetType { TEXT, TEXTAREA, NUMBER, SELECT, RADIO, CHECKBOX, NOMENCLATURE, INCONNU }
+/** Les widgets du formulaire dynamique du web (dynamic-form.component.html) que l'appli rend. Un
+ *  widget qu'elle ne rend pas ([INCONNU] : areas, municipalities, medias, dataset, file…, ou une
+ *  datalist sans `values`, servie par une API) n'est pas affiché, comme un widget inconnu du web, et
+ *  sa valeur par défaut part quand même. Un bloc `html` s'affiche sans valeur. */
+enum class WidgetType {
+    TEXT, TEXTAREA, NUMBER, SELECT, RADIO, CHECKBOX, NOMENCLATURE, HTML, INCONNU,
+    DATE, TIME, MULTISELECT, BOOL_CHECKBOX, BOOL_RADIO, TAXONOMY, OBSERVERS, OBSERVERS_TEXT, DATALIST,
+}
 
 /** Définition d'un champ additionnel récupérée du serveur GeoNature.
  *  Sérialisable pour le cache des réglages. */
@@ -66,22 +71,55 @@ data class AdditionalFieldDef(
     val codeNomenclatureType: String? = null,
     /** Options résolues pour widget=`nomenclature` : (id_nomenclature, label_fr). */
     val nomenclatureOptions: List<OptionNomenclature> = emptyList(),
+    /** `additional_attributes.hidden` : champ masqué, sa valeur part quand même, comme sur le web. */
+    val masque: Boolean = false,
+    /** `additional_attributes.cd_nomenclatures` : les seules valeurs proposées d'une nomenclature. */
+    val cdNomenclatures: List<String> = emptyList(),
+    /** `additional_attributes.min` et `max` : bornes d'un nombre. */
+    val min: Double? = null,
+    val max: Double? = null,
+    /** La `value` de chaque option, en JSON (`1`, `"a"`, `true`), alignée sur [fieldValues] : le
+     *  web enregistre la valeur avec son type. Vide sur un cache d'avant son ajout. */
+    val valeursBrutes: List<String> = emptyList(),
+    /** `help` : l'aide sous le champ. */
+    val aide: String? = null,
+    /** `definition` : l'info-bulle du libellé ; [lienDefinition] : son lien (`link_definition`). */
+    val definition: String? = null,
+    val lienDefinition: String? = null,
+    /** `pattern` et `pattern_message` d'un texte ; `max_length`. */
+    val motif: String? = null,
+    val messageMotif: String? = null,
+    val longueurMax: Int? = null,
+    /** `rows` d'une zone de texte. */
+    val lignes: Int? = null,
+    /** `noNullOption` d'une liste : pas d'entrée vide « - ». */
+    val sansOptionVide: Boolean = false,
+    /** `nullDefault` d'une datalist : l'entrée « -- Aucun -- » quand elle n'est pas requise. */
+    val avecAucun: Boolean = false,
+    /** Le contenu d'un bloc `html`. */
+    val html: String? = null,
+    /** Choix multiple : `multi_select` (nomenclature, observateurs), `multiple` (datalist). */
+    val choixMultiple: Boolean = false,
+    /** `disabled` : champ grisé, que le web n'envoie pas. */
+    val desactive: Boolean = false,
 ) {
+    /** Le champ s'affiche : ni masqué, ni d'un widget que l'appli ne rend pas. Un bloc `html`
+     *  s'affiche, sans valeur. */
+    val affiche: Boolean get() = !masque && widget != WidgetType.INCONNU
+
+    /** Le champ a une valeur (tous, sauf un bloc `html`). */
+    val aUneValeur: Boolean get() = widget != WidgetType.HTML
+
+    /** Les options d'une nomenclature, restreintes à [cdNomenclatures]. */
+    val optionsProposees: List<OptionNomenclature>
+        get() = if (cdNomenclatures.isEmpty()) nomenclatureOptions else nomenclatureOptions.filter { it.cd == null || it.cd in cdNomenclatures }
+
     fun appliqueA(codeObjet: String): Boolean = objectsCode.contains(codeObjet)
 
-    /** Vrai si ce champ doit s'afficher pour le dataset courant et le taxon observé.
-     *  - `idDataset` : id du dataset courant (gnConfig.idDataset)
-     *  - `listesDuTaxon` : id_liste UsersHub auxquelles appartient le cd_nom observé
-     *    (récupéré via TaxRefCache.listesPourCdNom(cdNom))
-     *
-     *  Règles :
-     *  - datasets vide → applies à tous les datasets
-     *  - idList null  → applies à tous les taxons (pas de restriction par liste)
-     *  - sinon : il faut que le taxon appartienne à cette liste */
-    fun visiblePour(idDataset: Int?, listesDuTaxon: Collection<Int>): Boolean {
-        if (datasetsIds.isNotEmpty() && idDataset != null && idDataset !in datasetsIds) return false
-        if (datasetsIds.isNotEmpty() && idDataset == null) return false
-        if (idList != null && idList !in listesDuTaxon) return false
-        return true
-    }
+    /** Vrai si ce champ s'affiche pour le jeu de données [idDataset] du relevé, comme sur le web :
+     *  un champ sans jeu de données vaut pour tous ; sinon, seulement pour les siens. [idList] ne
+     *  restreint rien : le serveur ne filtre pas par liste, c'est un paramètre des widgets taxon et
+     *  observateurs. */
+    fun visiblePour(idDataset: Int?): Boolean =
+        datasetsIds.isEmpty() || (idDataset != null && idDataset in datasetsIds)
 }

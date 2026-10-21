@@ -17,22 +17,21 @@
  */
 
 // Porté de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/network/MonitoringEnvoi.kt) :
-// l'objet devient une classe injectée ; HttpURLConnection remplacé par ClientsGeoNature, Gson par
-// kotlinx (listeDepuisJson), Log par Journal. Le journal du corps envoyé, réservé aux versions de mise
-// au point sous Android (BuildConfig.DEBUG), est omis : l'appli commune n'a pas de drapeau équivalent,
-// et ce corps porte des données métier. runCatching laisse désormais passer l'annulation.
+// l'objet devient une classe injectée ; HttpURLConnection remplacé par ClientsGeoNature, Log par
+// Journal. Le journal du corps envoyé, réservé aux versions de mise au point sous Android
+// (BuildConfig.DEBUG), est omis : l'appli commune n'a pas de drapeau équivalent, et ce corps porte des
+// données métier. runCatching laisse désormais passer l'annulation. Le jeu de données n'est plus
+// deviné (premier jeu du module, puis celui d'OccTax) : seul celui du formulaire part, comme sur le web.
 
 package fr.ariegenature.geomys.network
 
 import fr.ariegenature.geomys.journal.Journal
 import fr.ariegenature.geomys.json.JSONArray
 import fr.ariegenature.geomys.json.JSONObject
-import fr.ariegenature.geomys.model.GeoNatureDataset
 import fr.ariegenature.geomys.network.http.ClientsGeoNature
 import fr.ariegenature.geomys.network.http.get
 import fr.ariegenature.geomys.network.http.postJson
 import fr.ariegenature.geomys.store.GeoNatureConfig
-import fr.ariegenature.geomys.store.io.listeDepuisJson
 import io.ktor.client.statement.bodyAsText
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -40,13 +39,11 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 
 /** Envoi des saisies Suivis vers le serveur : POST de création d'objet (visite, observation, site…)
- *  avec normalisation du corps (types, complément Marshmallow, id_digitiser, id_dataset),
- *  vérification anti-doublon par uuid client, et résolution du jeu de données rattaché au
- *  protocole. Appelé principalement par [OutboxEnvoi]. */
+ *  avec normalisation du corps (types, complément Marshmallow, id_digitiser), et vérification
+ *  anti-doublon par uuid client. Appelé principalement par [OutboxEnvoi]. */
 class MonitoringEnvoi(
     private val auth: GeoNatureAuth,
     private val clients: ClientsGeoNature,
-    private val datalists: MonitoringDatalists,
 ) {
 
     /** Cherche parmi les enfants directs de {parentObjectType}/{parentId} un objet portant [uuid]
@@ -102,13 +99,13 @@ class MonitoringEnvoi(
      *  `id_base_site`) et son id. Posés directement dans `properties` (le serveur les attend là,
      *  pas dans l'URL).
      *
-     *  [valeurs] : code de propriété → valeur typée, lue dans le formulaire. Les types attendus
-     *  côté serveur sont déduits au mieux :
+     *  [valeurs] : code de propriété → valeur typée, lue dans le formulaire :
      *  - Int / Long / Number → nombre JSON
      *  - Boolean → booléen JSON
      *  - List<*> → JSONArray (sélection multiple, observateurs…)
-     *  - String → entier si elle en est un, sinon chaîne JSON (les ids de nomenclature et de jeu de
-     *    données voyagent en String depuis le formulaire alors que le serveur les veut en nombre).
+     *  - String → chaîne JSON pour les [champsTexteLibre] ; ailleurs, entier si elle en est un (une
+     *    saisie enregistrée avant le 20 octobre 2026 garde ses ids en texte).
+     *  Les [champsDate] partent en `année-mois-jour` sans zéros, comme le `fromForm` du web.
      *
      *  Renvoie l'`id` du nouvel objet par Result.success, ou l'exception par Result.failure
      *  (authentification, HTTP, lecture de la réponse). */
@@ -120,9 +117,12 @@ class MonitoringEnvoi(
         parentId: Int?,
         valeurs: Map<String, Any?>,
         nomsChampsSchema: Collection<String> = emptyList(),
-        /** Codes des champs texte libre dont la valeur String ne doit PAS être convertie en Int même
-         *  si elle est numérique (cf. audit B6). Vide → conversion historique. */
+        /** Codes des valeurs en texte, qui ne doivent PAS être converties en Int même numériques
+         *  (cf. audit B6). Vide → conversion historique. */
         champsTexteLibre: Collection<String> = emptyList(),
+        champsDate: Collection<String> = emptyList(),
+        /** Les textes et heures vidés, qui partent en "" comme sur le web. */
+        champsVidesGardes: Collection<String> = emptyList(),
         /** uuid pré-généré côté client à injecter dans le corps sous [uuidFieldName]. Sert à
          *  connaître à l'avance l'uuid_attached_row pour l'envoi des médias qui suit. */
         uuidClient: String? = null,
@@ -131,7 +131,7 @@ class MonitoringEnvoi(
         try {
             Result.success(envoyerObjet(
                 config, moduleCode, objectType, parentIdField, parentId, valeurs,
-                nomsChampsSchema, champsTexteLibre, uuidClient, uuidFieldName,
+                nomsChampsSchema, champsTexteLibre, champsDate, champsVidesGardes, uuidClient, uuidFieldName,
             ))
         } catch (e: CancellationException) {
             throw e
@@ -149,6 +149,8 @@ class MonitoringEnvoi(
         valeurs: Map<String, Any?>,
         nomsChampsSchema: Collection<String>,
         champsTexteLibre: Collection<String>,
+        champsDate: Collection<String>,
+        champsVidesGardes: Collection<String>,
         uuidClient: String?,
         uuidFieldName: String?,
     ): Int {
@@ -163,9 +165,10 @@ class MonitoringEnvoi(
             properties.put(parentIdField, parentId)
         }
         for ((code, brut) in valeurs) {
-            // Un champ texte libre garde sa valeur String telle quelle : « 42 » dans un commentaire
-            // ne doit pas partir en nombre (audit B6).
-            properties.put(code, normaliserPourJson(brut, preserverString = code in champsTexteLibre))
+            // Un texte garde sa valeur String telle quelle : « 42 » dans un commentaire ne doit pas
+            // partir en nombre (audit B6), ni une option « 1 ».
+            val valeur = if (code in champsDate && brut is String) dateDuWeb(brut) else brut
+            properties.put(code, normaliserPourJson(valeur, preserverString = code in champsTexteLibre))
         }
         // uuid pré-généré côté client (cas où un média sera rattaché après création). Injecté
         // seulement si l'appelant a fourni le nom du champ — sinon on ne sait pas où le mettre dans
@@ -182,38 +185,18 @@ class MonitoringEnvoi(
         if (idRole != null && !properties.has("id_digitiser")) {
             properties.put("id_digitiser", idRole)
         }
-        // `id_dataset` : NOT NULL côté table Suivis (FK gn_meta.t_datasets).
-        // ⚠ Le jeu de données OCCTAX configuré dans l'appli n'est PAS forcément valide ici — chaque
-        // protocole a son propre jeu de données rattaché. Si le schéma ne l'expose pas, on cherche
-        // dans le cache local le premier jeu rattaché au module courant (champ `moduleCodes` du cache,
-        // peuplé à la synchro via /api/meta/datasets?fields=modules). Repli sur le jeu OCCTAX global
-        // seulement si rien n'est trouvé (instances anciennes sans la relation).
-        if (!properties.has("id_dataset")) {
-            val idDatasetModule = trouverDatasetPourModule(config, moduleCode)
-            // Repli OCCTAX seulement s'il est réellement présent sur le serveur courant (sinon FK
-            // invalide → 500 opaque). On trace l'usage du repli pour le diagnostic : le jeu OCCTAX
-            // n'est pas forcément rattaché au protocole (risque de 403 CRUVED).
-            val fallbackOcctax = config.idDataset.trim().toIntOrNull()
-                ?.takeIf { it > 0 && config.datasetAcceptablePourEnvoi(it) }
-            val idDataset = idDatasetModule ?: fallbackOcctax
-            if (idDatasetModule == null && fallbackOcctax != null) {
-                Journal.w(TAG, "id_dataset du module '$moduleCode' introuvable → fallback dataset OCCTAX $fallbackOcctax (peut être hors-protocole)")
-            }
-            if (idDataset != null) properties.put("id_dataset", idDataset)
-        }
-        // `visit_date_max` est en général NOT NULL en base. Si le formulaire ne l'a pas collecté (cas
-        // fréquent : une seule date à l'écran), copie depuis visit_date_min.
-        if (properties.has("visit_date_min") && !properties.has("visit_date_max")) {
-            properties.put("visit_date_max", properties.opt("visit_date_min"))
-        }
-        // Retire les valeurs vides résiduelles côté String : un champ DATE non rempli arrive à "" et
-        // casse la lecture côté serveur ; pareil pour les heures, etc. Les clés à "" sont retirées
-        // pour laisser le serveur appliquer son défaut.
+        // `id_dataset` : celui du formulaire, jamais un jeu inventé ici. Le formulaire web n'en pose
+        // pas d'autre, et un objet dont le schéma n'a pas ce champ (une observation) le recevait
+        // dans ses données spécifiques. `visit_date_max` aussi vient du formulaire (la date du jour
+        // quand elle est masquée, comme sur le web) : elle n'est plus copiée de `visit_date_min`.
+        // Les "" : un texte ou une heure vidés par l'utilisateur partent tels quels, comme sur le web
+        // ([champsVidesGardes]) ; les autres (une date, ou une saisie enregistrée avant le
+        // 20 octobre 2026) sont retirés et partent à null, une date vide cassant la lecture du serveur.
         val cles = mutableListOf<String>()
         properties.keys().forEach { k -> cles.add(k) }
         cles.forEach { k ->
             val v = properties.opt(k)
-            if (v is String && v.isBlank()) properties.remove(k)
+            if (v is String && v.isEmpty() && (k !in champsVidesGardes || k in champsDate)) properties.remove(k)
         }
         // Complément : le serveur Marshmallow vérifie que TOUTES les propriétés du schéma sont
         // présentes dans le corps, y compris les champs techniques cachés à l'écran (id_base_visit,
@@ -248,52 +231,36 @@ class MonitoringEnvoi(
             ?: 0
     }
 
-    /** Le premier jeu de données actif rattaché au [moduleCode] côté serveur. D'abord dans le cache
-     *  local OCCTAX (si par chance le jeu cumule plusieurs modules), puis dans celui des jeux du
-     *  protocole que remplit la synchro, enfin par un appel en direct
-     *  `/api/meta/datasets?module_code=<m>&active=true` (l'envoi est en ligne), qui renvoie
-     *  directement les jeux du module Suivis (filtrés par CRUVED). */
-    private suspend fun trouverDatasetPourModule(config: GeoNatureConfig, moduleCode: String): Int? {
-        // 1) Cache local.
-        val json = config.datasetsCacheJson.takeIf { it.isNotEmpty() }
-        if (json != null) {
-            listeDepuisJson(GeoNatureDataset.serializer(), json)
-                .firstOrNull { moduleCode in it.moduleCodes }?.let { return it.id }
-        }
-        // 2) Jeux du protocole : ceux du cache de la synchro, sinon demandés au serveur (les jeux des
-        // Suivis ne sont pas dans le cache OCCTAX par défaut — la synchro filtre module_code=OCCTAX).
-        val arr = datalists.lireDatasetsDuModule(moduleCode)?.takeIf { it.length() > 0 }
-            ?: datalists.chargerDatasetsDuModule(config, moduleCode)
-            ?: return null
-        return arr.optJSONObject(0)?.optInt("id_dataset", -1)?.takeIf { it > 0 }
-    }
-
     private companion object {
         const val TAG = "MonitoringApi"
 
-        /** [preserverString] : quand true, une valeur String numérique reste String (champ texte
-         *  libre). N'affecte que la racine — les éléments d'un tableau (observateurs…) restent
-         *  convertis, le serveur les veut en Int. */
+        /** Une date `aaaa-mm-jj` en `aaaa-m-j`, la forme que le `fromForm` du web envoie pour un
+         *  widget `date` ; toute autre valeur reste telle quelle. */
+        fun dateDuWeb(valeur: String): String {
+            val (a, m, j) = Regex("^(\\d{4})-(\\d{1,2})-(\\d{1,2})$").find(valeur.trim())?.destructured ?: return valeur
+            return "$a-${m.toInt()}-${j.toInt()}"
+        }
+
+        /** [preserverString] : quand true, une valeur String numérique reste String (texte), dans un
+         *  tableau aussi. Sinon, une chaîne numérique devient un nombre : les "121" d'une saisie
+         *  enregistrée avant le 20 octobre 2026 (observateurs…), que le serveur veut en Int. */
         fun normaliserPourJson(v: Any?, preserverString: Boolean = false): Any {
             if (v === JSONObject.NULL) return JSONObject.NULL
             return when (v) {
                 null -> JSONObject.NULL
                 is Boolean -> v
                 is Number -> v
-                // JSONArray arrive quand on relit un corps depuis la file d'envoi. On reconstruit un
-                // nouveau JSONArray en normalisant chaque élément — sinon les "121" stockés en String
-                // dans observers restent en String alors que le serveur attend des Int.
+                // JSONArray arrive quand on relit un corps depuis la file d'envoi : chaque élément est
+                // normalisé comme sa racine.
                 is JSONArray -> {
                     val out = JSONArray()
-                    for (i in 0 until v.length()) out.put(normaliserPourJson(v.opt(i)))
+                    for (i in 0 until v.length()) out.put(normaliserPourJson(v.opt(i), preserverString))
                     out
                 }
                 is JSONObject -> v
-                is List<*> -> JSONArray().apply { v.forEach { put(normaliserPourJson(it)) } }
-                is String -> {
-                    val t = v.trim()
-                    if (preserverString) t else t.toIntOrNull() ?: t
-                }
+                is List<*> -> JSONArray().apply { v.forEach { put(normaliserPourJson(it, preserverString)) } }
+                // Sans retirer d'espaces : le web envoie le texte tel quel.
+                is String -> if (preserverString) v else v.trim().toIntOrNull() ?: v
                 else -> v.toString()
             }
         }

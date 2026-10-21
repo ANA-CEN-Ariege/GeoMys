@@ -44,7 +44,11 @@ actual fun ChampDateHeure(millis: Long, heures: Boolean, onChange: (Long) -> Uni
         CaseDate(FormatDate.jour(millis)) {
             val (annee, mois, jour) = DetailsReleveFormulaire.jourDe(valeur)
             DatePickerDialog(contexte, { _, a, m, j -> rappel(DetailsReleveFormulaire.avecJour(valeur, a, m + 1, j)) }, annee, mois - 1, jour)
-                .apply { datePicker.maxDate = System.currentTimeMillis() } // pas de date future
+                .apply {
+                    // Du 1ᵉʳ janvier 1735 à aujourd'hui, comme le pnx-date du web.
+                    datePicker.minDate = PREMIER_JOUR_WEB
+                    datePicker.maxDate = System.currentTimeMillis()
+                }
                 .show()
         }
         if (heures) {

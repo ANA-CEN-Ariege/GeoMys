@@ -55,6 +55,15 @@ class ExecutionLongueIos : ExecutionLongue {
         }
     }
 
+    override suspend fun <T> pendant(nom: String, travail: suspend () -> T): T {
+        val tache = withContext(Dispatchers.Main) { commencer(nom) }
+        try {
+            return travail()
+        } finally {
+            withContext(NonCancellable + Dispatchers.Main) { terminer(tache) }
+        }
+    }
+
     private fun commencer(nom: String): Tache {
         val app = UIApplication.sharedApplication
         enCours++

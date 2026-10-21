@@ -64,6 +64,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import fr.ariegenature.geomys.monitoring.ActionValider
 import fr.ariegenature.geomys.monitoring.FilSegment
 import fr.ariegenature.geomys.monitoring.NouvelleVisite
 import fr.ariegenature.geomys.ui.composants.BalayageRetourIosDesactive
@@ -74,6 +75,7 @@ import fr.ariegenature.geomys.ui.composants.BoutonTexte
 import fr.ariegenature.geomys.ui.composants.DialogueActions
 import fr.ariegenature.geomys.ui.composants.DialogueAlerte
 import fr.ariegenature.geomys.ui.composants.FilArianeSuivis
+import fr.ariegenature.geomys.ui.composants.Interrupteur
 import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.PILULE
 import fr.ariegenature.geomys.ui.composants.RetourSysteme
@@ -101,6 +103,7 @@ fun NouvelleVisiteScreen(
             when (evenement) {
                 is EvenementNouvelleVisite.Toast -> toasts.afficher(evenement.texte, evenement.longue)
                 EvenementNouvelleVisite.Retour -> onRetour()
+                is EvenementNouvelleVisite.Niveau -> onNiveau(evenement.cible)
                 is EvenementNouvelleVisite.Remplacer -> onRemplacer(evenement.ouverture)
                 is EvenementNouvelleVisite.Fiche -> onFiche(evenement)
             }
@@ -127,7 +130,8 @@ fun NouvelleVisiteScreen(
     }
 
     FondGeoMys {
-        if (ios) PageIos(vm, onNiveau, ajouterPhotos, ouvrirChoixMultiple) else PageAndroid(vm, onNiveau, ajouterPhotos, ouvrirChoixMultiple)
+        // Le fil d'Ariane et la maison passent par la garde de sortie.
+        if (ios) PageIos(vm, vm::allerVers, ajouterPhotos, ouvrirChoixMultiple) else PageAndroid(vm, vm::allerVers, ajouterPhotos, ouvrirChoixMultiple)
     }
     vm.etat?.let { DialogueChoixMultipleFormulaire(it, choixMultiple) { choixMultiple = null } }
     DialogueActions(
@@ -168,6 +172,7 @@ private fun PageAndroid(
             ) {
                 Text(vm.titre, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Text(vm.contexte, fontSize = 13.sp, color = CouleursGeoMys.grisFonce, modifier = Modifier.padding(top = 4.dp))
+                if (vm.enchainementPropose) InterrupteurEnchainer(vm, Modifier.padding(top = 8.dp))
                 // Un nouveau formulaire (saisie suivante d'une chaîne) remplace l'ancien, comme `rendre` sous
                 // Android : le focus et l'état propre à chaque champ ne passent pas de l'un à l'autre.
                 vm.etat?.let { e -> key(e) { FormulaireMonitoring(e, vm.barres, ajouterPhotos, ouvrirChoixMultiple) } }
@@ -180,8 +185,19 @@ private fun PageAndroid(
                         .background(MaterialTheme.colorScheme.surface)
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
-                    BoutonPlein(vm.libelleBouton, { vm.enregistrer() }, Modifier.fillMaxWidth(), actif = vm.boutonActif)
-                    if (vm.modeChaine) BoutonTexte("Terminer", CouleursGeoMys.jauneClair, vm::terminer, Modifier.fillMaxWidth().padding(top = 4.dp))
+                    // Les boutons du web : « Valider et saisir des … », puis « Annuler » et « Valider ».
+                    vm.libelleSaisirEnfants?.let { libelle ->
+                        BoutonPlein(
+                            libelle,
+                            { vm.enregistrer(action = ActionValider.SAISIR_ENFANTS) },
+                            Modifier.fillMaxWidth().alpha(if (vm.saisirEnfantsPermis) 1f else 0.5f),
+                            actif = vm.boutonActif,
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        BoutonTexte(NouvelleVisite.ANNULER, CouleursGeoMys.jauneClair, vm::retour, Modifier.padding(end = 8.dp))
+                        BoutonPlein(vm.libelleBouton, { vm.enregistrer() }, Modifier.weight(1f), actif = vm.boutonActif)
+                    }
                 }
             }
         }
@@ -214,6 +230,7 @@ private fun PageIos(
         ) {
             Text(vm.titre, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
             if (vm.contexte.isNotEmpty()) Text(vm.contexte, fontSize = 13.sp, color = CouleursGeoMys.blanc70)
+            if (vm.enchainementPropose) InterrupteurEnchainer(vm, Modifier.padding(top = 6.dp))
         }
         Column(
             Modifier
@@ -228,48 +245,74 @@ private fun PageIos(
     }
 }
 
-/** BarreBoutonsVisiteView : « Terminer » (style `.bordered` teinté blanc 70 %) et le bouton vert
+/** BarreBoutonsVisiteView, aux boutons du web : « Valider et saisir des … » vert sur toute la
+ *  largeur s'il y a lieu, puis « Annuler » (style `.bordered` teinté blanc 70 %) et le bouton vert
  *  (`GeoMysBoutonVertStyle`, demi-gras), côte à côte ; désactivé, le vert est estompé et grisé. */
 @Composable
 private fun BarreBoutonsIos(vm: NouvelleVisiteViewModel) {
-    Row(
+    Column(
         Modifier
             .fillMaxWidth()
             .background(Color.Black.copy(alpha = 0.25f))
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
             .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (vm.modeChaine) {
-            BoutonIos(vm::terminer, Modifier.weight(1f), opaciteAppui = 0.6f) {
+        val actif = vm.boutonActif
+        vm.libelleSaisirEnfants?.let { libelle ->
+            BoutonVertIos(libelle, actif, Modifier.fillMaxWidth().alpha(if (vm.saisirEnfantsPermis) 1f else 0.5f)) {
+                vm.enregistrer(action = ActionValider.SAISIR_ENFANTS)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            BoutonIos(vm::retour, Modifier.weight(1f), opaciteAppui = 0.6f) {
                 Text(
-                    "Terminer",
+                    NouvelleVisite.ANNULER,
                     fontSize = 17.sp,
                     color = CouleursGeoMys.blanc70,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Color.White.copy(alpha = 0.12f), PILULE)
-                        .padding(horizontal = 12.dp, vertical = 19.dp),
+                        .padding(horizontal = 12.dp, vertical = 12.dp),
                 )
             }
+            BoutonVertIos(vm.libelleBouton, actif, Modifier.weight(1f)) { vm.enregistrer() }
         }
-        val actif = vm.boutonActif
-        BoutonIos({ vm.enregistrer() }, Modifier.weight(1f), actif = actif) {
-            Text(
-                vm.libelleBouton,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .alpha(if (actif) 1f else 0.16f)
-                    .background(if (actif) CouleursGeoMys.vert85 else VERT85_DESATURE, PILULE)
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
-            )
-        }
+    }
+}
+
+/** Le bouton vert de la barre (`GeoMysBoutonVertStyle`, demi-gras) ; désactivé, estompé et grisé. */
+@Composable
+private fun BoutonVertIos(libelle: String, actif: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    BoutonIos(onClick, modifier, actif = actif) {
+        Text(
+            libelle,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .alpha(if (actif) 1f else 0.16f)
+                .background(if (actif) CouleursGeoMys.vert85 else VERT85_DESATURE, PILULE)
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+        )
+    }
+}
+
+/** L'interrupteur « Enchaîner les saisies » du web (`mat-slide-toggle`, à droite du formulaire) :
+ *  activé, « Valider » enchaîne un nouveau formulaire du même type. */
+@Composable
+private fun InterrupteurEnchainer(vm: NouvelleVisiteViewModel, modifier: Modifier = Modifier) {
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            NouvelleVisite.ENCHAINER_LES_SAISIES,
+            fontSize = if (estIos) 15.sp else 14.sp,
+            color = if (estIos) CouleursGeoMys.blanc70 else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(end = 8.dp),
+        )
+        Interrupteur(vm.enchainer, { vm.enchainer = it }, description = NouvelleVisite.ENCHAINER_LES_SAISIES, teinteIos = CouleursGeoMys.vert)
     }
 }
 
@@ -292,13 +335,6 @@ private fun Dialogues(vm: NouvelleVisiteViewModel) {
                 BoutonAlerte("Quitter sans enregistrer", destructif = true, action = vm::quitter),
                 if (d.enregistrable) BoutonAlerte("Enregistrer et quitter") { vm.enregistrer(puisTerminer = true) } else null,
             ),
-            vm::fermerDialogue,
-        )
-        is DialogueNouvelleVisite.TerminerBloque -> DialogueAlerte(
-            visible,
-            d.titre,
-            d.message,
-            listOf(BoutonAlerte(d.continuer, annulation = true), BoutonAlerte("Quitter", destructif = true, action = vm::quitter)),
             vm::fermerDialogue,
         )
         is DialogueNouvelleVisite.Completer -> DialogueAlerte(

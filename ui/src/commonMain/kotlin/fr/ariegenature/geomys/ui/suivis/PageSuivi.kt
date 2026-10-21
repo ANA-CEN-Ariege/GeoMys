@@ -58,11 +58,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import fr.ariegenature.geomys.monitoring.DroitsSuivis
 import fr.ariegenature.geomys.monitoring.FilSegment
 import fr.ariegenature.geomys.ui.composants.BoutonIcone
 import fr.ariegenature.geomys.ui.composants.BoutonIos
 import fr.ariegenature.geomys.ui.composants.FilArianeSuivis
 import fr.ariegenature.geomys.ui.composants.GraisseSymbole
+import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.ressources.Res
@@ -201,21 +203,33 @@ internal enum class ActionSuivi(val icone: DrawableResource, val symboleIos: Str
 /** Un bouton d'action de ligne : ImageButton de 40 dp teinté jaune clair sous Android, symbole SF
  *  de 20 pt demi-gras sur une cible de 40 pt sous iOS (`boutonIcone` de BoutonsLigneMonitoring) ;
  *  [compactIos] : le « + » des en-têtes et des saisies locales de la fiche, de [tailleIos] points
- *  gras sur une cible de 36 pt. */
+ *  gras sur une cible de 36 pt. [permis] faux : sans le droit de créer, grisé comme sur le web ; le
+ *  toucher dit son infobulle (« Vous n'avez pas les permissions nécessaires »). */
 @Composable
-internal fun BoutonSuivi(action: ActionSuivi, description: String, compactIos: Boolean = false, tailleIos: Float = 16f, onClick: () -> Unit) {
+internal fun BoutonSuivi(
+    action: ActionSuivi,
+    description: String,
+    compactIos: Boolean = false,
+    tailleIos: Float = 16f,
+    permis: Boolean = true,
+    onClick: () -> Unit,
+) {
+    val toasts = LocalToasts.current
+    val clic = if (permis) onClick else ({ toasts.afficher(DroitsSuivis.SANS_PERMISSION, longue = false) })
+    val couleur = if (permis) CouleursGeoMys.jauneClair else CouleursGeoMys.jauneClair.copy(alpha = 0.38f)
+    val texte = if (permis) description else "$description — ${DroitsSuivis.SANS_PERMISSION}"
     if (estIos) {
-        BoutonIos(onClick, Modifier.size(if (compactIos) 36.dp else 40.dp), opaciteAppui = 0.3f) {
+        BoutonIos(clic, Modifier.size(if (compactIos) 36.dp else 40.dp), opaciteAppui = 0.3f) {
             SymboleSf(
                 action.symboleIos,
                 if (compactIos) tailleIos else 20f,
-                listOf(CouleursGeoMys.jauneClair),
+                listOf(couleur),
                 graisse = if (compactIos) GraisseSymbole.GRASSE else GraisseSymbole.DEMI_GRASSE,
-                description = description,
+                description = texte,
             )
         }
     } else {
-        BoutonIcone(action.icone, CouleursGeoMys.jauneClair, description, onClick, cible = DpSize(40.dp, 40.dp))
+        BoutonIcone(action.icone, couleur, texte, clic, cible = DpSize(40.dp, 40.dp))
     }
 }
 

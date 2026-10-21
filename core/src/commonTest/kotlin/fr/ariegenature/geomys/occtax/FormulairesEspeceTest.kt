@@ -24,6 +24,7 @@ package fr.ariegenature.geomys.occtax
 import fr.ariegenature.geomys.ServicesDeTest
 import fr.ariegenature.geomys.model.Denombrement
 import fr.ariegenature.geomys.model.Taxon
+import fr.ariegenature.geomys.store.GroupeTaxonomique
 import fr.ariegenature.geomys.store.NomValeur
 import fr.ariegenature.geomys.store.OcctaxFieldsConfig
 import fr.ariegenature.geomys.store.TaxrefRestriction
@@ -31,6 +32,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /** [FormulairesEspece] : entrées des nomenclatures, caractérisation, effectifs. */
 class FormulairesEspeceTest {
@@ -42,38 +44,115 @@ class FormulairesEspeceTest {
     fun nettoyer() = t.nettoyer()
 
     private val methObs = OcctaxFieldsConfig.parCode.getValue("METH_OBS")
+    private val oiseau = GroupeTaxonomique("Animalia", "Oiseaux", null)
+    private val tous = listOf(TaxrefRestriction("all", "all"))
 
     @Test
-    fun sans_nomenclature_le_registre_sert_de_repli() {
-        val champ = FormulairesEspece.champ(methObs, nomenclatures, setOf("Oiseaux"), "Animalia")
-        assertEquals("Non renseignée", champ.libelles.first())
-        assertEquals("", champ.codes.first())
-        // Tri alphabétique français, l'entrée vide restant en tête.
-        assertEquals(listOf("Non renseignée", "Chant", "Entendu", "Indices de présence", "Vu", "Vu et entendu"), champ.libelles)
-        assertEquals("4", champ.code(champ.position("4")))
-        assertEquals(0, champ.position("inconnu"), "un code absent retombe sur « Non renseignée »")
+    fun sans_nomenclature_en_cache_aucune_valeur_n_est_inventee() {
+        val champ = FormulairesEspece.champ(methObs, nomenclatures, oiseau, filtresActifs = true)
+        assertEquals(listOf(FormulairesEspece.VIDE), champ.libelles)
+        assertEquals(listOf(""), champ.codes)
+        assertTrue(champ.sansValeurs)
+        // Champ requis du web : l'entrée vide n'est pas une réponse, et le message invite à recharger.
+        assertEquals(
+            "« Technique d'observation » : liste vide, rechargez les données",
+            FormulairesEspece.manque(listOf(champ), mapOf("METH_OBS" to "")),
+        )
     }
 
     @Test
-    fun les_valeurs_du_serveur_sont_filtrees_dedoublonnees_et_triees() {
+    fun toutes_les_valeurs_du_serveur_meme_de_meme_libelle_et_l_entree_vide_a_part() {
         nomenclatures.setAll(
             mapOf(
                 "METH_OBS" to listOf(
-                    NomValeur(41, "Vu"),
-                    NomValeur(42, "Écouté"),
-                    NomValeur(43, "Non renseigné"),
-                    NomValeur(44, "vu"),
+                    NomValeur(41, "Vu", tous),
+                    NomValeur(42, "Écouté", tous),
+                    NomValeur(43, "Non renseigné", tous),
+                    NomValeur(44, "Vu", tous),
                     NomValeur(45, "Piégé", listOf(TaxrefRestriction("Animalia", "Insectes"))),
                 ),
             ),
         )
         nomenclatures.setDefauts(mapOf("METH_OBS" to "41"))
-        val champ = FormulairesEspece.champ(methObs, nomenclatures, setOf("Oiseaux"), "Animalia")
-        assertEquals(listOf("Non renseigné", "Écouté", "Vu"), champ.libelles)
-        assertEquals(listOf("", "42", "41"), champ.codes)
+        val champ = FormulairesEspece.champ(methObs, nomenclatures, oiseau, filtresActifs = true)
+        // La vraie « Non renseigné » du serveur reste proposée, distincte de l'entrée vide.
+        assertEquals(listOf(FormulairesEspece.VIDE, "Écouté", "Non renseigné", "Vu", "Vu"), champ.libelles)
+        assertEquals(listOf("", "42", "43", "41", "44"), champ.codes)
+        assertTrue(champ.obligatoire)
         // Sans valeur portée, le défaut du serveur.
-        assertEquals(2, FormulairesEspece.positionInitiale(champ, "", nomenclatures))
+        assertEquals(3, FormulairesEspece.positionInitiale(champ, "", nomenclatures))
         assertEquals(1, FormulairesEspece.positionInitiale(champ, "42", nomenclatures))
+        assertEquals("Veuillez indiquer la technique d'observation", FormulairesEspece.manque(listOf(champ), mapOf("METH_OBS" to "")))
+        assertNull(FormulairesEspece.manque(listOf(champ), mapOf("METH_OBS" to "43")))
+    }
+
+    @Test
+    fun les_listes_du_web_affichent_label_fr_triees_par_label_default() {
+        nomenclatures.setAll(
+            mapOf(
+                "STATUT_OBS" to listOf(
+                    NomValeur(1, "Présent", emptyList(), "Pr", labelFr = "Présent (fr)"),
+                    NomValeur(2, "Absent", emptyList(), "No", labelFr = "Zéro absent"),
+                ),
+                "METH_OBS" to listOf(NomValeur(41, "Vu", listOf(TaxrefRestriction("Plantae", "all")))),
+            ),
+        )
+        // Statut d'observation : pas de filtre par taxon sur le web (aucune ligne taxonomique ici).
+        val statut = FormulairesEspece.champ(OcctaxFieldsConfig.parCode.getValue("STATUT_OBS"), nomenclatures, oiseau, filtresActifs = true)
+        assertEquals(listOf(FormulairesEspece.VIDE, "Zéro absent", "Présent (fr)"), statut.libelles, "label_fr, dans l'ordre de label_default")
+        // La technique d'observation, elle, suit le taxon.
+        assertEquals(listOf(FormulairesEspece.VIDE), FormulairesEspece.champ(methObs, nomenclatures, oiseau, filtresActifs = true).libelles)
+    }
+
+    @Test
+    fun les_effectifs_suivent_les_controles_du_web() {
+        assertNull(FormulairesEspece.refusEffectifs("0", "0"))
+        assertNull(FormulairesEspece.refusEffectifs("2", "5"))
+        assertEquals("Renseignez le nombre min", FormulairesEspece.refusEffectifs("", "5"))
+        assertEquals("Renseignez le nombre max", FormulairesEspece.refusEffectifs("2", ""))
+        assertEquals("Nombre entier attendu", FormulairesEspece.refusEffectifs("-1", "5"))
+        assertEquals("Le dénombrement maximum ne peut pas être inférieur au dénombrement minimum", FormulairesEspece.refusEffectifs("5", "2"))
+    }
+
+    @Test
+    fun une_valeur_hors_de_la_liste_du_taxon_est_gardee_tant_qu_on_n_y_touche_pas() {
+        nomenclatures.setAll(mapOf("METH_OBS" to listOf(NomValeur(41, "Vu", tous), NomValeur(42, "Écouté", tous))))
+        val champ = FormulairesEspece.champ(methObs, nomenclatures, oiseau, filtresActifs = true)
+        val initiale = FormulairesEspece.positionInitiale(champ, "99", nomenclatures)
+        assertEquals(0, initiale, "affichée vide")
+        assertEquals("99", FormulairesEspece.valeurRetenue(champ, "99", "41", initiale, initiale))
+        assertEquals("42", FormulairesEspece.valeurRetenue(champ, "99", "41", initiale, 1))
+        // Sans valeur portée, le défaut du serveur, même absent des valeurs proposées (comme le web).
+        assertEquals("41", FormulairesEspece.valeurRetenue(champ, "", "41", 2, 2))
+        assertEquals("77", FormulairesEspece.valeurRetenue(champ, "", "77", 0, 0))
+        // L'entrée vide choisie vide la valeur.
+        assertEquals("", FormulairesEspece.valeurRetenue(champ, "41", "41", 2, 0))
+    }
+
+    @Test
+    fun le_filtre_taxonomique_du_serveur() {
+        // pypnnomenclature : une ligne doit vérifier à la fois le règne, le groupe 2 et le groupe 3 ;
+        // une valeur sans ligne est exclue.
+        nomenclatures.setAll(
+            mapOf(
+                "SEXE" to listOf(
+                    NomValeur(1, "Inconnu", tous),
+                    NomValeur(2, "Femelle", listOf(TaxrefRestriction("Animalia", "Mollusques", "Gastéropodes"))),
+                    NomValeur(3, "Hermaphrodite", listOf(TaxrefRestriction("Animalia", "Mollusques", "Bivalves"))),
+                    NomValeur(4, "Mâle", listOf(TaxrefRestriction("Animalia", "Oiseaux"))),
+                    NomValeur(5, "Thalle protothalle"),
+                ),
+            ),
+        )
+        fun libelles(g: GroupeTaxonomique, actifs: Boolean = true) = nomenclatures.filtrerPourTaxon("SEXE", g, actifs).map { it.label }
+        val escargot = GroupeTaxonomique("Animalia", "Mollusques", "Gastéropodes")
+        assertEquals(listOf("Inconnu", "Femelle"), libelles(escargot))
+        assertEquals(listOf("Inconnu", "Mâle"), libelles(GroupeTaxonomique("Animalia", "Oiseaux", null)))
+        // Groupe 3 inconnu : pas de filtre sur lui.
+        assertEquals(listOf("Inconnu", "Femelle", "Hermaphrodite"), libelles(GroupeTaxonomique("Animalia", "Mollusques", null)))
+        // Sans règne, ou filtres désactivés sur le serveur : toutes les valeurs.
+        assertEquals(5, libelles(GroupeTaxonomique.AUCUN).size)
+        assertEquals(5, libelles(escargot, actifs = false).size)
     }
 
     @Test
@@ -107,6 +186,10 @@ class FormulairesEspeceTest {
         assertEquals("5", FormulairesEspece.ajuster("x", +1, 4))
         assertEquals(3, FormulairesEspece.plancherMax("3"))
         assertEquals(1 to 1, FormulairesEspece.effectifs("", "0"))
+        // Effectif 0, comme le web (« Non observé ») : plancher à 0.
+        assertEquals("0", FormulairesEspece.ajuster("1", -1, FormulairesEspece.PLANCHER_MIN))
+        assertEquals(0 to 0, FormulairesEspece.effectifs("0", ""))
+        assertEquals(0, FormulairesEspece.plancherMax("0"))
         assertEquals(4 to 6, FormulairesEspece.effectifs("4", "6"))
         assertEquals(4 to 4, FormulairesEspece.effectifs("4", "2"))
     }
@@ -121,13 +204,5 @@ class FormulairesEspeceTest {
         assertEquals("A", relu.stadeVie, "champ non affiché : valeur gardée")
         assertEquals("IND", relu.objDenbr)
         assertEquals(mapOf("x" to "y"), relu.additionalFields)
-    }
-
-    @Test
-    fun le_groupe_inpn_vient_du_cache_sinon_de_la_palette() {
-        val merle = EspeceReleve(Taxon.OISEAU, "Merle noir", 4117)
-        assertEquals("Oiseaux", FormulairesEspece.groupe2Inpn(merle, emptyMap()))
-        assertEquals("Passereaux", FormulairesEspece.groupe2Inpn(merle, mapOf("4117" to "Passereaux")))
-        assertNull(FormulairesEspece.groupe2Inpn(EspeceReleve(Taxon.PLANTE, "Ortie", null), emptyMap()))
     }
 }

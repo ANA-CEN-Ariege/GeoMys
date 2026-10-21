@@ -69,7 +69,7 @@ class TaxRefServiceVoixTest {
     @Test
     fun candidat_3_gagnant_quand_1_et_2_ne_matchent_pas() = runBlocking {
         val (statut, gagnant) = taxRefService.rechercherParmiCandidats(
-            listOf("rouje gorje", "route gorge", "rouge gorge"), taxon = null, gnConfig = null,
+            listOf("rouje gorje", "route gorge", "rouge gorge"), taxon = null, idListe = null,
         )
         assertTrue(statut is TaxRefStatut.Trouve)
         // assertTrue de kotlin.test garantit le type : plus besoin du cast de la version JUnit.
@@ -80,7 +80,7 @@ class TaxRefServiceVoixTest {
     @Test
     fun aucun_candidat_ne_matche_renvoie_non_trouve_et_premier_candidat() = runBlocking {
         val (statut, gagnant) = taxRefService.rechercherParmiCandidats(
-            listOf("zzz", "qqq"), taxon = null, gnConfig = null,
+            listOf("zzz", "qqq"), taxon = null, idListe = null,
         )
         assertEquals(TaxRefStatut.NonTrouve, statut)
         assertEquals("zzz", gagnant)
@@ -90,7 +90,7 @@ class TaxRefServiceVoixTest {
     fun faute_de_transcription_rattrapee_par_l_approche() = runBlocking {
         // « bombus lucorun » (n au lieu de m) — aucun candidat exact, l'approché le rattrape.
         val (statut, gagnant) = taxRefService.rechercherParmiCandidats(
-            listOf("bombus lucorun"), taxon = null, gnConfig = null,
+            listOf("bombus lucorun"), taxon = null, idListe = null,
         )
         assertEquals(240, (statut as TaxRefStatut.Trouve).cdNom)
         assertEquals("bombus lucorun", gagnant)

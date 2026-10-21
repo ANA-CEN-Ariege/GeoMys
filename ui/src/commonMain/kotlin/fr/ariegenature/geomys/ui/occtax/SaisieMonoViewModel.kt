@@ -38,6 +38,7 @@ import fr.ariegenature.geomys.model.Observation
 import fr.ariegenature.geomys.model.Taxon
 import fr.ariegenature.geomys.network.TaxRefStatut
 import fr.ariegenature.geomys.occtax.CarteSaisie
+import fr.ariegenature.geomys.occtax.DetailsReleveFormulaire
 import fr.ariegenature.geomys.occtax.DetailsReleveResult
 import fr.ariegenature.geomys.occtax.EspeceReleve
 import fr.ariegenature.geomys.occtax.FinSaisie
@@ -77,10 +78,13 @@ class SaisieMonoViewModel(
     val session = sessionVm.session
     val tracker = services.locationTracker
 
-    /** Le champ espèce : groupe, mode, texte, propositions, statut TaxRef. */
-    val champ = EtatChampEspece(services, viewModelScope, services.preferences.dernierTaxon() ?: Taxon.OISEAU, ::libelleChampEspeceMono)
+    private val taxonDepart = services.preferences.dernierTaxon() ?: Taxon.OISEAU
 
-    val saisie = SaisieMono(session, config, champ.taxon, additionnels)
+    val saisie = SaisieMono(session, config, taxonDepart, additionnels)
+
+    /** Le champ espèce : groupe, mode, texte, propositions (la liste du jeu de données de la série),
+     *  statut TaxRef. */
+    val champ = EtatChampEspece(services, viewModelScope, taxonDepart, ::libelleChampEspeceMono, idDataset = { saisie.idDatasetEffectif() })
 
     private val _evenements = Channel<EvenementSaisieMono>(Channel.BUFFERED)
     val evenements = _evenements.receiveAsFlow()
@@ -144,6 +148,9 @@ class SaisieMonoViewModel(
         session.saisieMono = true
         // Le modèle suit le groupe de la palette.
         viewModelScope.launch { snapshotFlow { champ.taxon }.collect { saisie.choisirTaxon(it) } }
+        // Sans jeu de données connu, ou sans date quand le serveur la veut à choisir, la série
+        // commence par ses détails, comme le web : l'un et l'autre sont obligatoires.
+        if (saisie.idDatasetEffectif() == null || saisie.dateAChoisir()) ouvrirDetails()
     }
 
     fun demarrerSuivi() {
@@ -173,7 +180,7 @@ class SaisieMonoViewModel(
     fun dicter(candidats: List<String>) {
         champ.saisir(candidats.first())
         viewModelScope.launch {
-            val (statut, gagnant) = services.taxRefService.rechercherParmiCandidats(candidats, champ.taxon, config, champ.nomScientifique)
+            val (statut, gagnant) = services.taxRefService.rechercherParmiCandidats(candidats, champ.taxon, champ.listeTaxons, champ.nomScientifique)
             if (statut is TaxRefStatut.Trouve && gagnant != null && gagnant != champ.texte) champ.saisir(gagnant)
         }
     }
@@ -205,8 +212,9 @@ class SaisieMonoViewModel(
     }
 
     fun ouvrirDetails() {
-        details = EtatDetailsReleve(saisie.donneesDetails(), services.nomenclatures, viewModelScope) { terme ->
-            services.habitats.rechercher(terme)
+        details = EtatDetailsReleve(saisie.donneesDetails(), services.nomenclatures, viewModelScope, services.taxRef) { terme ->
+            // Restreinte à `OCCTAX.CD_TYPO_HABITAT`, comme le web.
+            services.habitats.rechercher(terme, cdTypo = services.config.occtaxTypologieHabitat.takeIf { it > 0 })
         }
     }
 
@@ -218,6 +226,8 @@ class SaisieMonoViewModel(
     fun validerDetails(resultat: DetailsReleveResult) {
         saisie.appliquerDetails(resultat)
         fermerDetails()
+        // Un autre jeu de données peut imposer une autre liste de taxons.
+        champ.actualiserListe()
     }
 
     /** « Annuler » des réglages : rien n'est saisi ; le GPS lancé à l'ouverture est libéré. */
@@ -230,6 +240,17 @@ class SaisieMonoViewModel(
      *  zoom 19 sur la position, si elle est connue, avec le suivi. */
     fun demarrer() {
         val trouve = champ.recherche.statut as? TaxRefStatut.Trouve ?: return
+        // Le jeu de données est obligatoire : sans lui, la série ne démarre pas.
+        if (saisie.idDatasetEffectif() == null) {
+            _evenements.trySend(EvenementSaisieMono.Message(DetailsReleveFormulaire.CHOISIR_JDD))
+            ouvrirDetails()
+            return
+        }
+        if (saisie.dateAChoisir()) {
+            _evenements.trySend(EvenementSaisieMono.Message(DetailsReleveFormulaire.CHOISIR_DATE_DEBUT))
+            ouvrirDetails()
+            return
+        }
         saisie.demarrer(trouve.nomFrancais ?: trouve.nomScientifique, trouve.cdNom)
         modeActif = true
         masquerConfirmation()

@@ -85,3 +85,10 @@ internal class ServicesEssai(serveur: MockEngine = MockEngine { respondError(Htt
         FileSystem.SYSTEM.deleteRecursively(dossier)
     }
 }
+
+/** À la fin d'un test, avant `Dispatchers.resetMain()` : laisse finir le travail de fond annulé (une
+ *  recherche de taxons sur `Dispatchers.IO`, l'écriture d'un brouillon). Il revient sur le fil
+ *  principal pour s'achever ; après la remise à zéro de celui-ci, il échouait et faisait échouer le
+ *  test suivant (« Dispatchers.Main was accessed… », « used concurrently with setting it »), ou
+ *  empêchait d'effacer le dossier du test. */
+fun laisserFinirLeTravailDeFond() = Thread.sleep(150)

@@ -22,6 +22,12 @@
 
 package fr.ariegenature.geomys.ui.occtax
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -58,10 +64,14 @@ import fr.ariegenature.geomys.occtax.ChampNomenclature
 import fr.ariegenature.geomys.ui.composants.BandeauNavigation
 import fr.ariegenature.geomys.ui.composants.BoutonIos
 import fr.ariegenature.geomys.ui.composants.ChampLibelle
+import fr.ariegenature.geomys.ui.composants.DialogueGardeSortie
 import fr.ariegenature.geomys.ui.composants.GRIS_TITRE_CHAMP
+import fr.ariegenature.geomys.ui.composants.GardeSortie
 import fr.ariegenature.geomys.ui.composants.HAUTEUR_BANDEAU_IOS
 import fr.ariegenature.geomys.ui.composants.ListeDeroulante
+import fr.ariegenature.geomys.ui.composants.RetourSysteme
 import fr.ariegenature.geomys.ui.composants.SymboleSf
+import fr.ariegenature.geomys.ui.composants.barreChampObligatoire
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.ui.ressources.coche
@@ -135,11 +145,62 @@ fun EcranFormulaireEspece(
     }
 }
 
+/** Un formulaire en écran plein posé sur l'écran qui l'ouvre, sans passer par la navigation : les
+ *  détails d'un relevé ou d'une station (demandes du 21 octobre). C'est le cadre
+ *  d'[EcranFormulaireEspece], la coche appelant [onValider]. Sous iOS, il arrive et repart comme un
+ *  écran poussé ; sous Android, sans animation, comme la navigation. Il arrête les touchers destinés à
+ *  l'écran dessous. Le retour (bouton d'Android, balayage depuis le bord sous iOS) l'annule
+ *  ([onAnnuler]) ; la maison l'annule puis mène à l'accueil. Tous deux passent par la garde de sortie :
+ *  « Quitter sans enregistrer ? » ([titreGarde]) s'il est [modifie]. */
+@Composable
+fun FormulaireEnEcranPlein(
+    visible: Boolean,
+    titre: String,
+    typeSaisieLabel: String,
+    titreGarde: String,
+    modifie: () -> Boolean,
+    onAccueil: () -> Unit,
+    onAnnuler: () -> Unit,
+    onValider: () -> Unit,
+    contenu: @Composable ColumnScope.() -> Unit,
+) {
+    val ios = estIos
+    val garde = remember { GardeSortie() }
+    garde.modifie = modifie
+    RetourSysteme(actif = visible) { garde.demander(onAnnuler) }
+    AnimatedVisibility(
+        visible,
+        enter = if (ios) slideInHorizontally(tween(350)) { it } else EnterTransition.None,
+        exit = if (ios) slideOutHorizontally(tween(300)) { it } else ExitTransition.None,
+    ) {
+        Box(Modifier.fillMaxSize().clickable(remember { MutableInteractionSource() }, indication = null) {}) {
+            EcranFormulaireEspece(
+                titre = titre,
+                sousTitre = null,
+                typeSaisieLabel = typeSaisieLabel,
+                onAccueil = {
+                    garde.demander {
+                        onAnnuler()
+                        onAccueil()
+                    }
+                },
+                onValider = onValider,
+                contenu = contenu,
+            )
+        }
+    }
+    DialogueGardeSortie(garde, titreGarde)
+}
+
 /** Un champ de nomenclature : son libellé et sa liste déroulante (buildField d'OcctaxFieldsRenderer,
- *  NomenclaturePicker de GeoMys-IOS). */
+ *  NomenclaturePicker de GeoMys-IOS). Comme le `pnx-nomenclature` du web, la liste n'a pas
+ *  d'entrée vide : le libellé du champ en invite, une croix pour vider le choix (position 0) ; une
+ *  liste obligatoire vide porte la barre rouge, la bordure rouge du web. */
 @Composable
 fun ChampNomenclatureVue(champ: ChampNomenclature, position: Int, onChoix: (Int) -> Unit, modifier: Modifier = Modifier) {
     ChampLibelle(champ.libelle, modifier) {
-        ListeDeroulante(champ.libelles, position, onChoix)
+        Box(Modifier.fillMaxWidth().barreChampObligatoire(champ.obligatoire && position == 0)) {
+            ListeDeroulante(champ.libelles.drop(1), position - 1, { onChoix(it + 1) }, invite = champ.libelle, onEffacer = { onChoix(0) })
+        }
     }
 }

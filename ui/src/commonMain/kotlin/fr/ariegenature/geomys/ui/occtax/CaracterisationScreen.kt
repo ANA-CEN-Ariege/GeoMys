@@ -40,15 +40,20 @@ import androidx.compose.ui.unit.sp
 import fr.ariegenature.geomys.occtax.EspeceReleve
 import fr.ariegenature.geomys.ui.composants.ChampLibelle
 import fr.ariegenature.geomys.ui.composants.ChampTexteFormulaire
+import fr.ariegenature.geomys.ui.composants.DialogueGardeSortie
 import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.estIos
+import fr.ariegenature.geomys.ui.composants.rememberGardeSortie
 
-/** android.R.color.holo_blue_dark : « ▾ Plus de champs ». */
+/** android.R.color.holo_blue_dark : le bouton « Avancé ». */
 private val BLEU_LIEN = Color(0xFF0099CC)
 
-/** colorPrimaryVariant de GeoMys-IOS : « Plus de champs ». */
+/** colorPrimaryVariant de GeoMys-IOS : le bouton « Avancé ». */
 private val BLEU_VARIANTE = Color(0xFF1565C0)
+
+/** Le bouton de la section avancée du web (`Advanced` du fr.json du cœur). */
+private const val LIBELLE_AVANCE = "Avancé"
 
 /** La caractérisation de l'occurrence ; [onValide] reçoit l'espèce caractérisée. */
 @Composable
@@ -56,15 +61,17 @@ fun CaracterisationScreen(
     vm: CaracterisationViewModel,
     typeSaisieLabel: String,
     onAccueil: () -> Unit,
+    onRetour: () -> Unit,
     onValide: (EspeceReleve) -> Unit,
 ) {
     val ios = estIos
     val toasts = LocalToasts.current
+    val garde = rememberGardeSortie(vm::modifie, onRetour)
     EcranFormulaireEspece(
         titre = "Caractérisation de l'occurrence",
         sousTitre = null,
         typeSaisieLabel = typeSaisieLabel,
-        onAccueil = onAccueil,
+        onAccueil = { garde.demander(onAccueil) },
         onValider = {
             val (espece, message) = vm.valider()
             if (espece != null) onValide(espece) else if (message != null) toasts.afficher(message, true)
@@ -74,19 +81,20 @@ fun CaracterisationScreen(
             ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it })
         }
         if (vm.aDesChampsAvances) {
-            // UN seul repli pour toute la section avancée, comme la gn-advanced-section du web.
+            // UN seul repli pour toute la section avancée, comme la gn-advanced-section du web : le
+            // même bouton « Avancé » à roue dentée l'ouvre et la ferme.
             if (ios) {
                 Row(
                     Modifier.clickable { vm.avanceOuvert = !vm.avanceOuvert },
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    SymboleSf(if (vm.avanceOuvert) "chevron.up" else "chevron.down", 13f, listOf(BLEU_VARIANTE))
-                    Text(if (vm.avanceOuvert) "Moins de champs" else "Plus de champs", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = BLEU_VARIANTE)
+                    SymboleSf("gearshape.fill", 13f, listOf(BLEU_VARIANTE))
+                    Text(LIBELLE_AVANCE, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = BLEU_VARIANTE)
                 }
             } else {
                 Text(
-                    if (vm.avanceOuvert) "▴ Moins de champs" else "▾ Plus de champs",
+                    "⚙ $LIBELLE_AVANCE",
                     fontSize = 13.sp,
                     color = BLEU_LIEN,
                     modifier = Modifier.padding(top = 12.dp).clickable { vm.avanceOuvert = !vm.avanceOuvert },
@@ -101,7 +109,8 @@ fun CaracterisationScreen(
                 for (champ in vm.avances) {
                     ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it })
                 }
-                for ((cle, libelle, estUrl) in vm.preuves) {
+                // Les preuves, seulement quand la preuve d'existence vaut « Oui », comme le web.
+                if (vm.preuvesOuvertes) for ((cle, libelle, estUrl) in vm.preuves) {
                     ChampLibelle(libelle) {
                         ChampTexteFormulaire(
                             vm.textesPreuves[cle].orEmpty(),
@@ -111,25 +120,23 @@ fun CaracterisationScreen(
                         )
                     }
                 }
+                // Le commentaire sans libellé, son invite seule, sur deux lignes, comme le web.
                 vm.commentaire?.let { valeur ->
-                    ChampLibelle("Commentaire") {
-                        ChampTexteFormulaire(valeur, { vm.commentaire = it }, lignesMin = 3, uneLigne = false, clavier = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences))
-                    }
+                    ChampTexteFormulaire(
+                        valeur,
+                        { vm.commentaire = it },
+                        Modifier.padding(top = if (ios) 0.dp else 10.dp),
+                        lignesMin = 2,
+                        uneLigne = false,
+                        clavier = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                        indication = "Commentaire",
+                    )
                 }
             }
         }
+        // Les champs additionnels hors de la section avancée, sans titre, comme le web.
         val additionnels = vm.additionnels
-        if (additionnels != null && additionnels.defs.isNotEmpty()) {
-            Column {
-                Text(
-                    "Champs additionnels (occurrence)",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (ios) Color.White else Color.Unspecified,
-                    modifier = Modifier.padding(top = if (ios) 4.dp else 20.dp, bottom = if (ios) 14.dp else 2.dp),
-                )
-                ChampsAdditionnelsVue(additionnels)
-            }
-        }
+        if (additionnels != null && additionnels.defsAffiches.isNotEmpty()) ChampsAdditionnelsVue(additionnels)
     }
+    DialogueGardeSortie(garde, "Caractérisation non enregistrée")
 }

@@ -68,24 +68,26 @@ class GeoNatureBrowse(
     /** IDs des jeux de données sur lesquels l'utilisateur a le droit de **créer** des observations
      *  pour [moduleCode] (CRUVED C), via `POST /api/meta/datasets` body `{"create":"OCCTAX"}` —
      *  exactement le filtre du formulaire web (cf. app officielle gn_mobile_core). Sert à NE proposer
-     *  en saisie que les datasets créables. Set vide en cas d'échec → pas de restriction (filet). */
-    suspend fun chargerIdsDatasetsCreables(config: GeoNatureConfig, moduleCode: String = "OCCTAX"): Set<Int> =
+     *  en saisie que les datasets créables. Une réponse vide du serveur fait foi ; null en cas d'échec
+     *  (réseau, refus, réponse illisible) : l'appelant garde alors ce qu'il avait, faute de quoi une
+     *  synchro hors ligne ne laissait plus aucun jeu à proposer. */
+    suspend fun chargerIdsDatasetsCreables(config: GeoNatureConfig, moduleCode: String = "OCCTAX"): Set<Int>? =
         withContext(Dispatchers.IO) {
             try {
                 val base = config.urlServeur.trim().trimEnd('/')
-                val (token, _) = auth.login(base, config.login, config.motDePasse) ?: return@withContext emptySet()
+                val (token, _) = auth.login(base, config.login, config.motDePasse) ?: return@withContext null
                 // Read timeout généreux : sur les serveurs à beaucoup de jeux de données (2500+),
                 // la sérialisation côté serveur dépasse largement 10s (cf. chargerDatasets).
                 val corps = clients.postJsonEnFlux(
                     "$base/api/meta/datasets?active=true", """{"create":"$moduleCode"}""", token,
                     timeoutMs = 15000, readTimeoutMs = 90000,
                 ) { reponse -> if (reponse.status.value != 200) null else reponse.corpsEnTampon() }
-                    ?: return@withContext emptySet()
+                    ?: return@withContext null
                 // Lecture en flux (cf. chargerDatasets) : on n'extrait que les id_dataset.
                 lireTableauEnFlux(corps, CLES_TABLEAU, ::parseUnDataset).mapTo(HashSet()) { it.id }
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) { emptySet() }
+            } catch (_: Exception) { null }
         }
 
     suspend fun chargerDatasets(config: GeoNatureConfig, moduleCode: String = "OCCTAX"): List<GeoNatureDataset> =
@@ -200,49 +202,26 @@ class GeoNatureBrowse(
 
     /** Récupère la liste des observateurs Occtax.
      *
-     *  Comme le **formulaire web Occtax** : on restreint à la LISTE D'OBSERVATEURS configurée du
-     *  module (menu UsersHub `OCCTAX.id_observers_list`, via `/api/users/menu/<id>`) — liste curée,
+     *  Comme le **formulaire web Occtax** : la LISTE D'OBSERVATEURS configurée du module (menu
+     *  UsersHub `OCCTAX.id_observers_list`, via `/api/users/menu/<id>`), et elle seule — liste curée,
      *  donc **sans les doublons de comptes** que renvoie `/api/users/roles` (un même « Prénom Nom »
-     *  pouvant correspondre à plusieurs `id_role`). Repli sur `/api/users/roles` (tous les rôles) si
-     *  la config ou le menu ne sont pas disponibles (compat. multi-serveurs). */
+     *  pouvant correspondre à plusieurs `id_role`). Le repli sur tous les rôles, quand la liste était
+     *  vide ou illisible, est retiré (demande du 21 octobre) : une liste illisible lève une erreur,
+     *  et la synchro garde alors celle du cache. */
     suspend fun chargerObservateurs(config: GeoNatureConfig): List<GeoNatureObservateur> =
         withContext(Dispatchers.IO) {
             val base = config.urlServeur.trim().trimEnd('/')
             val (token, _, cookies) = auth.loginAvecCookies(base, config.login, config.motDePasse)
                 ?: throw GNErreur.AuthEchouee(401)
-
-            // Aligné sur le web : liste d'observateurs configurée du module si disponible.
             val idListe = idListeObservateursOcctax(base, token, cookies)
-            if (idListe != null) {
-                val depuisMenu = chargerObservateursDeMenu(base, token, cookies, idListe)
-                if (!depuisMenu.isNullOrEmpty()) return@withContext depuisMenu
-            }
-
-            // Repli : tous les rôles (comportement historique).
-            val reponse = clients.get("$base/api/users/roles", token, cookies, 10000)
-            val code = reponse.status.value
-            if (code != 200) throw GNErreur.EnvoiEchoue(code, "Observateurs : HTTP $code")
-
-            val text = reponse.bodyAsText()
-            val array: JSONArray = text.parserTableauJson("data", "items", "results")
-                ?: throw GNErreur.EnvoiEchoue(code, "Observateurs : format JSON inattendu")
-            val result = mutableListOf<GeoNatureObservateur>()
-            for (i in 0 until array.length()) {
-                val item = array.getJSONObject(i)
-                val idRole = item.optInt("id_role", -1).takeIf { it > 0 } ?: continue
-                if (item.optBoolean("groupe", false)) continue
-                val prenom = item.optString("prenom_role", "").trim()
-                val nom = item.optString("nom_role", "").trim()
-                val nomComplet = listOf(prenom, nom).filter { it.isNotEmpty() }.joinToString(" ")
-                    .ifEmpty { item.optString("nom_complet", "") }
-                if (nomComplet.isNotEmpty()) result.add(GeoNatureObservateur(idRole, nomComplet))
-            }
-            result.sortedBy { it.nomComplet.lowercase() }
+                ?: throw GNErreur.EnvoiEchoue(0, "Observateurs : OCCTAX.id_observers_list illisible")
+            chargerObservateursDeMenu(base, token, cookies, idListe)
+                ?: throw GNErreur.EnvoiEchoue(0, "Observateurs : liste $idListe illisible")
         }
 
     /** Id du menu UsersHub « liste d'observateurs » du module Occtax, lu dans la config serveur
      *  (`/api/gn_commons/config` → `OCCTAX.id_observers_list`) — la MÊME source que le web. null si
-     *  absent/illisible (→ repli sur tous les rôles). */
+     *  absent/illisible. */
     private suspend fun idListeObservateursOcctax(base: String, token: String?, cookies: String): Int? =
         configServeur(base, token, cookies)
             ?.optJSONObject("OCCTAX")?.optInt("id_observers_list", -1)?.takeIf { it > 0 }
@@ -280,16 +259,30 @@ class GeoNatureBrowse(
             } catch (_: Exception) { null }
         }
 
-    /** `OCCHAB.formConfig` (map champ→booléen de visibilité) sérialisé, depuis `/gn_commons/config`.
-     *  Pilote quels champs afficher dans le formulaire OccHab — même source que le web. null si absent. */
-    suspend fun chargerFormConfigOccHab(config: GeoNatureConfig): String? =
+    /** Ce que le formulaire OccHab du web lit dans `OCCHAB` (`/gn_commons/config`) : `formConfig`
+     *  (map champ→booléen de visibilité) sérialisé, null s'il est absent ; `OBSERVER_AS_TXT`
+     *  (observateurs en texte libre, faux par défaut) ; les observateurs de la liste
+     *  `OBSERVER_LIST_ID` (1 par défaut), null s'ils n'ont pu être lus. */
+    data class ConfigOccHab(
+        val formConfigJson: String?,
+        val observateursEnTexte: Boolean,
+        val observateurs: List<GeoNatureObservateur>?,
+    )
+
+    /** La [ConfigOccHab] du serveur, null s'il ne la donne pas. */
+    suspend fun chargerConfigOccHab(config: GeoNatureConfig): ConfigOccHab? =
         withContext(Dispatchers.IO) {
             try {
                 val base = config.urlServeur.trim().trimEnd('/')
                 val (token, _, cookies) =
                     auth.loginAvecCookies(base, config.login, config.motDePasse)
                         ?: return@withContext null
-                configServeur(base, token, cookies)?.optJSONObject("OCCHAB")?.optJSONObject("formConfig")?.toString()
+                val occhab = configServeur(base, token, cookies)?.optJSONObject("OCCHAB") ?: return@withContext null
+                ConfigOccHab(
+                    formConfigJson = occhab.optJSONObject("formConfig")?.toString(),
+                    observateursEnTexte = occhab.optBoolean("OBSERVER_AS_TXT", false),
+                    observateurs = chargerObservateursDeMenu(base, token, cookies, occhab.optInt("OBSERVER_LIST_ID", 1)),
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) { null }
@@ -358,7 +351,6 @@ class GeoNatureBrowse(
         minLon: Double, minLat: Double, maxLon: Double, maxLat: Double
     ): List<ObsExplorer> {
         val result = mutableListOf<ObsExplorer>()
-        val cdNomsCache = taxRef.tousLesCdNoms()
         val groupeParCdNom = taxRef.tousLesGroupes()
         val regneParCdNom = taxRef.tousLesRegnes()
         val groupe1ParCdNom = taxRef.tousLesGroupes1()
@@ -390,7 +382,7 @@ class GeoNatureBrowse(
                 // group1_inpn n'est généralement pas exposé par la synthèse → on retombe
                 // sur le cache TaxRef indexé par cd_nom pour discriminer mollusques vs autres invertébrés.
                 val group1Synthese = props.optString("group1_inpn", "")
-                fun mapperTaxon(group2: String, cdNom: Int): Taxon {
+                fun mapperTaxon(group2: String, cdNom: Int): Taxon? {
                     when (group2) {
                         "Oiseaux"    -> return Taxon.OISEAU
                         "Mammifères" -> return Taxon.MAMMIFERE
@@ -405,23 +397,17 @@ class GeoNatureBrowse(
                     return when (regneParCdNom[cdNomStr]) {
                         "Fungi"   -> Taxon.FONGE
                         "Plantae" -> Taxon.PLANTE
+                        null      -> null
                         else      -> Taxon.INVERTEBRES
                     }
                 }
 
-                val taxon: Taxon
-                if (group.isNotEmpty()) {
-                    taxon = mapperTaxon(group, props.optInt("cd_nom", -1))
-                } else {
-                    val cdNom = props.optInt("cd_nom", -1).takeIf { it > 0 } ?: continue
-                    val cachedGroupe = groupeParCdNom[cdNom.toString()]
-                    if (cachedGroupe != null) {
-                        taxon = mapperTaxon(cachedGroupe, cdNom)
-                    } else {
-                        if (cdNomsCache.isNotEmpty() && cdNom !in cdNomsCache) continue
-                        taxon = Taxon.OISEAU
-                    }
-                }
+                // Le groupe de la Synthèse, sinon celui du cache TaxRef. Un taxon absent du téléphone
+                // n'est plus écarté (GeoMys-Android le faisait, et rangeait aux oiseaux ceux du cache
+                // sans groupe) : l'observation est gardée sans groupe, icône neutre (21 octobre 2026).
+                val cdNom = props.optInt("cd_nom", -1)
+                val groupe = group.ifEmpty { groupeParCdNom[cdNom.toString()].orEmpty() }
+                val taxon = if (groupe.isEmpty()) null else mapperTaxon(groupe, cdNom)
 
                 result.add(obsFromProps(props, lat, lon, taxon))
             }
@@ -429,7 +415,7 @@ class GeoNatureBrowse(
         return result
     }
 
-    private fun obsFromProps(props: JSONObject, lat: Double, lon: Double, taxon: Taxon = Taxon.OISEAU): ObsExplorer {
+    private fun obsFromProps(props: JSONObject, lat: Double, lon: Double, taxon: Taxon?): ObsExplorer {
         val cdNom = props.optInt("cd_nom", -1)
         var nomVern = props.optString("nom_vern").ifEmpty {
             props.optString("nom_vernaculaires").ifEmpty {
@@ -444,7 +430,12 @@ class GeoNatureBrowse(
 
         return ObsExplorer(
             nomCite = props.optString("nom_cite").ifEmpty {
-                props.optString("lb_nom").ifEmpty { props.optString("nom_valide", "Espèce inconnue") }
+                props.optString("lb_nom").ifEmpty {
+                    // Le nom que `for_web` envoie par défaut (GeoNature 2.17 : le nom vernaculaire, à
+                    // défaut le nom latin), sans nom_cite ni lb_nom : vu le 21 octobre sur le serveur de
+                    // démonstration, où tout taxon sans nom français en cache restait « Espèce inconnue ».
+                    props.optString("nom_vern_or_lb_nom").ifEmpty { props.optString("nom_valide", "Espèce inconnue") }
+                }
             },
             nomVern = nomVern,
             nomSci = props.optString("lb_nom").ifEmpty { props.optString("nom_cite", "") },

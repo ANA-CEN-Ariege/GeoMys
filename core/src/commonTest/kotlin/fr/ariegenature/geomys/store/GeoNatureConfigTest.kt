@@ -27,6 +27,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** Persistance et état de la configuration GeoNature (URL/login/mdp/dataset). */
@@ -71,11 +72,12 @@ class GeoNatureConfigTest {
     }
 
     @Test
-    fun est_configuree_exige_en_plus_un_dataset() {
+    fun est_configuree_sans_jeu_de_donnees_par_defaut() {
+        // Le jeu de données par défaut est facultatif : chaque saisie porte le sien.
         val c = config()
-        c.urlServeur = "https://x"; c.login = "u"; c.motDePasse = "p"
-        assertFalse(c.estConfiguree, "dataset manquant")
-        c.idDataset = "7"
+        c.urlServeur = "https://x"; c.login = "u"
+        assertFalse(c.estConfiguree, "mot de passe manquant")
+        c.motDePasse = "p"
         assertTrue(c.estConfiguree)
     }
 
@@ -94,69 +96,112 @@ class GeoNatureConfigTest {
         assertFalse(c.datasetAcceptablePourEnvoi(416), "dataset fantôme → refusé")
     }
 
-    @Test
-    fun dataset_valide_vrai_si_cache_vide() {
-        // Cache datasets absent → on ne peut pas trancher : ne pas bloquer.
-        val c = config()
-        c.idDataset = "416"
-        assertTrue(c.datasetValide, "cache vide → considéré valide")
-    }
-
-    @Test
-    fun dataset_valide_faux_si_id_absent_du_cache() {
-        val c = config()
-        c.datasetsCacheJson = """[{"id":5,"nom":"A"},{"id":12,"nom":"B"}]"""
-        c.idDataset = "416"
-        assertFalse(c.datasetValide, "416 absent du cache → invalide")
-        c.idDataset = "12"
-        assertTrue(c.datasetValide, "12 présent dans le cache → valide")
-    }
-
-    @Test
-    fun saisie_possible_exige_dataset_present_sur_le_serveur() {
-        val c = config()
-        c.urlServeur = "https://x"; c.login = "u"; c.motDePasse = "p"
-        c.datasetsCacheJson = """[{"id":5,"nom":"A"}]"""
-        c.idDataset = "416"
-        assertFalse(c.saisiePossible, "dataset fantôme → saisie interdite")
-        c.idDataset = "5"
-        assertTrue(c.saisiePossible, "dataset présent → saisie autorisée")
-    }
-
-    /** Configuration OCCTAX complète et cohérente avec les caches du serveur courant. */
+    /** Configuration OCCTAX avec un jeu de données proposé (actif, OCCTAX, créable), une liste et un
+     *  observateur dans le cache du serveur courant ; aucune sélection par défaut. */
     private fun configValideOcctax() = config().apply {
         urlServeur = "https://x"; login = "u"; motDePasse = "p"
-        datasetsCacheJson = """[{"id":5,"nom":"A"}]"""
-        listesCacheJson = """[{"id":100,"nom":"L"}]"""
-        observateursCacheJson = """[{"idRole":3,"nomComplet":"Alice"}]"""
-        idDataset = "5"; taxaListeId = "100"; observateurDefautId = "3"
+        datasetsCacheJson = """[{"id":5,"nom":"A","moduleCodes":["OCCTAX"]},{"id":6,"nom":"B","moduleCodes":["OCCHAB"]}]"""
+        datasetsCreablesOcctax = setOf(5, 6)
+        listesCacheJson = """[{"id":100,"nom":"Saisie"}]"""
+        observateursCacheJson = """[{"idRole":8,"nom":"MARTIN Paul"}]"""
     }
 
     @Test
-    fun saisie_occtax_valide_quand_tout_present_dans_les_caches() {
-        assertTrue(configValideOcctax().saisieOcctaxValide)
+    fun saisie_occtax_exige_les_trois_selections_par_defaut() {
+        // Obligatoires, sans valeur d'office (demande du 20 octobre) : le jeu et la liste se
+        // choisissent, l'observateur est l'utilisateur connecté.
+        val c = configValideOcctax().apply { idRoleUtilisateur = 3 }
+        assertFalse(c.saisieOcctaxValide, "jeu de données et liste à choisir")
+        c.idDataset = "5"
+        assertFalse(c.saisieOcctaxValide, "liste à choisir")
+        c.taxaListeId = "100"
+        assertTrue(c.saisieOcctaxValide, "l'observateur est l'utilisateur connecté")
+        c.idDataset = "6"
+        assertFalse(c.saisieOcctaxValide, "jeu d'OccHab : pas proposé à un relevé")
     }
 
     @Test
-    fun saisie_occtax_invalide_si_cache_vide() {
-        // Sélections renseignées mais aucun cache → on n'a pas la preuve qu'elles existent.
+    fun la_liste_imposee_par_le_jeu_ou_aucune_liste_en_cache_suffit() {
+        val c = configValideOcctax().apply {
+            idRoleUtilisateur = 3
+            datasetsCacheJson = """[{"id":5,"nom":"A","moduleCodes":["OCCTAX"],"idTaxaList":100}]"""
+            idDataset = "5"
+        }
+        assertTrue(c.listeParDefautValide, "liste imposée par le jeu")
+        assertTrue(c.saisieOcctaxValide)
+        c.datasetsCacheJson = """[{"id":5,"nom":"A","moduleCodes":["OCCTAX"]}]"""
+        assertFalse(c.listeParDefautValide, "plus de liste imposée : à choisir")
+        c.taxaListeId = "999"
+        assertFalse(c.listeParDefautValide, "liste fantôme")
+        c.listesCacheJson = "[]"
+        assertTrue(c.listeParDefautValide, "aucune liste en cache : rien à choisir")
+    }
+
+    @Test
+    fun l_observateur_par_defaut_doit_etre_connu() {
+        val c = configValideOcctax().apply { idDataset = "5"; taxaListeId = "100" }
+        assertFalse(c.observateurParDefautValide, "ni utilisateur connecté connu, ni choix")
+        assertFalse(c.saisieOcctaxValide)
+        c.idRoleUtilisateur = 3
+        assertTrue(c.observateurParDefautValide, "l'utilisateur connecté")
+        c.observateurDefautId = "8"
+        assertTrue(c.observateurParDefautValide, "un observateur du cache")
+        c.observateurDefautId = "42"
+        assertFalse(c.observateurParDefautValide, "observateur fantôme")
+        c.observateurDefautId = "3"
+        assertTrue(c.observateurParDefautValide, "l'utilisateur connecté, même hors de la liste")
+    }
+
+    @Test
+    fun saisie_occtax_invalide_sans_jeu_propose() {
         val c = config()
         c.urlServeur = "https://x"; c.login = "u"; c.motDePasse = "p"
-        c.idDataset = "5"; c.taxaListeId = "100"; c.observateurDefautId = "3"
         assertFalse(c.saisieOcctaxValide, "caches vides → non valide")
+        c.datasetsCacheJson = """[{"id":6,"nom":"B","moduleCodes":["OCCHAB"]},{"id":7,"nom":"C","actif":false,"moduleCodes":["OCCTAX"]}]"""
+        c.datasetsCreablesOcctax = setOf(6, 7)
+        assertFalse(c.saisieOcctaxValide, "ni jeu OCCTAX ni jeu actif")
     }
 
     @Test
-    fun saisie_occtax_invalide_si_une_selection_fantome() {
-        configValideOcctax().apply { idDataset = "999" }.let {
-            assertFalse(it.saisieOcctaxValide, "dataset fantôme")
+    fun le_jeu_par_defaut_fantome_ne_s_impose_pas() {
+        val c = configValideOcctax()
+        assertNull(c.idDatasetParDefaut, "aucun par défaut")
+        c.idDataset = "5"
+        assertEquals(5, c.idDatasetParDefaut)
+        c.idDataset = "6"
+        assertNull(c.idDatasetParDefaut, "jeu d'OccHab : pas proposé à un relevé")
+        c.idDataset = "999"
+        assertNull(c.idDatasetParDefaut, "jeu fantôme")
+    }
+
+    @Test
+    fun l_observateur_par_defaut_est_l_utilisateur_connecte_sauf_autre_choix() {
+        val c = configValideOcctax().apply {
+            idRoleUtilisateur = 3
+            nomUtilisateur = "DUPONT Alice"
         }
-        configValideOcctax().apply { taxaListeId = "999" }.let {
-            assertFalse(it.saisieOcctaxValide, "liste fantôme")
+        assertEquals(3, c.idObservateurParDefaut)
+        assertEquals("DUPONT Alice", c.nomObservateurParDefaut)
+        c.observateurDefautId = "8"
+        c.observateurDefautNom = "MARTIN Paul"
+        assertEquals(8, c.idObservateurParDefaut)
+        assertEquals("MARTIN Paul", c.nomObservateurParDefaut)
+    }
+
+    @Test
+    fun la_liste_de_taxons_du_releve_est_celle_du_jeu_sinon_celle_des_parametres_sinon_de_la_configuration() {
+        val c = configValideOcctax().apply {
+            datasetsCacheJson = """[{"id":5,"nom":"A","idTaxaList":100},{"id":6,"nom":"B"}]"""
         }
-        configValideOcctax().apply { observateurDefautId = "999" }.let {
-            assertFalse(it.saisieOcctaxValide, "observateur fantôme")
-        }
+        assertEquals(100, c.listeTaxonsOcctax(5))
+        assertNull(c.listeTaxonsOcctax(6), "sans liste du jeu ni de la configuration : tous les taxons")
+        c.occtaxIdListeTaxons = 200
+        assertEquals(200, c.listeTaxonsOcctax(6))
+        assertEquals(200, c.listeTaxonsOcctax(null))
+        assertEquals(100, c.listeTaxonsOcctax(5), "celle du jeu d'abord")
+        c.taxaListeId = "300"
+        assertEquals(300, c.listeTaxonsOcctax(6), "la liste des Paramètres avant celle de la configuration")
+        assertEquals(100, c.listeTaxonsOcctax(5), "celle du jeu reste la première")
     }
 
     @Test

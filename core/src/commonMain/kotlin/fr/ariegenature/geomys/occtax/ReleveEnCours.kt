@@ -33,6 +33,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/** Le déterminateur par défaut d'une nouvelle espèce : l'utilisateur connecté, par son nom complet
+ *  (« NOM Prénom », `currentUser.nom_complet` du web), sinon son identifiant — et non l'observateur
+ *  par défaut des Paramètres (demande du 21 octobre 2026). */
+fun determinateurParDefaut(config: GeoNatureConfig): String = config.nomUtilisateur.ifEmpty { config.login }
+
 /** Une espèce du relevé en cours (PendingObs). [existingId] : l'observation déjà enregistrée
  *  qu'elle modifie (relevé repris) ; [vmId] : son identité stable sinon, pour l'enregistrement au
  *  fil de l'eau. */
@@ -180,6 +185,12 @@ class ReleveEnCours(
         private set
     var dateFin: Long? = null
         private set
+    var heureDebut: String? = null
+        private set
+    var heureFin: String? = null
+        private set
+    var observateursTexte: String? = null
+        private set
     var typGrp: String = ""
         private set
     var champsExtra: Map<String, String> = emptyMap()
@@ -237,6 +248,9 @@ class ReleveEnCours(
             // saisie de la veille passait à aujourd'hui en rouvrant « Détails »).
             dateDebut = premier.dateDebutReleve ?: premier.date
             dateFin = premier.dateFinReleve
+            heureDebut = premier.heureDebutReleve
+            heureFin = premier.heureFinReleve
+            observateursTexte = premier.observateursReleveTxt
             typGrp = premier.typGrpReleve ?: ""
             champsExtra = premier.champsReleveExtra
             geometryType = premier.geometryType
@@ -296,6 +310,9 @@ class ReleveEnCours(
                 idDataset = dc.idDataset
                 idsObservateurs = dc.idsObservateurs
                 nomsObservateurs = dc.nomsObservateurs
+                observateursTexte = dc.observateursTexte
+                heureDebut = dc.heureDebut
+                heureFin = dc.heureFin
                 commentaire = dc.comment
                 cdHab = dc.cdHab
                 habitatLabel = dc.habitatLabel
@@ -306,15 +323,10 @@ class ReleveEnCours(
         }
     }
 
-    /** Déterminateur d'une nouvelle espèce : l'observateur choisi dans la configuration, sinon
-     *  l'utilisateur GeoNature connecté, sinon son identifiant. */
-    fun determinateurParDefaut(): String =
-        config.observateurDefautNom.ifEmpty { config.nomUtilisateur.ifEmpty { config.login } }
-
     /** Ajoute une espèce CHOISIE (avec son cd_nom, jamais re-résolu depuis son texte) et enregistre
      *  le relevé. Rend son rang. */
     fun ajouter(taxon: Taxon, espece: String, cdNom: Int?): Int {
-        _especes.value += EspeceReleve(taxon, espece, cdNom, nombre = 1, determinateur = determinateurParDefaut())
+        _especes.value += EspeceReleve(taxon, espece, cdNom, nombre = 1, determinateur = determinateurParDefaut(config))
         synchroniser()
         return _especes.value.lastIndex
     }
@@ -334,9 +346,9 @@ class ReleveEnCours(
         synchroniser()
     }
 
-    /** « Détails du relevé » validé : les valeurs communes du relevé. Elles partent avec le
-     *  prochain enregistrement (comme sous Android, le dialogue n'enregistre pas). Une date de début
-     *  RÉELLEMENT modifiée passe la saisie en « a posteriori ». */
+    /** « Détails du relevé » validé : les valeurs communes du relevé, enregistrées aussitôt. Sous
+     *  GeoMys-Android, elles attendaient la modification suivante du relevé, et un retour juste
+     *  après les perdait. Une date de début RÉELLEMENT modifiée passe la saisie en « a posteriori ». */
     fun appliquerDetails(res: DetailsReleveResult) {
         idDataset = res.idDataset
         idsObservateurs = res.idsObservateurs
@@ -347,15 +359,34 @@ class ReleveEnCours(
         habitatLabel = res.habitatLabel
         dateDebut = res.dateDebut
         dateFin = res.dateFin
+        heureDebut = res.heureDebut
+        heureFin = res.heureFin
+        observateursTexte = res.observateursTexte
         typGrp = res.typGrp
         champsExtra = res.champsExtra
         if (res.dateModifiee) session.definirDateAPosteriori(res.dateDebut, res.dateFin)
+        synchroniser()
     }
+
+    /** Le jeu de données du relevé : celui choisi (« Détails », détails communs), sinon celui des
+     *  relevés déjà enregistrés de la saisie (le relevé précédent du web), sinon celui des
+     *  Paramètres s'il y en a un ; null : à choisir dans « Détails ». Ses champs additionnels sont
+     *  ceux que le web montre pour lui. */
+    fun idDatasetEffectif(): Int? = idDataset ?: session.datasetSortie() ?: config.idDatasetParDefaut
+
+    /** La date reste à choisir : le serveur la veut vide au départ (`DATE_FORM_WITH_TODAY` à faux,
+     *  comme le web) et « Détails » ne l'a pas encore posée. */
+    fun dateAChoisir(): Boolean = !config.occtaxDateDuJour && dateDebut == null
+
+    private val memoRequis = MemoRequis()
+
+    /** Les champs additionnels obligatoires à remplir des espèces, pour le jeu du relevé. */
+    fun requis(): RequisEspece = memoRequis.pour(config.additionalFieldsOcctaxJson, idDatasetEffectif())
 
     /** Les champs additionnels de relevé à enregistrer : ceux du relevé, sinon (écran intercalé
      *  sauté et « Détails » jamais ouvert) les valeurs par défaut du serveur. */
     private fun additionnelsAEnregistrer(): Map<String, String> = additionnelsReleve.ifEmpty {
-        ChampsAdditionnels.defautsChampsReleve(config.additionalFieldsOcctaxJsonActif, config.idDataset.toIntOrNull())
+        ChampsAdditionnels.defautsChampsReleve(config.additionalFieldsOcctaxJson, idDatasetEffectif())
     }
 
     /** Reflète les espèces dans la session, qui les enregistre aussitôt (synchroniserBatch).
@@ -371,8 +402,8 @@ class ReleveEnCours(
                 espece = nom,
                 additionalFieldsReleve = additionnelsAEnregistrer(),
                 // Jeu de données FIGÉ à la création du relevé : la surcharge explicite, sinon celui
-                // déjà enregistré, sinon le défaut de la config au premier enregistrement.
-                idDatasetReleve = idDataset ?: base.idDatasetReleve ?: config.idDataset.toIntOrNull()?.takeIf { it > 0 },
+                // déjà enregistré, sinon celui que « Détails » propose au premier enregistrement.
+                idDatasetReleve = idDataset ?: base.idDatasetReleve ?: idDatasetEffectif(),
                 observateursReleveIds = idsObservateurs,
                 observateursReleveNoms = nomsObservateurs,
                 commentReleve = commentaire.ifEmpty { null },
@@ -380,6 +411,9 @@ class ReleveEnCours(
                 habitatReleveLabel = habitatLabel,
                 dateDebutReleve = dateDebut,
                 dateFinReleve = dateFin,
+                heureDebutReleve = heureDebut,
+                heureFinReleve = heureFin,
+                observateursReleveTxt = observateursTexte,
                 typGrpReleve = typGrp.ifEmpty { null },
                 champsReleveExtra = champsExtra,
                 geometryType = geometryType,
@@ -423,7 +457,7 @@ class ReleveEnCours(
             geometryCoordsJson = geometryCoordsJson,
             releveId = releveId,
             additionalFieldsReleve = additionnelsAEnregistrer(),
-            idDatasetReleve = idDataset ?: base.idDatasetReleve ?: config.idDataset.toIntOrNull()?.takeIf { it > 0 },
+            idDatasetReleve = idDataset ?: base.idDatasetReleve ?: idDatasetEffectif(),
             observateursReleveIds = idsObservateurs,
             observateursReleveNoms = nomsObservateurs,
             commentReleve = commentaire.ifEmpty { null },
@@ -431,6 +465,9 @@ class ReleveEnCours(
             habitatReleveLabel = habitatLabel,
             dateDebutReleve = dateDebut,
             dateFinReleve = dateFin,
+            heureDebutReleve = heureDebut,
+            heureFinReleve = heureFin,
+            observateursReleveTxt = observateursTexte,
             typGrpReleve = typGrp.ifEmpty { null },
             champsReleveExtra = champsExtra,
         )

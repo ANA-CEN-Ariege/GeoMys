@@ -35,6 +35,7 @@ import fr.ariegenature.geomys.util.uuidAleatoire
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 import okio.FileSystem
@@ -48,7 +49,7 @@ class AdditionalFieldsChargerTest {
     private val systeme = FileSystem.SYSTEM
     private val dossier = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "geomys-test-${uuidAleatoire()}"
     private val nomenclatures = NomenclatureCache(MapSettings(), TaxRefCache(dossier, MapSettings()))
-    private val api = AdditionalFieldsApi(GeoNatureAuth(serveur.clients), serveur.clients, nomenclatures)
+    private val api = AdditionalFieldsApi(GeoNatureAuth(serveur.clients), serveur.clients)
 
     private val config = GeoNatureConfig(MapSettings(), CoffreEnMemoire()).apply {
         urlServeur = serveur.base
@@ -108,36 +109,50 @@ class AdditionalFieldsChargerTest {
     }
 
     @Test
-    fun widget_nomenclature_resolu_avec_le_defaut_du_module() = runTest {
-        // Options lues sur /api/nomenclatures/nomenclature/<code>, triées par libellé ; défaut
-        // repris des nomenclatures par défaut du module quand le champ n'en a pas.
+    fun widget_nomenclature_comme_le_web() = runTest {
+        // Options lues sur /api/nomenclatures/nomenclature/<code>, dans l'ordre du serveur
+        // (label_default) ; le défaut est le seul `default_value`, jamais celui du module ; les
+        // champs dans l'ordre du serveur ; les attributs additionnels lus.
         nomenclatures.setDefauts(mapOf("STATUT_OBS" to "85"))
         router(
             "/api/gn_commons/additional_fields" to {
                 json(
                     """
                     [{"id_field":4,"field_name":"statut","field_label":"Statut",
-                      "type_widget":"nomenclature","code_nomenclature_type":"STATUT_OBS"},
-                     {"id_field":5,"field_name":"note","field_label":"Note","type_widget":"text"}]
+                      "type_widget":"nomenclature","code_nomenclature_type":"STATUT_OBS",
+                      "additional_attributes":{"cd_nomenclatures":["1"]}},
+                     {"id_field":5,"field_name":"note","field_label":"Note","type_widget":"number",
+                      "additional_attributes":{"min":0,"max":10,"hidden":true}},
+                     {"id_field":6,"field_name":"aide","field_label":"Aide","type_widget":"html"}]
                     """.trimIndent(),
                 )
             },
             "/api/nomenclatures/nomenclature/STATUT_OBS" to {
                 json(
                     """
-                    {"values":[{"id_nomenclature":85,"label_fr":"Présent"},
-                               {"id_nomenclature":84,"label_default":"Non observé"},
+                    {"values":[{"id_nomenclature":84,"cd_nomenclature":"0","label_default":"Non observé"},
+                               {"id_nomenclature":85,"cd_nomenclature":"1","label_default":"Present","label_fr":"Présent"},
                                {"id_nomenclature":86}]}
                     """.trimIndent(),
                 )
             },
         )
         val defs = api.charger(config, "OCCTAX")
-        assertEquals(listOf("note", "statut"), defs.map { it.fieldName })
-        val statut = defs[1]
+        assertEquals(listOf("statut", "note", "aide"), defs.map { it.fieldName })
+        val statut = defs[0]
         assertEquals(WidgetType.NOMENCLATURE, statut.widget)
-        assertEquals(listOf(OptionNomenclature("84", "Non observé"), OptionNomenclature("85", "Présent")), statut.nomenclatureOptions)
-        assertEquals("85", statut.defaultValue)
+        assertEquals(
+            listOf(OptionNomenclature("84", "Non observé", "Non observé", "0"), OptionNomenclature("85", "Présent", "Present", "1")),
+            statut.nomenclatureOptions,
+        )
+        assertEquals(listOf(OptionNomenclature("85", "Présent", "Present", "1")), statut.optionsProposees)
+        assertNull(statut.defaultValue)
+        val note = defs[1]
+        assertTrue(note.masque)
+        assertEquals(0.0, note.min)
+        assertEquals(10.0, note.max)
+        assertEquals(WidgetType.HTML, defs[2].widget)
         assertTrue(serveur.chemins.any { it == "/api/gn_commons/additional_fields?module_code=OCCTAX" })
+        assertTrue(serveur.chemins.any { it == "/api/nomenclatures/nomenclature/STATUT_OBS?orderby=label_default" })
     }
 }

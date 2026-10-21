@@ -22,6 +22,7 @@
 package fr.ariegenature.geomys.network
 
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /** Conversion des exceptions réseau en messages utilisateur (le code HTTP reste affiché). */
@@ -57,5 +58,14 @@ class HumaniserErreurReseauTest {
     fun exception_generique_sans_code() {
         val msg = humaniserErreurReseau(RuntimeException("timeout"))
         assertTrue(msg.contains("timeout"))
+    }
+
+    @Test
+    fun le_refus_d_un_cadre_ferme_d_un_releve_occtax_est_traduit() {
+        assertEquals(
+            "Cadre d'acquisition fermé, action impossible",
+            parseErreur(409, """{"description":"Cannot create or update a releve on a closed acquisition framework."}"""),
+        )
+        assertEquals("Autre conflit", parseErreur(409, """{"description":"Autre conflit"}"""))
     }
 }

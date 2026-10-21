@@ -87,7 +87,8 @@ class ProposeEgaleAccepteTest {
         taxRef.setIndexParTaxon(mapOf(Taxon.INSECTE to listOf(pieris, machaon)))
     }
 
-    private fun config() = GeoNatureConfig(MapSettings(), CoffreEnMemoire()).apply { taxaListeId = liste.toString() }
+    /** La liste de taxons du relevé. */
+    private fun config(): Int = liste
 
     @Test
     fun en_mode_francais_un_taxon_sans_nom_francais_n_est_ni_propose_ni_accepte() = runBlocking {

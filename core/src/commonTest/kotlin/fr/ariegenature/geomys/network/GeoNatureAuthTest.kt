@@ -141,7 +141,8 @@ class GeoNatureAuthTest {
         serveur.repondreJson(200, """{"GEONATURE_VERSION":"2.16.1"}""")
         val c = config()
         assertEquals(Pair(true, "Connexion réussie"), auth.testerConnexion(c))
-        assertEquals("Alice Martin", c.nomUtilisateur)
+        // Sans nom_complet, celui du web : « nom_role prenom_role ».
+        assertEquals("Martin Alice", c.nomUtilisateur)
         assertEquals(42, c.idRoleUtilisateur)
         assertEquals("2.16.1", c.versionGeoNatureServeur)
         assertTrue(c.serveurCompatible)
@@ -149,12 +150,25 @@ class GeoNatureAuthTest {
     }
 
     @Test
-    fun connexion_sans_version_detectee_le_signale() = runTest {
+    fun connexion_reussie_garde_le_nom_complet_et_l_organisme_du_serveur() = runTest {
+        serveur.repondreJson(
+            200,
+            """{"access_token":"t","user":{"id_role":42,"id_organisme":3,"prenom_role":"Alice","nom_role":"Martin","nom_complet":"MARTIN Alice"}}""",
+        )
+        serveur.repondreJson(200, """{"GEONATURE_VERSION":"2.17.5"}""")
+        val c = config()
+        assertEquals(Pair(true, "Connexion réussie"), auth.testerConnexion(c))
+        assertEquals("MARTIN Alice", c.nomUtilisateur)
+        assertEquals(3, c.idOrganisme)
+    }
+
+    @Test
+    fun connexion_sans_version_detectee_est_refusee() = runTest {
         serveur.repondreJson(200, """{"access_token":"t"}""")
         serveur.repondre(404)
-        val (ok, message) = auth.testerConnexion(config())
-        assertTrue(ok)
-        assertTrue(message.startsWith("Connexion réussie (version GeoNature non détectée"), message)
+        val c = config()
+        assertEquals(Pair(false, VERSION_INTROUVABLE), auth.testerConnexion(c))
+        assertFalse(c.serveurCompatible)
     }
 
     @Test

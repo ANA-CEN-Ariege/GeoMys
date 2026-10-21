@@ -36,7 +36,7 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 | `ui/` | Écrans Compose Multiplatform, thème, ressources (`composeResources`). Sur iOS, ce module produit le framework `GeoMysUi`. |
 | `androidApp/` | Application Android : `MainActivity`, service au premier plan du suivi GPS, manifeste, icônes. |
 | `iosApp/` | Projet Xcode de l'application iOS, qui affiche l'interface Compose. |
-| `outils/` | Outils de développement : la vérification avant de pousser (`verifier.sh`), les attendus d'org.json tirés des sources d'Android (`reference-org-json/`), un GeoNature simulé pour l'authentification (`geonature-simule/`), le serveur de tuiles et le générateur de MBTiles de test (`prototype-carte/`). |
+| `outils/` | Outils de développement : la vérification avant de pousser (`verifier.sh`), les attendus d'org.json tirés des sources d'Android (`reference-org-json/`), un GeoNature simulé pour l'authentification (`geonature-simule/`), le serveur de tuiles et le générateur de MBTiles de test (`prototype-carte/`), la liste des routes GeoNature appelées par l'appli (`lister_endpoints_geonature.py`) et la vérification d'un serveur GeoNature route par route (`verifier_serveur_geonature.py`, identifiant et mot de passe tapés au clavier). |
 | `licences/` | Texte des licences des codes repris d'autres projets (Apache 2.0 pour org.json, les icônes de Material Components et `ic_menu_delete` d'AOSP). |
 | `docs/` | Captures et documents annexes. |
 | `INVENTAIRE.md`, `inventaire/` | Inventaire de ce qui est partageable dans GeoMys-Android, et suivi du portage. |
@@ -84,6 +84,8 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 - `./gradlew :core:allTests` lance les tests communs sur la JVM et sur le simulateur iOS. `-Pgeomys.simulateur=<UDID>` impose le simulateur des tests iOS, pour laisser tranquille un simulateur déjà ouvert.
 - `./gradlew :ui:testAndroidHostTest` lance les tests des écrans (ViewModels et état des champs), sur la JVM ; `./gradlew :ui:iosSimulatorArm64Test`, ceux de mise en page, sur le simulateur iOS (même option `-Pgeomys.simulateur`).
 - `outils/verifier.sh` fait la vérification complète, à lancer avant de pousser : APK Android, tests communs et tests des écrans (JVM et simulateur iOS), build iOS pour le simulateur. Il tient lieu d'intégration continue. Avec `--sans-ios`, il se passe de Xcode ; avec `--simulateur=<UDID>`, il passe le simulateur aux tests iOS.
+- `GEOMYS_ESSAI_URL=<url> GEOMYS_ESSAI_IDENTIFIANT=<compte> GEOMYS_ESSAI_MOT_DE_PASSE=<mot de passe> ./gradlew :core:testAndroidHostTest --tests '*EssaiServeurReelTest*' --rerun` fait tourner les vrais services de l'appli sur un serveur : connexion, chargement complet des données, formulaires de chaque protocole, Explorer, sans rien envoyer. Le mot de passe passant par l'environnement, à réserver à un compte d'essai, comme celui, public, du serveur de démonstration de GeoNature ; `GEOMYS_ESSAI_RAPPORT=<fichier>` garde le rapport.
+- `outils/verifier_serveur_geonature.py <url>` interroge un serveur GeoNature, en lecture seulement, et dit route par route si l'appli y trouvera ce qu'elle attend : OK, ATTENTION (dégradation sans blocage) ou ÉCHEC. À lancer dans un terminal : l'identifiant et le mot de passe y sont demandés, jamais en argument ; `--public` s'en passe et ne vérifie que les routes publiques.
 
 ## Versions
 

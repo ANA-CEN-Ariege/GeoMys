@@ -65,7 +65,7 @@ class SchemaFusionTest {
         val schema = JSONObject(
             """
             {
-              "generic":  { "comment": { "type_widget": "textarea", "label": "Remarque" } },
+              "generic":  { "comment": { "type_widget": "textarea", "attribut_label": "Remarque" } },
               "specific": { "comment": { "required": true } }
             }
             """.trimIndent(),
@@ -115,17 +115,31 @@ class SchemaFusionTest {
     }
 
     @Test
-    fun champ_specific_sans_widget_infere_via_type_util() {
-        // Cas réel : un protocole ne déclare en specific que `type_util: date` sans type_widget.
-        val schema = JSONObject("""{"generic":{},"specific":{"date_obs":{"type_util":"date"}}}""")
-        val p = MonitoringSchemas.parserPropertiesFusionnees(schema).getValue("date_obs")
-        assertEquals("date", p.typeWidget)
-        assertTrue(p.enSpecific)
+    fun champ_specific_sans_widget_ecarte_comme_sur_le_web() {
+        // Un protocole qui ne déclare en specific que `type_util: date`, sans type_widget : le
+        // formulaire web ne l'affiche pas, l'appli non plus.
+        val schema = JSONObject("""{"generic":{},"specific":{"date_obs":{"type_util":"date"},"nb":{"type_widget":"integer"}}}""")
+        val props = MonitoringSchemas.parserPropertiesFusionnees(schema)
+        assertEquals(listOf("nb"), props.keys.toList())
+        assertTrue(props.getValue("nb").enSpecific)
+    }
+
+    @Test
+    fun ordre_du_web_specific_puis_generic() {
+        // mergeObjects(specific, generic) : les champs du bloc specific d'abord.
+        val schema = JSONObject(
+            """{"generic":{"visit_date_min":{"type_widget":"date"},"comments":{"type_widget":"text"}},""" +
+                """"specific":{"num_passage":{"type_widget":"integer"},"comments":{"attribut_label":"Remarques"}}}""",
+        )
+        val props = MonitoringSchemas.parserPropertiesFusionnees(schema)
+        assertEquals(listOf("num_passage", "comments", "visit_date_min"), props.keys.toList())
+        assertEquals("Remarques", props.getValue("comments").label)
+        assertEquals("text", props.getValue("comments").typeWidget)
     }
 
     @Test
     fun repli_sur_bloc_properties_quand_ni_generic_ni_specific() {
-        val schema = JSONObject("""{"properties":{"nom":{"type_widget":"text","label":"Nom"}}}""")
+        val schema = JSONObject("""{"properties":{"nom":{"type_widget":"text","attribut_label":"Nom"}}}""")
         val props = MonitoringSchemas.parserPropertiesFusionnees(schema)
         assertEquals("Nom", props.getValue("nom").label)
     }

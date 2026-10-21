@@ -435,7 +435,7 @@ class CarteOccHabViewModel(
             transforme(GeoJsonCoords.parse(v.geometryCoordsJson))?.let { v to it }
         }
         if (changees.isEmpty()) return
-        val modifiables = changees.filter { (v, _) -> !v.geometryPartielle && (!v.envoyeGeoNature || (v.idStationServeur ?: 0) > 0) }
+        val modifiables = changees.filter { (v, _) -> !CarteOccHab.nonImportable(v) && (!v.envoyeGeoNature || (v.idStationServeur ?: 0) > 0) }
         if (modifiables.size < changees.size) message(CarteOccHab.VOISINE_NON_MODIFIABLE, longue = true)
         if (modifiables.isEmpty()) return
         val saisieCourante = session.saisieId
@@ -533,8 +533,9 @@ class CarteOccHabViewModel(
         // Dessinée de zéro (et non reprise) : l'écran de la station l'annoncera « Nouvelle station ».
         if (!geometrieChargee) session.marquerStationNouvelle()
         session.definirGeometrie(g)
-        // Surface AUTO (parité web, arrondie au m²), calculée localement, trous déduits.
-        session.definirSurface(edition.surfaceM2())
+        // Surface AUTO (parité web, arrondie au m²), calculée localement, trous déduits ; 0 pour un
+        // point, comme le ST_Area du serveur.
+        session.definirSurface(edition.surfaceM2() ?: 0L)
         session.definirAltitudes(null, null)
         viewModelScope.launch {
             if (!store.upsertStation(session.saisieId, session.stationAEnregistrer())) {
@@ -555,7 +556,7 @@ class CarteOccHabViewModel(
         if (g.mode == ModeGeometrie.POINT) {
             val p = g.point ?: return
             session.definirGeometrie("Point", p.latitude, p.longitude, null)
-            session.definirSurface(null)
+            session.definirSurface(0L)
         } else {
             val geo = g.geometrie() ?: return
             session.definirGeometrie(geo)
@@ -635,14 +636,15 @@ class CarteOccHabViewModel(
         dialogue = null
         viewModelScope.launch {
             editer(st.copy(envoyeGeoNature = false, envoiIncertain = false, derniereErreurEnvoi = null, origineEnvoyee = true))
-            session.figerEmpreinteOrigine()
+            session.figerEmpreinteOrigine(origine = st)
         }
     }
 
     private suspend fun proposerImport(st: OccHabStation) {
         // MULTI-PARTIES : l'appli n'en modélise que la 1ʳᵉ partie, la renvoyer supprimerait les
-        // autres côté serveur.
-        if (st.geometryPartielle) {
+        // autres côté serveur. Cadre d'acquisition fermé, ou pas de droit de modification : le web
+        // refuse de l'éditer.
+        if (CarteOccHab.nonImportable(st)) {
             dialogue = DialogueCarteOccHab.NonModifiable(st)
             return
         }
@@ -657,14 +659,14 @@ class CarteOccHabViewModel(
     }
 
     /** IMPORTE une station serveur dans la saisie courante, en CONSERVANT son id serveur (envoi en
-     *  mise à jour). Rien n'est écrit : l'empreinte d'origine est figée. Seules ses DATES prennent
-     *  celles de la session (une reprise sur le terrain est une nouvelle observation). */
+     *  mise à jour). Rien n'est écrit : l'empreinte d'origine est figée. Elle garde ses dates, comme
+     *  sur le web (décision de l'utilisateur du 21 octobre ; GeoMys-Android lui donnait celles de la
+     *  session). */
     fun importer(st: OccHabStation) {
         dialogue = null
-        val defauts = session.defautsSession
         viewModelScope.launch {
-            editer(st.copy(envoyeGeoNature = false, envoiIncertain = false, dateMin = defauts.dateMin ?: st.dateMin, dateMax = defauts.dateMax ?: st.dateMax))
-            session.figerEmpreinteOrigine()
+            editer(st.copy(envoyeGeoNature = false, envoiIncertain = false))
+            session.figerEmpreinteOrigine(origine = st)
             classer()
         }
     }
@@ -723,7 +725,7 @@ class CarteOccHabViewModel(
     }
 
     private fun ouvrirDetails(demarrage: Boolean, puis: (SaisiesDetailsStation) -> Unit) {
-        details = EtatDetailsStation(demarrage, annulable = !demarrage, session.details, session.station, config, services.nomenclatures)
+        details = EtatDetailsStation(demarrage, session.details, session.station, config, services.nomenclatures)
         apresDetails = puis
     }
 

@@ -138,7 +138,9 @@ class ChampTaxonTest {
             ),
             taxRef, backgroundScope,
         )
-        etat.revision.first { etat.propositionsTaxon("esp", null).isNotEmpty() && etat.propositionsTaxon("libre", null).isNotEmpty() }
+        // Les propositions partent du 3ᵉ caractère, comme le `pnx-taxonomy` du web.
+        assertEquals(emptyList(), etat.propositionsTaxon("esp", "So"))
+        etat.revision.first { etat.propositionsTaxon("esp", "Sou").isNotEmpty() && etat.propositionsTaxon("libre", "Sou").isNotEmpty() }
         etat.saisirTexteTaxon("esp", "Sou")
         etat.choisirPropositionTaxon("esp", etat.propositionsTaxon("esp", "Sou").single())
         assertEquals(641941, etat.lireValeurs()["esp"])

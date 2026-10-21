@@ -23,6 +23,7 @@
 package fr.ariegenature.geomys.monitoring.form
 
 import fr.ariegenature.geomys.ServicesDeTest
+import fr.ariegenature.geomys.model.MediaSuivi
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -102,15 +103,21 @@ class ValeursFormulaireTest {
             EditableField("photos", ViewType.MEDIA, "Photos", schemaDotTable = "gn_monitoring.t_base_visits"),
             EditableField("titre", ViewType.TEXT, "Titre"),
         )
+        // Les médias de TOUS les champs partent, chacun avec ses titre, auteur et description.
+        val medias = listOf(
+            MediaSuivi("file:///a.jpg", "Mare", "DUPONT Alice", "Vue nord", "photos", "gn_monitoring.t_base_visits"),
+            MediaSuivi("file:///b.jpg", "Site", champ = "photos_vides", schemaDotTable = "gn_monitoring.t_base_sites"),
+        )
         val e = ValeursFormulaire.preparerEnregistrement(champs, linkedMapOf(
             "comments" to "42",
             "nb" to 3,
-            "photos_vides" to emptyList<String>(),
-            "photos" to listOf("file:///a.jpg", ""),
+            "photos_vides" to listOf("file:///b.jpg"),
+            "photos" to listOf("file:///a.jpg"),
             "titre" to "T",
-        ))
+        ), medias = medias)
         assertEquals("""{"comments":"42","nb":3,"titre":"T"}""", e.valeursJson, "aucun champ MEDIA dans le corps")
-        assertEquals(listOf("file:///a.jpg"), e.mediaPaths, "premier champ MEDIA rempli")
+        assertEquals(listOf("file:///a.jpg", "file:///b.jpg"), e.mediaPaths)
+        assertEquals(medias, e.medias)
         assertEquals("gn_monitoring.t_base_visits", e.mediaSchemaDotTable)
         assertEquals(listOf("comments", "titre"), e.champsTexteLibre)
     }
@@ -124,11 +131,15 @@ class ValeursFormulaireTest {
             EditableField("autres", ViewType.MEDIA, "Autres"),
         )
         val valeurs = mapOf("taxon" to "4117", "comments" to "")
-        val rouverts = ValeursFormulaire.champsPreremplis(champs, valeurs, listOf("file:///a.jpg"))
+        // Chaque média revient dans son champ ; celui d'une saisie ancienne, sans champ, dans le premier.
+        val ancien = MediaSuivi("file:///a.jpg")
+        val autre = MediaSuivi("file:///b.jpg", "Titre", champ = "autres")
+        val rouverts = ValeursFormulaire.champsPreremplis(champs, valeurs, listOf(ancien, autre))
         assertEquals(4117, rouverts[0].value)
         assertEquals("", rouverts[1].value)
-        assertEquals(listOf("file:///a.jpg"), rouverts[2].value, "fichiers sur le premier champ MEDIA")
-        assertNull(rouverts[3].value)
+        assertEquals(listOf(ancien), rouverts[2].value, "média ancien sur le premier champ MEDIA")
+        assertEquals(listOf(autre), rouverts[3].value)
+        assertNull(ValeursFormulaire.champsPreremplis(champs, valeurs, listOf(autre))[2].value)
         assertEquals(setOf("taxon"), ValeursFormulaire.champsDirtyInitiaux(valeurs), "les valeurs vides ne comptent pas")
         assertTrue(ValeursFormulaire.champsDirtyInitiaux(null).isEmpty())
     }
@@ -147,6 +158,7 @@ class ValeursFormulaireTest {
             EditableField("sel", ViewType.SELECT, "Choix", value = "b", values = listOf(PropertyValue("a", "A"), PropertyValue("b", "B"))),
             EditableField("multi", ViewType.SELECT_MULTIPLE, "Multi", value = listOf("a", "b"), values = listOf(PropertyValue("a", "A"), PropertyValue("b", "B"))),
             EditableField("case", ViewType.CHECKBOX, "Case", value = true),
+            EditableField("faux", ViewType.CHECKBOX, "Faux", value = false),
             EditableField("vide", ViewType.CHECKBOX, "Vide"),
         )
         val premier = FormulaireEtat(champs, t.services.taxRef, backgroundScope)

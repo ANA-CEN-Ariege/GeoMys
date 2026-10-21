@@ -17,66 +17,47 @@
  */
 
 // Porté de GeoMys-Android @ cdd5196 (app/src/test/java/fr/ariegenature/geomys/ChampsTaxonTest.kt et
-// GroupesEtRegnoPlanteTest.kt) : les deux fichiers se rejoignent, la branche PLANTE n'ayant plus
-// besoin de Robolectric (TaxRefCache est une instance sur des réglages en mémoire).
+// GroupesEtRegnoPlanteTest.kt), puis réécrit à la vérification des champs du 20 octobre : le taxon
+// filtre les nomenclatures par son règne et ses groupes réels, comme sur le web.
 
 package fr.ariegenature.geomys.saisie
 
 import fr.ariegenature.geomys.ServicesDeTest
 import fr.ariegenature.geomys.model.Taxon
-import fr.ariegenature.geomys.store.NomenclatureCache
+import fr.ariegenature.geomys.store.GroupeTaxonomique
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/** Contexte taxonomique (groupesEtRegno) pour le filtrage des valeurs de nomenclature. La
- *  visibilité des champs est pilotée par la config serveur (OcctaxFieldsConfig), plus par taxon. */
+/** Le contexte taxonomique ([ChampsTaxon.groupeTaxonomique]) du filtre des valeurs de nomenclature :
+ *  le règne et les groupes du taxon dans le cache TaxRef, ceux que le web transmet au serveur. */
 class ChampsTaxonTest {
 
     private val t = ServicesDeTest()
-    private val nomenclatures get() = t.services.nomenclatures
+    private val taxRef get() = t.services.taxRef
 
     @AfterTest
     fun nettoyer() = t.nettoyer()
 
     @Test
-    fun regno_fonge_et_animalia() {
-        val fonge = ChampsTaxon.groupesEtRegno(Taxon.FONGE, "", nomenclatures)
-        assertEquals("Fungi", fonge.second)
-        assertEquals(NomenclatureCache.GROUPES_FONGE, fonge.first)
-        assertEquals(Pair(setOf("Animalia"), "Animalia"), ChampsTaxon.groupesEtRegno(Taxon.MOLLUSQUE, "", nomenclatures))
-        assertEquals(Pair(setOf("Animalia"), "Animalia"), ChampsTaxon.groupesEtRegno(Taxon.INVERTEBRES, "", nomenclatures))
+    fun le_regne_et_les_groupes_du_cache() {
+        // Helix pomatia : un gastéropode, et non « Animalia » pris pour un groupe.
+        taxRef.ajouterGroupes(mapOf(66798 to "Mollusques"))
+        taxRef.ajouterGroupes1etRegnes(emptyMap(), mapOf(66798 to "Animalia"))
+        taxRef.ajouterGroupes3(mapOf(66798 to "Gastéropodes"))
+        assertEquals(
+            GroupeTaxonomique("Animalia", "Mollusques", "Gastéropodes"),
+            ChampsTaxon.groupeTaxonomique(Taxon.MOLLUSQUE, 66798, taxRef),
+        )
     }
 
     @Test
-    fun groupe_fallback_par_taxon_quand_groupe2inpn_vide() {
-        assertEquals(Pair(setOf("Oiseaux"), "Animalia"), ChampsTaxon.groupesEtRegno(Taxon.OISEAU, "", nomenclatures))
-        assertEquals(Pair(setOf("Amphibiens"), "Animalia"), ChampsTaxon.groupesEtRegno(Taxon.BATRACIEN, "", nomenclatures))
-    }
-
-    @Test
-    fun groupe2inpn_explicite_prime_sur_le_fallback() {
-        val (groupes, regno) = ChampsTaxon.groupesEtRegno(Taxon.OISEAU, "Rapaces diurnes", nomenclatures)
-        assertEquals(setOf("Rapaces diurnes"), groupes)
-        assertEquals("Animalia", regno)
-    }
-
-    /** Branche PLANTE : intersection des groupes botaniques connus avec ceux réellement présents
-     *  dans le cache TaxRef. */
-    @Test
-    fun plante_intersecte_avec_les_groupes_presents_dans_le_cache() {
-        // Cache contenant un groupe botanique connu + un groupe animal hors botanique.
-        t.services.taxRef.comptesGroupes = mapOf("Angiospermes" to 10, "Oiseaux" to 5)
-        val (groupes, regno) = ChampsTaxon.groupesEtRegno(Taxon.PLANTE, "", nomenclatures)
-        assertEquals(setOf("Angiospermes"), groupes) // "Oiseaux" écarté (non botanique)
-        assertEquals("Plantae", regno)
-    }
-
-    @Test
-    fun plante_fallback_sur_tous_les_groupes_si_cache_vide() {
-        t.services.taxRef.comptesGroupes = emptyMap()
-        val (groupes, regno) = ChampsTaxon.groupesEtRegno(Taxon.PLANTE, "", nomenclatures)
-        assertEquals(NomenclatureCache.GROUPES_BOTANIQUES, groupes)
-        assertEquals("Plantae", regno)
+    fun a_defaut_le_groupe_de_la_palette() {
+        assertEquals(GroupeTaxonomique("Animalia", "Oiseaux", null), ChampsTaxon.groupeTaxonomique(Taxon.OISEAU, null, taxRef))
+        assertEquals(GroupeTaxonomique("Animalia", "Amphibiens", null), ChampsTaxon.groupeTaxonomique(Taxon.BATRACIEN, 999, taxRef))
+        // Les groupes qui en couvrent plusieurs : le règne seul.
+        assertEquals(GroupeTaxonomique("Plantae", null, null), ChampsTaxon.groupeTaxonomique(Taxon.PLANTE, null, taxRef))
+        assertEquals(GroupeTaxonomique("Fungi", null, null), ChampsTaxon.groupeTaxonomique(Taxon.FONGE, null, taxRef))
+        assertEquals(GroupeTaxonomique("Animalia", null, null), ChampsTaxon.groupeTaxonomique(Taxon.INVERTEBRES, null, taxRef))
     }
 }

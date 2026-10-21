@@ -172,7 +172,7 @@ fun CarteOccHabScreen(vm: CarteOccHabViewModel, onAccueil: () -> Unit, onStation
     if (estIos) BalayageRetourIosDesactive()
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         EcranCarte(vm, onAccueil, onStation)
-        Dialogues(vm)
+        Dialogues(vm, onAccueil)
     }
 }
 
@@ -634,8 +634,8 @@ private fun PanneauIos(vm: CarteOccHabViewModel) {
 }
 
 @Composable
-private fun Dialogues(vm: CarteOccHabViewModel) {
-    DialogueDetailsStation(vm.details, vm::annulerDetails, vm::validerDetails)
+private fun Dialogues(vm: CarteOccHabViewModel, onAccueil: () -> Unit) {
+    EcranDetailsStation(vm.details, onAccueil, vm::annulerDetails, vm::validerDetails)
     val d = vm.dialogue
     DialogueAlerte(
         visible = d is DialogueCarteOccHab.ModifierEnvoyee,

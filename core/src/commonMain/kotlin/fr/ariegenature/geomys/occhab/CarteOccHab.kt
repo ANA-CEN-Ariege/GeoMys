@@ -100,11 +100,25 @@ object CarteOccHab {
 
     const val TITRE_NON_MODIFIABLE = "Station non modifiable dans l'appli"
 
-    /** Station du serveur à plusieurs parties : l'importer puis la renvoyer supprimerait les autres. */
-    fun messageNonModifiable(st: OccHabStation): String =
-        nomEnTete(st) + "Sa géométrie est composée de plusieurs parties : l'appli n'en affiche " +
+    /** Le texte du web pour une station d'un cadre d'acquisition fermé. */
+    const val CADRE_FERME = "Cadre d'acquisition fermé, action impossible"
+
+    /** Le texte du web pour une station que l'utilisateur ne peut pas modifier. */
+    const val SANS_DROIT_MODIFICATION = "Vous n'avez pas les permissions requises pour modifier cette station !"
+
+    /** Une station du serveur que l'appli n'importe pas : cadre d'acquisition fermé ou sans droit
+     *  de modification (refus du web), ou géométrie en plusieurs parties (l'importer puis la
+     *  renvoyer supprimerait les autres). */
+    fun messageNonModifiable(st: OccHabStation): String = when {
+        st.cadreFerme -> nomEnTete(st) + CADRE_FERME
+        st.nonModifiableServeur -> nomEnTete(st) + SANS_DROIT_MODIFICATION
+        else -> nomEnTete(st) + "Sa géométrie est composée de plusieurs parties : l'appli n'en affiche " +
             "que la première. La modifier ici supprimerait les autres parties sur " +
             "GeoNature — utilisez QGIS pour cette station."
+    }
+
+    /** La station du serveur ne s'importe pas ([messageNonModifiable]). */
+    fun nonImportable(st: OccHabStation): Boolean = st.geometryPartielle || st.cadreFerme || st.nonModifiableServeur
 
     const val TITRE_IMPORT = "Modifier cette station du serveur ?"
 
@@ -222,6 +236,7 @@ object CarteOccHab {
             derniereErreurEnvoi = null,
             empreinteOrigine = voisine.empreinteOrigine ?: voisine.empreinteContenu(),
             origineEnvoyee = copieLocale,
+            origineJson = voisine.origineJson ?: voisine.versOrigineJson(),
         )
     }
 

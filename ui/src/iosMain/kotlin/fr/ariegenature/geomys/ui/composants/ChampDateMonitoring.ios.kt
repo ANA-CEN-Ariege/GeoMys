@@ -22,6 +22,8 @@ package fr.ariegenature.geomys.ui.composants
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,6 +34,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -54,6 +57,7 @@ import platform.Foundation.NSCalendarUnitMonth
 import platform.Foundation.NSCalendarUnitYear
 import platform.Foundation.NSDate
 import platform.Foundation.NSDateComponents
+import platform.Foundation.dateWithTimeIntervalSince1970
 import platform.UIKit.UIAction
 import platform.UIKit.UIControlContentHorizontalAlignmentLeading
 import platform.UIKit.UIControlEventValueChanged
@@ -89,7 +93,17 @@ actual fun ChampDateMonitoring(
     initiale: SelectionDateHeure,
     onChoix: (SelectionDateHeure) -> Unit,
     modifier: Modifier,
+    onEffacer: (() -> Unit)?,
 ) {
+    if (affichage != null && onEffacer != null) {
+        // Le « ✕ » encadré de la date de fin de « Détails du relevé ». Le sélecteur prend la place
+        // restante : à sa taille propre, toute la largeur offerte, il repoussait la croix hors de la ligne.
+        Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            ChampDateMonitoring(mode, affichage, initiale, onChoix, Modifier.weight(1f), null)
+            BoutonCadreIos("xmark", CouleursGeoMys.rougePastille, "Effacer", onEffacer)
+        }
+        return
+    }
     val rappel by rememberUpdatedState(onChoix)
     if (affichage == null) {
         // Sans valeur, le sélecteur montrerait maintenant sans l'avoir retenu : l'invite à la place.
@@ -126,6 +140,9 @@ actual fun ChampDateMonitoring(
                 ModeDateHeure.HEURE -> UIDatePickerMode.UIDatePickerModeTime
                 ModeDateHeure.DATE_HEURE -> UIDatePickerMode.UIDatePickerModeDateAndTime
             }
+            // Une date : du 1ᵉʳ janvier 1735 à aujourd'hui, comme la date du web.
+            selecteur.minimumDate = if (mode == ModeDateHeure.DATE) NSDate.dateWithTimeIntervalSince1970(PREMIER_JOUR_WEB / 1000.0) else null
+            selecteur.maximumDate = if (mode == ModeDateHeure.DATE) NSDate() else null
             versNSDate(initiale)?.let { selecteur.setDate(it, animated = false) }
             // Sans taille intrinsèque, le sélecteur rend la largeur proposée : il prend toute la largeur
             // offerte. À sa taille compressée, plus étroite d'un tiers de point que « 28 mai 2026 », il

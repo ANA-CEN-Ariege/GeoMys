@@ -124,6 +124,12 @@ data class OccHabStation(
      *  n'est PAS importable — la renvoyer ne garderait que cette partie et supprimerait les
      *  autres côté serveur. Modification réservée à QGIS. */
     var geometryPartielle: Boolean = false,
+    /** Station du serveur que l'utilisateur ne peut pas modifier (`cruved.U` faux) : le web refuse
+     *  de l'éditer, l'appli de l'importer. */
+    var nonModifiableServeur: Boolean = false,
+    /** Station du serveur d'un cadre d'acquisition fermé (`dataset.acquisition_framework.opened`
+     *  faux) : le serveur refuse sa mise à jour (409), le web son édition. */
+    var cadreFerme: Boolean = false,
     // ── Champs station ──
     /** Jeu de données (`id_dataset`, obligatoire). null → défaut de config. */
     var idDataset: Int? = null,
@@ -198,6 +204,11 @@ data class OccHabStation(
      *  l'origine QUITTE « Mes stations » — demande terrain 2026-08-30 : sans modification, rien
      *  à envoyer. Effacé à l'envoi confirmé. */
     var origineEnvoyee: Boolean = false,
+    /** La station telle que reçue du serveur, ou telle qu'envoyée, quand elle repart en mise à jour
+     *  (import, remise en édition, voisine déplacée par la topologie partagée) : la base de la
+     *  fusion avec sa version relue sur le serveur à l'envoi
+     *  ([fr.ariegenature.geomys.occhab.FusionStation]). Effacée à l'envoi confirmé. */
+    var origineJson: String? = null,
 ) {
     /**
      * Empreinte du CONTENU métier (ce qui part au serveur), HORS état d'envoi et HORS champs
@@ -209,15 +220,7 @@ data class OccHabStation(
      * pas vue comme une modification. Cf. [empreinteOrigine].
      */
     fun empreinteContenu(): String = buildString {
-        append(geometryType).append('|')
-        if (geometryType == "Polygon" && !geometryCoordsJson.isNullOrEmpty()) {
-            append(coordsNormalisees(geometryCoordsJson))
-        } else {
-            append(latitude).append(',').append(longitude)
-        }
-        // Trous du polygone : renvoyés au serveur → doivent faire partie de l'empreinte (sinon
-        // un trou modifié passerait pour « aucune modification »).
-        append('|').append(trousNormalises(geometryTrousJson))
+        append(cleGeometrie())
         append('|').append(idDataset)
         append('|').append(observateursIds.sorted())
         append('|').append(observateursTxt.orEmpty().trim())
@@ -241,6 +244,20 @@ data class OccHabStation(
             append(',').append(h.idNomAbondance).append(',').append(h.idNomSensibilite)
             append(',').append(h.idNomInteretCommunautaire)
         }
+    }
+
+    /** La géométrie seule, normalisée comme dans [empreinteContenu] : deux stations de même clé ont
+     *  la même géométrie. */
+    fun cleGeometrie(): String = buildString {
+        append(geometryType).append('|')
+        if (geometryType == "Polygon" && !geometryCoordsJson.isNullOrEmpty()) {
+            append(coordsNormalisees(geometryCoordsJson))
+        } else {
+            append(latitude).append(',').append(longitude)
+        }
+        // Trous du polygone : renvoyés au serveur → doivent faire partie de l'empreinte (sinon
+        // un trou modifié passerait pour « aucune modification »).
+        append('|').append(trousNormalises(geometryTrousJson))
     }
 
     /** true si la station porte une géométrie exploitable : polygone avec sommets, ou point non

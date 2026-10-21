@@ -147,7 +147,7 @@ class StationsServeurCacheTest {
         assertEquals("Forêts de Fagus", relue.habitats.single().nomCite)
     }
 
-    private fun fichierCache(): Path = t.dossier / "fichiers" / "stations_serveur_occhab_v1.json"
+    private fun fichierCache(): Path = t.dossier / "fichiers" / "caches" / "stations_serveur_occhab_v1.json"
 
     private fun ecrireFichier(texte: String) {
         systeme.write(fichierCache()) { writeUtf8(texte) }

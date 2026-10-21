@@ -51,14 +51,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import fr.ariegenature.geomys.ServicesGeoNature
+import fr.ariegenature.geomys.model.AdditionalFieldsObject
 import fr.ariegenature.geomys.occtax.DetailsReleveFormulaire
+import fr.ariegenature.geomys.saisie.ChampsAdditionnels
 import fr.ariegenature.geomys.saisie.EtatChampsAdditionnels
 import fr.ariegenature.geomys.ui.composants.BandeauNavigation
 import fr.ariegenature.geomys.ui.composants.BoutonContour
 import fr.ariegenature.geomys.ui.composants.BoutonPlein
 import fr.ariegenature.geomys.ui.composants.BoutonTexte
 import fr.ariegenature.geomys.ui.composants.BoutonVert
+import fr.ariegenature.geomys.ui.composants.DialogueGardeSortie
 import fr.ariegenature.geomys.ui.composants.estIos
+import fr.ariegenature.geomys.ui.composants.rememberGardeSortie
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import fr.ariegenature.geomys.ui.theme.FondGeoMys
 
@@ -70,17 +74,31 @@ class DetailsReleveIntercalaireViewModel(services: ServicesGeoNature, sessionVm:
     /** Libellé du bandeau : celui du flux de saisie. */
     val typeSaisieLabel: String get() = session.typeSaisieLabel
 
-    val champs = EtatChampsAdditionnels(DetailsReleveFormulaire.defsReleve(services.config), session.detailsCommuns?.additionnels.orEmpty())
+    // Les champs du jeu de données du relevé à venir, comme le web.
+    val champs = EtatChampsAdditionnels(
+        ChampsAdditionnels.defsPour(
+            services.config.additionalFieldsOcctaxJson,
+            AdditionalFieldsObject.RELEVE,
+            session.datasetNouveauReleve(services.config.idDatasetParDefaut),
+        ),
+        session.detailsCommuns?.additionnels.orEmpty(),
+        DetailsReleveFormulaire.observateurs(services.config),
+        services.taxRef,
+    )
+
+    private val initiales = champs.collecter()
+
+    /** Les champs ont changé depuis l'ouverture : la garde de sortie demande avant de les perdre. */
+    fun modifie(): Boolean = champs.collecter() != initiales
 
     /** Les champs obligatoires laissés vides, sous les champs. */
     var erreur by mutableStateOf<String?>(null)
         private set
 
-    /** « Continuer » : les valeurs saisies, ou null si un champ obligatoire est vide. */
+    /** « Continuer » : les valeurs saisies, ou null si un contrôle du web les refuse. */
     fun continuer(): Map<String, String>? {
-        val manquants = champs.champsObligatoiresVides()
-        if (manquants.isNotEmpty()) {
-            erreur = "Champ(s) obligatoire(s) manquant(s) : ${manquants.joinToString(", ")}"
+        champs.refus()?.let {
+            erreur = it
             return null
         }
         return champs.collecter()
@@ -99,8 +117,12 @@ private val MATERIAU_ULTRA_FIN = Color(0x33808080)
 /** Titre de l'écran (fragment_details_releve.xml). */
 private const val TITRE = "Détails du relevé"
 
+/** L'avis de fragment_details_releve.xml, les « * » devenus la barre rouge du web. */
+private const val AVIS_OBLIGATOIRES = "Les champs marqués d'une barre rouge sont obligatoires."
+
 /** L'écran « Détails du relevé » intercalé : [onContinuer] reçoit les valeurs une fois les champs
- *  obligatoires remplis ; [onAnnuler] revient à la carte. */
+ *  obligatoires remplis ; [onAnnuler] revient à la carte, comme le retour et la maison, qui
+ *  demandent avant de perdre des champs remplis. */
 @Composable
 fun DetailsReleveIntercalaireScreen(
     vm: DetailsReleveIntercalaireViewModel,
@@ -109,16 +131,18 @@ fun DetailsReleveIntercalaireScreen(
     onContinuer: (Map<String, String>) -> Unit,
 ) {
     val continuer: () -> Unit = { vm.continuer()?.let(onContinuer) }
+    val garde = rememberGardeSortie(vm::modifie, onAnnuler)
+    val accueil = { garde.demander(onAccueil) }
     FondGeoMys {
         if (estIos) {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-                BandeauNavigation(vm.typeSaisieLabel, onAccueil, titreIos = TITRE)
+                BandeauNavigation(vm.typeSaisieLabel, accueil, titreIos = TITRE)
                 Column(
                     Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Text(TITRE, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
-                    Text("Les champs marqués d'un * sont obligatoires.", fontSize = 12.sp, color = CouleursGeoMys.blanc70)
+                    Text(AVIS_OBLIGATOIRES, fontSize = 12.sp, color = CouleursGeoMys.blanc70)
                     Column(
                         Modifier
                             .fillMaxWidth()
@@ -139,10 +163,10 @@ fun DetailsReleveIntercalaireScreen(
                     .windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.ime))
                     .padding(16.dp),
             ) {
-                BandeauNavigation(vm.typeSaisieLabel, onAccueil, Modifier.padding(bottom = 12.dp))
+                BandeauNavigation(vm.typeSaisieLabel, accueil, Modifier.padding(bottom = 12.dp))
                 Text(TITRE, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text(
-                    "Les champs marqués d'un * sont obligatoires.",
+                    AVIS_OBLIGATOIRES,
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
@@ -157,5 +181,6 @@ fun DetailsReleveIntercalaireScreen(
                 }
             }
         }
+        DialogueGardeSortie(garde, "Détails non enregistrés")
     }
 }

@@ -24,18 +24,18 @@ package fr.ariegenature.geomys.store
 
 import fr.ariegenature.geomys.ServicesDeTest
 import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Mécanisme « rechargement des données requis après mise à jour » (2026-08-27) : au lancement,
- * une installation dont les données sont en retard sur [GeoNatureConfig.VERSION_DONNEES_REQUISE]
- * voit le drapeau ARMÉ (Paramètres forcé, bandeau) — SANS purge, qui n'a lieu qu'au début de la
- * synchro (SyncRunner) ; une installation vierge ou à jour n'est pas touchée ; idempotent.
+ * Une mise à jour de l'application dont la synchro lit des données nouvelles
+ * ([GeoNatureConfig.VERSION_DONNEES_REQUISE] au-dessus de la version chargée). Depuis le 21 octobre
+ * 2026, elle ne bloque plus rien et ne purge rien, comme sous GeoMys-Android, où une réinstallation
+ * gardait tout sans rien demander : les données en place servent, Paramètres suggère de recharger, et
+ * la synchro suivante remet la version à jour (PurgeRechargementApresMajTest).
  */
 class RechargementRequisTest {
 
@@ -46,38 +46,43 @@ class RechargementRequisTest {
     @AfterTest
     fun nettoyer() = t.nettoyer()
 
-    @BeforeTest
-    fun setup() {
-        s.taxRef.vider()
-        cfg.versionDonneesChargees = 0
-        cfg.rechargementRequisApresMaj = false
-    }
-
-    @Test
-    fun installation_vierge_ni_armement_ni_bandeau() {
-        assertFalse(s.cachesSynchronises.armerRechargementSiRequis(cfg))
-        assertFalse(cfg.rechargementRequisApresMaj)
-    }
-
-    @Test
-    fun donnees_en_retard_arme_le_drapeau_sans_purger_et_une_seule_fois() {
+    /** Une installation configurée et chargée par une version précédente de l'application. */
+    private fun installationEnRetard() {
+        cfg.apply {
+            urlServeur = "https://exemple.test"
+            login = "u"
+            motDePasse = "p"
+            serveurCompatible = true
+            datasetsCacheJson = """[{"id":1,"nom":"JDD","moduleCodes":["OCCTAX"]}]"""
+            datasetsCreablesOcctax = setOf(1)
+            idDataset = "1"
+            listesCacheJson = """[{"id":100,"nom":"Saisie"}]"""
+            taxaListeId = "100"
+            observateursCacheJson = """[{"idRole":7,"nom":"DUPONT jean"}]"""
+            observateurDefautId = "7"
+            versionDonneesChargees = GeoNatureConfig.VERSION_DONNEES_REQUISE - 1
+        }
+        s.taxRef.remplacerTout(mapOf(TaxRefCache.normaliser("Machaon") to TaxRefEntry(54468, "Papilio machaon", "Machaon")))
         s.taxRef.versionSauvegardee = "taxref-v17"
-        assertTrue(s.cachesSynchronises.armerRechargementSiRequis(cfg))
-        assertTrue(cfg.rechargementRequisApresMaj)
-        assertEquals("taxref-v17", s.taxRef.versionSauvegardee,
-            "données conservées jusqu'à la synchro (purge dans SyncRunner)")
-        assertFalse(configurationComplete(cfg, s.taxRef), "drapeau armé ⇒ configuration incomplète ⇒ Paramètres forcé")
-        assertFalse(s.cachesSynchronises.armerRechargementSiRequis(cfg), "déjà armé → idempotent (relance, synchro en cours…)")
-        assertTrue(cfg.rechargementRequisApresMaj, "le drapeau reste armé jusqu'à la synchro")
+        s.taxRef.listesSynchronisees = listOf(100)
     }
 
     @Test
-    fun donnees_a_jour_rien_ne_se_passe() {
-        s.taxRef.versionSauvegardee = "taxref-v17"
+    fun une_mise_a_jour_ne_bloque_rien_ni_ne_purge() {
+        installationEnRetard()
+        assertTrue(configurationComplete(cfg, s.taxRef), "l'application reste utilisable, sans passer par Paramètres")
+        assertEquals("taxref-v17", s.taxRef.versionSauvegardee, "rien n'est purgé")
+        assertEquals(54468, s.taxRef.get(TaxRefCache.normaliser("Machaon"))?.cdNom)
+        val bandeau = assertNotNull(texteBandeauRechargement(cfg, s.taxRef), "Paramètres suggère de recharger")
+        assertTrue(bandeau.contains("L'application reste utilisable"))
+    }
+
+    @Test
+    fun installation_vierge_ou_a_jour_sans_bandeau() {
+        assertNull(texteBandeauRechargement(cfg, s.taxRef), "rien de chargé : la première configuration suit son cours")
+        installationEnRetard()
         cfg.versionDonneesChargees = GeoNatureConfig.VERSION_DONNEES_REQUISE
-        assertFalse(s.cachesSynchronises.armerRechargementSiRequis(cfg))
-        assertEquals("taxref-v17", s.taxRef.versionSauvegardee)
-        assertFalse(cfg.rechargementRequisApresMaj)
+        assertNull(texteBandeauRechargement(cfg, s.taxRef))
     }
 
     @Test

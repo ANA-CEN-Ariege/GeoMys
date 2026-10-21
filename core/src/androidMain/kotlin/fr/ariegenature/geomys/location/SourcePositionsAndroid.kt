@@ -37,7 +37,7 @@ class SourcePositionsAndroid(context: Context) : SourcePositions {
 
     // Toutes les méthodes sont écrites : avant Android 11, seule onLocationChanged a une
     // implémentation par défaut.
-    private val ecouteur = object : LocationListener {
+    private inner class Ecouteur : LocationListener {
         override fun onLocationChanged(location: Location) {
             recepteur?.invoke(location.enPosition())
         }
@@ -49,6 +49,13 @@ class SourcePositionsAndroid(context: Context) : SourcePositions {
 
         override fun onProviderDisabled(provider: String) {}
     }
+
+    private val ecouteur = Ecouteur()
+
+    // La mesure ponctuelle de « Centrer » a son propre écouteur : Android ne garde qu'une demande
+    // par couple écouteur–fournisseur, et celle d'un seul point remplaçait le suivi continu, qui
+    // s'éteignait après ce point (trace et position figées ; audit du 20 octobre, C1).
+    private val ecouteurPonctuel = Ecouteur()
 
     override fun brancher(recepteur: (PositionGps) -> Unit) {
         this.recepteur = recepteur
@@ -71,6 +78,7 @@ class SourcePositionsAndroid(context: Context) : SourcePositions {
 
     override fun arreter() {
         gestionnaire.removeUpdates(ecouteur)
+        gestionnaire.removeUpdates(ecouteurPonctuel)
     }
 
     override fun disponible(): Boolean = gpsActif() || reseauActif()
@@ -96,7 +104,7 @@ class SourcePositionsAndroid(context: Context) : SourcePositions {
             else -> return
         }
         @Suppress("DEPRECATION")
-        runCatching { gestionnaire.requestSingleUpdate(fournisseur, ecouteur, Looper.getMainLooper()) }
+        runCatching { gestionnaire.requestSingleUpdate(fournisseur, ecouteurPonctuel, Looper.getMainLooper()) }
     }
 
     override fun enregistrement(actif: Boolean) {}

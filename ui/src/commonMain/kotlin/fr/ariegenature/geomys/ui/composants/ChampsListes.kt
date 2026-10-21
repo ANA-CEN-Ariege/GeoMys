@@ -32,8 +32,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
@@ -72,25 +75,41 @@ import fr.ariegenature.geomys.ui.ressources.mdc_fleche_haut
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import org.jetbrains.compose.resources.painterResource
 
+/** Nombre de valeurs à partir duquel une liste de choix se filtre au clavier ; en dessous, elle se
+ *  choisit sans clavier, en touchant le champ (demande du 21 octobre 2026). */
+internal const val SEUIL_RECHERCHE_LISTE = 20
+
 // ─── Android ───
 
 /** Le champ « menu déroulant » (champ_dropdown_releve.xml : TextInputLayout OutlinedBox
  *  ExposedDropdownMenu, 4 dp sous son titre). Toucher vide le texte et déroule toute la liste ; la
- *  frappe la filtre (accents et casse ignorés) ; un choix ferme le clavier. Refermée sans choix, la
- *  liste rend au champ le libellé choisi si [restaurer]. */
+ *  frappe la filtre (accents et casse ignorés) ; un choix ferme le clavier. Moins de
+ *  [SEUIL_RECHERCHE_LISTE] valeurs : le champ n'ouvre pas le clavier, le toucher déroule toute la
+ *  liste. Refermée sans choix, la liste rend au champ le libellé choisi si [restaurer]. [onEffacer] :
+ *  la croix des listes du web, qui vide le choix. */
 @Composable
-internal fun DeroulantAndroid(indication: String, libelles: List<String>, texteChoisi: String, restaurer: Boolean, onChoix: (Int) -> Unit) {
+internal fun DeroulantAndroid(
+    indication: String,
+    libelles: List<String>,
+    texteChoisi: String,
+    restaurer: Boolean,
+    onChoix: (Int) -> Unit,
+    onEffacer: (() -> Unit)? = null,
+) {
     val focus = LocalFocusManager.current
     val choisi by rememberUpdatedState(texteChoisi)
+    val sansClavier = libelles.size < SEUIL_RECHERCHE_LISTE
     var texte by remember(texteChoisi) { mutableStateOf(texteChoisi) }
     var ouvert by remember { mutableStateOf(false) }
     var ancre by remember { mutableStateOf<Rect?>(null) }
-    val positions = remember(libelles, texte) { DetailsReleveFormulaire.filtrer(libelles, texte) }
+    val positions = remember(libelles, texte, sansClavier) {
+        if (sansClavier) libelles.indices.toList() else DetailsReleveFormulaire.filtrer(libelles, texte)
+    }
     val interactions = remember { MutableInteractionSource() }
-    LaunchedEffect(interactions) {
+    LaunchedEffect(interactions, sansClavier) {
         interactions.interactions.collect {
             if (it is PressInteraction.Release) {
-                texte = ""
+                if (!sansClavier) texte = ""
                 ouvert = true
             }
         }
@@ -119,9 +138,15 @@ internal fun DeroulantAndroid(indication: String, libelles: List<String>, texteC
             label = { Text(indication) },
             textStyle = styleSaisieMaterial(),
             singleLine = true,
+            readOnly = sansClavier,
             interactionSource = interactions,
             trailingIcon = {
-                Icon(painterResource(if (ouvert) Res.drawable.mdc_fleche_haut else Res.drawable.mdc_fleche_bas), contentDescription = null)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (onEffacer != null && choisi.isNotEmpty() && !ouvert) {
+                        CaseDate("✕", couleur = MaterialTheme.colorScheme.error, contour = false, description = "Effacer", onClick = onEffacer)
+                    }
+                    Icon(painterResource(if (ouvert) Res.drawable.mdc_fleche_haut else Res.drawable.mdc_fleche_bas), contentDescription = null)
+                }
             },
         )
         val zone = ancre
@@ -153,12 +178,13 @@ internal fun LigneListeAndroid(texte: String, onClick: () -> Unit) {
     }
 }
 
-/** Le sélecteur multiple d'observateurs (`construireSelecteurMultiObservateurs`), partagé par les
- *  détails d'un relevé OccTax et ceux d'une station OccHab : un champ de recherche qui AJOUTE à la
- *  liste affichée dessous, chaque entrée retirable par « ✕ ». Sans [proposes] (cache non chargé),
- *  les observateurs [choisis] restent affichés, retirables, sans champ d'ajout — « — » si rien. */
+/** Le sélecteur multiple d'observateurs (`construireSelecteurMultiObservateurs`) des détails d'un
+ *  relevé OccTax : un champ de recherche, d'invite [invite], qui AJOUTE à la liste affichée dessous,
+ *  chaque entrée retirable par « ✕ ». Sans [proposes] (cache non chargé), les observateurs [choisis]
+ *  restent affichés, retirables, sans champ d'ajout — « — » si rien. */
 @Composable
 internal fun ObservateursAndroid(
+    invite: String,
     proposes: List<Pair<Int, String>>,
     choisis: List<Pair<Int, String>>,
     onAjouter: (Int) -> Unit,
@@ -167,7 +193,7 @@ internal fun ObservateursAndroid(
     if (proposes.isEmpty()) {
         if (choisis.isEmpty()) Text("—", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else {
-        DeroulantAndroid("Ajouter un observateur", proposes.map { it.second }, "", restaurer = false, onChoix = onAjouter)
+        DeroulantAndroid(invite, proposes.map { it.second }, "", restaurer = false, onChoix = onAjouter)
     }
     val erreur = MaterialTheme.colorScheme.error
     choisis.forEach { (id, nom) ->
@@ -187,55 +213,81 @@ internal fun ObservateursAndroid(
 
 // ─── iOS ───
 
-/** Le pendant de [DeroulantAndroid] dans une [SectionIos] : un champ à filtre, certaines instances
- *  exposant des dizaines de jeux de données, et la liste filtrée dessous (cinq au plus) tant qu'il a le
- *  focus. Le toucher le vide et ouvre la liste ; quitté, avec ou sans choix, il affiche [texteChoisi]. */
+/** Le pendant de [DeroulantAndroid] dans une [SectionIos]. Moins de [SEUIL_RECHERCHE_LISTE] valeurs :
+ *  la ligne de choix et son menu, sans clavier. Au-delà, certaines instances exposant des dizaines de
+ *  jeux de données : un champ à filtre, et toute la liste filtrée dessous, qui défile, tant qu'il a le
+ *  focus. Le toucher le vide et ouvre la liste ; quitté, avec ou sans choix, il affiche [texteChoisi].
+ *  [onEffacer] : la croix des listes du web, qui vide le choix. */
 @Composable
-internal fun LignesRechercheIos(indication: String, libelles: List<String>, texteChoisi: String, onChoix: (Int) -> Unit) {
+internal fun LignesRechercheIos(
+    indication: String,
+    libelles: List<String>,
+    texteChoisi: String,
+    onChoix: (Int) -> Unit,
+    onEffacer: (() -> Unit)? = null,
+) {
+    if (libelles.size < SEUIL_RECHERCHE_LISTE) {
+        // Une valeur hors de la liste reste affichée, grisée, comme l'invite.
+        LigneChoixIos("", libelles, libelles.indexOf(texteChoisi), invite = texteChoisi.ifEmpty { indication }, onEffacer = onEffacer, onChoix = onChoix)
+        return
+    }
     val focus = LocalFocusManager.current
     var focalise by remember { mutableStateOf(false) }
     var recherche by remember { mutableStateOf("") }
     // Le choix fait, le champ quitte le focus avant que [texteChoisi] change : il le lit à l'affichage.
     val texte = if (focalise) recherche else texteChoisi
     LigneIos {
-        BasicTextField(
-            value = texte,
-            onValueChange = { recherche = it },
-            singleLine = true,
-            textStyle = styleSaisieIos,
-            cursorBrush = SolidColor(CouleursGeoMys.jauneClair),
-            modifier = Modifier.fillMaxWidth().onFocusChanged {
-                if (it.isFocused != focalise) {
-                    focalise = it.isFocused
-                    recherche = ""
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            BasicTextField(
+                value = texte,
+                onValueChange = { recherche = it },
+                singleLine = true,
+                textStyle = styleSaisieIos,
+                cursorBrush = SolidColor(CouleursGeoMys.jauneClair),
+                modifier = Modifier.weight(1f).onFocusChanged {
+                    if (it.isFocused != focalise) {
+                        focalise = it.isFocused
+                        recherche = ""
+                    }
+                },
+                decorationBox = { champ ->
+                    Box {
+                        if (texte.isEmpty()) Text(indication, style = styleSaisieIos.copy(color = INVITE_IOS))
+                        champ()
+                    }
+                },
+            )
+            if (onEffacer != null && texteChoisi.isNotEmpty() && !focalise) {
+                Box(Modifier.clickable(remember { MutableInteractionSource() }, indication = null, onClick = onEffacer)) {
+                    SymboleSf("xmark", 13f, listOf(CouleursGeoMys.rougePastille), graisse = GraisseSymbole.DEMI_GRASSE, description = "Effacer")
                 }
-            },
-            decorationBox = { champ ->
-                Box {
-                    if (texte.isEmpty()) Text(indication, style = styleSaisieIos.copy(color = INVITE_IOS))
-                    champ()
-                }
-            },
-        )
+            }
+        }
     }
     if (focalise) {
-        DetailsReleveFormulaire.filtrer(libelles, recherche).take(5).forEach { i ->
-            SeparateurIos(Modifier.padding(start = 16.dp))
-            LigneIos(Modifier.clickable {
-                onChoix(i)
-                focus.clearFocus()
-            }) {
-                Text(libelles[i], fontSize = 17.sp, color = Color.White)
+        // Toute la liste filtrée, qui défile sur cinq lignes et demie : seules les cinq premières
+        // valeurs se voyaient.
+        val trouvees = DetailsReleveFormulaire.filtrer(libelles, recherche)
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 250.dp)) {
+            items(trouvees) { i ->
+                SeparateurIos(Modifier.padding(start = 16.dp))
+                LigneIos(Modifier.clickable {
+                    onChoix(i)
+                    focus.clearFocus()
+                }) {
+                    Text(libelles[i], fontSize = 17.sp, color = Color.White)
+                }
             }
         }
     }
 }
 
-/** Les observateurs dans une [SectionIos] : un par ligne, retirable par sa croix, puis « Ajouter un
- *  observateur » et le menu des [proposes]. Comme [ObservateursAndroid] : sans [proposes] (cache non
- *  chargé), pas de ligne d'ajout, et « — » si personne n'est choisi. */
+/** Les observateurs dans une [SectionIos] : un par ligne, retirable par sa croix, puis la ligne
+ *  d'ajout, d'invite [invite], et le menu des [proposes]. Comme [ObservateursAndroid] : sans [proposes]
+ *  (cache non chargé), pas de ligne d'ajout, et « — » si personne n'est choisi. */
 @Composable
 internal fun LignesObservateursIos(
+    invite: String,
     proposes: List<Pair<Int, String>>,
     choisis: List<Pair<Int, String>>,
     onAjouter: (Int) -> Unit,
@@ -258,7 +310,7 @@ internal fun LignesObservateursIos(
         LigneIos {
             Box(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Ajouter un observateur", fontSize = 17.sp, color = CouleursGeoMys.blanc70, modifier = Modifier.weight(1f))
+                    Text(invite, fontSize = 17.sp, color = CouleursGeoMys.blanc70, modifier = Modifier.weight(1f))
                     SymboleSf("chevron.down", 12f, listOf(CouleursGeoMys.blanc70), graisse = GraisseSymbole.DEMI_GRASSE)
                 }
                 MenuSysteme(proposes.map { it.second }, -1, onAjouter, Modifier.matchParentSize())

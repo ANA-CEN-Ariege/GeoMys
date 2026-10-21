@@ -24,6 +24,7 @@
 package fr.ariegenature.geomys.network
 
 import fr.ariegenature.geomys.ServicesDeTest
+import fr.ariegenature.geomys.model.MediaSuivi
 import fr.ariegenature.geomys.network.ServeurSimule.Companion.champMultipart
 import fr.ariegenature.geomys.network.ServeurSimule.Companion.json
 import fr.ariegenature.geomys.store.NomValeur
@@ -84,8 +85,9 @@ class MediasMonitoringReconciliationTest {
         return "file://$f"
     }
 
-    /** [dejaLa] = titres que le serveur déclare déjà détenir pour l'objet. */
-    private fun router(dejaLa: List<String>, listageEnPanne: Boolean = false) {
+    /** [dejaLa] = titres que le serveur déclare déjà détenir pour l'objet ; [fichiersLa] : les noms
+     *  de fichier de ses médias (`media_path`). */
+    private fun router(dejaLa: List<String>, listageEnPanne: Boolean = false, fichiersLa: List<String> = emptyList()) {
         serveur.routerRequetes { requete ->
             val chemin = requete.url.encodedPathAndQuery
             when {
@@ -96,7 +98,11 @@ class MediasMonitoringReconciliationTest {
                     if (listageEnPanne) {
                         json("{}", 500)
                     } else {
-                        json(dejaLa.joinToString(",", "[", "]") { """{"id_media":1,"title_fr":"$it"}""" })
+                        json(
+                            (dejaLa.map { """{"id_media":1,"title_fr":"$it"}""" } +
+                                fichiersLa.mapIndexed { i, f -> """{"id_media":${i + 2},"title_fr":"Mare","media_path":"55/${i + 2}_$f"}""" })
+                                .joinToString(",", "[", "]"),
+                        )
                     }
                 }
                 chemin.startsWith("/api/gn_commons/media") -> {
@@ -109,13 +115,33 @@ class MediasMonitoringReconciliationTest {
         }
     }
 
+    /** Des médias d'une saisie d'avant le 20 octobre 2026 : sans titre, titrés d'office. */
     private suspend fun envoyer(chemins: List<String>, reconcilier: Boolean) =
+        envoyerMedias(chemins.map { MediaSuivi(it, schemaDotTable = "gn_monitoring.t_base_visits") }, reconcilier)
+
+    private suspend fun envoyerMedias(medias: List<MediaSuivi>, reconcilier: Boolean) =
         t.services.upload.uploaderMediaMonitoring(
-            config = config, mediaPaths = chemins,
-            schemaDotTable = "gn_monitoring.t_base_visits",
-            uuidAttachedRow = uuidObjet, titre = titreBase, author = "alice",
+            config = config, medias = medias,
+            uuidAttachedRow = uuidObjet, titreParDefaut = titreBase, auteurParDefaut = "alice",
             reconcilier = reconcilier,
         )
+
+    @Test
+    fun un_media_titre_part_avec_son_titre_et_se_reconnait_a_son_fichier() = runTest {
+        val a = fichier("a.jpg"); val b = fichier("b.jpg")
+        // Le serveur détient déjà b (même titre « Mare » que a) : seul a repart, avec SON titre.
+        router(dejaLa = emptyList(), fichiersLa = listOf("b.jpg"))
+        val medias = listOf(
+            MediaSuivi(a, "Mare", "DUPONT Alice", "Vue nord", "photos", "gn_monitoring.t_base_visits"),
+            MediaSuivi(b, "Mare", schemaDotTable = "gn_monitoring.t_base_visits"),
+        )
+
+        val res = envoyerMedias(medias, reconcilier = true)
+
+        assertEquals(listOf("Mare"), titresUploades.toList(), "le titre saisi, pas un titre d'office")
+        assertTrue(res.ok)
+        assertEquals(2, res.transmis.size)
+    }
 
     @Test
     fun le_reessai_ne_renvoie_pas_la_photo_dont_la_reponse_s_etait_perdue() = runTest {

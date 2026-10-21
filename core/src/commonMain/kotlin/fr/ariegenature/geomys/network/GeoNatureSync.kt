@@ -79,6 +79,9 @@ class GeoNatureSync(
         val cdNom: Int, val lbNom: String, val nomVernRaw: String,
         val group2: String, val group1: String, val regne: String,
         val listesSupplementaires: List<Int>,
+        val group3: String = "",
+        /** `nom_valide` de TAXREF. */
+        val nomValide: String = "",
     )
 
     /** Résultat du téléchargement (toutes pages) d'UNE liste de taxons. [ok] = pagination
@@ -122,6 +125,8 @@ class GeoNatureSync(
                                 if (item.isNull("group1_inpn")) "" else item.optString("group1_inpn", ""),
                                 if (item.isNull("regne")) "" else item.optString("regne", ""),
                                 listesSup,
+                                if (item.isNull("group3_inpn")) "" else item.optString("group3_inpn", ""),
+                                if (item.isNull("nom_valide")) "" else item.optString("nom_valide", ""),
                             )
                         )
                     }
@@ -150,6 +155,9 @@ class GeoNatureSync(
         protocolListIds: Set<Int> = emptySet(),
         /** Si true, recharge TaxRef même si la version + les listes sont inchangées (forçage manuel). */
         forcerReload: Boolean = false,
+        /** Un protocole a un champ espèce sans aucune liste : le web y propose tout TaxRef ; on charge
+         *  alors toutes les listes publiques, comme avant le 21 octobre. */
+        toutesLesListes: Boolean = false,
         progression: (Int, Int, Int) -> Unit
     ): Pair<Int, String> = withContext(Dispatchers.IO) {
         val base = config.urlServeur.trim().trimEnd('/')
@@ -192,24 +200,50 @@ class GeoNatureSync(
         // serait vide hors-ligne. Fournies par l'appelant (déjà filtrées CRUVED) — pas de
         // chargerModules ici, pour éviter une course avec la synchro Suivis lancée en parallèle.
         val idsViaProtocoles: Set<Int> = protocolListIds
-        val idsBiblistes = biblistes.map { it.id }.toSet()
-        val listesAFetcher = biblistes.toMutableList()
+        // + la liste de la configuration d'OccTax (`OCCTAX.id_taxon_list`), celle d'un relevé dont le
+        // jeu de données n'en impose pas, comme sur le web.
+        val idsViaOcctax: Set<Int> = setOfNotNull(config.occtaxIdListeTaxons.takeIf { it > 0 })
+        // + la liste par défaut choisie dans Paramètres.
+        val idsChoisie: Set<Int> = setOfNotNull(config.taxaListeId.trim().toIntOrNull()?.takeIf { it > 0 })
+        // Seules ces listes, les utiles, se téléchargent, et non plus toutes celles du serveur
+        // (demande de l'utilisateur du 21 octobre : sur certains serveurs, les listes publiques
+        // cumulent plus de 400 000 taxons). Celles de /biblistes gardent leur nom ; une liste choisie
+        // plus tard dans Paramètres s'y télécharge aussitôt.
+        val utiles = idsChoisie + idsViaDatasets + idsViaProtocoles + idsViaOcctax +
+            (if (toutesLesListes) biblistes.map { it.id } else emptyList())
+        val listesAFetcher = biblistes.filter { it.id in utiles }.toMutableList()
         // Évite d'ajouter deux fois la même liste « privée » référencée par un dataset ET un protocole.
-        val dejaPrevues = idsBiblistes.toMutableSet()
-        (idsViaDatasets + idsViaProtocoles).forEach { id ->
+        val dejaPrevues = listesAFetcher.map { it.id }.toMutableSet()
+        utiles.forEach { id ->
             if (dejaPrevues.add(id)) listesAFetcher.add(GeoNatureListe(id, "Liste $id (via dataset/protocole)"))
         }
-        if (listesAFetcher.isEmpty()) {
+        if (biblistes.isEmpty() && listesAFetcher.isEmpty()) {
             return@withContext Pair(0, "Aucune liste de taxons trouvée sur le serveur (${config.urlTaxhub}/api/biblistes).")
+        }
+        if (listesAFetcher.isEmpty()) {
+            // Rien d'utile encore (premier chargement, liste à choisir) : un cache vide mais daté,
+            // pour que Paramètres propose les sélections ; choisir la liste lance son chargement.
+            taxRef.vider()
+            if (!taxRef.remplacerTout(emptyMap())) {
+                return@withContext Pair(0, "Écriture du cache des taxons impossible (espace de stockage " +
+                    "insuffisant ?) — libérez de l'espace puis relancez « Recharger les données ».")
+            }
+            taxRef.listesSynchronisees = emptyList()
+            taxRef.listesIncompletes = emptyList()
+            verifierVersionTaxRef(config)?.let { taxRef.versionSauvegardee = it }
+            taxRef.versionFormat = TaxRefCache.VERSION_FORMAT
+            progression(0, 0, 0)
+            return@withContext Pair(0, AUCUNE_LISTE_UTILE)
         }
 
         // ── Saut si déjà à jour ──
         // On évite le (lourd) re-téléchargement de TaxRef si : la version serveur == version locale,
-        // le cache n'est pas vide, ET toutes les listes à charger sont déjà couvertes par le cache
-        // (un nouveau dataset/protocole ajoutant une liste force le rechargement). Forçable manuellement.
+        // le cache n'est pas vide, son format est celui de cette version de l'application, ET toutes
+        // les listes à charger sont déjà couvertes par le cache (un nouveau dataset/protocole ajoutant
+        // une liste, ou une liste restée incomplète, force le rechargement). Forçable manuellement.
         val versionServeur = if (forcerReload) null else verifierVersionTaxRef(config)
         if (!forcerReload && versionServeur != null && versionServeur == taxRef.versionSauvegardee &&
-            taxRef.count > 0 && dejaPrevues.all { it in taxRef.listesSynchronisees.toSet() }
+            taxRef.count > 0 && taxRef.formatAJour && dejaPrevues.all { it in taxRef.listesSynchronisees.toSet() }
         ) {
             progression(taxRef.count, listesAFetcher.size, listesAFetcher.size)
             return@withContext Pair(taxRef.nbTaxonsUniques, "Taxons déjà à jour (v$versionServeur) — non rechargés")
@@ -221,6 +255,7 @@ class GeoNatureSync(
         val groupeMap = mutableMapOf<Int, String>()
         val groupe1Map = mutableMapOf<Int, String>()
         val regneMap = mutableMapOf<Int, String>()
+        val groupe3Map = mutableMapOf<Int, String>()
         // Set<Int> pour fusionner les appartenances de listes (un cd_nom peut être dans
         // plusieurs listes → union via Set, sérialisé en List à la fin).
         val listesParCdNom = mutableMapOf<Int, MutableSet<Int>>()
@@ -232,6 +267,7 @@ class GeoNatureSync(
         // scientifique, pour résoudre les noms français APRÈS agrégation (cf. plus bas).
         val vernsCdNom = mutableMapOf<Int, LinkedHashSet<String>>()
         val lbNomParCd = mutableMapOf<Int, String>()
+        val nomsValides = mutableMapOf<Int, String>()
         // Candidats par clé SCIENTIFIQUE normalisée : plusieurs cd_nom peuvent partager le même
         // nom scientifique (entrées nomenclaturales homonymes — ex. Carex pendula 88766 dans les
         // listes 100+108 ET 88767 dans 108). Résolus APRÈS la boucle, comme les noms français,
@@ -271,6 +307,7 @@ class GeoNatureSync(
                     if (vernNettoye.isNotEmpty()) vernsCdNom.getOrPut(item.cdNom) { LinkedHashSet() }.add(vernNettoye)
                 }
                 lbNomParCd[item.cdNom] = item.lbNom
+                if (item.nomValide.isNotEmpty()) nomsValides[item.cdNom] = item.nomValide
                 val cleSci = TaxRefCache.normaliser(item.lbNom)
                 if (cleSci.isNotEmpty()) candidatsSci.getOrPut(cleSci) { mutableListOf() }.add(item.cdNom)
                 if (item.group2.isNotEmpty()) {
@@ -281,15 +318,17 @@ class GeoNatureSync(
                 }
                 if (item.group1.isNotEmpty()) groupe1Map[item.cdNom] = item.group1
                 if (item.regne.isNotEmpty()) regneMap[item.cdNom] = item.regne
+                if (item.group3.isNotEmpty()) groupe3Map[item.cdNom] = item.group3
                 val setListes = listesParCdNom.getOrPut(item.cdNom) { mutableSetOf() }
                 setListes.add(res.idListe)
                 item.listesSupplementaires.forEach(setListes::add)
             }
         }
 
-        // Préférence commune aux résolutions ci-dessous : le cd_nom appartenant à la LISTE
-        // CONFIGURÉE pour la saisie l'emporte, puis le plus petit cd_nom (déterministe).
-        val listeConfig = config.taxaListeId.trim().toIntOrNull()
+        // Préférence commune aux résolutions ci-dessous : le cd_nom appartenant à la LISTE de
+        // saisie OccTax (celle du jeu de données par défaut, sinon la liste par défaut, sinon celle
+        // de la configuration d'OccTax) l'emporte, puis le plus petit cd_nom (déterministe).
+        val listeConfig = config.listeTaxonsOcctax(config.idDatasetParDefaut)
         fun meilleurCdNom(cds: Collection<Int>): Int? =
             meilleurCdNomPrefListe(cds, listesParCdNom, listeConfig)
 
@@ -356,6 +395,7 @@ class GeoNatureSync(
         val indexEnEchec = mutableListOf<String>()
         if (!taxRef.ajouterVerns(vernsCdNom)) indexEnEchec += "noms français"
         if (!taxRef.ajouterSciNoms(lbNomParCd)) indexEnEchec += "noms scientifiques"
+        if (!taxRef.ajouterNomsValides(nomsValides)) indexEnEchec += "noms valides"
         if (groupeMap.isNotEmpty() && !taxRef.ajouterGroupes(groupeMap)) {
             indexEnEchec += "groupes"
         }
@@ -364,6 +404,8 @@ class GeoNatureSync(
         ) {
             indexEnEchec += "groupes et règnes"
         }
+        if (groupe3Map.isNotEmpty() && !taxRef.ajouterGroupes3(groupe3Map)) indexEnEchec += "groupes 3"
+
         // Sérialise Set<Int> → List<Int> pour stockage. L'ordre n'est pas signifiant.
         if (listesParCdNom.isNotEmpty() &&
             !taxRef.ajouterListesParCdNom(listesParCdNom.mapValues { (_, v) -> v.toList() })
@@ -386,13 +428,14 @@ class GeoNatureSync(
         // Marque le cache comme exhaustif (toutes les listes serveur ont été tentées).
         taxRef.listesSynchronisees = listesSynchronisees
         // Champ legacy conservé pour compatibilité ascendante du SharedPreferences.
-        taxRef.listeSynchroniseeId = config.taxaListeId.trim().ifEmpty { listesSynchronisees.firstOrNull()?.toString() ?: "" }
+        taxRef.listeSynchroniseeId = (listeConfig ?: listesSynchronisees.firstOrNull())?.toString() ?: ""
 
         // Stocker les comptes par groupe — clé = group2_inpn exact. On REMPLACE intégralement
         // (pas de fusion sur l'existant) : sinon un groupe disparu du serveur garderait son ancien
         // compte fantôme quand la sync est relancée sans purge préalable.
         taxRef.comptesGroupes = comptesTousGroupes.filterValues { it > 0 }
         (versionServeur ?: verifierVersionTaxRef(config))?.let { taxRef.versionSauvegardee = it }
+        taxRef.versionFormat = TaxRefCache.VERSION_FORMAT
 
         // Message minimal : le détail des compteurs (taxons, par groupe, etc.) est désormais
         // affiché dans l'écran Paramètres (boîte « Chargement des données » + bouton « Détails »).
@@ -471,14 +514,17 @@ class GeoNatureSync(
                                 val group2 = r.optString("group2_inpn", "")
                                 // Ignorer les entrées vides (comme iOS : guard !regno.isEmpty || !group.isEmpty)
                                 if (regne.isEmpty() && group2.isEmpty()) continue
-                                restrictions.add(TaxrefRestriction(regne, group2))
+                                // group3_inpn : « all » par défaut côté serveur (et avant sa création).
+                                val group3 = r.optString("group3_inpn", "").takeIf { it.isNotEmpty() && it != "null" } ?: "all"
+                                restrictions.add(TaxrefRestriction(regne, group2, group3))
                             }
                         }
                         // cd_nomenclature : identifiant STABLE inter-instances, requis par les
                         // règles métier calquées sur le web (ex. technique de collecte OccHab
                         // cd "10" → précision requise). Absent/vide → null (règle inactive).
                         val cd = v.optString("cd_nomenclature", "").takeIf { it.isNotEmpty() }
-                        valeurs.add(NomValeur(id, label, restrictions, cd))
+                        val labelFr = v.optString("label_fr", "").takeIf { it.isNotEmpty() && it != "null" }
+                        valeurs.add(NomValeur(id, label, restrictions, cd, labelFr))
                     }
 
                     if (valeurs.isNotEmpty()) result[mnem] = valeurs
@@ -490,8 +536,16 @@ class GeoNatureSync(
                 // OCCTAX — endpoint /api/occtax/defaultNomenclatures (Map<mnemonique, id>).
                 // C'est ce que l'UI web utilise pour pré-remplir les spinners nomenclature
                 // (STATUT_OBS, SEXE…) au démarrage d'une nouvelle saisie.
-                val defauts = fetchDefaultsNomenclatures(base, token, cookies, "occtax")
-                nomenclatures.setDefauts(defauts)
+                // Un échec (carte vide) garde les défauts déjà en cache : vidés, les listes perdaient
+                // leur valeur de départ.
+                // Les défauts de l'organisme de l'utilisateur, comme le web (`organism`) ; son
+                // identité est reprise de la connexion de la synchro.
+                auth.identiteEnCache(base, config.login)?.let { (organisme, nom) ->
+                    organisme?.let { config.idOrganisme = it }
+                    nom?.let { config.nomUtilisateur = it }
+                }
+                val defauts = fetchDefaultsNomenclatures(base, token, cookies, "occtax", config.idOrganisme.takeIf { it > 0 })
+                if (defauts.isNotEmpty()) nomenclatures.setDefauts(defauts)
 
                 val total = result.values.sumOf { it.size }
                 val resume = result.entries.joinToString(" | ") { (t, vals) ->
@@ -529,7 +583,8 @@ class GeoNatureSync(
      *  `nomenclature` (sections information[]/counting[]) dans [GeoNatureConfig.settingsOcctaxJson],
      *  qui pilote la visibilité des champs de saisie (cf. [fr.ariegenature.geomys.store.OcctaxFieldsConfig]).
      *  Endpoint `/api/gn_commons/t_mobile_apps` (public). Best-effort : en cas d'échec ou d'absence
-     *  de config, le registre par défaut s'applique (tous les champs visibles). */
+     *  de config, le registre par défaut s'applique (tous les champs visibles). Lit d'abord, quoi
+     *  qu'il arrive à t_mobile_apps, le formulaire du web ([synchroniserConfigFormulaires]). */
     suspend fun synchroniserSettingsOcctax(config: GeoNatureConfig): Pair<Int, String> =
         withContext(Dispatchers.IO) {
             val base = config.urlServeur.trim().trimEnd('/')
@@ -541,6 +596,14 @@ class GeoNatureSync(
                 val session = auth.loginAvecCookies(base, config.login, config.motDePasse)
                 val token = session?.first
                 val cookies = session?.third ?: ""
+                // Avant t_mobile_apps, dont il ne dépend pas : un serveur qui y répond 500 (une appli
+                // mobile enregistrée sans son settings.json) ne fige plus le formulaire (21 octobre).
+                synchroniserConfigFormulaires(config, base, token, cookies)
+                // TaxHub : celui du web, intégré à GeoNature depuis la 2.15 (`<URL>/api/taxhub`) ; l'adresse
+                // publiée pour les applis mobiles (`sync.taxhub_url`) seulement s'il ne répond pas
+                // (21 octobre : sur un serveur, celle-ci avait un certificat invalide, l'intégré répondait).
+                val taxhubIntegre = taxhubRepond("$base/api/taxhub")
+                if (taxhubIntegre) config.taxhubUrlCache = ""
                 val reponse = clients.get("$base/api/gn_commons/t_mobile_apps", token, cookies, 15000)
                 if (reponse.status.value != 200)
                     return@withContext Pair(0, "t_mobile_apps HTTP ${reponse.status.value}")
@@ -553,11 +616,13 @@ class GeoNatureSync(
                     settings = app.optJSONObject("settings")
                     break
                 }
-                // URL TaxHub publiée par le serveur (sync.taxhub_url) — TOUJOURS rafraîchie (y compris
-                // remise à "" si absente), pour ne pas garder la valeur d'un ancien serveur. La
-                // résolution/fallback est faite par config.urlTaxhub.
-                config.taxhubUrlCache =
-                    settings?.optJSONObject("sync")?.optString("taxhub_url", "")?.trim().orEmpty()
+                // URL TaxHub publiée par le serveur (sync.taxhub_url), quand le TaxHub intégré ne répond
+                // pas — rafraîchie (y compris remise à "" si absente), pour ne pas garder la valeur d'un
+                // ancien serveur. La résolution est faite par config.urlTaxhub.
+                if (!taxhubIntegre) {
+                    config.taxhubUrlCache =
+                        settings?.optJSONObject("sync")?.optString("taxhub_url", "")?.trim().orEmpty()
+                }
                 // Réglages mobiles, toujours rafraîchis (repli sur les défauts si absents) :
                 //  - profondeur d'historique de l'Explorer (jours),
                 //  - taille de page pour la pagination TaxRef.
@@ -569,18 +634,6 @@ class GeoNatureSync(
                 val dateCfg = settings?.optJSONObject("input")?.optJSONObject("date")
                 config.dateAvecHeures = dateCfg?.optBoolean("enable_hours", false) ?: false
                 config.dateAvecFin = dateCfg?.optBoolean("enable_end_date", false) ?: false
-                // Visibilité des champs du formulaire serveur (OCCTAX.form_fields de gn_commons/config) —
-                // pour aligner la visibilité par serveur (ex. masquer le type de regroupement). Toujours
-                // rafraîchi ; "" si indisponible ⇒ tout visible (cf. config.champFormVisible).
-                config.formFieldsJson = try {
-                    val c = clients.get("$base/api/gn_commons/config", token, cookies, 10000)
-                    if (c.status.value == 200)
-                        JSONObject(c.bodyAsText())
-                            .optJSONObject("OCCTAX")?.optJSONObject("form_fields")?.toString().orEmpty()
-                    else ""
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) { "" }
                 val nomenclature = settings?.optJSONObject("nomenclature")
                 if (nomenclature == null) {
                     config.settingsOcctaxJson = ""
@@ -597,13 +650,52 @@ class GeoNatureSync(
             }
         }
 
+    /** Le TaxHub de [base] répond : ses listes de taxons (`/api/biblistes`, publique) se lisent. */
+    private suspend fun taxhubRepond(base: String): Boolean = try {
+        val reponse = clients.get("$base/api/biblistes", timeoutMs = 10000)
+        reponse.status.value == 200 && runCatching { reponse.bodyAsText().parserTableauJson("data", "items", "results") }.getOrNull() != null
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        false
+    }
+
+    /** Le formulaire OccTax du serveur (OCCTAX de gn_commons/config), lu comme le web : visibilité des
+     *  champs (form_fields), bloc Médias, contrôle des preuves numériques, réglages du formulaire,
+     *  filtre taxonomique des nomenclatures ; et les objets de permission des Suivis. Un échec garde le
+     *  cache précédent : vidé, il montrait des champs que le serveur masque. */
+    private suspend fun synchroniserConfigFormulaires(config: GeoNatureConfig, base: String, token: String?, cookies: String) {
+        try {
+            val c = clients.get("$base/api/gn_commons/config", token, cookies, 10000)
+            if (c.status.value != 200) return
+            val configServeur = JSONObject(c.bodyAsText())
+            config.nomenclaturesFiltreesParTaxon = configServeur.optBoolean("ENABLE_NOMENCLATURE_TAXONOMIC_FILTERS", true)
+            val occtax = configServeur.optJSONObject("OCCTAX")
+            config.formFieldsJson = occtax?.optJSONObject("form_fields")?.toString().orEmpty()
+            config.occtaxMediasActifs = occtax?.optBoolean("ENABLE_MEDIAS", true) ?: true
+            config.occtaxPreuveNumeriqueUrl = occtax?.optBoolean("digital_proof_validator", true) ?: true
+            // Les autres réglages du formulaire du web (conf_schema_toml d'OccTax).
+            config.occtaxObservateursEnTexte = occtax?.optBoolean("observers_txt", false) ?: false
+            config.occtaxAvanceOuvert = occtax?.optBoolean("EXPANDED_TAXON_ADVANCED_DETAILS", false) ?: false
+            config.occtaxTypologieHabitat = occtax?.optInt("CD_TYPO_HABITAT", -1)?.takeIf { it > 0 } ?: -1
+            config.occtaxIdListeTaxons = occtax?.optInt("id_taxon_list", -1)?.takeIf { it > 0 } ?: -1
+            config.occtaxDateDuJour = occtax?.optBoolean("DATE_FORM_WITH_TODAY", true) ?: true
+            // Les objets de permission des Suivis (droits de création par type d'objet).
+            config.niveauxPermissionSuivisJson =
+                configServeur.optJSONObject("MONITORINGS")?.optJSONObject("PERMISSION_LEVEL")?.toString().orEmpty()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+        }
+    }
+
     /** Fetch des défauts de nomenclatures pour un module (`/api/<module>/defaultNomenclatures`).
      *  Retourne une Map<mnemonique, id_nomenclature_stringifié>. Tente plusieurs casses du
      *  module (Flask est case-sensitive sur les routes). Best-effort, vide en cas d'échec. */
-    suspend fun fetchDefaultsNomenclatures(base: String, token: String?, cookies: String, moduleCode: String): Map<String, String> {
+    suspend fun fetchDefaultsNomenclatures(base: String, token: String?, cookies: String, moduleCode: String, organisme: Int? = null): Map<String, String> {
         val variantes = listOf(moduleCode, moduleCode.lowercase()).distinct()
         for (variant in variantes) {
-            val urlStr = "$base/api/$variant/defaultNomenclatures"
+            val urlStr = "$base/api/$variant/defaultNomenclatures" + (organisme?.let { "?organism=$it" } ?: "")
             try {
                 val reponse = clients.get(urlStr, token, cookies, 10000)
                 val code = reponse.status.value
@@ -632,6 +724,10 @@ class GeoNatureSync(
     }
 
     companion object {
+        /** Le chargement des taxons quand aucune liste n'est encore utile : pas un échec. */
+        const val AUCUNE_LISTE_UTILE =
+            "Aucune liste de taxons à charger pour l'instant : choisissez la vôtre dans Paramètres."
+
 
         /** Sur un ensemble de cd_nom HOMONYMES (même nom scientifique ou vernaculaire), retourne
          *  celui à conserver dans le cache indexé-par-nom : priorité au cd_nom appartenant à la

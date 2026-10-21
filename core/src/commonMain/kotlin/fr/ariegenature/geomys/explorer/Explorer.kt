@@ -33,6 +33,10 @@ import kotlin.math.roundToLong
  *  de la couleur de son groupe, l'effectif écrit dessus s'il y en a plusieurs. */
 data class GroupeObs(val cle: String, val latitude: Double, val longitude: Double, val observations: List<ObsExplorer>) {
     val premiere: ObsExplorer get() = observations.first()
+
+    /** Le groupe du marqueur : celui de la première observation qui en a un, la couleur d'avant les
+     *  observations sans groupe ; null si aucune n'en a (icône neutre). */
+    val taxon: Taxon? get() = observations.firstNotNullOfOrNull { it.taxon }
 }
 
 /** L'Explorer : les observations de la synthèse GeoNature sur la zone visible. */
@@ -95,7 +99,7 @@ object Explorer {
             .groupBy { "${(it.latitude * 1000).roundToLong()},${(it.longitude * 1000).roundToLong()}" }
             .map { (cle, groupe) -> GroupeObs(cle, groupe.first().latitude, groupe.first().longitude, groupe) }
 
-    /** Les observations du groupe [taxon], toutes sans filtre. */
+    /** Les observations du groupe [taxon], toutes sans filtre (celles sans groupe comprises). */
     fun filtrer(observations: List<ObsExplorer>, taxon: Taxon?): List<ObsExplorer> =
         if (taxon == null) observations else observations.filter { it.taxon == taxon }
 

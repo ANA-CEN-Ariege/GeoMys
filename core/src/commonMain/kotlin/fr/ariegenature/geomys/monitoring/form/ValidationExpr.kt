@@ -98,12 +98,13 @@ object ValidationExpr {
         valeursFormulaire: Map<String, Any?>,
     ): Violation? {
         val v = numerique(valeurCourante) ?: return null
-        resoudreBorne(minBrut, valeursFormulaire)?.let { borne ->
-            if (v < borne) return Violation(Violation.Type.TROP_PETIT, borne)
-        }
-        resoudreBorne(maxBrut, valeursFormulaire)?.let { borne ->
-            if (v > borne) return Violation(Violation.Type.TROP_GRAND, borne)
-        }
+        val min = resoudreBorne(minBrut, valeursFormulaire)
+        val max = resoudreBorne(maxBrut, valeursFormulaire)
+        // Comme le web (setControl) : des bornes croisées (min > max) ne s'appliquent ni l'une ni
+        // l'autre.
+        if (min != null && max != null && min > max) return null
+        if (min != null && v < min) return Violation(Violation.Type.TROP_PETIT, min)
+        if (max != null && v > max) return Violation(Violation.Type.TROP_GRAND, max)
         return null
     }
 }

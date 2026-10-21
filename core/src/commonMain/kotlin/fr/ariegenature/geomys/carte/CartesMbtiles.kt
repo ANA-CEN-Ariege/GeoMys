@@ -23,6 +23,7 @@
 package fr.ariegenature.geomys.carte
 
 import co.touchlab.kermit.Logger
+import fr.ariegenature.geomys.plateforme.exclureDesSauvegardes
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 import okio.FileSystem
@@ -84,6 +85,9 @@ class CartesMbtiles(
         val temporaire = dossier / "$nom.tmp"
         return try {
             systeme.createDirectories(dossier)
+            // Comme sous Android et dans GeoMys-IOS : des centaines de Mo, que l'utilisateur
+            // réimporte au besoin, n'ont pas leur place dans la sauvegarde iCloud.
+            exclureDesSauvegardes(dossier)
             source.use { flux -> systeme.write(temporaire) { writeAll(flux) } }
             if (!lecteur.aUneTableTiles(temporaire)) {
                 systeme.delete(temporaire)

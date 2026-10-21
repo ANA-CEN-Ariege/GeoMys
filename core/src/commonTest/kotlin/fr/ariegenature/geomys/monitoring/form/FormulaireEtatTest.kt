@@ -140,9 +140,9 @@ class FormulaireEtatTest {
         assertEquals(3, etat.lireValeurs()["count_min"], "champ modifié par l'utilisateur conservé")
     }
 
-    // ── Mode complétion : barre verticale rouge sur les obligatoires VIDES ─────────────
-    // Demande terrain 2026-09-03 : quand on ouvre un formulaire pour finir les champs manquants, ils
-    // doivent se repérer d'un coup d'œil.
+    // ── Barre verticale rouge sur les obligatoires VIDES et les valeurs refusées ─────────────
+    // Comme la bordure rouge (`ng-invalid`) du web, dès l'ouverture du formulaire ; en complétion
+    // aussi (demande terrain 2026-09-03).
 
     @Test
     fun barre_rouge_seulement_sur_les_obligatoires_vides() = runTest {
@@ -151,7 +151,7 @@ class FormulaireEtatTest {
             EditableField("vide", ViewType.TEXT, "Vide", obligatoire = true),
             EditableField("libre", ViewType.TEXT, "Facultatif"),
         ))
-        val barres = etat.barresRouges(modeCompletion = true)
+        val barres = etat.barresRouges()
         assertTrue("vide" in barres, "obligatoire VIDE → barre")
         assertFalse("rempli" in barres, "obligatoire déjà rempli → pas de barre")
         assertFalse("libre" in barres, "champ facultatif → pas de barre")
@@ -160,40 +160,93 @@ class FormulaireEtatTest {
     @Test
     fun la_barre_disparait_quand_le_champ_est_rempli() = runTest {
         val etat = formulaire(listOf(EditableField("vide", ViewType.TEXT, "Vide", obligatoire = true)))
-        assertTrue("vide" in etat.barresRouges(modeCompletion = true))
+        assertTrue("vide" in etat.barresRouges())
         etat.saisirTexte("vide", "enfin saisi")
         etat.flushChangementsEnAttente()
-        assertFalse("vide" in etat.barresRouges(modeCompletion = true), "champ rempli → barre retirée")
+        assertFalse("vide" in etat.barresRouges(), "champ rempli → barre retirée")
     }
 
     @Test
-    fun hors_mode_completion_aucune_barre() = runTest {
-        val etat = formulaire(listOf(EditableField("vide", ViewType.TEXT, "Vide", obligatoire = true)))
-        assertTrue(etat.barresRouges(modeCompletion = false).isEmpty())
+    fun un_media_sans_titre_manque_comme_dans_le_formulaire_media_du_web() = runTest {
+        val etat = formulaire(listOf(EditableField("medias", ViewType.MEDIA, "Photos", schemaDotTable = "gn_monitoring.t_base_visits")))
+        assertTrue(etat.champsObligatoiresManquants().isEmpty(), "sans média, rien ne manque")
+        etat.ajouterMedias("medias", listOf("file:///a.jpg"))
+        assertEquals(listOf("medias"), etat.champsObligatoiresManquants(), "le titre est obligatoire")
+        etat.modifierMedia("medias", "file:///a.jpg", titre = "Mare", auteur = "DUPONT Alice")
+        assertTrue(etat.champsObligatoiresManquants().isEmpty())
+        assertEquals(
+            listOf(fr.ariegenature.geomys.model.MediaSuivi("file:///a.jpg", "Mare", "DUPONT Alice", "", "medias", "gn_monitoring.t_base_visits")),
+            etat.mediasPourEnvoi(),
+        )
+        assertEquals(listOf("file:///a.jpg"), etat.lireValeurs()["medias"])
     }
 
-    // ── Champs masqués et envoi (audit 2026-09-14, R4-M4 / R4-M3) ──
+    @Test
+    fun une_valeur_refusee_porte_aussi_la_barre() = runTest {
+        val etat = formulaire(listOf(EditableField("nb", ViewType.NUMBER, "Nombre", minValue = "1", maxValue = "5")))
+        etat.saisirTexte("nb", "9")
+        etat.flushChangementsEnAttente()
+        assertTrue("nb" in etat.barresRouges(), "hors bornes → barre, comme ng-invalid")
+        etat.saisirTexte("nb", "3")
+        etat.flushChangementsEnAttente()
+        assertTrue(etat.barresRouges().isEmpty())
+    }
+
+    // ── Champs masqués et envoi : comme le web (décision de l'utilisateur du 20 octobre 2026, qui
+    // remplace celle de l'audit du 14 septembre, R4-M4) ──
 
     @Test
-    fun un_champ_masque_conserve_sa_valeur_mais_ne_part_PAS_au_serveur() = runTest {
-        // Un protocole qui masque « nombre de nids » quand « espèce observée = non » transmettait
-        // quand même le nombre saisi avant la bascule : donnée fausse en base, sans aucun signal. Le
-        // client mobile officiel PnX-SI, lui, n'envoie pas les champs masqués.
+    fun un_champ_masque_conserve_sa_valeur_et_part_au_serveur_comme_sur_le_web() = runTest {
+        // Le web garde le contrôle d'un champ masqué, avec sa valeur, et l'envoie (postData).
         val etat = formulaire(listOf(
             EditableField("vue", ViewType.TEXT, "Espèce observée", value = "non"),
             EditableField("nids", ViewType.NUMBER, "Nombre de nids", value = "3", hiddenExpr = "\${vue} === 'non'"),
         ))
 
-        assertEquals(3, etat.lireValeurs()["nids"],
-            "la valeur reste lisible : masquer n'est pas effacer, l'utilisateur la retrouve si la condition redevient vraie")
-        assertTrue(!etat.lireValeursPourEnvoi().containsKey("nids"), "mais elle ne doit pas partir au serveur")
-        assertEquals("non", etat.lireValeursPourEnvoi()["vue"], "les champs visibles partent normalement")
+        assertEquals(3, etat.lireValeurs()["nids"], "masquer n'est pas effacer")
+        assertEquals(3, etat.lireValeursPourEnvoi()["nids"], "elle part au serveur, comme sur le web")
+        assertEquals("non", etat.lireValeursPourEnvoi()["vue"])
+    }
+
+    @Test
+    fun un_radio_coche_se_decoche_quand_on_le_touche_comme_sur_le_web() = runTest {
+        val etat = formulaire(listOf(
+            EditableField("vent", ViewType.RADIO, "Vent", values = listOf(PropertyValue("Nul", "Nul"), PropertyValue("Fort", "Fort"))),
+        ))
+        etat.choisirRadio("vent", 1)
+        assertEquals("Fort", etat.lireValeurs()["vent"])
+        etat.choisirRadio("vent", 1)
+        assertEquals("", etat.lireValeurs()["vent"], "décoché : aucune valeur")
+    }
+
+    @Test
+    fun une_date_ou_une_heure_s_efface_comme_sur_le_web() = runTest {
+        val etat = formulaire(listOf(
+            EditableField("jour", ViewType.DATE, "Jour", value = "2026-10-20"),
+            EditableField("heure", ViewType.TIME, "Heure", value = "07:05"),
+        ))
+        etat.effacerDateHeure("jour")
+        etat.effacerDateHeure("heure")
+        assertEquals("", etat.lireValeurs()["jour"])
+        assertEquals("", etat.lireValeurs()["heure"])
+        assertNull(etat.affichageDateHeure("jour"))
+    }
+
+    @Test
+    fun un_champ_requis_masque_et_vide_bloque_comme_sur_le_web() = runTest {
+        // Ses validateurs restent actifs sur le web : le formulaire est invalide, l'enregistrement
+        // refusé.
+        val etat = formulaire(listOf(
+            EditableField("vue", ViewType.TEXT, "Espèce observée", value = "non"),
+            EditableField("nids", ViewType.NUMBER, "Nombre de nids", obligatoire = true, hiddenExpr = "\${vue} === 'non'"),
+        ))
+        assertFalse(etat.estVisible("nids"))
+        assertEquals(listOf("nids"), etat.champsObligatoiresManquants())
     }
 
     @Test
     fun un_champ_masque_mais_REQUIS_part_quand_meme() = runTest {
-        // Exception voulue, alignée sur le client officiel : le serveur refuserait la saisie
-        // autrement, et une incohérence du schéma ne doit pas faire perdre une visite de terrain.
+        // Comme tout champ masqué.
         val etat = formulaire(listOf(
             EditableField("vue", ViewType.TEXT, "Espèce observée", value = "non"),
             EditableField("nids", ViewType.NUMBER, "Nombre de nids", value = "3",

@@ -337,7 +337,7 @@ class MonitoringObjets(
                     val proprietes = aplatirProprietes(item.optJSONObject("properties"))
                     val nom = extraireNomHeuristique(proprietes, type, id)
                     val geoJson = item.optJSONObject("geometry")?.toString()
-                    liste.add(MonitoringEnfant(id, nom, proprietes, geoJson))
+                    liste.add(MonitoringEnfant(id, nom, proprietes, geoJson, valeursMultiples(item.optJSONObject("properties"))))
                 }
                 result[type] = liste
             }
@@ -355,12 +355,35 @@ class MonitoringObjets(
                 enfants = enfantsDe(obj),
                 geometrie = formatGeometrie(geoObj),
                 geometrieGeoJson = geoObj?.toString(),
+                valeursMultiples = valeursMultiples(obj.optJSONObject("properties")),
             )
+        }
+
+        /** Les tableaux du bloc `properties` (observateurs d'une visite, nomenclatures ou cases
+         *  multiples, `types_site`…), que le serveur envoie en listes d'identifiants : leurs valeurs
+         *  simples, dans l'ordre. Un tableau d'objets, ou vide, est écarté. */
+        internal fun valeursMultiples(props: JSONObject?): Map<String, List<String>> {
+            if (props == null) return emptyMap()
+            val map = linkedMapOf<String, List<String>>()
+            val it = props.keys()
+            while (it.hasNext()) {
+                val k = it.next()
+                val arr = props.opt(k) as? JSONArray ?: continue
+                val valeurs = (0 until arr.length()).mapNotNull { i ->
+                    when (val v = arr.opt(i)) {
+                        is String -> v.takeIf { it.isNotEmpty() }
+                        is Number, is Boolean -> v.toString()
+                        else -> null
+                    }
+                }
+                if (valeurs.isNotEmpty()) map[k] = valeurs
+            }
+            return map
         }
 
         /** Aplatit le bloc `properties` d'un objet monitoring en `Map<String, String>`. Filtre les
          *  valeurs null/objets/tableaux : on garde uniquement les scalaires (string, number, bool)
-         *  utiles à l'affichage. */
+         *  utiles à l'affichage ; les tableaux passent par [valeursMultiples]. */
         internal fun aplatirProprietes(props: JSONObject?): Map<String, String> {
             if (props == null) return emptyMap()
             val map = linkedMapOf<String, String>()

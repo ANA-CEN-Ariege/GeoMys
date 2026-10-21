@@ -56,37 +56,25 @@ class AdditionalFieldVisibiliteTest {
     // ── visiblePour : restriction dataset ──────────────────────────────────────
     @Test
     fun sans_restriction_dataset_visible_partout() {
-        assertTrue(champ(datasetsIds = emptyList()).visiblePour(42, emptyList()))
-        assertTrue(champ(datasetsIds = emptyList()).visiblePour(null, emptyList()))
+        assertTrue(champ(datasetsIds = emptyList()).visiblePour(42))
+        assertTrue(champ(datasetsIds = emptyList()).visiblePour(null))
     }
 
     @Test
     fun restreint_a_un_dataset() {
         val f = champ(datasetsIds = listOf(10, 20))
-        assertTrue(f.visiblePour(10, emptyList()))
-        assertFalse(f.visiblePour(99, emptyList()), "dataset hors liste")
-        assertFalse(f.visiblePour(null, emptyList()), "dataset courant inconnu mais champ restreint")
+        assertTrue(f.visiblePour(10))
+        assertFalse(f.visiblePour(99), "dataset hors liste")
+        assertFalse(f.visiblePour(null), "dataset courant inconnu mais champ restreint")
     }
 
-    // ── visiblePour : restriction liste taxonomique ─────────────────────────────
+    // ── id_list : paramètre des widgets, pas un filtre d'affichage ──────────────
     @Test
-    fun sans_idList_visible_pour_tous_les_taxons() {
-        assertTrue(champ(idList = null).visiblePour(1, emptyList()))
-    }
-
-    @Test
-    fun restreint_a_une_liste_taxonomique() {
-        val f = champ(idList = 100)
-        assertTrue(f.visiblePour(1, listOf(100, 200)), "taxon dans la liste")
-        assertFalse(f.visiblePour(1, listOf(200, 300)), "taxon hors liste")
-        assertFalse(f.visiblePour(1, emptyList()), "aucune liste pour le taxon")
-    }
-
-    @Test
-    fun combinaison_dataset_et_liste() {
-        val f = champ(datasetsIds = listOf(10), idList = 100)
-        assertTrue(f.visiblePour(10, listOf(100)))
-        assertFalse(f.visiblePour(10, listOf(999)), "bon dataset mais mauvaise liste")
-        assertFalse(f.visiblePour(11, listOf(100)), "bonne liste mais mauvais dataset")
+    fun id_list_ne_restreint_pas_l_affichage() {
+        // Le serveur ne filtre pas par liste : un champ d'observateurs (`id_list` = liste
+        // d'observateurs) s'affiche, au relevé comme ailleurs. L'appli le masquait toujours.
+        assertTrue(champ(idList = 100).visiblePour(1))
+        assertTrue(champ(datasetsIds = listOf(10), idList = 100).visiblePour(10))
+        assertFalse(champ(datasetsIds = listOf(10), idList = 100).visiblePour(11), "mauvais dataset")
     }
 }

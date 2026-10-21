@@ -25,6 +25,8 @@ package fr.ariegenature.geomys.store
 import fr.ariegenature.geomys.util.uuidAleatoire
 import kotlin.test.AfterTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
@@ -55,5 +57,22 @@ class MonitoringCacheEcrituresTest {
             assertTrue(lu in contenus, "tour $tour : le fichier doit être l'une des écritures, entière (${lu?.length} caractères)")
         }
         assertTrue(FileSystem.SYSTEM.list(dossier).none { it.name.endsWith(".tmp") }, "aucun fichier temporaire ne reste")
+    }
+
+    @Test
+    fun une_adresse_trop_longue_pour_un_nom_de_fichier_se_met_en_cache() {
+        // Le « Code phénologique » de pt_ecoute_avifaune sur le serveur de démonstration (21 octobre) :
+        // 17 codes dans l'adresse, 449 octets de nom de fichier, que rien ne pouvait écrire.
+        val codes = listOf("1") + (1..16).map { "CA_" + it.toString().padStart(2, '0') }
+        val adresse = "nomenclatures/nomenclature/OCC_COMPORTEMENT?orderby=label_default&" +
+            codes.joinToString("&") { "cd_nomenclature=$it" }
+        val cache = MonitoringCache(dossier, FileSystem.SYSTEM)
+        val cle = cache.keyOptionsDatalist(adresse)
+        assertTrue((cle + ".corrupt").encodeToByteArray().size <= 255, "${cle.length} caractères")
+        cache.setJson(cle, """{"values":[]}""")
+        assertEquals("""{"values":[]}""", MonitoringCache(dossier, FileSystem.SYSTEM).getJson(cle), "relu par un nouveau processus")
+        // Deux adresses au même long début restent distinctes ; une adresse courte garde son nom.
+        assertNotEquals(cle, cache.keyOptionsDatalist(adresse.replace("CA_16", "CA_17")))
+        assertEquals("datalist_nomenclatures_nomenclature_SEXE.json", cache.keyOptionsDatalist("nomenclatures/nomenclature/SEXE"))
     }
 }

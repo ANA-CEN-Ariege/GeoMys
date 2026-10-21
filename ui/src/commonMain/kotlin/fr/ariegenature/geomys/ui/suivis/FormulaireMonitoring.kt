@@ -85,6 +85,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
+import fr.ariegenature.geomys.monitoring.form.CARACTERES_TAXON
 import fr.ariegenature.geomys.monitoring.form.EditableField
 import fr.ariegenature.geomys.monitoring.form.FormulaireEtat
 import fr.ariegenature.geomys.monitoring.form.PropositionTaxon
@@ -101,11 +102,14 @@ import fr.ariegenature.geomys.ui.composants.DialogueChoixMultiple
 import fr.ariegenature.geomys.ui.composants.FOND_LIGNE_FORMULAIRE_IOS
 import fr.ariegenature.geomys.ui.composants.Interrupteur
 import fr.ariegenature.geomys.ui.composants.ListeDeroulante
+import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.MenuSysteme
 import fr.ariegenature.geomys.ui.composants.ModeDateHeure
 import fr.ariegenature.geomys.ui.composants.PopupListeAndroid
 import fr.ariegenature.geomys.ui.composants.SeparateurIos
 import fr.ariegenature.geomys.ui.composants.SymboleSf
+import fr.ariegenature.geomys.ui.composants.TexteHtmlRiche
+import fr.ariegenature.geomys.ui.composants.barreChampObligatoire
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.composants.nomMedia
 import fr.ariegenature.geomys.ui.composants.rememberValeurChamp
@@ -113,15 +117,10 @@ import fr.ariegenature.geomys.ui.composants.styleSaisieIos
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import fr.ariegenature.geomys.ui.theme.FormeContinue
 
-/** Rouge des barres « champ obligatoire à saisir » sous Android (ROUGE_OBLIGATOIRE) : le rouge franc
- *  des repères de la carte, et non la couleur d'erreur du thème, rose pâle en sombre. */
-private val ROUGE_OBLIGATOIRE = Color(0xFFD32F2F)
 
 /** `.secondary` de SwiftUI en mode sombre : libellés, invites et symboles éteints sous iOS. */
 private val SECONDAIRE_IOS = Color(0x99EBEBF5)
 
-/** L'entrée vide d'une liste déroulante. */
-private const val CHOISIR = "— choisir —"
 
 /** Le formulaire de [etat] : ses champs visibles, dans l'ordre, chacun avec son libellé (« * » s'il
  *  est requis), son aide, et la barre rouge des obligatoires encore vides s'il est dans [barres].
@@ -160,21 +159,29 @@ internal fun FormulaireMonitoring(
     }
 }
 
-private fun libelle(f: EditableField, etat: FormulaireEtat) = if (etat.estRequis(f.code)) "${f.label} *" else f.label
+/** Le libellé du web, sans « * » ; un champ obligatoire vide se repère à sa barre rouge. */
+@Suppress("UNUSED_PARAMETER")
+private fun libelle(f: EditableField, etat: FormulaireEtat) = f.label
+
+/** Les entrées d'une liste à choix unique et la position choisie : l'entrée vide du web en tête
+ *  s'il en a une ([EditableField.optionVide]), sinon aucune (-1 sans choix). */
+private fun entreesListe(f: EditableField, etat: FormulaireEtat): Pair<List<String>, Int> {
+    val vide = f.optionVide
+    val choisi = etat.indexChoisi(f.code)
+    return (listOfNotNull(vide) + f.values.map { it.label }) to (if (vide != null) choisi + 1 else choisi)
+}
+
+/** La position choisie dans [entreesListe] rapportée à l'option. */
+private fun optionDe(f: EditableField, position: Int): Int = if (f.optionVide != null) position - 1 else position
+
+/** La barre de la ligne d'un champ : celle d'un champ médias rempli passe sur les titres de ses
+ *  médias, que le web exige (cf. [ChampMediasAndroid]). */
+private fun barreDeLigne(f: EditableField, etat: FormulaireEtat, barre: Boolean): Boolean =
+    barre && !(f.viewType == ViewType.MEDIA && etat.medias(f.code).isNotEmpty())
 
 /** L'étiquette de test de ce que borde la barre rouge d'un champ (Android : le champ seul). */
 internal fun etiquetteChamp(code: String) = "champ:$code"
 
-/** La barre rouge à gauche de ce qu'elle borde, sur toute sa hauteur, le contenu décalé d'autant
- *  (plus [espace]) : un champ obligatoire encore vide. */
-private fun Modifier.barreObligatoire(visible: Boolean, couleur: Color, largeur: Dp, espace: Dp = 0.dp, arrondi: Dp = 0.dp): Modifier =
-    if (!visible) {
-        this
-    } else {
-        drawBehind {
-            drawRoundRect(couleur, size = Size(largeur.toPx(), size.height), cornerRadius = CornerRadius(arrondi.toPx()))
-        }.padding(start = largeur + espace)
-    }
 
 private fun modeDateHeure(type: ViewType) = when (type) {
     ViewType.TIME -> ModeDateHeure.HEURE
@@ -231,9 +238,30 @@ private fun LigneChampAndroid(
     onChoixMultiple: (String) -> Unit,
 ) {
     val couleurs = MaterialTheme.colorScheme
+    if (f.viewType == ViewType.HTML) {
+        // Le texte du protocole, sans libellé, comme le web.
+        Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+            TexteHtmlRiche(f.html.orEmpty(), 14.sp, couleurs.onSurface, couleurs.primary)
+            // Le `help` du web, sous le bloc.
+            f.aide?.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp, fontStyle = FontStyle.Italic, color = couleurs.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp)) }
+        }
+        return
+    }
     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-        Text(libelle(f, etat), fontSize = 13.sp, color = couleurs.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
-        Box(Modifier.fillMaxWidth().testTag(etiquetteChamp(f.code)).barreObligatoire(barre, ROUGE_OBLIGATOIRE, 3.dp)) {
+        Row(Modifier.padding(bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(libelle(f, etat), fontSize = 13.sp, color = couleurs.onSurfaceVariant)
+            // L'info-bulle `definition` du web : touchée, elle s'affiche en message.
+            f.definition?.takeIf { it.isNotEmpty() }?.let { definition ->
+                val toasts = LocalToasts.current
+                Text(
+                    " ⓘ",
+                    fontSize = 13.sp,
+                    color = couleurs.onSurfaceVariant,
+                    modifier = Modifier.clickable(remember { MutableInteractionSource() }, null, role = Role.Button) { toasts.afficher(definition, longue = true) },
+                )
+            }
+        }
+        Box(Modifier.fillMaxWidth().testTag(etiquetteChamp(f.code)).barreChampObligatoire(barreDeLigne(f, etat, barre))) {
             ChampAndroid(f, etat, onAjouterPhotos, onChoixMultiple)
         }
         if (f.viewType == ViewType.TAXON) {
@@ -246,7 +274,7 @@ private fun LigneChampAndroid(
                 Text(statut.texte, fontSize = 12.sp, color = couleur, modifier = Modifier.padding(top = 2.dp))
             }
         }
-        if (f.viewType == ViewType.NUMBER) {
+        if (f.viewType == ViewType.NUMBER || f.viewType == ViewType.DATE || f.motif != null) {
             etat.erreurValidation(f.code)?.let { Text(it, fontSize = 12.sp, color = couleurs.error, modifier = Modifier.padding(top = 2.dp)) }
         }
         f.aide?.takeIf { it.isNotEmpty() }?.let {
@@ -263,23 +291,30 @@ private fun ChampAndroid(f: EditableField, etat: FormulaireEtat, onAjouterPhotos
     when (f.viewType) {
         ViewType.TEXT -> ChampTexteFormulaire(etat.texte(code), { etat.saisirTexte(code, it) })
         // TYPE_TEXT_FLAG_MULTI_LINE et setLines(3) : trois lignes, défilantes au-delà.
-        ViewType.TEXTAREA -> ChampTexteFormulaire(etat.texte(code), { etat.saisirTexte(code, it) }, lignesMin = 3, uneLigne = false, lignesMaxAndroid = 3)
+        ViewType.TEXTAREA -> (f.lignes ?: 3).let { n -> ChampTexteFormulaire(etat.texte(code), { etat.saisirTexte(code, it) }, lignesMin = n, uneLigne = false, lignesMaxAndroid = n) }
         ViewType.NUMBER -> ChampNombreAndroid(f, etat)
         ViewType.DATE, ViewType.TIME, ViewType.DATETIME -> ChampDateMonitoring(
             modeDateHeure(f.viewType),
             etat.affichageDateHeure(code),
             etat.selectionDateHeure(code),
             { choisirDateHeure(etat, f, it) },
+            onEffacer = { etat.effacerDateHeure(code) },
         )
         ViewType.TAXON -> ChampTaxonAndroid(f, etat)
-        ViewType.SELECT -> ListeDeroulante(
-            listOf(CHOISIR) + f.values.map { it.label },
-            etat.indexChoisi(code) + 1,
-            { etat.choisirOption(code, it - 1) },
-        )
+        ViewType.SELECT -> etat.valeurHorsListe(code)?.let { horsListe ->
+            // Une valeur hors des options d'un `select` : grisée, comme sur le web.
+            Text(horsListe, fontSize = 16.sp, color = couleurs.onSurface.copy(alpha = 0.38f), modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp))
+        } ?: run {
+            val (libelles, position) = entreesListe(f, etat)
+            ListeDeroulante(
+                libelles,
+                position,
+                { etat.choisirOption(code, optionDe(f, it)) },
+                onEffacer = if (f.effacable) ({ etat.choisirOption(code, -1) }) else null,
+            )
+        }
         ViewType.RADIO -> {
-            // Horizontal pour peu d'options courtes (Oui/Non), vertical sinon (gn_mobile_monitoring).
-            val horizontal = f.values.size <= 4 && f.values.all { it.label.length <= 15 } && f.values.sumOf { it.label.length } <= 40
+            val horizontal = radioEnLigne(f.values.map { it.label })
             val choisi = etat.indexChoisi(code)
             val bouton: @Composable (Int) -> Unit = { i ->
                 Row(
@@ -341,30 +376,9 @@ private fun ChampAndroid(f: EditableField, etat: FormulaireEtat, onAjouterPhotos
         }
         // Le libellé est au-dessus, comme pour les autres champs : la case n'a pas de texte.
         ViewType.CHECKBOX -> Checkbox(etat.cases(code).firstOrNull() == true, { etat.cocher(code, it) }, colors = couleursCase())
-        ViewType.MEDIA -> {
-            val uris = etat.medias(code)
-            Column(Modifier.fillMaxWidth()) {
-                if (uris.isEmpty()) {
-                    Text("Aucune photo", fontSize = 14.sp, color = couleurs.onSurfaceVariant)
-                } else {
-                    uris.forEach { uri ->
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text(nomMedia(uri), fontSize = 14.sp, color = couleurs.onSurface, modifier = Modifier.weight(1f))
-                            // Bouton icône de Material 3 (materialIconButtonStyle) portant « ✕ ».
-                            Box(
-                                Modifier
-                                    .size(48.dp)
-                                    .clickable(remember { MutableInteractionSource() }, ripple(bounded = false, radius = 20.dp), role = Role.Button) {
-                                        etat.retirerMedia(code, uri)
-                                    },
-                                contentAlignment = Alignment.Center,
-                            ) { Text("✕", fontSize = 14.sp, color = couleurs.onSurfaceVariant) }
-                        }
-                    }
-                }
-                BoutonPlein("Ajouter des photos", { onAjouterPhotos(code) })
-            }
-        }
+        ViewType.MEDIA -> ChampMediasAndroid(code, etat, onAjouterPhotos)
+        // Affiché par la ligne, sans libellé.
+        ViewType.HTML -> {}
     }
 }
 
@@ -390,28 +404,18 @@ private fun Modifier.cadreCarteAndroid(): Modifier = drawBehind {
 @Composable
 private fun ChampNombreAndroid(f: EditableField, etat: FormulaireEtat) {
     val code = f.code
-    val defaut = remember(f) { f.value?.toString()?.takeIf { it.isNotEmpty() && it != "null" } }
-    var focalise by remember { mutableStateOf(false) }
+    // Vidé, il reste vide (null), comme sur le web : la valeur par défaut ne revient pas.
     ClavierNumeriqueSigne {
         ChampTexteFormulaire(
             etat.texte(code),
             { etat.saisirTexte(code, filtrerNombre(it, f.decimal)) },
-            modifier = if (defaut == null) Modifier else Modifier.onFocusChanged { s ->
-                if (s.isFocused == focalise) return@onFocusChanged
-                focalise = s.isFocused
-                if (s.isFocused) {
-                    if (etat.texte(code) == defaut) etat.saisirTexte(code, "")
-                } else if (etat.texte(code).isEmpty()) {
-                    etat.saisirTexte(code, defaut)
-                }
-            },
             clavier = KeyboardOptions(keyboardType = if (f.decimal) KeyboardType.Decimal else KeyboardType.Number),
         )
     }
 }
 
 /** Champ TAXON : AutoCompleteTextView d'EditText souligné (18 sp), invite « Tapez le nom du
- *  taxon… », propositions à partir de deux caractères (nom, et dessous en italique le nom
+ *  taxon… », propositions à partir de trois caractères, comme le web (nom, et dessous en italique le nom
  *  scientifique) ; quitté sur un nom non reconnu, il porte l'icône d'erreur d'`EditText.setError`. */
 @NonSkippableComposable
 @Composable
@@ -476,7 +480,7 @@ private fun ChampTaxonAndroid(f: EditableField, etat: FormulaireEtat) {
         )
     }
     val zone = ancre
-    val propositions = if (focalise && !fermee && texte.length >= 2 && zone != null) etat.propositionsTaxon(code, texte) else emptyList()
+    val propositions = if (focalise && !fermee && texte.length >= CARACTERES_TAXON && zone != null) etat.propositionsTaxon(code, texte) else emptyList()
     if (propositions.isNotEmpty() && zone != null) {
         PopupListeAndroid(zone, propositions, onFermer = { fermee = true }) { p ->
             LignePropositionAndroid(p) {
@@ -515,14 +519,32 @@ private fun LigneChampIos(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 11.dp)
-            .barreObligatoire(barre, CouleursGeoMys.holoRougeFonce, 3.dp, espace = 8.dp, arrondi = 1.5.dp),
+            .barreChampObligatoire(barreDeLigne(f, etat, barre)),
     ) {
+        // Le texte du protocole, sans libellé, comme le web.
+        if (f.viewType == ViewType.HTML) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                TexteHtmlRiche(f.html.orEmpty(), 15.sp, Color.White, CouleursGeoMys.jauneClair)
+                f.aide?.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp, fontStyle = FontStyle.Italic, color = SECONDAIRE_IOS) }
+            }
+            return@Box
+        }
         // Le libellé au-dessus du champ, comme sous Android, cases à cocher comprises (GeoMys-IOS en
         // faisait le libellé de l'interrupteur, à côté de lui).
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(libelle(f, etat), fontSize = 12.sp, color = SECONDAIRE_IOS)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(libelle(f, etat), fontSize = 12.sp, color = SECONDAIRE_IOS)
+                // L'info-bulle `definition` du web : touchée, elle s'affiche en message.
+                f.definition?.takeIf { it.isNotEmpty() }?.let { definition ->
+                    val toasts = LocalToasts.current
+                    BoutonIos({ toasts.afficher(definition, longue = true) }, opaciteAppui = 0.6f) {
+                        SymboleSf("info.circle", 12f, listOf(SECONDAIRE_IOS), description = "Définition")
+                    }
+                }
+            }
             ChampIos(f, etat, onAjouterPhotos, onChoixMultiple)
-            // L'aide d'Android (`definition` du schéma), que GeoMys-IOS n'affichait pas.
+            if (f.viewType == ViewType.TEXT) etat.erreurValidation(f.code)?.let { Text(it, fontSize = 11.sp, color = CouleursGeoMys.rougePastille) }
+            // L'aide (`help` du schéma), sous le champ, comme le web.
             f.aide?.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp, fontStyle = FontStyle.Italic, color = SECONDAIRE_IOS) }
         }
     }
@@ -542,13 +564,14 @@ private fun ChampIos(f: EditableField, etat: FormulaireEtat, onAjouterPhotos: (S
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
             modifier = Modifier.fillMaxWidth(),
         )
-        // TextEditor de 60 à 120 pt de haut.
+        // TextEditor de 60 à 120 pt de haut ; `rows` lignes au moins s'il est donné.
         ViewType.TEXTAREA -> BasicTextField(
             value = etat.texte(code),
             onValueChange = { etat.saisirTexte(code, it) },
             textStyle = styleSaisieIos,
             cursorBrush = SolidColor(CouleursGeoMys.jauneClair),
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+            minLines = f.lignes ?: 1,
             modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp, max = 120.dp),
         )
         ViewType.NUMBER -> {
@@ -563,24 +586,39 @@ private fun ChampIos(f: EditableField, etat: FormulaireEtat, onAjouterPhotos: (S
             )
             etat.erreurValidation(code)?.let { Text(it, fontSize = 11.sp, color = CouleursGeoMys.rougePastille) }
         }
-        ViewType.DATE, ViewType.TIME, ViewType.DATETIME -> ChampDateMonitoring(
-            modeDateHeure(f.viewType),
-            etat.affichageDateHeure(code),
-            etat.selectionDateHeure(code),
-            { choisirDateHeure(etat, f, it) },
-        )
+        ViewType.DATE, ViewType.TIME, ViewType.DATETIME -> {
+            ChampDateMonitoring(
+                modeDateHeure(f.viewType),
+                etat.affichageDateHeure(code),
+                etat.selectionDateHeure(code),
+                { choisirDateHeure(etat, f, it) },
+                onEffacer = { etat.effacerDateHeure(code) },
+            )
+            etat.erreurValidation(code)?.let { Text(it, fontSize = 11.sp, color = CouleursGeoMys.rougePastille) }
+        }
         ViewType.TAXON -> ChampTaxonIos(f, etat)
         // Picker en menu d'une ligne de Form : la valeur et les chevrons à droite, en secondaire.
-        ViewType.SELECT -> {
-            val libelles = listOf(CHOISIR) + f.values.map { it.label }
-            val position = etat.indexChoisi(code) + 1
-            Box(Modifier.fillMaxWidth()) {
-                Row(Modifier.align(Alignment.CenterEnd).padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(libelles.getOrNull(position).orEmpty(), fontSize = 17.sp, color = SECONDAIRE_IOS, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.width(4.dp))
-                    SymboleSf("chevron.up.chevron.down", 13f, listOf(SECONDAIRE_IOS))
+        ViewType.SELECT -> etat.valeurHorsListe(code)?.let { horsListe ->
+            // Une valeur hors des options d'un `select` : grisée, comme sur le web.
+            Text(horsListe, fontSize = 17.sp, color = SECONDAIRE_IOS.copy(alpha = 0.4f))
+        } ?: run {
+            val (libelles, position) = entreesListe(f, etat)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) {
+                    Row(Modifier.align(Alignment.CenterEnd).padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(libelles.getOrNull(position).orEmpty(), fontSize = 17.sp, color = SECONDAIRE_IOS, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Spacer(Modifier.width(4.dp))
+                        SymboleSf("chevron.up.chevron.down", 13f, listOf(SECONDAIRE_IOS))
+                    }
+                    MenuSysteme(libelles, position, { etat.choisirOption(code, optionDe(f, it)) }, Modifier.matchParentSize())
                 }
-                MenuSysteme(libelles, position, { etat.choisirOption(code, it - 1) }, Modifier.matchParentSize())
+                // La croix d'une nomenclature, des observateurs, d'un jeu de données.
+                if (f.effacable && etat.indexChoisi(code) >= 0) {
+                    Spacer(Modifier.width(8.dp))
+                    BoutonIos({ etat.choisirOption(code, -1) }, opaciteAppui = 0.6f) {
+                        SymboleSf("xmark", 13f, listOf(CouleursGeoMys.rougePastille), description = "Effacer")
+                    }
+                }
             }
         }
         ViewType.RADIO -> {
@@ -594,11 +632,11 @@ private fun ChampIos(f: EditableField, etat: FormulaireEtat, onAjouterPhotos: (S
                     }
                 }
             }
-            // Horizontal jusqu'à 4 options, vertical au-delà.
-            if (f.values.size > 4) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { f.values.indices.forEach { pastille(it) } }
-            } else {
+            // La règle d'Android (demande du 21 octobre).
+            if (radioEnLigne(f.values.map { it.label })) {
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) { f.values.indices.forEach { pastille(it) } }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { f.values.indices.forEach { pastille(it) } }
             }
         }
         ViewType.SELECT_MULTIPLE -> {
@@ -646,16 +684,17 @@ private fun ChampIos(f: EditableField, etat: FormulaireEtat, onAjouterPhotos: (S
             teinteIos = CouleursGeoMys.jauneClair,
             fondIos = FOND_LIGNE_FORMULAIRE_IOS,
         )
-        // MediaPickerView : nom du fichier en chasse fixe coupé au milieu, corbeille rouge.
+        // MediaPickerView : nom du fichier en chasse fixe coupé au milieu, corbeille rouge ; dessous, les
+        // champs du formulaire média du web.
         ViewType.MEDIA -> {
-            val uris = etat.medias(code)
+            val medias = etat.medias(code)
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (uris.isEmpty()) Text("Aucune photo", fontSize = 15.sp, color = SECONDAIRE_IOS)
-                uris.forEach { uri ->
+                if (medias.isEmpty()) Text("Aucune photo", fontSize = 15.sp, color = SECONDAIRE_IOS)
+                medias.forEach { m ->
                     Row(Modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.width(24.dp), contentAlignment = Alignment.Center) { SymboleSf("photo", 17f, listOf(SECONDAIRE_IOS)) }
                         Text(
-                            nomMedia(uri),
+                            nomMedia(m.chemin),
                             fontSize = 12.sp,
                             fontFamily = FontFamily.Monospace,
                             color = Color.White,
@@ -663,10 +702,13 @@ private fun ChampIos(f: EditableField, etat: FormulaireEtat, onAjouterPhotos: (S
                             overflow = TextOverflow.MiddleEllipsis,
                             modifier = Modifier.weight(1f),
                         )
-                        BoutonIos({ etat.retirerMedia(code, uri) }, opaciteAppui = 0.6f) {
+                        BoutonIos({ etat.retirerMedia(code, m.chemin) }, opaciteAppui = 0.6f) {
                             SymboleSf("trash", 17f, listOf(CouleursGeoMys.rougePastille), description = "Supprimer le média")
                         }
                     }
+                    ChampMediaIos(LIBELLE_TITRE_MEDIA, m.titre, obligatoire = true) { etat.modifierMedia(code, m.chemin, titre = it) }
+                    ChampMediaIos(LIBELLE_DESCRIPTION_MEDIA, m.description) { etat.modifierMedia(code, m.chemin, description = it) }
+                    ChampMediaIos(LIBELLE_AUTEUR_MEDIA, m.auteur) { etat.modifierMedia(code, m.chemin, auteur = it) }
                 }
                 // BoutonTexteJaune : 15 pt medium, pleine largeur.
                 BoutonIos({ onAjouterPhotos(code) }, Modifier.fillMaxWidth(), opaciteAppui = 0.6f) {
@@ -674,6 +716,8 @@ private fun ChampIos(f: EditableField, etat: FormulaireEtat, onAjouterPhotos: (S
                 }
             }
         }
+        // Affiché par la ligne, sans libellé.
+        ViewType.HTML -> {}
     }
 }
 
@@ -706,7 +750,7 @@ private fun ChampTaxonIos(f: EditableField, etat: FormulaireEtat) {
                 },
             )
         }
-        val propositions = if (focalise && !fermee && texte.length >= 2) etat.propositionsTaxon(code, texte) else emptyList()
+        val propositions = if (focalise && !fermee && texte.length >= CARACTERES_TAXON) etat.propositionsTaxon(code, texte) else emptyList()
         if (propositions.isNotEmpty()) {
             LazyColumn(Modifier.heightIn(max = 200.dp).background(Color.White.copy(alpha = 0.04f), RoundedCornerShape(6.dp))) {
                 itemsIndexed(propositions) { i, p ->
@@ -741,3 +785,77 @@ private fun ChampTaxonIos(f: EditableField, etat: FormulaireEtat) {
         }
     }
 }
+
+/** Les libellés du formulaire média du web (media-form-definition.ts). */
+private const val LIBELLE_TITRE_MEDIA = "Titre"
+private const val LIBELLE_DESCRIPTION_MEDIA = "Description"
+private const val LIBELLE_AUTEUR_MEDIA = "Auteur"
+
+/** Un champ médias sous Android : chaque fichier (son nom, sa croix) et les champs du formulaire
+ *  média du web, titre obligatoire (barre rouge tant qu'il est vide), description et auteur ; puis
+ *  « Ajouter des photos ». */
+@NonSkippableComposable
+@Composable
+private fun ChampMediasAndroid(code: String, etat: FormulaireEtat, onAjouterPhotos: (String) -> Unit) {
+    val couleurs = MaterialTheme.colorScheme
+    val medias = etat.medias(code)
+    Column(Modifier.fillMaxWidth()) {
+        if (medias.isEmpty()) {
+            Text("Aucune photo", fontSize = 14.sp, color = couleurs.onSurfaceVariant)
+        } else {
+            medias.forEach { m ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(nomMedia(m.chemin), fontSize = 14.sp, color = couleurs.onSurface, modifier = Modifier.weight(1f))
+                    // Bouton icône de Material 3 (materialIconButtonStyle) portant « ✕ ».
+                    Box(
+                        Modifier
+                            .size(48.dp)
+                            .clickable(remember { MutableInteractionSource() }, ripple(bounded = false, radius = 20.dp), role = Role.Button) {
+                                etat.retirerMedia(code, m.chemin)
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) { Text("✕", fontSize = 14.sp, color = couleurs.onSurfaceVariant) }
+                }
+                Column(Modifier.fillMaxWidth().padding(start = 8.dp, bottom = 8.dp)) {
+                    Text(LIBELLE_TITRE_MEDIA, fontSize = 12.sp, color = couleurs.onSurfaceVariant)
+                    Box(Modifier.fillMaxWidth().barreChampObligatoire(m.titre.isBlank())) {
+                        ChampTexteFormulaire(m.titre, { etat.modifierMedia(code, m.chemin, titre = it) })
+                    }
+                    Text(LIBELLE_DESCRIPTION_MEDIA, fontSize = 12.sp, color = couleurs.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+                    ChampTexteFormulaire(m.description, { etat.modifierMedia(code, m.chemin, description = it) })
+                    Text(LIBELLE_AUTEUR_MEDIA, fontSize = 12.sp, color = couleurs.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+                    ChampTexteFormulaire(m.auteur, { etat.modifierMedia(code, m.chemin, auteur = it) })
+                }
+            }
+        }
+        BoutonPlein("Ajouter des photos", { onAjouterPhotos(code) })
+    }
+}
+
+/** Un champ du formulaire média sous iOS : son libellé, puis le texte sur blanc 8 % aux coins de
+ *  8 pt ; [obligatoire] et vide, la barre rouge. */
+@Composable
+private fun ChampMediaIos(libelle: String, valeur: String, obligatoire: Boolean = false, onValeur: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(start = 34.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(libelle, fontSize = 12.sp, color = SECONDAIRE_IOS)
+        BasicTextField(
+            value = valeur,
+            onValueChange = onValeur,
+            singleLine = true,
+            textStyle = styleSaisieIos,
+            cursorBrush = SolidColor(CouleursGeoMys.jauneClair),
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+            modifier = Modifier
+                .fillMaxWidth()
+                .barreChampObligatoire(obligatoire && valeur.isBlank())
+                .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+        )
+    }
+}
+
+/** Les options d'un champ radio sur une seule ligne : peu d'options, et courtes (Oui/Non), comme
+ *  gn_mobile_monitoring ; sinon une par ligne. Sous iOS aussi depuis le 21 octobre : les libellés
+ *  longs (la fiabilité d'une visite STERF-eBMS) s'y écrasaient sur une ligne. */
+internal fun radioEnLigne(libelles: List<String>): Boolean =
+    libelles.size <= 4 && libelles.all { it.length <= 15 } && libelles.sumOf { it.length } <= 40

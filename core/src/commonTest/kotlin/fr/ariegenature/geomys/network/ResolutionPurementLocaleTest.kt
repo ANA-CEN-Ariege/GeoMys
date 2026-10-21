@@ -95,7 +95,7 @@ class ResolutionPurementLocaleTest {
         // Un appel réseau vers un hôte inexistant coûterait plusieurs secondes ; celui-ci rend
         // la main immédiatement puisqu'il ne sort jamais du cache.
         val debut = TimeSource.Monotonic.markNow()
-        val statut = taxRefService.rechercher("Espèce totalement inconnue", Taxon.INSECTE, config)
+        val statut = taxRefService.rechercher("Espèce totalement inconnue", Taxon.INSECTE, config.listeTaxonsOcctax(null))
         val duree = debut.elapsedNow().inWholeMilliseconds
         assertEquals(TaxRefStatut.NonTrouve, statut)
         assertTrue(duree < 2000, "la résolution doit être immédiate (aucun réseau), mesuré : $duree ms")
@@ -104,7 +104,7 @@ class ResolutionPurementLocaleTest {
 
     @Test
     fun un_nom_du_cache_est_resolu_normalement() = runBlocking {
-        val statut = taxRefService.rechercher("Machaon", Taxon.INSECTE, GeoNatureConfig(MapSettings(), CoffreEnMemoire()))
+        val statut = taxRefService.rechercher("Machaon", Taxon.INSECTE, GeoNatureConfig(MapSettings(), CoffreEnMemoire()).listeTaxonsOcctax(null))
         assertEquals(54468, (statut as TaxRefStatut.Trouve).cdNom)
         assertEquals("Papilio machaon", statut.nomScientifique)
     }

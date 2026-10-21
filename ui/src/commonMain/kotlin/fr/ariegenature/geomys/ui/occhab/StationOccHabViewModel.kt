@@ -29,6 +29,7 @@ import androidx.lifecycle.viewModelScope
 import fr.ariegenature.geomys.ServicesGeoNature
 import fr.ariegenature.geomys.model.OccHabHabitat
 import fr.ariegenature.geomys.occhab.DetailsStation
+import fr.ariegenature.geomys.occhab.HabitatOccHab
 import fr.ariegenature.geomys.occhab.SaisiesDetailsStation
 import fr.ariegenature.geomys.occhab.SessionOccHab
 import fr.ariegenature.geomys.occhab.StationOccHab
@@ -92,6 +93,12 @@ class StationOccHabViewModel(
         titre = StationOccHab.titre(session.stationNouvelle)
     }
 
+    /** Les lignes du tableau des habitats du web : « N°. nom cité » et l'abondance. */
+    fun lignesHabitats(): List<Pair<OccHabHabitat, Pair<String, String?>>> {
+        val abondances = services.nomenclatures.get(HabitatOccHab.ABONDANCE.type)
+        return habitats.mapIndexed { i, h -> h to StationOccHab.ligneHabitat(i + 1, h, abondances) }
+    }
+
     /** Au retour sur l'écran (`onResume`) : le résumé et les habitats. */
     fun rafraichir() {
         geometrie = StationOccHab.resumeGeometrie(session.station)
@@ -120,7 +127,7 @@ class StationOccHabViewModel(
     fun ouvrirDetails() {
         // Altitudes / surface sont éditables mais EXCLUES de l'empreinte : comparées avant/après.
         deriveesAvant = session.deriveesManuelles()
-        details = EtatDetailsStation(demarrage = false, annulable = true, session.details, session.station, config, services.nomenclatures)
+        details = EtatDetailsStation(demarrage = false, session.details, session.station, config, services.nomenclatures)
     }
 
     fun annulerDetails() {

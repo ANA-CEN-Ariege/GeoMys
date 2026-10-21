@@ -44,6 +44,8 @@ import fr.ariegenature.geomys.network.SyncRunner
 import fr.ariegenature.geomys.network.TaxRefService
 import fr.ariegenature.geomys.network.VerificationConnexion
 import fr.ariegenature.geomys.occhab.altitudesMnt
+import fr.ariegenature.geomys.plateforme.exclureDesSauvegardes
+import fr.ariegenature.geomys.plateforme.rendreAuxSauvegardes
 import fr.ariegenature.geomys.store.CachesSynchronises
 import fr.ariegenature.geomys.store.GeoNatureConfig
 import fr.ariegenature.geomys.store.HabitatCacheStore
@@ -91,10 +93,28 @@ class ServicesGeoNature(val socle: Socle) {
 
     // Référentiels : filesDir/taxref, filesDir/monitoring… comme sous Android.
     val taxRef = TaxRefCache(fichiers / "taxref", socle.reglages.reglages("taxref_cache"), socle.systeme)
+
+    init {
+        // Un TaxRef chargé avant le suivi de son format, par une version qui rangeait déjà les
+        // groupes 3 et les noms valides (données en version 3 ou plus), est au format courant :
+        // inutile de le retélécharger.
+        if (taxRef.versionFormat == null && taxRef.versionSauvegardee != null && config.versionDonneesChargees >= 3) {
+            taxRef.versionFormat = TaxRefCache.VERSION_FORMAT
+        }
+    }
     val nomenclatures = NomenclatureCache(socle.reglages.reglages("nomenclature_cache"), taxRef)
-    val habitatsOcctax = HabitatCacheStore(fichiers, "habitats_v1.json", systeme = socle.systeme)
-    val habitatsOccHab = HabitatCacheStore(fichiers, "habitats_occhab_v1.json", sensibleAuxAccents = true, systeme = socle.systeme)
-    val stationsServeur = StationsServeurCache(fichiers, socle.systeme)
+    // Les autres caches retéléchargeables, à part, dans filesDir/caches : leur exclusion des
+    // sauvegardes, posée jusqu'au 20 octobre sur la racine des données, en retirait aussi sous iOS
+    // les saisies et leurs médias.
+    private val caches = fichiers / "caches"
+    // Les deux recherches d'habitat du web passent par le même `ilike` du serveur.
+    val habitatsOcctax = HabitatCacheStore(caches, HABITATS_OCCTAX, sensibleAuxAccents = true, systeme = socle.systeme)
+    val habitatsOccHab = HabitatCacheStore(caches, HABITATS_OCCHAB, sensibleAuxAccents = true, systeme = socle.systeme)
+    val stationsServeur = StationsServeurCache(caches, socle.systeme)
+
+    init {
+        rangerCachesDeLaRacine()
+    }
     val monitoringCache = MonitoringCache(fichiers / "monitoring", socle.systeme)
     val pictos = PictoCache(fichiers / "monitoring" / "pictos", clients, socle.systeme)
 
@@ -114,6 +134,24 @@ class ServicesGeoNature(val socle: Socle) {
     /** Les cartes MBTiles importées (`filesDir/mbtiles/` de GeoMys-Android, exclu des sauvegardes). */
     val cartesMbtiles = CartesMbtiles(fichiers / "mbtiles", socle.systeme, LecteurMbtilesSqlite())
 
+    /** Installations d'avant le 20 octobre : la racine des données rendue aux sauvegardes, et les
+     *  caches qu'elle contenait rangés dans [caches]. Au mieux : la synchro suivante les réécrit. */
+    private fun rangerCachesDeLaRacine() {
+        val systeme = socle.systeme
+        try {
+            if (!systeme.exists(fichiers)) return
+            rendreAuxSauvegardes(fichiers)
+            for (nom in listOf(HABITATS_OCCTAX, HABITATS_OCCHAB, StationsServeurCache.NOM_FICHIER)) {
+                val ancien = fichiers / nom
+                if (!systeme.exists(ancien)) continue
+                systeme.createDirectories(caches)
+                exclureDesSauvegardes(caches)
+                if (systeme.exists(caches / nom)) systeme.delete(ancien) else systeme.atomicMove(ancien, caches / nom)
+            }
+        } catch (_: Exception) {
+        }
+    }
+
     /** Supprime la copie locale d'un média retiré d'une saisie, au mieux. */
     fun supprimerMedia(uri: String) {
         val chemin = GeoNatureUpload.cheminDepuisUri(uri) ?: return
@@ -129,7 +167,7 @@ class ServicesGeoNature(val socle: Socle) {
 
     // Réseau : navigation, champs additionnels, OccHab, synchro des référentiels.
     val browse = GeoNatureBrowse(auth, clients, taxRef)
-    val additionalFields = AdditionalFieldsApi(auth, clients, nomenclatures)
+    val additionalFields = AdditionalFieldsApi(auth, clients)
     val occHab = OccHabApi(auth, clients)
     val geoNatureSync = GeoNatureSync(auth, clients, taxRef, nomenclatures, browse)
 
@@ -147,12 +185,15 @@ class ServicesGeoNature(val socle: Socle) {
     fun cheminPicto(moduleCode: String): String? = pictos.fichierLocal(moduleCode)?.toString()
 
     // Envois : OccTax (relevés, occurrences, médias), file des Suivis, OccHab.
-    val upload = GeoNatureUpload(auth, clients, nomenclatures, geoNatureSync, relevesOrphelins, socle.systeme, dossierMedias)
-    val envoiSortie = EnvoiSortie(upload, sortieStore)
-    val monitoringEnvoi = MonitoringEnvoi(auth, clients, monitoringDatalists)
-    val outboxEnvoi = OutboxEnvoi(outbox, monitoringEnvoi, upload, monitoringObjets)
+    val upload = GeoNatureUpload(
+        auth, clients, nomenclatures, geoNatureSync, relevesOrphelins, socle.systeme, dossierMedias,
+        nomScientifique = { taxRef.entreesParCdNom()[it]?.sciNom },
+    )
+    val envoiSortie = EnvoiSortie(upload, sortieStore, socle.executionLongue)
+    val monitoringEnvoi = MonitoringEnvoi(auth, clients)
+    val outboxEnvoi = OutboxEnvoi(outbox, monitoringEnvoi, upload, monitoringObjets, socle.executionLongue)
     val occHabUpload = OccHabUpload(auth, clients)
-    val envoiOccHab = EnvoiOccHab(occHabUpload, occHabStore, stationsServeur) { station -> altitudesMnt(station) }
+    val envoiOccHab = EnvoiOccHab(occHabUpload, occHabStore, stationsServeur, socle.executionLongue) { station -> altitudesMnt(station) }
 
     // Purges et synchro globale (« Recharger les données »).
     val cachesSynchronises = CachesSynchronises(
@@ -161,7 +202,7 @@ class ServicesGeoNature(val socle: Socle) {
     val invalidationCaches = InvalidationCaches(auth, monitoring, upload, nomenclatures, stationsServeur)
     val synchro = SyncRunner(
         config, browse, additionalFields, geoNatureSync, monitoring, monitoringSync, occHab,
-        habitatsOcctax, habitatsOccHab, stationsServeur, cachesSynchronises, taxRef, socle.executionLongue,
+        habitatsOcctax, habitatsOccHab, stationsServeur, taxRef, socle.executionLongue,
     )
 
     private val demarrageLance = atomic(false)
@@ -187,3 +228,7 @@ class ServicesGeoNature(val socle: Socle) {
         }
     }
 }
+
+/** Les caches HABREF d'OccTax et d'OccHab, dans filesDir/caches. */
+private const val HABITATS_OCCTAX = "habitats_v1.json"
+private const val HABITATS_OCCHAB = "habitats_occhab_v1.json"

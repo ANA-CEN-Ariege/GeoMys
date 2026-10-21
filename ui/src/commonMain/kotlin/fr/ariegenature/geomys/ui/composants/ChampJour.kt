@@ -24,10 +24,15 @@ package fr.ariegenature.geomys.ui.composants
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import fr.ariegenature.geomys.occhab.DetailsStation
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 
+/** Le premier jour que propose une date du web (pnx-date, `minDate`) : le 1ᵉʳ janvier 1735 ; le
+ *  dernier est aujourd'hui (`maxDate`). */
+internal val PREMIER_JOUR_WEB: Long = DetailsStation.jour(1735, 1, 1)
+
 /** Un jour sans heure : [onChoix] reçoit minuit, heure du téléphone, du jour choisi (les dates de
- *  station OccHab sont des jours). Les jours futurs sont permis.
+ *  station OccHab sont des jours). Comme sur le web, du 1ᵉʳ janvier 1735 à aujourd'hui.
  *  - Android : texte de 15 sp (« dd/MM/yyyy », « — » sans date), marges de 4 × 10 dp, ondulation
  *    au toucher, qui ouvre le DatePickerDialog du système ;
  *  - iOS : UIDatePicker compact, sa pastille à gauche, sur [fondIos] ; sans date, le jour même. */

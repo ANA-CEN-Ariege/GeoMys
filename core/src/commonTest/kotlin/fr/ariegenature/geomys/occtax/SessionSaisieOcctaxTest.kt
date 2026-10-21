@@ -89,6 +89,18 @@ class SessionSaisieOcctaxTest {
     }
 
     @Test
+    fun deplacer_un_releve_efface_ses_altitudes_que_le_web_recalcule() = runTest {
+        val session = session()
+        val avecAltitudes = obs("a", releveId = "R1").copy(champsReleveExtra = mapOf("altitude_min" to "800", "altitude_max" to "820", "place_name" to "Col"))
+        session.ajouterObservation(avecAltitudes)
+        session.mettreAJourObservationsPositions(listOf("a"), 43.0, 1.5)
+        assertEquals(mapOf("place_name" to "Col"), session.observations.value.single().champsReleveExtra)
+        session.remplacerObservationsDuReleve("R1", listOf(avecAltitudes))
+        session.mettreAJourGeometrieReleve(listOf("a"), "[[1.4,42.9],[1.5,43.0]]", 42.95, 1.45)
+        assertEquals(mapOf("place_name" to "Col"), session.observations.value.single().champsReleveExtra)
+    }
+
+    @Test
     fun la_premiere_observation_cree_la_sortie_les_suivantes_la_mettent_a_jour() = runTest {
         val session = session()
         session.ajouterObservation(obs("a"))

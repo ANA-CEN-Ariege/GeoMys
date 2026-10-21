@@ -130,6 +130,7 @@ class GeoNatureAuth(
                         // pré-sélection dans les champs observers de saisie monitoring). Best-effort.
                         extraireNomComplet(json)?.let { config.nomUtilisateur = it }
                         extraireIdRole(json)?.let { config.idRoleUtilisateur = it }
+                        json.optJSONObject("user")?.optInt("id_organisme", -1)?.takeIf { it > 0 }?.let { config.idOrganisme = it }
                         // Version de l'instance GeoNature — best-effort (l'endpoint
                         // /api/gn_commons/config n'existe pas sur les vieux serveurs). Affichée
                         // dans le résultat du test et mémorisée pour l'écran Paramètres : l'API
@@ -140,9 +141,15 @@ class GeoNatureAuth(
                         // Garde version minimale : une instance trop ancienne n'expose pas les
                         // routes requises (TaxHub intégré sous /api/taxhub…). On invalide la
                         // config (serveurCompatible → connexionConfiguree) plutôt que de laisser
-                        // l'app échouer de façon opaque à la première synchro. Version non
-                        // détectable → bénéfice du doute (proxy filtrant possible), simple note.
-                        if (version != null && !versionGeoNatureSupportee(version)) {
+                        // l'app échouer de façon opaque à la première synchro. Une version illisible
+                        // (`gn_commons/config` absent, d'avant la 2.12) est refusée de même : le
+                        // bénéfice du doute laissait passer un serveur dont les taxons ne se
+                        // chargeaient pas (demande de l'utilisateur du 21 octobre).
+                        if (version == null) {
+                            config.serveurCompatible = false
+                            return@withContext Pair(false, VERSION_INTROUVABLE)
+                        }
+                        if (!versionGeoNatureSupportee(version)) {
                             config.serveurCompatible = false
                             return@withContext Pair(
                                 false,
@@ -152,11 +159,9 @@ class GeoNatureAuth(
                             )
                         }
                         config.serveurCompatible = true
-                        // Version détectée → PAS de suffixe : elle est déjà affichée sur la ligne
-                        // « Serveur GeoNature v… » sous le message (évite la redondance). Non
-                        // détectée → on garde la note (aucune ligne de version n'est alors affichée).
-                        Pair(true, "Connexion réussie" + (if (version != null) ""
-                            else " (version GeoNature non détectée — minimum supporté : v$VERSION_GEONATURE_MINIMALE)"))
+                        // Pas de suffixe : la version est affichée sur la ligne « Serveur GeoNature
+                        // v… » sous le message.
+                        Pair(true, "Connexion réussie")
                     }
                     401, 403 -> Pair(false, "Identifiant ou mot de passe incorrect")
                     404 -> Pair(false, "URL serveur introuvable (HTTP 404) — vérifiez l'adresse")
@@ -176,8 +181,9 @@ class GeoNatureAuth(
         val reponse = clients.standard.get(urlAbsolue("$base/api/gn_commons/config")) {
             header(HttpHeaders.Accept, "application/json")
             timeout {
-                connectTimeoutMillis = 5_000
-                socketTimeoutMillis = 5_000
+                // Une version illisible refuse le serveur : un réseau lent ne doit pas y suffire.
+                connectTimeoutMillis = 10_000
+                socketTimeoutMillis = 10_000
             }
         }
         if (reponse.status.value != 200) {
@@ -231,7 +237,18 @@ class GeoNatureAuth(
         val idRole: Int?,
         val cookies: String,
         val expireAt: Long,
+        /** L'organisme et le nom complet de l'utilisateur, renvoyés par le login. */
+        val idOrganisme: Int? = null,
+        val nomComplet: String? = null,
     )
+
+    /** L'organisme (`id_organisme`) et le nom complet (« NOM Prénom », le `nom_complet` du web) de
+     *  l'utilisateur de la dernière connexion à ([base], [login]), sans réseau ; null sans connexion
+     *  récente. */
+    internal fun identiteEnCache(base: String, login: String): Pair<Int?, String?>? {
+        val c = cache ?: return null
+        return if (c.base == base && c.login == login) c.idOrganisme to c.nomComplet else null
+    }
 
     @Volatile
     private var cache: CacheAuth? = null
@@ -302,7 +319,8 @@ class GeoNatureAuth(
                 // appels partaient sans Authorization → 401/403 opaques en aval (audit N3).
                 if (token == null && idRole == null) return@withLock null
 
-                cache = CacheAuth(base, login, token, idRole, cookies, now + CACHE_TTL_MS)
+                val idOrganisme = userJson?.optInt("id_organisme", -1)?.takeIf { it > 0 }
+                cache = CacheAuth(base, login, token, idRole, cookies, now + CACHE_TTL_MS, idOrganisme, extraireNomComplet(json))
                 Triple(token, idRole, cookies)
             } catch (e: IOException) {
                 // RÉSEAU (hôte introuvable, timeout, connexion refusée) ≠ refus d'authentification :
@@ -322,12 +340,14 @@ class GeoNatureAuth(
     internal suspend fun login(base: String, login: String, password: String): Pair<String?, Int?>? =
         loginAvecCookies(base, login, password)?.let { (token, idRole, _) -> Pair(token, idRole) }
 
-    /** Extrait le nom complet (prénom + nom) du payload JSON de login. Renvoie null si absent. */
+    /** Extrait le nom complet du payload JSON de login : son `nom_complet`, sinon « NOM Prénom »,
+     *  comme le construit le web (`nom_role + ' ' + prenom_role`). Renvoie null si absent. */
     private fun extraireNomComplet(json: JSONObject): String? {
         val userJson = json.optJSONObject("user") ?: return null
+        userJson.optString("nom_complet", "").trim().takeIf { it.isNotEmpty() && it != "null" }?.let { return it }
         val prenom = userJson.optString("prenom_role", "").trim()
         val nom = userJson.optString("nom_role", "").trim()
-        val complet = listOf(prenom, nom).filter { it.isNotEmpty() }.joinToString(" ")
+        val complet = listOf(nom, prenom).filter { it.isNotEmpty() }.joinToString(" ")
         return complet.takeIf { it.isNotEmpty() }
     }
 

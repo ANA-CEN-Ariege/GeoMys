@@ -25,10 +25,13 @@ package fr.ariegenature.geomys.network
 import fr.ariegenature.geomys.journal.Journal
 import fr.ariegenature.geomys.json.JSONArray
 import fr.ariegenature.geomys.json.JSONObject
+import fr.ariegenature.geomys.model.OccHabHabitat
 import fr.ariegenature.geomys.model.OccHabStation
 import fr.ariegenature.geomys.network.http.ClientsGeoNature
 import fr.ariegenature.geomys.network.http.get
 import fr.ariegenature.geomys.network.http.postJson
+import fr.ariegenature.geomys.occhab.FusionStation
+import fr.ariegenature.geomys.occhab.origine
 import fr.ariegenature.geomys.store.GeoNatureConfig
 import fr.ariegenature.geomys.util.AnaEval
 import fr.ariegenature.geomys.util.DateEnvoi
@@ -48,6 +51,9 @@ data class OccHabEnvoiResult(
     /** true si la station existait DÉJÀ côté serveur (créée lors d'une tentative précédente au
      *  statut incertain) : aucun POST n'a été refait — anti-doublon. */
     val dejaPresente: Boolean = false,
+    /** La station telle qu'elle est partie : fusionnée avec la version du serveur pour une mise à
+     *  jour, ses habitats munis des ids que le serveur leur a donnés. null si rien n'est parti. */
+    val envoyee: OccHabStation? = null,
 )
 
 /**
@@ -66,15 +72,31 @@ data class OccHabEnvoiResult(
  */
 class OccHabUpload(private val auth: GeoNatureAuth, private val clients: ClientsGeoNature) {
 
-    suspend fun envoyer(station: OccHabStation, config: GeoNatureConfig): OccHabEnvoiResult = withContext(Dispatchers.IO) {
+    suspend fun envoyer(locale: OccHabStation, config: GeoNatureConfig): OccHabEnvoiResult = withContext(Dispatchers.IO) {
         val base = config.urlServeur.trim().trimEnd('/')
-        val (token, idRole, cookies) = auth.loginAvecCookies(base, config.login, config.motDePasse)
+        val (token, _, cookies) = auth.loginAvecCookies(base, config.login, config.motDePasse)
             ?: throw GNErreur.AuthEchouee(401)
 
-        // Jeu de données : celui de la station (choisi à la saisie) sinon le défaut de la config.
+        // MISE À JOUR vs CRÉATION : un id_station serveur connu route l'envoi sur /stations/<id>/
+        // (mise à jour) au lieu de /stations/ (création).
+        val estMiseAJour = (locale.idStationServeur ?: 0) > 0
+
+        // Mise à jour d'une station dont l'origine est connue (importée, remise en édition, voisine
+        // déplacée) : relue sur le serveur et fusionnée avec la copie locale. Renvoyée telle quelle,
+        // elle effaçait ce qui avait changé sur le web depuis son origine.
+        val origine = locale.origine()
+        val station = if (estMiseAJour && origine != null) {
+            val serveur = lireStation(base, token, cookies, locale.idStationServeur!!)
+                ?: throw GNErreur.EnvoiEchoue(404, "Station supprimée sur GeoNature depuis son import : elle n'est pas recréée.")
+            FusionStation.fusionner(origine, locale, serveur)
+        } else {
+            locale
+        }
+
+        // Jeu de données : celui de la station, obligatoire comme sur le web (le jeu par défaut des
+        // Paramètres est celui d'OccTax, il ne vaut pas pour OccHab).
         val datasetId = station.idDataset?.takeIf { it > 0 }
-            ?: config.idDataset.trim().toIntOrNull()?.takeIf { it > 0 }
-            ?: throw GNErreur.EnvoiEchoue(0, "id_dataset invalide")
+            ?: throw GNErreur.EnvoiEchoue(0, "Jeu de données manquant : choisissez-le dans « Détails de la station ».")
         if (!config.datasetAcceptablePourEnvoi(datasetId)) throw GNErreur.DatasetInvalide(datasetId)
 
         // Habitats OPTIONNELS : une station peut être envoyée sans aucun habitat — le serveur
@@ -83,10 +105,6 @@ class OccHabUpload(private val auth: GeoNatureAuth, private val clients: Clients
         // que ceux portant un code HABREF valide (les incomplets sont ignorés) ; le tableau
         // `habitats` peut donc être vide.
         val habitatsValides = station.habitats.filter { it.cdHab > 0 }
-
-        // MISE À JOUR vs CRÉATION : un id_station serveur connu route l'envoi sur /stations/<id>/
-        // (mise à jour) au lieu de /stations/ (création).
-        val estMiseAJour = (station.idStationServeur ?: 0) > 0
 
         // Anti-doublon (CRÉATION seulement) : une tentative précédente s'est soldée par un statut
         // INCERTAIN (réseau coupé après l'émission) → la station a peut-être déjà été créée. Le
@@ -119,12 +137,18 @@ class OccHabUpload(private val auth: GeoNatureAuth, private val clients: Clients
             trousJson = station.geometryTrousJson,
         )
 
-        // Observateurs : tableau d'{id_role}. Vide → utilisateur connecté (id_digitiser reste posé
-        // côté serveur). observers_txt renseigné en plus si la station en porte un.
+        // Observateurs : tableau d'{id_role}, ceux de la station seulement, comme le web.
+        // observers_txt renseigné en plus si la station en porte un.
         val observateurs = station.observateursIds.filter { it > 0 }
-            .ifEmpty { listOfNotNull(idRole) }
         val observersArr = JSONArray().apply {
             observateurs.forEach { put(JSONObject().put("id_role", it)) }
+        }
+
+        /** Un champ du formulaire web : sa valeur, ou, vide dans une MISE À JOUR, un null explicite
+         *  qui le vide sur le serveur comme le web (absent, le serveur gardait l'ancienne valeur).
+         *  Une CRÉATION l'omet : le serveur applique ses défauts. */
+        fun JSONObject.champ(cle: String, valeur: Any?) {
+            if (valeur != null) put(cle, valeur) else if (estMiseAJour) put(cle, JSONObject.NULL)
         }
 
         val habitatsArr = JSONArray()
@@ -142,23 +166,24 @@ class OccHabUpload(private val auth: GeoNatureAuth, private val clients: Clients
                 put("cd_hab", h.cdHab)
                 // nom_cite obligatoire : repli sur le libellé HABREF si l'utilisateur ne l'a pas édité.
                 put("nom_cite", h.nomCite.ifBlank { h.habitatLabel }.ifBlank { "Habitat ${h.cdHab}" })
-                h.determiner?.takeIf { it.isNotBlank() }?.let { put("determiner", it) }
-                h.recouvrement?.let { put("recovery_percentage", it) }
+                champ("determiner", h.determiner?.takeIf { it.isNotBlank() })
+                champ("recovery_percentage", h.recouvrement)
                 // technical_precision : part humaine RE-FUSIONNÉE avec le bloc ANA-EVAL du plugin
                 // QGIS (anaEvalJson, extrait à la lecture serveur) ; la clé `recouvrement` du bloc
                 // (champ DOUBLE) est réalignée sur la valeur native éditée. anaEvalJson null →
                 // comportement standard STRICTEMENT inchangé.
-                AnaEval.avecBloc(
-                    h.precisionTechnique,
-                    AnaEval.avecRecouvrementNatif(h.anaEvalJson, h.recouvrement),
-                )?.let { put("technical_precision", it) }
-                h.idNomTypeDetermination?.let { put("id_nomenclature_determination_type", it) }
+                champ(
+                    "technical_precision",
+                    AnaEval.avecBloc(h.precisionTechnique, AnaEval.avecRecouvrementNatif(h.anaEvalJson, h.recouvrement)),
+                )
+                champ("id_nomenclature_determination_type", h.idNomTypeDetermination)
                 // collection_technique : obligatoire côté serveur mais avec un défaut serveur — on
                 // l'omet si non renseigné pour laisser le serveur appliquer son défaut.
                 h.idNomTechniqueCollecte?.let { put("id_nomenclature_collection_technique", it) }
-                h.idNomAbondance?.let { put("id_nomenclature_abundance", it) }
+                champ("id_nomenclature_abundance", h.idNomAbondance)
+                // La sensibilité n'est pas un champ du formulaire web : jamais vidée.
                 h.idNomSensibilite?.let { put("id_nomenclature_sensitivity", it) }
-                h.idNomInteretCommunautaire?.let { put("id_nomenclature_community_interest", it) }
+                champ("id_nomenclature_community_interest", h.idNomInteretCommunautaire)
             })
         }
 
@@ -174,21 +199,24 @@ class OccHabUpload(private val auth: GeoNatureAuth, private val clients: Clients
             // comment : part humaine RE-FUSIONNÉE avec le bloc ANA-EVAL de la station (anaEvalJson)
             // — le bloc survit ainsi au flux des détails de session. anaEvalJson null →
             // comportement standard STRICTEMENT inchangé.
-            AnaEval.avecBloc(station.comment, station.anaEvalJson)?.let { put("comment", it) }
-            station.altitudeMin?.let { put("altitude_min", it) }
-            station.altitudeMax?.let { put("altitude_max", it) }
-            station.profondeurMin?.let { put("depth_min", it) }
-            station.profondeurMax?.let { put("depth_max", it) }
-            station.surface?.let { put("area", it) }
+            champ("comment", AnaEval.avecBloc(station.comment, station.anaEvalJson))
+            champ("altitude_min", station.altitudeMin)
+            champ("altitude_max", station.altitudeMax)
+            champ("depth_min", station.profondeurMin)
+            champ("depth_max", station.profondeurMax)
+            champ("area", station.surface)
+            // Précision et mosaïque d'habitats ne sont pas des champs du formulaire web : jamais vidées.
             station.precision?.let { put("precision", it) }
-            station.idNomExposition?.let { put("id_nomenclature_exposure", it) }
-            station.idNomCalculSurface?.let { put("id_nomenclature_area_surface_calculation", it) }
-            station.idNomObjetGeographique?.let { put("id_nomenclature_geographic_object", it) }
-            station.idNomTypeSol?.let { put("id_nomenclature_type_sol", it) }
+            champ("id_nomenclature_exposure", station.idNomExposition)
+            champ("id_nomenclature_area_surface_calculation", station.idNomCalculSurface)
+            champ("id_nomenclature_geographic_object", station.idNomObjetGeographique)
+            champ("id_nomenclature_type_sol", station.idNomTypeSol)
             station.idNomTypeMosaique?.let { put("id_nomenclature_type_mosaique_habitat", it) }
-            station.observateursTxt?.takeIf { it.isNotBlank() }?.let { put("observers_txt", it) }
+            champ("observers_txt", station.observateursTxt?.takeIf { it.isNotBlank() })
             put("observers", observersArr)
             put("habitats", habitatsArr)
+            // Envoyé par le formulaire web (le serveur l'ignore aujourd'hui).
+            put("is_habitat_complex", false)
         }
 
         val corps = JSONObject()
@@ -239,7 +267,20 @@ class OccHabUpload(private val auth: GeoNatureAuth, private val clients: Clients
                 null
             }
 
-        OccHabEnvoiResult(idStationServeur = idStation, nbHabitats = habitatsValides.size)
+        OccHabEnvoiResult(idStationServeur = idStation, nbHabitats = habitatsValides.size, envoyee = avecIdsHabitats(station, texteReponse))
+    }
+
+    /** La station [idStation] telle qu'elle est sur le serveur (`GET /stations/<id>/`, une Feature),
+     *  lue comme à la synchro ; null si elle n'y est plus (404). Lecture impossible : une erreur,
+     *  sans rien envoyer. */
+    private suspend fun lireStation(base: String, token: String?, cookies: String, idStation: Int): OccHabStation? {
+        val reponse = clients.get("$base/api/occhab/stations/$idStation/", token, cookies, timeoutMs = 30_000)
+        val code = reponse.status.value
+        if (code == 404) return null
+        val texte = reponse.bodyAsText()
+        if (code !in 200..299) throw GNErreur.EnvoiEchoue(code, parseErreur(code, texte))
+        return OccHabApi.parserFeatureCollection("{\"type\":\"FeatureCollection\",\"features\":[$texte]}").singleOrNull()
+            ?: throw GNErreur.EnvoiEchoue(code, "Station illisible sur le serveur : mise à jour non envoyée.")
     }
 
     /**
@@ -283,6 +324,30 @@ class OccHabUpload(private val auth: GeoNatureAuth, private val clients: Clients
 
     companion object {
         private const val TAG = "OccHabUpload"
+
+        /** [station] dont les habitats envoyés reçoivent les ids que le serveur leur a donnés, lus
+         *  dans sa réponse (la station en Feature GeoJSON), rang par rang quand chaque rang porte le
+         *  même cd_hab ; sinon [station] inchangée. Une réédition fusionnera ainsi ses habitats par
+         *  id, au lieu de prendre ceux créés par l'appli pour des nouveaux. */
+        internal fun avecIdsHabitats(station: OccHabStation, texteReponse: String): OccHabStation {
+            val recus = try {
+                JSONObject(texteReponse).optJSONObject("properties")?.optJSONArray("habitats")
+            } catch (_: Exception) {
+                null
+            } ?: return station
+            val envoyes = station.habitats.filter { it.cdHab > 0 }
+            if (recus.length() != envoyes.size) return station
+            val parId = mutableMapOf<String, OccHabHabitat>()
+            for ((i, h) in envoyes.withIndex()) {
+                val recu = recus.optJSONObject(i) ?: return station
+                if (recu.optInt("cd_hab", -1) != h.cdHab) return station
+                parId[h.id] = h.copy(
+                    idHabitatServeur = recu.optInt("id_habitat", -1).takeIf { it > 0 } ?: h.idHabitatServeur,
+                    uuidHabitat = recu.optString("unique_id_sinp_hab").takeIf { it.isNotBlank() && it != "null" } ?: h.uuidHabitat,
+                )
+            }
+            return station.copy(habitats = station.habitats.map { parId[it.id] ?: it })
+        }
 
         /** L'id_station d'une station portant [uuid] dans la réponse de la liste des stations. Gère
          *  le format `json` (tableau d'objets) et un repli `geojson` (FeatureCollection). */

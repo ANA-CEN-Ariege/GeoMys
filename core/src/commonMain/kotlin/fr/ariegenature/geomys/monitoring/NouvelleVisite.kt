@@ -17,19 +17,23 @@
  */
 
 // Extrait de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/ui/NouvelleVisiteFragment.kt) :
-// la préparation du formulaire d'une nouvelle saisie des Suivis (chargerSchemaEtRendre, enrichirAvecOptions,
-// idListeViaDataset, idListeViaDatasetLive), ce que l'enregistrement écrit dans la file d'envoi
-// (envoyerVisite), ce qui le suit, et les phrases accordées au type créé. Les valeurs elles-mêmes passent par
-// form/ValeursFormulaire (lot 4) ; l'écran et ses dialogues restent dans l'interface. Le mode démo du fragment
-// (faux formulaire quand le schéma manque) n'est pas repris : la préparation dit pourquoi elle échoue.
+// la préparation du formulaire d'une nouvelle saisie des Suivis (chargerSchemaEtRendre, enrichirAvecOptions),
+// ce que l'enregistrement écrit dans la file d'envoi (envoyerVisite), ce qui le suit, et les phrases accordées
+// au type créé. Les valeurs elles-mêmes passent par form/ValeursFormulaire (lot 4) ; l'écran et ses dialogues
+// restent dans l'interface. Le mode démo du fragment (faux formulaire quand le schéma manque) n'est pas
+// repris : la préparation dit pourquoi elle échoue. Les valeurs initiales suivent le formulaire web
+// (vérification des champs du 20 octobre) : la liste taxonomique d'un jeu de données (idListeViaDataset,
+// idListeViaDatasetLive), la date et l'heure du moment dans tout champ date ou heure, le défaut d'une
+// liste sans sa clé de valeur et l'option unique masquée ne sont plus repris.
 
 package fr.ariegenature.geomys.monitoring
 
 import fr.ariegenature.geomys.ServicesGeoNature
 import fr.ariegenature.geomys.journal.Journal
-import fr.ariegenature.geomys.model.GeoNatureDataset
+import fr.ariegenature.geomys.model.MediaSuivi
 import fr.ariegenature.geomys.model.SaisieEnAttente
 import fr.ariegenature.geomys.monitoring.form.EditableField
+import fr.ariegenature.geomys.monitoring.form.HiddenExpr
 import fr.ariegenature.geomys.monitoring.form.PropertyValue
 import fr.ariegenature.geomys.monitoring.form.ValeursFormulaire
 import fr.ariegenature.geomys.monitoring.form.ViewType
@@ -38,7 +42,6 @@ import fr.ariegenature.geomys.network.MonitoringApi.MonitoringPropertySchema
 import fr.ariegenature.geomys.network.MonitoringApi.MonitoringSchemaObjet
 import fr.ariegenature.geomys.network.MonitoringApi.OptionDatalist
 import fr.ariegenature.geomys.network.MonitoringSync
-import fr.ariegenature.geomys.store.io.listeDepuisJson
 import fr.ariegenature.geomys.util.DateHeureDefaut
 import fr.ariegenature.geomys.util.uuidAleatoire
 import kotlinx.coroutines.async
@@ -59,14 +62,31 @@ data class FormulairePrepare(
     val champsDirtyInitiaux: Set<String>,
     /** Le champ qui désigne le parent (id_base_site…), masqué : le parent est déjà choisi. */
     val parentIdField: String?,
-    /** Le type de saisie enfant du type créé (visite → observation), pour l'enchaînement. */
+    /** Le type de saisie enfant du type créé (visite → observation). */
     val typeSaisieEnfant: String?,
-    /** Toutes les propriétés du schéma, champs techniques compris (le corps envoyé les porte). */
+    /** L'enfant UNIQUE du type créé (`children_types` d'un seul type), quand c'est une saisie : le
+     *  bouton « Valider et saisir des … » du web. */
+    val enfantUnique: String? = null,
+    /** Son `label_list` (« Observations »), pour ce bouton. */
+    val libelleEnfants: String? = null,
+    /** Les propriétés du schéma qui ont un `type_widget`, champs techniques compris : celles que
+     *  porte le corps du web (`postData`). */
     val nomsChamps: List<String>,
+    /** Les valeurs des propriétés masquées que le formulaire web envoie sans les montrer
+     *  ([NouvelleVisite.valeursFixes]) : elles partent avec la saisie. */
+    val valeursFixes: Map<String, Any> = emptyMap(),
     val uuidFieldName: String?,
     /** Lignes de diagnostic sous le contexte (datalists non chargées, widgets non pris en charge). */
     val avertissements: List<String>,
-)
+    /** Les propriétés masquées (`hidden: true`) requises restées sans valeur, par libellé : le web
+     *  garde leur contrôle invalide, l'enregistrement est impossible. */
+    val proprietesMasqueesManquantes: List<String> = emptyList(),
+) {
+    /** Les propriétés de widget `date`, masquées comprises : le web les envoie en
+     *  `année-mois-jour` sans zéros. */
+    val champsDate: List<String>
+        get() = schemaObjet.properties.values.filter { it.typeWidget.equals("date", ignoreCase = true) }.map { it.nom }
+}
 
 /** Ce que donne la préparation du formulaire. */
 sealed interface PreparationFormulaire {
@@ -81,44 +101,36 @@ sealed interface PreparationFormulaire {
 interface SourcesFormulaire {
     val urlServeur: String
 
-    /** Le cache des jeux de données de la synchro (`datasetsCacheJson`). */
-    val datasetsCacheJson: String
-
     /** L'utilisateur connecté (0 s'il est inconnu). */
     val idRoleUtilisateur: Int
+
+    /** Son nom complet (« NOM Prénom »), celui que le web montre dans les observateurs. */
+    val nomUtilisateur: String get() = ""
 
     suspend fun schema(moduleCode: String): Map<String, MonitoringSchemaObjet>?
 
     /** Les options d'un champ `datalist`, null si elles n'ont pu être chargées. */
     suspend fun options(prop: MonitoringPropertySchema): List<OptionDatalist>?
-
-    /** L'id_taxa_list du premier jeu de données actif du protocole qui en déclare une, dans le
-     *  cache des jeux du protocole. */
-    suspend fun idListeViaDatasetsDuModule(moduleCode: String): Int?
 }
 
 /** Les sources de la préparation : le cache des Suivis. */
 fun ServicesGeoNature.sourcesFormulaire(): SourcesFormulaire = object : SourcesFormulaire {
     override val urlServeur: String get() = config.urlServeur
-    override val datasetsCacheJson: String get() = config.datasetsCacheJson
     override val idRoleUtilisateur: Int get() = config.idRoleUtilisateur
+    override val nomUtilisateur: String get() = config.nomUtilisateur.ifEmpty { config.login }
 
     override suspend fun schema(moduleCode: String) = monitoring.lireSchemaProtocole(moduleCode)
 
     override suspend fun options(prop: MonitoringPropertySchema) = monitoring.lireOptionsDatalist(config, prop)
+}
 
-    override suspend fun idListeViaDatasetsDuModule(moduleCode: String): Int? {
-        // Les jeux actifs du protocole, que la synchro partage avec l'envoi : seul l'id_taxa_list
-        // du premier jeu qui en déclare une sert ici.
-        val jeux = monitoringDatalists.lireDatasetsDuModule(moduleCode) ?: return null
-        for (i in 0 until jeux.length()) {
-            val d = jeux.optJSONObject(i) ?: continue
-            if (!d.has("id_taxa_list") || d.isNull("id_taxa_list")) continue
-            val id = d.optInt("id_taxa_list", -1)
-            if (id > 0) return id
-        }
-        return null
-    }
+/** Les boutons de validation du formulaire web (monitoring-form.component.html). */
+enum class ActionValider {
+    /** « Valider », ou « Valider et enchaîner les saisies » quand l'enchaînement est activé. */
+    VALIDER,
+
+    /** « Valider et saisir des … » : l'enfant unique du type, sous l'objet enregistré. */
+    SAISIR_ENFANTS,
 }
 
 /** Ce qui suit l'enregistrement d'une saisie. */
@@ -132,16 +144,19 @@ sealed interface SuiteEnregistrement {
         val titreSite: String,
     ) : SuiteEnregistrement
 
-    /** La fiche du parent serveur, à la place du formulaire (retour d'une modification). */
+    /** La fiche du parent serveur, à la place du formulaire : la page que montre le web après
+     *  « Valider » (celle de l'objet, introuvable pour une saisie locale, ou celle du parent). */
     data class Fiche(val objectType: String, val id: Int) : SuiteEnregistrement
 
-    /** Chaîne de saisies (observations d'une visite) : le formulaire repart à vide. */
-    data object Reinitialiser : SuiteEnregistrement
+    /** Saisies enchaînées : un nouveau formulaire du même type sous le même parent, les champs
+     *  `keep` repris de la saisie enregistrée ([gardes]). */
+    data class Reinitialiser(val gardes: Map<String, Any?> = emptyMap()) : SuiteEnregistrement
 
     /** Retour à l'écran précédent. */
     data object Retour : SuiteEnregistrement
 
-    /** Sortie de la chaîne : la visite parente « à compléter » est d'abord proposée. */
+    /** Fin des saisies sous une saisie locale : la visite parente « à compléter » est d'abord
+     *  proposée. */
     data object TerminerOuCompleter : SuiteEnregistrement
 }
 
@@ -152,8 +167,8 @@ object NouvelleVisite {
 
     /** Message éphémère affiché quand on ouvre un formulaire parce qu'il reste des champs
      *  obligatoires à saisir (tentative d'envoi d'une saisie « à compléter »). Les champs
-     *  concernés portent déjà l'astérisque dans le formulaire. */
-    const val MESSAGE_CHAMPS_OBLIGATOIRES = "Veuillez saisir les champs obligatoires (*)"
+     *  concernés portent la barre rouge dans le formulaire. */
+    const val MESSAGE_CHAMPS_OBLIGATOIRES = "Veuillez saisir les champs obligatoires (barre rouge)"
 
     /** La saisie est-elle un OBJET DE NIVEAU VISITE — un objet placé directement sous le
      *  PROTOCOLE (visite, transect, pelouse…) — plutôt qu'un objet ENFANT (une espèce, rattachée
@@ -167,11 +182,6 @@ object NouvelleVisite {
         if (parent.isEmpty()) return true
         return !MonitoringSync.estTypeSaisie(parent)
     }
-
-    /** Mode « chaîne de saisies » : le parent est lui-même une saisie (une visite) — on enchaîne
-     *  plusieurs observations sur la même visite, avec un bouton « Terminer ». Jamais en édition. */
-    fun estModeChaine(parentObjectType: String?, edition: Boolean): Boolean =
-        !edition && !parentObjectType.isNullOrEmpty() && MonitoringSync.estTypeSaisie(parentObjectType)
 
     // ─── Textes ───
 
@@ -223,12 +233,20 @@ object NouvelleVisite {
     fun contexteAvecDiagnostic(contexte: String, diagnostic: List<String>): String =
         (listOf(contexte).filter { it.isNotEmpty() } + diagnostic).joinToString("\n\n")
 
-    /** Le bouton d'enregistrement selon le mode. */
-    fun libelleBouton(edition: Boolean, chaine: Boolean): String = when {
-        edition -> "Enregistrer les modifications"
-        chaine -> "Enregistrer + suivante"
-        else -> "Enregistrer la visite"
-    }
+    /** Le bouton d'enregistrement du web : « Valider », ou « Valider et enchaîner les saisies »
+     *  quand l'enchaînement est activé sur un nouvel objet. */
+    fun libelleBouton(edition: Boolean, enchainer: Boolean): String =
+        if (enchainer && !edition) "Valider et enchaîner les saisies" else "Valider"
+
+    /** Le bouton qui valide puis ouvre la saisie de l'enfant unique : « Valider et saisir des
+     *  Observations ». */
+    fun libelleSaisirEnfants(libelleEnfants: String): String = "Valider et saisir des $libelleEnfants"
+
+    /** L'interrupteur du web qui enchaîne les saisies d'un nouvel objet. */
+    const val ENCHAINER_LES_SAISIES = "Enchaîner les saisies"
+
+    /** Le bouton qui quitte le formulaire. */
+    const val ANNULER = "Annuler"
 
     /** Les phrases du flux, accordées au type créé (label et genre du schéma ; repli « entrée »,
      *  féminin, avant son chargement). */
@@ -267,10 +285,6 @@ object NouvelleVisite {
                 "${if (masculin) "incomplet" else "incomplète"} (champ obligatoire manquant ou valeur hors " +
                 "limites) et ne peut pas être enregistré$e."
 
-        /** « Terminer » sur une saisie bloquée. */
-        val messageQuitterIncomplet: String
-            get() = "$messageIncomplet Quitter et ${if (masculin) "le" else "la"} perdre ?"
-
         /** Après une création. */
         fun messageEnregistre(manquants: List<String>): String =
             if (manquants.isEmpty()) "$labelCap enregistré$e localement — envoi à la demande depuis « Mes visites »"
@@ -297,10 +311,13 @@ object NouvelleVisite {
 
     /** Les LIBELLÉS des champs obligatoires vides [codes] (l'état raisonne en codes, l'utilisateur en
      *  intitulés), le code à défaut de libellé. */
-    fun libellesManquants(codes: List<String>, champs: List<EditableField>): List<String> {
+    fun libellesManquants(codes: List<String>, champs: List<EditableField>, masques: Set<String> = emptySet()): List<String> {
         if (codes.isEmpty()) return emptyList()
         val parCode = champs.associateBy { it.code }
-        return codes.toSet().map { code -> parCode[code]?.label?.takeIf { it.isNotBlank() } ?: code }
+        return codes.toSet().map { code ->
+            val libelle = parCode[code]?.label?.takeIf { it.isNotBlank() } ?: code
+            if (code in masques) "$libelle (masqué)" else libelle
+        }
     }
 
     const val TITRE_ENREGISTREMENT_IMPOSSIBLE = "Enregistrement impossible"
@@ -333,10 +350,11 @@ object NouvelleVisite {
      * Prépare le formulaire de [childObjectType] (à défaut, d'un type de saisie du protocole) :
      * - le champ qui désigne le parent ([parentObjectType]) est retiré : le parent est déjà choisi
      *   par le parcours qui mène ici, comme sur le web ;
-     * - options des datalists, défauts, utilisateur connecté ([enrichirAvecOptions]) ;
-     * - liste taxonomique des champs espèce, en cascade : le type, un autre type du schéma (souvent
-     *   « module »), un jeu de données du protocole dans le cache de la synchro, enfin au serveur ;
-     * - valeurs d'une saisie rouverte ([valeursPreremplies], [mediaPaths]).
+     * - options des datalists, valeurs initiales, utilisateur connecté ([enrichirAvecOptions]) ;
+     * - liste taxonomique des champs espèce sans liste propre : celle du type, sinon celle d'un
+     *   autre type du schéma (le module) ;
+     * - valeurs des propriétés masquées ([valeursFixes]) ;
+     * - valeurs d'une saisie rouverte ([valeursPreremplies], [medias]).
      */
     suspend fun preparer(
         sources: SourcesFormulaire,
@@ -344,7 +362,7 @@ object NouvelleVisite {
         childObjectType: String?,
         parentObjectType: String?,
         valeursPreremplies: Map<String, Any?>?,
-        mediaPaths: List<String>,
+        medias: List<MediaSuivi>,
     ): PreparationFormulaire {
         val typeDemande = childObjectType?.takeIf { it.isNotEmpty() }
         val schema = sources.schema(moduleCode) ?: run {
@@ -373,42 +391,67 @@ object NouvelleVisite {
             return PreparationFormulaire.Impossible(listOf("⚠ Aucun widget supporté.\nWidgets reçus : $widgets"))
         }
         val avertissements = mutableListOf<String>()
-        val (enrichis, echecs) = enrichirAvecOptions(champs, visitSchema, valeursPreremplies, sources.idRoleUtilisateur, sources::options)
+        val (enrichis, echecs) = enrichirAvecOptions(champs, visitSchema, valeursPreremplies, sources.idRoleUtilisateur, sources.nomUtilisateur, sources::options)
         if (echecs.isNotEmpty()) avertissements += "⚠ Datalists non chargées : ${echecs.joinToString(", ")}"
-        val idListe = visitSchema.idListTaxonomy
-            ?: schema.values.firstNotNullOfOrNull { it.idListTaxonomy }
-            ?: idListeViaDataset(sources.datasetsCacheJson, moduleCode)
-            ?: sources.idListeViaDatasetsDuModule(moduleCode)
+        // La liste du protocole seulement : le web ne restreint pas un champ espèce à celle d'un jeu
+        // de données.
+        val idListe = visitSchema.idListTaxonomy ?: schema.values.firstNotNullOfOrNull { it.idListTaxonomy }
         if (construction.ignores.isNotEmpty()) {
             val recap = construction.ignores.joinToString(", ") { "${it.first} (${it.second})" }
             avertissements += "⚠ ${construction.ignores.size} champ(s) non supporté(s) : $recap"
         }
         val avecTaxon = avecListeTaxonomique(enrichis, idListe)
+        val fixes = valeursFixes(visitSchema, parentIdField, valeursPreremplies, sources::options)
+        val masqueesManquantes = proprietesMasqueesManquantes(visitSchema, parentIdField, fixes)
+        if (masqueesManquantes.isNotEmpty()) {
+            avertissements += "⚠ Requis mais masqué, sans valeur : ${masqueesManquantes.joinToString(", ")}. " +
+                "Comme sur le web, l'enregistrement est impossible."
+        }
         return PreparationFormulaire.Prete(
             FormulairePrepare(
                 schemaObjet = visitSchema,
                 labelType = visitSchema.label ?: visitSchema.type.replaceFirstChar { it.uppercase() },
                 genre = visitSchema.genre,
-                champs = ValeursFormulaire.champsPreremplis(avecTaxon, valeursPreremplies, mediaPaths),
+                champs = ValeursFormulaire.champsPreremplis(avecTaxon, valeursPreremplies, medias),
                 champsDirtyInitiaux = ValeursFormulaire.champsDirtyInitiaux(valeursPreremplies),
                 parentIdField = parentIdField,
                 typeSaisieEnfant = visitSchema.childrenTypes.firstOrNull { MonitoringSync.estTypeSaisie(it) },
-                nomsChamps = visitSchema.properties.keys.toList(),
+                enfantUnique = visitSchema.childrenTypes.singleOrNull()?.takeIf { MonitoringSync.estTypeSaisie(it) },
+                libelleEnfants = visitSchema.childrenTypes.singleOrNull()?.let { AffichageSuivis.libelleListe(it, schema) },
+                // Un widget `html` n'a pas de contrôle sur le web : il n'est pas dans le corps.
+                nomsChamps = visitSchema.properties.values
+                    .filter { it.typeWidget.isNotEmpty() && !it.typeWidget.equals("html", ignoreCase = true) }
+                    .map { it.nom },
+                valeursFixes = fixes,
                 uuidFieldName = visitSchema.uuidFieldName,
                 avertissements = avertissements,
+                proprietesMasqueesManquantes = masqueesManquantes,
             ),
         )
     }
 
+    /** Les dates que le formulaire web met au jour courant quand elles sont vides
+     *  (setDefaultFormValue) ; aucun autre champ date ou heure n'est pré-rempli. */
+    private val DATES_DU_JOUR = setOf("visit_date_min", "visit_date_max", "first_use_date")
+
+    /** Les widgets dont le composant web choisit d'office l'option unique d'un champ requis. */
+    private val WIDGETS_A_CHOIX_D_OFFICE = setOf("datalist", "dataset")
+
+    /** [valeur] dans le champ, en liste pour un choix multiple. */
+    private fun EditableField.avec(valeur: Any): EditableField =
+        copy(value = if (viewType == ViewType.SELECT_MULTIPLE) listOf(valeur.toString()) else valeur)
+
     /**
      * Les options des champs `datalist` (observateurs, jeu de données, nomenclatures…), chargées en
-     * parallèle, puis les valeurs par défaut :
-     * - option unique d'un champ `dataset` ou `observers` : choisie et masquée (une nomenclature à
-     *   valeur unique reste affichée, l'utilisateur doit pouvoir la confirmer) ;
-     * - défaut du schéma : scalaire, ou objet `cd_nomenclature` / `label_default` cherché dans les
-     *   options ; jamais sur un champ ESPÈCE (le taxon est choisi par l'utilisateur, parité web) ;
-     * - date du jour, heure actuelle pour les champs date et heure restés vides ;
-     * - l'utilisateur connecté ([idRole]) dans les champs observateurs, s'il est parmi les options.
+     * parallèle, puis les valeurs initiales que pose le formulaire web, dans son ordre :
+     * - la `value` du schéma : scalaire, cd_nom d'un champ espèce, ou objet nomenclature qui désigne
+     *   son option par le cd_nomenclature ;
+     * - l'option unique d'une liste ou d'un jeu de données requis, choisie d'office (le champ reste
+     *   affiché) ;
+     * - le `default` d'une datalist, s'il désigne une option par sa clé de valeur ;
+     * - la date du jour dans les dates de visite ;
+     * - l'utilisateur connecté ([idRole]) dans le champ `observers` affiché, s'il est parmi les
+     *   options.
      * Hors ligne, une saisie rouverte dont les options n'ont pu être chargées garde sa valeur
      * ([valeursPreremplies]) en option brute : « Enregistrer les modifications » ne l'efface pas.
      * Rend aussi les champs dont les options n'ont pu être chargées.
@@ -418,14 +461,15 @@ object NouvelleVisite {
         visitSchema: MonitoringSchemaObjet,
         valeursPreremplies: Map<String, Any?>?,
         idRole: Int?,
+        nomUtilisateur: String = "",
         chargerOptions: suspend (MonitoringPropertySchema) -> List<OptionDatalist>?,
     ): Pair<List<EditableField>, List<String>> = coroutineScope {
         val nouveaux = fields.toMutableList()
-        // Les options brutes, pour résoudre les défauts (cd_nomenclature, label_default).
+        // Les options brutes, pour résoudre les valeurs initiales (cd_nomenclature, label_default).
         val optionsParIdx = mutableMapOf<Int, List<OptionDatalist>>()
         val echecs = mutableListOf<String>()
         // Les SELECT et RADIO à `values` statiques n'ont pas d'api : pas chargés, mais ils reçoivent
-        // leur défaut plus bas.
+        // leur valeur initiale plus bas.
         val aCharger = fields.withIndex().filter { (_, f) ->
             (f.viewType == ViewType.SELECT || f.viewType == ViewType.SELECT_MULTIPLE) &&
                 f.values.isEmpty() &&
@@ -450,68 +494,120 @@ object NouvelleVisite {
                 continue
             }
             optionsParIdx[idx] = opts
-            val valeurs = opts.map { o -> PropertyValue(o.value, o.label, o.cdNomenclature) }
-            val widget = visitSchema.properties[f.code]?.typeWidget?.lowercase()
-            val masquable = widget == "dataset" || widget == "observers"
-            nouveaux[idx] = if (masquable && opts.size == 1) {
-                val uniq = opts.first().value
-                f.copy(values = valeurs, value = if (f.viewType == ViewType.SELECT_MULTIPLE) listOf(uniq) else uniq, masque = true)
-            } else {
-                f.copy(values = valeurs)
-            }
+            nouveaux[idx] = f.copy(values = opts.map { o -> PropertyValue(o.value, o.label, o.cdNomenclature, o.brut) })
         }
-        // Valeurs par défaut du schéma.
+        // La `value` du schéma, valeur initiale du contrôle web (toForm).
         nouveaux.forEachIndexed { idx, f ->
             val prop = visitSchema.properties[f.code] ?: return@forEachIndexed
-            if (f.value != null) return@forEachIndexed
-            if (f.viewType == ViewType.TAXON) return@forEachIndexed
-            if (prop.defaultValue != null && prop.defaultObjet.isEmpty()) {
-                nouveaux[idx] = f.copy(value = prop.defaultValue)
-                return@forEachIndexed
+            val valeur: Any = when {
+                prop.defaultObjet.isNotEmpty() -> {
+                    val cd = prop.defaultObjet["cd_nomenclature"] ?: return@forEachIndexed
+                    optionsParIdx[idx]?.firstOrNull { it.cdNomenclature == cd }?.value ?: return@forEachIndexed
+                }
+                f.viewType == ViewType.TAXON -> prop.defaultValue?.toIntOrNull() ?: return@forEachIndexed
+                else -> prop.defaultValue ?: return@forEachIndexed
             }
-            if (prop.defaultObjet.isNotEmpty()) {
-                val opts = optionsParIdx[idx] ?: return@forEachIndexed
-                val cd = prop.defaultObjet["cd_nomenclature"]
-                val lbl = prop.defaultObjet["label_default"]
-                val choisie = when {
-                    cd != null -> opts.firstOrNull { it.cdNomenclature == cd }
-                    lbl != null -> opts.firstOrNull { it.labelDefaut == lbl }
-                    else -> null
-                } ?: return@forEachIndexed
-                nouveaux[idx] = f.copy(value = if (f.viewType == ViewType.SELECT_MULTIPLE) listOf(choisie.value) else choisie.value)
-            }
+            nouveaux[idx] = f.avec(valeur)
         }
-        // Date du jour, heure actuelle : le serveur garde la priorité, on ne remplit que ce qu'il
-        // laisse vide (en édition, les valeurs saisies les remplacent ensuite).
+        // L'option unique d'une liste requise (composants datalist et pnx-datasets).
+        val valeursInitiales = nouveaux.associate { it.code to it.value }
         nouveaux.forEachIndexed { idx, f ->
             if (f.value != null) return@forEachIndexed
-            val defaut = when (f.viewType) {
-                ViewType.DATE -> DateHeureDefaut.dateDuJour()
-                ViewType.TIME -> DateHeureDefaut.heureActuelle()
-                ViewType.DATETIME -> DateHeureDefaut.dateHeureActuelle()
-                else -> return@forEachIndexed
-            }
-            nouveaux[idx] = f.copy(value = defaut)
+            val widget = visitSchema.properties[f.code]?.typeWidget?.lowercase() ?: return@forEachIndexed
+            if (widget !in WIDGETS_A_CHOIX_D_OFFICE) return@forEachIndexed
+            val requis = f.obligatoire || (f.obligatoireExpr != null && HiddenExpr.evaluerBooleen(f.obligatoireExpr, valeursInitiales))
+            val unique = f.values.singleOrNull() ?: return@forEachIndexed
+            if (requis) nouveaux[idx] = f.avec(unique.value)
         }
-        // L'utilisateur connecté dans les champs observateurs (widget `observers`, ou `datalist`
-        // dont le nom parle d'observateur).
-        idRole?.takeIf { it > 0 }?.toString()?.let { idStr ->
-            nouveaux.forEachIndexed { idx, f ->
-                val prop = visitSchema.properties[f.code] ?: return@forEachIndexed
-                val widget = prop.typeWidget.lowercase()
-                val estObservateur = widget == "observers" || (widget == "datalist" && f.code.contains("observ"))
-                if (!estObservateur || f.values.none { it.value == idStr }) return@forEachIndexed
-                nouveaux[idx] = f.copy(value = if (f.viewType == ViewType.SELECT_MULTIPLE) listOf(idStr) else idStr)
+        // Le `default` d'une datalist : le composant web l'ignore s'il ne porte pas la clé de valeur
+        // de la liste, ou si elle ne désigne aucune option ; les autres clés doivent concorder.
+        nouveaux.forEachIndexed { idx, f ->
+            if (f.value != null) return@forEachIndexed
+            val prop = visitSchema.properties[f.code] ?: return@forEachIndexed
+            if (!prop.typeWidget.equals("datalist", ignoreCase = true)) return@forEachIndexed
+            val cleValeur = prop.keyValue ?: "value"
+            val voulue = prop.defautDatalist[cleValeur] ?: return@forEachIndexed
+            val opts = optionsParIdx[idx]
+            val concorde = opts == null || opts.any { o ->
+                o.value == voulue && prop.defautDatalist.all { (k, v) ->
+                    when (k) {
+                        "cd_nomenclature" -> o.cdNomenclature == v
+                        "label_default" -> o.labelDefaut == v
+                        else -> true
+                    }
+                }
             }
+            if (concorde && f.values.any { it.value == voulue }) nouveaux[idx] = f.avec(voulue)
+        }
+        // La date du jour dans les dates de visite restées vides.
+        nouveaux.forEachIndexed { idx, f ->
+            if (f.value == null && f.viewType == ViewType.DATE && f.code in DATES_DU_JOUR) {
+                nouveaux[idx] = f.copy(value = DateHeureDefaut.dateDuJour())
+            }
+        }
+        // L'utilisateur connecté dans le champ `observers`, s'il est affiché et de widget `observers`,
+        // comme le web : même hors de la liste, que le menu montre alors avec lui.
+        idRole?.takeIf { it > 0 }?.let { id ->
+            val idStr = id.toString()
+            val idx = nouveaux.indexOfFirst { it.code == "observers" }.takeIf { it >= 0 } ?: return@let
+            val f = nouveaux[idx]
+            val prop = visitSchema.properties[f.code] ?: return@let
+            if (!prop.typeWidget.equals("observers", ignoreCase = true) || prop.hiddenBool) return@let
+            if (f.value != null) return@let
+            val valeurs = if (f.values.any { it.value == idStr }) f.values else f.values + PropertyValue(idStr, nomUtilisateur.ifEmpty { idStr }, brut = id)
+            nouveaux[idx] = f.copy(values = valeurs).avec(idStr)
         }
         nouveaux to echecs
     }
 
-    /** L'id_taxa_list du premier jeu de données rattaché au protocole qui en déclare une, d'après le
-     *  cache des jeux de données de la synchro (`/api/meta/datasets?fields=modules`). */
-    fun idListeViaDataset(datasetsCacheJson: String, moduleCode: String): Int? =
-        listeDepuisJson(GeoNatureDataset.serializer(), datasetsCacheJson)
-            .firstOrNull { moduleCode in it.moduleCodes && it.idTaxaList != null }?.idTaxaList
+    /**
+     * Les valeurs des propriétés masquées (`hidden: true`) de [schemaObjet], que le formulaire web
+     * envoie sans les montrer (il construit leurs contrôles dans un bloc caché) :
+     * - celle d'une saisie rouverte ([valeursPreremplies]), qui garde la sienne ;
+     * - leur `value` : le cd_nom fixe d'un protocole mono-espèce, un texte, un nombre ; un objet
+     *   nomenclature, résolu par les options en cache ;
+     * - l'option unique d'une liste ou d'un jeu de données requis, choisie d'office ;
+     * - la date du jour dans les dates de visite (`setDefaultFormValue`), visit_date_max comprise.
+     * Le champ du parent ([parentIdField]) est posé par l'envoi. Une option part avec le type JSON de
+     * sa valeur, comme sur le web.
+     */
+    suspend fun valeursFixes(
+        schemaObjet: MonitoringSchemaObjet,
+        parentIdField: String?,
+        valeursPreremplies: Map<String, Any?>? = null,
+        chargerOptions: suspend (MonitoringPropertySchema) -> List<OptionDatalist>?,
+    ): Map<String, Any> {
+        val fixes = linkedMapOf<String, Any>()
+        fun identifiant(valeur: String): Any = valeur.toIntOrNull() ?: valeur
+        for ((nom, prop) in schemaObjet.properties) {
+            if (!prop.hiddenBool || nom == parentIdField || prop.typeWidget.isEmpty()) continue
+            valeursPreremplies?.get(nom)?.let { fixes[nom] = it; continue }
+            prop.valeurTypee?.let { fixes[nom] = it; continue }
+            if (nom in DATES_DU_JOUR && prop.typeWidget.equals("date", ignoreCase = true)) {
+                fixes[nom] = DateHeureDefaut.dateDuJour()
+                continue
+            }
+            if (prop.apiUrl == null) continue
+            val cd = prop.defaultObjet["cd_nomenclature"]
+            val widget = prop.typeWidget.lowercase()
+            if (cd == null && (widget !in WIDGETS_A_CHOIX_D_OFFICE || !prop.obligatoire)) continue
+            val options = chargerOptions(prop) ?: continue
+            val choisie = if (cd != null) options.firstOrNull { it.cdNomenclature == cd } else options.singleOrNull()
+            choisie ?: continue
+            val valeur = choisie.brut ?: identifiant(choisie.value)
+            fixes[nom] = if (prop.multiple) listOf(valeur) else valeur
+        }
+        return fixes
+    }
+
+    /** Les propriétés masquées (`hidden: true`) requises de [schemaObjet] que rien ne remplit ([fixes]),
+     *  par libellé. Le parent ([parentIdField]) et `id_digitiser` (l'utilisateur connecté) sont posés
+     *  par l'envoi, comme le web les pose. */
+    fun proprietesMasqueesManquantes(schemaObjet: MonitoringSchemaObjet, parentIdField: String?, fixes: Map<String, Any>): List<String> =
+        schemaObjet.properties.values
+            .filter { it.hiddenBool && it.obligatoire && it.typeWidget.isNotEmpty() }
+            .filter { it.nom != parentIdField && it.nom != "id_digitiser" && it.nom != schemaObjet.uuidFieldName && it.nom !in fixes }
+            .map { it.label.ifEmpty { it.nom } }
 
     /** Les champs TAXON sans liste propre reçoivent [idListe]. */
     fun avecListeTaxonomique(champs: List<EditableField>, idListe: Int?): List<EditableField> =
@@ -549,11 +645,14 @@ object NouvelleVisite {
         parentIdField = formulaire.parentIdField,
         nomsChampsSchema = formulaire.nomsChamps,
         champsTexteLibre = enregistrement.champsTexteLibre,
+        champsDate = formulaire.champsDate,
+        champsVidesGardes = enregistrement.champsVidesGardes,
         valeursJson = enregistrement.valeursJson,
         uuidPayload = if (formulaire.uuidFieldName != null) uuidAleatoire() else null,
         uuidFieldName = formulaire.uuidFieldName,
         mediaPathsLocal = enregistrement.mediaPaths,
         mediaSchemaDotTable = enregistrement.mediaSchemaDotTable,
+        mediasSuivis = enregistrement.medias,
         champsManquants = manquants.takeIf { it.isNotEmpty() },
     )
 
@@ -571,56 +670,56 @@ object NouvelleVisite {
         mediaPathLocal = null,
         mediaPathsLocal = enregistrement.mediaPaths,
         mediaSchemaDotTable = enregistrement.mediaSchemaDotTable,
+        mediasSuivis = enregistrement.medias,
         uuidPayload = ancien.uuidPayload
             ?: if (enregistrement.mediaPaths.isNotEmpty() && formulaire.uuidFieldName != null) uuidAleatoire() else null,
         uuidFieldName = formulaire.uuidFieldName ?: ancien.uuidFieldName,
         champsTexteLibre = enregistrement.champsTexteLibre,
+        champsDate = formulaire.champsDate,
+        champsVidesGardes = enregistrement.champsVidesGardes,
         champsManquants = manquants.takeIf { it.isNotEmpty() },
     )
 
-    /** Après la création de [saisie] :
-     *  - sortie par « Terminer » ou par le retour ([puisTerminer]) : la visite parente « à
-     *    compléter » est proposée ;
-     *  - le type créé a une saisie enfant : son formulaire, sous la saisie locale ;
-     *  - chaîne de saisies : le formulaire repart à vide ; sinon, retour. */
+    /** Après la création de [saisie], comme le web (onSubmit) :
+     *  - sortie par la garde de sortie ([puisTerminer]) : la visite parente « à compléter » est
+     *    proposée ;
+     *  - « Valider et saisir des … » ([action]) : le formulaire de l'enfant unique, sous la saisie ;
+     *  - « Valider et enchaîner les saisies » ([enchainer]) : un nouveau formulaire du même type,
+     *    les champs `keep` repris de [valeurs] ;
+     *  - « Valider » : la page que montre le web, celle de l'objet ou de son parent
+     *    (`redirect_to_parent`). Une saisie locale n'a pas de page : celle de son parent serveur, où
+     *    elle est listée ; sous une saisie locale, la fin de ses saisies (visite à compléter). */
     fun suiteApresCreation(
         saisie: SaisieEnAttente,
         formulaire: FormulairePrepare,
+        action: ActionValider,
+        enchainer: Boolean,
         puisTerminer: Boolean,
-        chaine: Boolean,
+        valeurs: Map<String, Any?> = emptyMap(),
     ): SuiteEnregistrement = when {
         puisTerminer -> SuiteEnregistrement.TerminerOuCompleter
-        formulaire.typeSaisieEnfant != null -> SuiteEnregistrement.Enchainer(
+        action == ActionValider.SAISIR_ENFANTS && formulaire.enfantUnique != null -> SuiteEnregistrement.Enchainer(
             parentObjectType = saisie.objectType,
             parentUuidLocal = saisie.uuid,
-            childObjectType = formulaire.typeSaisieEnfant,
+            childObjectType = formulaire.enfantUnique,
             titreSite = "${Accords(formulaire.labelType, formulaire.genre).labelCap} (local)",
         )
-        chaine -> SuiteEnregistrement.Reinitialiser
+        enchainer -> SuiteEnregistrement.Reinitialiser(formulaire.schemaObjet.gardes.filter { it in valeurs }.associateWith { valeurs[it] })
+        !saisie.parentUuidLocal.isNullOrEmpty() -> SuiteEnregistrement.TerminerOuCompleter
+        (saisie.parentIdServeur ?: 0) > 0 && !saisie.parentObjectType.isNullOrEmpty() ->
+            SuiteEnregistrement.Fiche(saisie.parentObjectType, saisie.parentIdServeur ?: 0)
         else -> SuiteEnregistrement.Retour
     }
 
-    /** Après la modification de la saisie [uuid] :
-     *  - complétion (on venait finir des champs manquants) : retour à l'écran d'où l'on vient, sans
-     *    enchaîner — seules les infos de la visite étaient à finir ;
-     *  - le type a une saisie enfant, hors sortie explicite ([puisTerminer]) : son formulaire, comme
-     *    après une création ;
+    /** Après la modification de la saisie [uuid] (« Valider » du web) :
+     *  - complétion (on venait finir des champs manquants) : retour à l'écran d'où l'on vient ;
      *  - sinon la fiche du parent serveur, à défaut le retour. */
     fun suiteApresEdition(
-        uuid: String,
-        formulaire: FormulairePrepare,
         modeCompletion: Boolean,
-        puisTerminer: Boolean,
         parentObjectType: String?,
         parentIdServeur: Int?,
     ): SuiteEnregistrement = when {
         modeCompletion -> SuiteEnregistrement.Retour
-        !puisTerminer && formulaire.typeSaisieEnfant != null -> SuiteEnregistrement.Enchainer(
-            parentObjectType = formulaire.schemaObjet.type,
-            parentUuidLocal = uuid,
-            childObjectType = formulaire.typeSaisieEnfant,
-            titreSite = "${Accords(formulaire.labelType, formulaire.genre).labelCap} (local)",
-        )
         parentIdServeur != null && parentIdServeur > 0 && !parentObjectType.isNullOrEmpty() ->
             SuiteEnregistrement.Fiche(parentObjectType, parentIdServeur)
         else -> SuiteEnregistrement.Retour

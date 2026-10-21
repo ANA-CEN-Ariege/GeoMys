@@ -73,12 +73,15 @@ import fr.ariegenature.geomys.ui.composants.BoutonTexte
 import fr.ariegenature.geomys.ui.composants.ChampLibelle
 import fr.ariegenature.geomys.ui.composants.ChampTexteFormulaire
 import fr.ariegenature.geomys.ui.composants.DialogueActions
+import fr.ariegenature.geomys.ui.composants.DialogueGardeSortie
 import fr.ariegenature.geomys.ui.composants.GRIS_TITRE_CHAMP
 import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.SymboleSf
+import fr.ariegenature.geomys.ui.composants.barreChampObligatoire
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.composants.nomMedia
 import fr.ariegenature.geomys.ui.composants.rememberAjoutMedias
+import fr.ariegenature.geomys.ui.composants.rememberGardeSortie
 import fr.ariegenature.geomys.ui.composants.styleLibelleMaterial
 import fr.ariegenature.geomys.ui.composants.styleSaisieIos
 import fr.ariegenature.geomys.ui.ressources.Res
@@ -92,6 +95,7 @@ fun DenombrementScreen(
     vm: DenombrementViewModel,
     typeSaisieLabel: String,
     onAccueil: () -> Unit,
+    onRetour: () -> Unit,
     onValide: (List<Denombrement>) -> Unit,
 ) {
     val ios = estIos
@@ -104,11 +108,12 @@ fun DenombrementScreen(
         onImportes = { uris -> vm.ajouterMedias(cible, uris) },
         onErreur = { toasts.afficher(it, true) },
     )
+    val garde = rememberGardeSortie(vm::modifie, onRetour)
     EcranFormulaireEspece(
         titre = "Dénombrement",
         sousTitre = vm.nomEspece,
         typeSaisieLabel = typeSaisieLabel,
-        onAccueil = onAccueil,
+        onAccueil = { garde.demander(onAccueil) },
         onValider = {
             val (liste, message) = vm.valider()
             if (liste != null) onValide(liste) else if (message != null) toasts.afficher(message, true)
@@ -140,6 +145,7 @@ fun DenombrementScreen(
         ),
         onFermer = { choixPhoto = false },
     )
+    DialogueGardeSortie(garde, "Dénombrement non enregistré", onAbandon = vm::abandonner)
 }
 
 @Composable
@@ -157,7 +163,7 @@ private fun CarteVue(vm: DenombrementViewModel, carte: CarteDenombrement, index:
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Dénombrement ${index + 1}",
+                "Dénombrement #${index + 1}",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 color = if (ios) Color.White else Color.Unspecified,
@@ -165,19 +171,28 @@ private fun CarteVue(vm: DenombrementViewModel, carte: CarteDenombrement, index:
             )
             if (vm.cartes.size > 1) BoutonSupprimer(36, "Supprimer") { vm.supprimer(index) }
         }
-        // Effectifs : « − » | champ | « ＋ ».
-        Row(Modifier.padding(top = if (ios) 0.dp else 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (vm.minVisible) {
-                Compteur("Nombre min", carte.min, { vm.saisirMin(carte, it) }, { vm.ajusterMin(carte, it) }, Modifier.weight(1f))
-            }
-            if (vm.maxVisible) {
-                Compteur("Nombre max", carte.max, { carte.max = it }, { vm.ajusterMax(carte, it) }, Modifier.weight(1f))
-            }
-        }
-        for (champ in vm.champs) {
+        // L'ordre du web (counting.component.html) : objet et type, effectifs, stade et sexe, champs
+        // additionnels, médias.
+        for (champ in vm.champsAvantEffectifs) {
             ChampNomenclatureVue(champ, carte.positions[champ.champ.code] ?: 0, { carte.positions[champ.champ.code] = it })
         }
-        ChampLibelle("Médias", margeHautAndroid = 10, tailleAndroid = 12) {
+        // Effectifs : « − » | champ | « ＋ ».
+        if (vm.minVisible || vm.maxVisible) {
+            Row(Modifier.padding(top = if (ios) 0.dp else 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (vm.minVisible) {
+                    Compteur("Nombre min", carte.min, { vm.saisirMin(carte, it) }, { vm.ajusterMin(carte, it) }, Modifier.weight(1f))
+                }
+                if (vm.maxVisible) {
+                    Compteur("Nombre max", carte.max, { carte.max = it }, { vm.ajusterMax(carte, it) }, Modifier.weight(1f))
+                }
+            }
+        }
+        for (champ in vm.champsApresEffectifs) {
+            ChampNomenclatureVue(champ, carte.positions[champ.champ.code] ?: 0, { carte.positions[champ.champ.code] = it })
+        }
+        if (carte.additionnels.defsAffiches.isNotEmpty()) ChampsAdditionnelsVue(carte.additionnels)
+        // Le bloc Médias, si le serveur l'active (`OCCTAX.ENABLE_MEDIAS`).
+        if (vm.mediasVisibles) ChampLibelle("Médias", margeHautAndroid = 10, tailleAndroid = 12) {
             Column(Modifier.padding(top = if (ios) 0.dp else 2.dp), verticalArrangement = Arrangement.spacedBy(if (ios) 8.dp else 0.dp)) {
                 for (uri in carte.medias) LigneMedia(uri) { vm.retirerMedia(carte, uri) }
                 Row(Modifier.padding(top = if (ios) 0.dp else 4.dp), horizontalArrangement = Arrangement.spacedBy(if (ios) 12.dp else 0.dp)) {
@@ -191,7 +206,6 @@ private fun CarteVue(vm: DenombrementViewModel, carte: CarteDenombrement, index:
                 }
             }
         }
-        if (carte.additionnels.defs.isNotEmpty()) ChampsAdditionnelsVue(carte.additionnels)
     }
 }
 
@@ -199,14 +213,15 @@ private fun CarteVue(vm: DenombrementViewModel, carte: CarteDenombrement, index:
  *  - Android : libellé de 12 sp gris, MaterialButton contour de 44 dp aux coins de 8 dp (« − » en
  *    20 sp, « ＋ » en 18 sp) de part et d'autre d'un EditText numérique centré ;
  *  - iOS : `CompteurEffectif` de GeoMys-IOS (boutons de 44 × 40 pt au contour blanc 35 %, champ
- *    centré sur blanc 8 %). */
+ *    centré sur blanc 8 %).
+ *  Un effectif est obligatoire, comme sur le web : vide, il porte la barre rouge. */
 @Composable
 private fun Compteur(libelle: String, valeur: String, onValeur: (String) -> Unit, onAjuster: (Int) -> Unit, modifier: Modifier) {
     val clavier = KeyboardOptions(keyboardType = KeyboardType.Number)
     val chiffres = { texte: String -> onValeur(texte.filter { it.isDigit() }) }
     if (estIos) {
         ChampLibelle(libelle, modifier) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.barreChampObligatoire(valeur.isBlank()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 BoutonEffectifIos("minus", "Diminuer $libelle") { onAjuster(-1) }
                 BasicTextField(
                     value = valeur,
@@ -227,7 +242,7 @@ private fun Compteur(libelle: String, valeur: String, onValeur: (String) -> Unit
     } else {
         Column(modifier) {
             Text(libelle, fontSize = 12.sp, color = GRIS_TITRE_CHAMP)
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.barreChampObligatoire(valeur.isBlank()), verticalAlignment = Alignment.CenterVertically) {
                 BoutonEffectifAndroid("−", 20) { onAjuster(-1) }
                 ChampTexteFormulaire(valeur, chiffres, Modifier.weight(1f), clavier = clavier, centre = true)
                 BoutonEffectifAndroid("＋", 18) { onAjuster(+1) }

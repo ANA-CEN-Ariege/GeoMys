@@ -31,7 +31,6 @@ import fr.ariegenature.geomys.saisie.ChampsAdditionnels
 import fr.ariegenature.geomys.store.GeoNatureConfig
 import fr.ariegenature.geomys.store.ListeTaxons
 import fr.ariegenature.geomys.store.io.listeDepuisJson
-import kotlin.math.max
 import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
@@ -41,20 +40,19 @@ import kotlinx.datetime.number
 import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 
-/** Les valeurs de départ du dialogue « Détails du relevé ». [infos] : lignes en lecture seule
- *  (libellé, valeur) ; [datasets] et [observateurs] : (id, libellé) proposés ; [heures] et
- *  [avecFin] : ce que le serveur active pour la date ; [titre] : « Détails du relevé », ou « Détails
- *  des relevés » pour toute la saisie. */
+/** Les valeurs de départ du dialogue « Détails du relevé ». [datasets] et [observateurs] : (id,
+ *  libellé) proposés ; [heures] et [avecFin] : ce que le serveur active pour la date ; [titre] :
+ *  « Détails du relevé », ou « Détails des relevés » pour toute la saisie. */
 data class DonneesDetailsReleve(
     val titre: String,
-    val infos: List<Pair<String, String>>,
     val datasets: List<Pair<Int, String>>,
     val idDataset: Int?,
     val nomDataset: String?,
     val observateurs: List<Pair<Int, String>>,
     val idsObservateurs: List<Int>,
     val nomsObservateurs: List<String>,
-    val defs: List<AdditionalFieldDef>,
+    /** Les champs additionnels de relevé, tous jeux de données confondus ([defs] les filtre). */
+    val defsReleve: List<AdditionalFieldDef>,
     val additionnels: Map<String, String>,
     val formFieldsJson: String,
     val typGrp: String,
@@ -66,20 +64,105 @@ data class DonneesDetailsReleve(
     val cdHab: Int?,
     val habitatLabel: String?,
     val champsExtra: Map<String, String>,
-)
+    /** Les heures portées (« hh:mm »), null si aucune. */
+    val heureDebut: String? = null,
+    val heureFin: String? = null,
+    /** form_fields `hour_max` : l'heure de fin ([heures] : celle de début). */
+    val heureFinVisible: Boolean = heures,
+    /** `OCCTAX.observers_txt` : des observateurs en texte libre, et leur texte. */
+    val observateursEnTexte: Boolean = false,
+    val observateursTexte: String = "",
+    /** `OCCTAX.DATE_FORM_WITH_TODAY` : un relevé sans date prend celle du jour ; sinon elle reste à
+     *  choisir. */
+    val dateDuJour: Boolean = true,
+) {
+    /** Les champs additionnels de relevé que le web montre pour le jeu de données [idDataset]. */
+    fun defs(idDataset: Int?): List<AdditionalFieldDef> = defsReleve.filter { it.visiblePour(idDataset) }
+}
 
 object DetailsReleveFormulaire {
 
-    /** Jeux de données proposables : actifs, rattachés à OCCTAX (ou sans module déclaré), créables
-     *  s'il y a une liste des créables ; libellé « nom (id) ». */
+    /** Jeux de données proposables, ceux du web (`active`, `module_code` et `create` OCCTAX) :
+     *  actifs, rattachés à OCCTAX et créables ; sans liste des créables, aucun. Libellé : le nom
+     *  seul, comme le web. */
     fun datasets(config: GeoNatureConfig): List<Pair<Int, String>> = try {
         val creables = config.datasetsCreablesOcctax
         listeDepuisJson(GeoNatureDataset.serializer(), config.datasetsCacheJson)
-            .filter { it.actif && (it.moduleCodes.isEmpty() || "OCCTAX" in it.moduleCodes) && (creables.isEmpty() || it.id in creables) }
-            .map { it.id to "${it.nom} (${it.id})" }
+            .filter { it.actif && "OCCTAX" in it.moduleCodes && it.id in creables }
+            .map { it.id to it.nom }
     } catch (_: Exception) {
         emptyList()
     }
+
+    // ── Les textes du formulaire du relevé du web (releve.component.html et fr.json) ──
+
+    /** Un relevé sans jeu de données : le jeu est obligatoire, comme sur le web. */
+    const val CHOISIR_JDD = "Choisissez un jeu de données"
+
+    /** Une date de début vide : le serveur la veut à choisir (`DATE_FORM_WITH_TODAY` à faux). */
+    const val CHOISIR_DATE_DEBUT = "Choisissez une date de début"
+
+    const val LIBELLE_OBSERVATEURS = "Observateurs"
+    const val INVITE_OBSERVATEURS = "Observateur(s)"
+    const val LIBELLE_JDD = "Jeux de données"
+    const val INVITE_JDD = "Jeux de données"
+    const val LIBELLE_DATE_DEBUT = "Date début"
+    const val LIBELLE_DATE_FIN = "Date fin"
+    const val LIBELLE_HEURE_DEBUT = "Heure début"
+    const val LIBELLE_HEURE_FIN = "Heure fin"
+    const val INVITE_HEURE = "hh:mm"
+    const val LIBELLE_HABITAT = "Habitat"
+    const val INVITE_HABITAT = "Tapez les premières lettres..."
+    const val AUCUN_HABITAT = "Aucun élément trouvé"
+    const val LIBELLE_COMMENTAIRE = "Commentaire"
+    const val INVITE_PRECISION = "Précision du pointage"
+
+    /** L'heure saisie du web (`hour_min`, `hour_max`) : « h:mm » ou « hh:mm », secondes permises. */
+    private val HEURE = Regex("^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$")
+
+    /** Une heure saisie mais mal formée : le web borde son champ de rouge. */
+    fun heureMalFormee(texte: String): Boolean = texte.isNotBlank() && !HEURE.matches(texte.trim())
+
+    /** Le premier refus des contrôles du formulaire du relevé du web (releve.service.ts) : jeu de
+     *  données, observateurs et date de début requis, heure mal formée, heure de début sans heure de
+     *  fin ou après elle, dates inversées, altitudes ou profondeurs inversées (une valeur 0 ou vide ne
+     *  compte pas, comme dans son minMaxValidator) ; null si tout va. */
+    fun refus(
+        debut: Long?,
+        fin: Long?,
+        heureDebut: String,
+        heureFin: String,
+        observateursPresents: Boolean,
+        observateursEnTexte: Boolean,
+        simples: Map<String, String>,
+        datasetChoisi: Boolean = true,
+    ): String? {
+        if (!datasetChoisi) return CHOISIR_JDD
+        if (!observateursPresents) return if (observateursEnTexte) "Saisissez les observateurs" else "Choisissez un observateur"
+        if (debut == null) return CHOISIR_DATE_DEBUT
+        val hd = heureDebut.trim()
+        val hf = heureFin.trim()
+        if ((hd.isNotEmpty() && !HEURE.matches(hd)) || (hf.isNotEmpty() && !HEURE.matches(hf))) return "Heure attendue au format hh:mm"
+        val f = fin ?: debut
+        val jourDebut = Instant.fromEpochMilliseconds(debut).toLocalDateTime(TimeZone.currentSystemDefault()).date
+        val jourFin = Instant.fromEpochMilliseconds(f).toLocalDateTime(TimeZone.currentSystemDefault()).date
+        if (jourFin < jourDebut) return "La date de début ne peut pas être postérieure à la date de fin"
+        if (hd.isNotEmpty() && hf.isEmpty()) return HEURES_INVERSEES
+        if (hd.isNotEmpty() && hf.isNotEmpty()) {
+            fun minutes(h: String) = h.split(':').let { it[0].toInt() * 60 + it[1].toInt() }
+            if (jourDebut == jourFin && minutes(hd) > minutes(hf)) return HEURES_INVERSEES
+        }
+        fun entier(cle: String) = simples[cle]?.trim()?.toIntOrNull()?.takeIf { it != 0 }
+        val altMin = entier("altitude_min")
+        val altMax = entier("altitude_max")
+        if (altMin != null && altMax != null && altMin > altMax) return "L'altitude max ne peut être inférieure à l'altitude min"
+        val profMin = entier("depth_min")
+        val profMax = entier("depth_max")
+        if (profMin != null && profMax != null && profMin > profMax) return "La profondeur max ne peut être inférieure à la profondeur min"
+        return null
+    }
+
+    private const val HEURES_INVERSEES = "L'heure de début ne peut pas être supérieure à l'heure de fin"
 
     /** Filtre de la liste d'un champ déroulant (jeu de données, observateurs) : les positions des
      *  [libelles] qui contiennent [saisie], ni les accents ni la casse ne comptant ; saisie vide : tout
@@ -95,6 +178,10 @@ object DetailsReleveFormulaire {
     } catch (_: Exception) {
         emptyList()
     }
+
+    /** La clé form_fields qui montre le champ simple [cle] : la sienne, sauf la profondeur max, que
+     *  le web montre avec la profondeur min. */
+    fun cleVisibilite(cle: String): String = if (cle == "depth_max") "depth_min" else cle
 
     /** Les champs simples du relevé : (clé form_fields, libellé du web, numérique ?). */
     val CHAMPS_SIMPLES = listOf(
@@ -115,34 +202,33 @@ object DetailsReleveFormulaire {
         Triple("TECHNIQUE_OBS", "tech_collect", "tech_collect"),
     )
 
-    /** Les champs additionnels de relevé visibles pour le jeu de données de la configuration (sans
-     *  restriction de liste : un relevé porte plusieurs taxons). */
+    /** Les champs additionnels de relevé, tous jeux de données confondus : ceux d'un jeu se lisent
+     *  par [DonneesDetailsReleve.defs], comme le web, qui les recharge à chaque changement de jeu. */
     fun defsReleve(config: GeoNatureConfig): List<AdditionalFieldDef> =
-        ChampsAdditionnels.fromJson(config.additionalFieldsOcctaxJsonActif)
-            .filter { it.appliqueA(AdditionalFieldsObject.RELEVE) }
-            .filter { it.visiblePour(config.idDataset.toIntOrNull(), emptyList()) }
+        ChampsAdditionnels.fromJson(config.additionalFieldsOcctaxJson).filter { it.appliqueA(AdditionalFieldsObject.RELEVE) }
 
-    /** Observateurs de départ : ceux portés, sinon l'observateur par défaut ou l'utilisateur connecté. */
+    /** Observateurs de départ : ceux portés, sinon l'observateur par défaut des Paramètres, qui est
+     *  au départ l'utilisateur connecté, comme le web (`[currentUser]`). */
     fun idsObservateursDepart(ids: List<Int>, config: GeoNatureConfig): List<Int> =
-        ids.ifEmpty { listOfNotNull(config.observateurDefautId.toIntOrNull() ?: config.idRoleUtilisateur.takeIf { it > 0 }) }
+        ids.ifEmpty { listOfNotNull(config.idObservateurParDefaut) }
 
     fun nomsObservateursDepart(noms: List<String>, config: GeoNatureConfig): List<String> =
-        noms.ifEmpty {
-            listOfNotNull(config.observateurDefautNom.ifEmpty { config.nomUtilisateur.ifEmpty { config.login } }.takeIf { it.isNotBlank() })
-        }
+        noms.ifEmpty { listOfNotNull(config.nomObservateurParDefaut.takeIf { it.isNotBlank() }) }
+
+    /** Le texte des observateurs de départ (`observers_txt`) : le nom complet de l'observateur par
+     *  défaut, au départ l'utilisateur connecté, comme le web. */
+    fun observateursTexteDepart(config: GeoNatureConfig): String = config.nomObservateurParDefaut
 
     /** Les détails d'un relevé en cours (bouton « Détails »). */
     fun pourReleve(releve: ReleveEnCours, config: GeoNatureConfig): DonneesDetailsReleve = DonneesDetailsReleve(
         titre = "Détails du relevé",
-        // (La ligne « Position » a été retirée : la position reste visible sur la carte.)
-        infos = listOfNotNull(releve.geometryType?.takeIf { it.isNotEmpty() && it != "Point" }?.let { "Géométrie" to it }),
         datasets = datasets(config),
-        idDataset = releve.idDataset ?: config.idDataset.toIntOrNull(),
+        idDataset = releve.idDatasetEffectif(),
         nomDataset = config.nomDataset.takeIf { it.isNotEmpty() },
         observateurs = observateurs(config),
         idsObservateurs = idsObservateursDepart(releve.idsObservateurs, config),
         nomsObservateurs = nomsObservateursDepart(releve.nomsObservateurs, config),
-        defs = defsReleve(config),
+        defsReleve = defsReleve(config),
         additionnels = releve.additionnelsReleve,
         formFieldsJson = config.formFieldsJson,
         typGrp = releve.typGrp,
@@ -151,23 +237,28 @@ object DetailsReleveFormulaire {
         dateFin = releve.dateFin,
         heures = config.heuresVisibles,
         avecFin = config.dateFinVisible,
+        dateDuJour = config.occtaxDateDuJour,
         cdHab = releve.cdHab,
         habitatLabel = releve.habitatLabel,
         champsExtra = releve.champsExtra,
+        heureDebut = releve.heureDebut,
+        heureFin = releve.heureFin,
+        heureFinVisible = config.heureFinVisible,
+        observateursEnTexte = config.occtaxObservateursEnTexte,
+        observateursTexte = releve.observateursTexte ?: observateursTexteDepart(config),
     )
 
     /** Les détails COMMUNS de la saisie (bouton « i » de la carte) : les valeurs communes déjà
      *  réglées, ou les défauts de la configuration au premier usage. */
     fun communs(communs: DetailsReleveResult?, config: GeoNatureConfig): DonneesDetailsReleve = DonneesDetailsReleve(
         titre = "Détails des relevés",
-        infos = emptyList(),
         datasets = datasets(config),
-        idDataset = communs?.idDataset ?: config.idDataset.toIntOrNull(),
+        idDataset = communs?.idDataset ?: config.idDatasetParDefaut,
         nomDataset = config.nomDataset.takeIf { it.isNotEmpty() },
         observateurs = observateurs(config),
         idsObservateurs = idsObservateursDepart(communs?.idsObservateurs.orEmpty(), config),
         nomsObservateurs = nomsObservateursDepart(communs?.nomsObservateurs.orEmpty(), config),
-        defs = defsReleve(config),
+        defsReleve = defsReleve(config),
         additionnels = communs?.additionnels.orEmpty(),
         formFieldsJson = config.formFieldsJson,
         typGrp = communs?.typGrp.orEmpty(),
@@ -176,16 +267,18 @@ object DetailsReleveFormulaire {
         dateFin = communs?.dateFin,
         heures = config.heuresVisibles,
         avecFin = config.dateFinVisible,
+        dateDuJour = config.occtaxDateDuJour,
         cdHab = communs?.cdHab,
         habitatLabel = communs?.habitatLabel,
         champsExtra = communs?.champsExtra.orEmpty(),
+        heureDebut = communs?.heureDebut,
+        heureFin = communs?.heureFin,
+        heureFinVisible = config.heureFinVisible,
+        observateursEnTexte = config.occtaxObservateursEnTexte,
+        observateursTexte = communs?.observateursTexte ?: observateursTexteDepart(config),
     )
 
     // ── Dates ──
-
-    /** La date de fin est-elle montrée d'emblée ? Seulement si le relevé en porte une, distincte du
-     *  début (sinon un « ＋ » la révèle). */
-    fun finActiveAuDepart(d: DonneesDetailsReleve): Boolean = d.avecFin && d.dateFin != null && d.dateFin != d.dateDebut
 
     /** [millis] au jour [annee]-[mois]-[jour] (mois de 1 à 12), l'heure gardée (DatePickerDialog
      *  sur un Calendar), dans le fuseau du téléphone. */
@@ -194,10 +287,6 @@ object DetailsReleveFormulaire {
 
     /** [millis] à l'heure [heure]:[minute] dans le fuseau du téléphone (TimePickerDialog). */
     fun avecHeure(millis: Long, heure: Int, minute: Int): Long = avecHeure(millis, heure, minute, TimeZone.currentSystemDefault())
-
-    /** Les dates envoyées, dans le fuseau du téléphone (cf. l'autre [dates]). */
-    fun dates(debut: Long, fin: Long, finActive: Boolean, heures: Boolean, avecFin: Boolean): Pair<Long, Long> =
-        dates(debut, fin, finActive, heures, avecFin, TimeZone.currentSystemDefault())
 
     /** Le jour de [millis] : (année, mois de 1 à 12, jour), dans le fuseau du téléphone. */
     fun jourDe(millis: Long): Triple<Int, Int, Int> =
@@ -220,25 +309,6 @@ object DetailsReleveFormulaire {
         return LocalDateTime(actuel.date, temps).toInstant(fuseau).toEpochMilliseconds()
     }
 
-    /** Les dates envoyées : sans heures, la journée entière (00:00 → 23:59) ; sans date de fin, la fin
-     *  vaut le début ; la fin n'est jamais avant le début. */
-    internal fun dates(debut: Long, fin: Long, finActive: Boolean, heures: Boolean, avecFin: Boolean, fuseau: TimeZone): Pair<Long, Long> {
-        var d = debut
-        var f = fin
-        if (!heures) {
-            d = aLHeure(d, 0, 0, fuseau)
-            f = aLHeure(f, 23, 59, fuseau)
-        }
-        return d to (if (avecFin && finActive) max(f, d) else d)
-    }
-
-    private fun aLHeure(millis: Long, heure: Int, minute: Int, fuseau: TimeZone): Long {
-        val actuel = Instant.fromEpochMilliseconds(millis).toLocalDateTime(fuseau)
-        // Les millisecondes restent celles du Calendar d'origine (seules les secondes sont remises à 0).
-        val temps = LocalTime(heure, minute, 0, actuel.nanosecond)
-        return LocalDateTime(actuel.date, temps).toInstant(fuseau).toEpochMilliseconds()
-    }
-
     // ── Résultat ──
 
     /** « Valider » : les saisies relues. Un champ masqué garde sa valeur de départ ; un champ simple ou
@@ -257,6 +327,8 @@ object DetailsReleveFormulaire {
         nomenclatures: Map<String, String>,
         dates: Pair<Long, Long>,
         dateModifiee: Boolean,
+        heures: Pair<String?, String?> = null to null,
+        observateursTexte: String? = null,
     ): DetailsReleveResult {
         val extra = HashMap(d.champsExtra)
         simples.forEach { (cle, texte) ->
@@ -272,7 +344,13 @@ object DetailsReleveFormulaire {
             idDataset = dataset?.first,
             idsObservateurs = observateurs.map { it.first },
             nomsObservateurs = observateurs.map { it.second },
-            additionnels = if (d.defs.isNotEmpty() && additionnels != null) additionnels else d.additionnels,
+            additionnels = if (d.defs(dataset?.first).isNotEmpty() && additionnels != null) {
+                additionnels
+            } else {
+                // Un jeu sans champ de relevé : comme le web, qui reconstruit le formulaire, rien des
+                // champs d'un autre jeu ne part (21 octobre) ; une clé qu'aucun jeu ne définit reste.
+                d.additionnels.filterKeys { cle -> d.defsReleve.none { it.fieldName == cle } }
+            },
             comment = commentaire.trim(),
             cdHab = cdHab,
             habitatLabel = cdHab?.let { habitatTexte.trim() },
@@ -281,6 +359,9 @@ object DetailsReleveFormulaire {
             dateFin = dates.second,
             champsExtra = extra,
             dateModifiee = dateModifiee,
+            heureDebut = heures.first?.trim()?.takeIf { it.isNotEmpty() },
+            heureFin = heures.second?.trim()?.takeIf { it.isNotEmpty() },
+            observateursTexte = observateursTexte?.trim(),
         )
     }
 }

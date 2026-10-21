@@ -29,20 +29,21 @@ import fr.ariegenature.geomys.journal.Journal
 import fr.ariegenature.geomys.json.JSONArray
 import fr.ariegenature.geomys.json.JSONObject
 import fr.ariegenature.geomys.model.AdditionalFieldDef
+import fr.ariegenature.geomys.model.AdditionalFieldsObject
+import fr.ariegenature.geomys.model.MediaSuivi
 import fr.ariegenature.geomys.model.Observation
 import fr.ariegenature.geomys.model.Sortie
-import fr.ariegenature.geomys.model.WidgetType
 import fr.ariegenature.geomys.network.http.ClientsGeoNature
 import fr.ariegenature.geomys.network.http.delete
 import fr.ariegenature.geomys.network.http.get
 import fr.ariegenature.geomys.network.http.postJson
 import fr.ariegenature.geomys.network.http.urlAbsolue
 import fr.ariegenature.geomys.plateforme.sansDiacritiques
+import fr.ariegenature.geomys.saisie.ChampsAdditionnels
 import fr.ariegenature.geomys.store.GeoNatureConfig
 import fr.ariegenature.geomys.store.NomenclatureCache
 import fr.ariegenature.geomys.store.OcctaxFieldsConfig
 import fr.ariegenature.geomys.store.RelevesOrphelins
-import fr.ariegenature.geomys.store.io.listeDepuisJson
 import fr.ariegenature.geomys.util.DateEnvoi
 import fr.ariegenature.geomys.util.maintenantMillis
 import fr.ariegenature.geomys.util.uuidDepuisOctets
@@ -58,11 +59,15 @@ import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.decodeURLPart
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Instant
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.number
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.io.IOException
 import okio.FileSystem
 import okio.Path
@@ -138,6 +143,8 @@ class GeoNatureUpload(
     /** Le dossier des copies locales des médias, où retrouver un média par son nom (cf. [fichierMedia]). */
     private val dossierMedias: Path? = null,
     private val horloge: () -> Long = ::maintenantMillis,
+    /** Le nom scientifique (`lb_nom`) d'un cd_nom, pour les défauts des médias du web. */
+    private val nomScientifique: (Int) -> String? = { null },
 ) {
 
     private val verrou = SynchronizedObject()
@@ -184,13 +191,9 @@ class GeoNatureUpload(
             return@withContext EnvoiResult(nbCrees = 0, nbTotal = 0, premierIdReleve = null, nbDejaEnvoyees = nbDejaEnvoyees)
         }
 
-        val datasetId = config.idDataset.trim().toIntOrNull()?.takeIf { it > 0 }
-            ?: throw GNErreur.EnvoiEchoue(0, "id_dataset invalide : \"${config.idDataset}\"")
-        // Garde : un id_dataset absent du serveur courant (typiquement hérité d'un autre serveur
-        // après changement d'URL) provoque une violation de clé étrangère côté GeoNature → 500
-        // opaque. Si le cache datasets est vide, datasetValide renvoie true (on ne bloque pas faute
-        // de pouvoir trancher).
-        if (!config.datasetValide) throw GNErreur.DatasetInvalide(datasetId)
+        // Le jeu de données d'un relevé qui n'en porte pas (enregistré avant que le jeu soit figé à
+        // sa création) : celui des Paramètres. Chaque groupe est contrôlé plus bas.
+        val datasetParDefaut = config.idDataset.trim().toIntOrNull()?.takeIf { it > 0 }
 
         // Nettoyage des relevés orphelins d'envois PRÉCÉDENTS (rollback DELETE qui avait échoué —
         // typiquement coupure réseau totale) : on retente leur suppression maintenant que le
@@ -227,8 +230,6 @@ class GeoNatureUpload(
         val tables = mutableMapOf<String, Map<String, Int>>()
         // Types à résoudre : dérivés du registre unique (+ TYPE_MEDIA), même source que la synchro.
         val typesVoulus = OcctaxFieldsConfig.mnemoniques() + "TYPE_MEDIA"
-        // Champs additionnels à widget texte libre : envoyés en chaîne, comme le web.
-        val champsTexte = champsAdditionnelsTexteLibre(config.additionalFieldsOcctaxJson)
 
         // Si le cache est vide, on tente une synchro automatique.
         if (!nomenclatures.estDisponible) {
@@ -295,11 +296,20 @@ class GeoNatureUpload(
 
             // additional_fields du relevé : portés par la 1re obs du groupe (toutes les obs d'un
             // même releveId portent la même copie).
-            val additionalReleve = jsonDepuisMap(groupe.first().additionalFieldsReleve, champsTexte)
+            // Les champs additionnels du formulaire du relevé, typés comme le web : ceux de son jeu de
+            // données (fixé juste dessous).
+            val champsJeu = { objet: String, idJeu: Int? -> ChampsAdditionnels.defsPour(config.additionalFieldsOcctaxJson, objet, idJeu) }
             // Surcharges du relevé (« Détails du relevé »), sinon valeurs par défaut : jeu de données
             // du relevé sinon celui de la config ; observateurs du relevé, sinon l'unique ancien
             // observateurReleveId, sinon l'utilisateur connecté.
-            val datasetGroupe = groupe.first().idDatasetReleve?.takeIf { it > 0 } ?: datasetId
+            val datasetGroupe = groupe.first().idDatasetReleve?.takeIf { it > 0 } ?: datasetParDefaut
+            // Le jeu de données est obligatoire, comme sur le web : sans lui, le relevé attend qu'on
+            // le choisisse dans « Détails du relevé ».
+            if (datasetGroupe == null) {
+                dernierCodeErreur = 0
+                derniereErreur = "Jeu de données manquant : choisissez-le dans « Détails du relevé »."
+                continue
+            }
             // Garde sur la surcharge de relevé : un jeu de données absent du serveur courant part en
             // FK invalide → 500 opaque. On saute le groupe avec un message clair.
             if (!config.datasetAcceptablePourEnvoi(datasetGroupe)) {
@@ -307,10 +317,12 @@ class GeoNatureUpload(
                 derniereErreur = "Jeu de données $datasetGroupe (choisi dans « Détails du relevé ») introuvable sur ce serveur."
                 continue
             }
+            // Sans observateur réglé, celui que « Détails » propose : l'observateur par défaut des
+            // Paramètres, au départ l'utilisateur connecté, comme le web.
             val observateursGroupe = groupe.first().let { o ->
                 o.observateursReleveIds.filter { it > 0 }
                     .ifEmpty { listOfNotNull(o.observateurReleveId?.takeIf { it > 0 }) }
-                    .ifEmpty { listOfNotNull(idRole) }
+                    .ifEmpty { listOfNotNull(config.observateurDefautId.trim().toIntOrNull()?.takeIf { it > 0 } ?: idRole) }
             }
             val uuidGrp = uuidReleveGroupe(cleGroupe)
             val properties = JSONObject().apply {
@@ -321,13 +333,21 @@ class GeoNatureUpload(
                 put("id_dataset", datasetGroupe)
                 put("date_min", DateEnvoi.date(dateMin))
                 put("date_max", DateEnvoi.date(dateMax))
-                put("hour_min", DateEnvoi.heure(dateMin))
-                put("hour_max", DateEnvoi.heure(dateMax))
-                put("additional_fields", additionalReleve)
+                // Les heures saisies dans « Détails », comme sur le web : facultatives, nulles sinon.
+                groupe.first().heureDebutReleve?.let { put("hour_min", it) }
+                groupe.first().heureFinReleve?.let { put("hour_max", it) }
+                put(
+                    "additional_fields",
+                    ChampsAdditionnels.versJson(groupe.first().additionalFieldsReleve, champsJeu(AdditionalFieldsObject.RELEVE, datasetGroupe)),
+                )
                 put("meta_device_entry", "mobile")
                 put("t_occurrences_occtax", JSONArray())
                 if (idRole != null) put("id_digitiser", idRole)
-                if (observateursGroupe.isNotEmpty()) {
+                // Observateurs en texte libre (`OCCTAX.observers_txt`) : leur texte seul, comme le web,
+                // le nom complet de l'observateur par défaut à défaut ; sinon la liste.
+                if (config.occtaxObservateursEnTexte) {
+                    put("observers_txt", groupe.first().observateursReleveTxt?.takeIf { it.isNotBlank() } ?: config.nomObservateurParDefaut)
+                } else if (observateursGroupe.isNotEmpty()) {
                     put("observers", JSONArray().apply { observateursGroupe.forEach { put(it) } })
                 }
                 groupe.first().commentReleve?.takeIf { it.isNotBlank() }?.let { put("comment", it) }
@@ -363,6 +383,15 @@ class GeoNatureUpload(
                 lat = lat,
                 lon = lon,
             )
+            // Les altitudes du MNT du serveur (`POST /geo/altitude`), que le web pose dès le
+            // pointage : ici à l'envoi (rien n'est téléchargé pendant la saisie, décision du
+            // 20 octobre), quand aucune n'est saisie. Best-effort : sans réponse, elles restent vides.
+            if (!properties.has("altitude_min") && !properties.has("altitude_max")) {
+                altitudesMntDe(clients, base, token, cookies, geometry)?.let { (min, max) ->
+                    min?.let { properties.put("altitude_min", it) }
+                    max?.let { properties.put("altitude_max", it) }
+                }
+            }
 
             // ANTI-DOUBLON DU RELEVÉ : si sa création a DÉJÀ été tentée (POST émis lors d'un envoi
             // précédent, puis processus tué ou réseau coupé), le relevé existe peut-être côté
@@ -483,7 +512,16 @@ class GeoNatureUpload(
                 if (besoinMedia) {
                     val (idTableLoc, errTable) = resoudreIdTableLocationCounting(base, token, cookies)
                     val typesMediaOcctax = tables["TYPE_MEDIA"] ?: emptyMap()
-                    val auteur = config.observateurDefautNom.ifEmpty { config.nomUtilisateur.ifEmpty { config.login } }
+                    // Les défauts du web (counting.component.ts, defaultsMedia) : les observateurs du
+                    // relevé pour auteur, « année_mois_jour_lb_nom_cd_nom » pour titre (le premier
+                    // espace du nom en « _ »), « lb_nom observé le jour/mois/année » pour description.
+                    val auteur = groupe.first().observateursReleveNoms.filter { it.isNotBlank() }
+                        .ifEmpty { listOf(config.nomObservateurParDefaut) }
+                        .joinToString(", ")
+                    val jour = Instant.fromEpochMilliseconds(dateMin).toLocalDateTime(TimeZone.currentSystemDefault()).date
+                    val lbNom = obs.cdNom?.let(nomScientifique) ?: obs.espece
+                    val titreMedia = "${jour.year}_${jour.month.number}_${jour.day}_${lbNom.replaceFirst(' ', '_')}_${obs.cdNom ?: ""}"
+                    val descriptionMedia = "$lbNom observé le ${jour.day}/${jour.month.number}/${jour.year}"
                     suspend fun upload(uris: List<String>): List<JSONObject> = uris.mapNotNull { uri ->
                         if (idTableLoc == null) {
                             mediasKO++
@@ -496,7 +534,7 @@ class GeoNatureUpload(
                         val idTypeMedia = idTypeMediaPour(typesMediaOcctax, mimeHint)
                         val (json, err) = uploaderMediaFile(
                             base = base, token = token, cookies = cookies,
-                            mediaPath = uri, author = auteur, titre = obs.espece,
+                            mediaPath = uri, author = auteur, titre = titreMedia, description = descriptionMedia,
                             idTableLocation = idTableLoc, idTypeMedia = idTypeMedia,
                         )
                         if (json != null) {
@@ -529,7 +567,14 @@ class GeoNatureUpload(
                 mediaIdsGroupe.addAll(mediaIdsObs)
 
                 // ── Étape B : construction et POST du JSON occurrence, médias inclus ──
-                val occ = buildOccurrence(obs, tables, mediasParCounting, champsTexte)
+                val occ = buildOccurrence(
+                    obs, tables, mediasParCounting,
+                    ChampsAdditionnelsEnvoi(
+                        champsJeu(AdditionalFieldsObject.OCCURRENCE, datasetGroupe),
+                        champsJeu(AdditionalFieldsObject.COUNTING, datasetGroupe),
+                    ),
+                    nomenclatures.defautPour("METH_OBS"),
+                )
                 // Coupure réseau pendant le POST de l'occurrence : comptée comme un échec ordinaire
                 // (code -1) pour que le rollback du relevé en fin de groupe s'applique.
                 val code2 = try {
@@ -764,19 +809,29 @@ class GeoNatureUpload(
         }
     }
 
-    /** Titres (`title_fr`) des médias DÉJÀ attachés à [uuidAttachedRow] côté serveur
+    /** Ce que le serveur détient déjà pour un objet : les titres (`title_fr`) de ses médias, et
+     *  leurs noms de fichier (celui de `media_path`, sans le préfixe `<id_media>_` que le serveur
+     *  ajoute). */
+    data class MediasPresents(val titres: Set<String>, val fichiers: Set<String>)
+
+    /** Les médias DÉJÀ attachés à [uuidAttachedRow] côté serveur
      *  (`GET /api/gn_commons/medias/<uuid_attached_row>`). null = vérification impossible (réseau,
      *  route absente, HTTP ≠ 2xx) : l'appelant uploadera sans filtrer — un doublon de photo reste
      *  préférable à des photos de terrain qui n'arrivent jamais. */
-    internal suspend fun mediasDejaPresents(base: String, token: String?, cookies: String, uuidAttachedRow: String): Set<String>? {
-        if (uuidAttachedRow.isBlank()) return emptySet()
+    internal suspend fun mediasDejaPresents(base: String, token: String?, cookies: String, uuidAttachedRow: String): MediasPresents? {
+        if (uuidAttachedRow.isBlank()) return MediasPresents(emptySet(), emptySet())
         return try {
             val reponse = clients.get("$base/api/gn_commons/medias/$uuidAttachedRow", token, cookies, timeoutMs = 20_000)
             when (val code = reponse.status.value) {
                 in 200..299 -> {
                     val arr = JSONArray(reponse.bodyAsText())
-                    (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.optString("title_fr") }
-                        .filter { it.isNotEmpty() }.toSet()
+                    val objets = (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
+                    MediasPresents(
+                        titres = objets.mapNotNull { it.optString("title_fr").takeIf { t -> t.isNotEmpty() } }.toSet(),
+                        fichiers = objets.mapNotNull { o ->
+                            o.optString("media_path").substringAfterLast('/').replaceFirst(Regex("^\\d+_"), "").takeIf { it.isNotEmpty() }
+                        }.toSet(),
+                    )
                 }
                 else -> {
                     Journal.w(TAG_MEDIA, "Médias déjà présents : HTTP $code")
@@ -800,28 +855,31 @@ class GeoNatureUpload(
     )
 
     /** Upload des médias d'un objet Suivis : l'id_table_location vient du `schema_dot_table` du
-     *  champ médias (ex. `gn_monitoring.t_base_visits`), et `uuid_attached_row` rattache chaque
-     *  média à l'objet créé (gn_commons.t_medias). Diffère du flux OCCTAX, qui embarque le média
-     *  dans le dénombrement. */
+     *  champ médias de chacun (ex. `gn_monitoring.t_base_visits`), et `uuid_attached_row` rattache
+     *  chaque média à l'objet créé (gn_commons.t_medias). Titre, auteur et description sont ceux
+     *  saisis, comme sur le web ; un média d'une saisie plus ancienne, sans titre, prend
+     *  [titreParDefaut] et son nom de fichier, [auteurParDefaut] et la description d'alors. Diffère
+     *  du flux OCCTAX, qui embarque le média dans le dénombrement. */
     suspend fun uploaderMediaMonitoring(
         config: GeoNatureConfig,
-        mediaPaths: List<String>,
-        schemaDotTable: String,
+        medias: List<MediaSuivi>,
         uuidAttachedRow: String,
-        titre: String,
-        author: String,
+        titreParDefaut: String,
+        auteurParDefaut: String,
         /** true = RÉ-ESSAI : on demande d'abord au serveur ce qu'il détient déjà pour cet objet.
          *  Inutile (et un aller-retour de trop) sur un premier envoi. */
         reconcilier: Boolean = false,
     ): ResultatMediasMonitoring = withContext(Dispatchers.IO) {
-        if (mediaPaths.isEmpty()) return@withContext ResultatMediasMonitoring(true, null, emptyList())
+        if (medias.isEmpty()) return@withContext ResultatMediasMonitoring(true, null, emptyList())
+        val mediaPaths = medias.map { it.chemin }
         val base = config.urlServeur.trim().trimEnd('/')
         val (token, _, cookies) = auth.loginAvecCookies(base, config.login, config.motDePasse)
             ?: return@withContext ResultatMediasMonitoring(false, "Authentification GeoNature échouée", emptyList())
-        // id_table_location résolu une seule fois (même table cible pour tous les médias du champ).
-        val (idTableLoc, errTable) = resoudreIdTableLocationPour(base, token, cookies, schemaDotTable)
-        if (idTableLoc == null) {
-            return@withContext ResultatMediasMonitoring(false, errTable ?: "id_table_location introuvable pour $schemaDotTable", emptyList())
+        // id_table_location résolu une seule fois par table cible.
+        val tables = mutableMapOf<String, Pair<Long?, String?>>()
+        suspend fun tablePour(schemaDotTable: String?): Pair<Long?, String?> {
+            val table = schemaDotTable?.takeIf { it.isNotEmpty() } ?: return Pair(null, "schema_dot_table absent du champ médias")
+            return tables.getOrPut(table) { resoudreIdTableLocationPour(base, token, cookies, table) }
         }
         // id_nomenclature_media_type : NOT NULL côté gn_commons.t_medias — son ABSENCE faisait
         // partir le POST en 500 opaque (« photo en échec », bug terrain ; l'objet, lui, était
@@ -830,30 +888,47 @@ class GeoNatureUpload(
         val typesMedia = nomenclatures.get("TYPE_MEDIA")
             .associate { normaliserLabelNomenclature(it.label) to it.id }
             .ifEmpty { resolverNomenclatures(base, token, cookies, "TYPE_MEDIA") }
+        // Le titre d'un média : le sien, sinon celui que l'appli posait d'office, DÉTERMINISTE par
+        // fichier.
+        fun titreDe(m: MediaSuivi) = m.titre.trim().ifEmpty { titreMedia(titreParDefaut, m.chemin) }
         // RÉCONCILIATION AVEC LE SERVEUR (audit 2026-09-14, R1-M3). Mémoriser les fichiers dont la
         // réponse est revenue ne suffit pas : un POST parti, reçu et traité par le serveur, dont la
         // RÉPONSE se perd n'est pas mémorisé — et repart au « Réessayer », en double (constat
         // terrain 2026-09-16). On demande donc au serveur ce qu'il détient DÉJÀ pour cet objet, et
-        // on écarte ces fichiers ; l'appariement se fait sur `title_fr`, DÉTERMINISTE par fichier.
-        val dejaLa = if (reconcilier) mediasDejaPresents(base, token, cookies, uuidAttachedRow) else emptySet()
-        val aEnvoyer = if (dejaLa == null) mediaPaths else mediaPaths.filterNot { titreMedia(titre, it) in dejaLa }
+        // on écarte ces fichiers : par leur nom de fichier, que le serveur garde, ou pour un titre
+        // posé d'office, par ce titre.
+        val dejaLa = if (reconcilier) mediasDejaPresents(base, token, cookies, uuidAttachedRow) else MediasPresents(emptySet(), emptySet())
+        fun present(m: MediaSuivi): Boolean {
+            val d = dejaLa ?: return false
+            val nom = nomFichierServeur(m.chemin)
+            return (nom.isNotEmpty() && nom in d.fichiers) || (m.titre.isBlank() && titreDe(m) in d.titres)
+        }
+        val aEnvoyer = medias.filterNot(::present)
         if (aEnvoyer.isEmpty()) return@withContext ResultatMediasMonitoring(true, null, mediaPaths)
         // Les fichiers déjà détenus par le serveur comptent comme transmis : c'est ce que
         // l'appelant persiste, et c'est vrai.
         val transmis = mutableListOf<String>()
-        transmis.addAll(mediaPaths.filterNot { it in aEnvoyer })
+        transmis.addAll(mediaPaths.filterNot { p -> aEnvoyer.any { it.chemin == p } })
         var premiereErreur: String? = null
-        for (mediaPath in aEnvoyer) {
-            val mimeHint = typeMime(cheminDepuisUri(mediaPath).orEmpty()) ?: "image/jpeg"
+        for (m in aEnvoyer) {
+            val (idTableLoc, errTable) = tablePour(m.schemaDotTable)
+            if (idTableLoc == null) {
+                if (premiereErreur == null) premiereErreur = errTable ?: "id_table_location introuvable pour ${m.schemaDotTable}"
+                continue
+            }
+            val mimeHint = typeMime(cheminDepuisUri(m.chemin).orEmpty()) ?: "image/jpeg"
+            val ancien = m.titre.isBlank()
             val (json, err) = uploaderMediaFile(
                 base = base, token = token, cookies = cookies,
-                mediaPath = mediaPath, author = author,
-                titre = titreMedia(titre, mediaPath),
+                mediaPath = m.chemin,
+                author = if (ancien) auteurParDefaut else m.auteur.trim(),
+                titre = titreDe(m),
                 idTableLocation = idTableLoc, idTypeMedia = idTypeMediaPour(typesMedia, mimeHint),
                 uuidAttachedRow = uuidAttachedRow,
+                description = if (ancien) DESCRIPTION_MEDIA_ANCIENNE else m.description.trim(),
             )
             // On MÉMORISE chaque fichier réellement transmis (audit 2026-09-14, R1-M3).
-            if (json != null) transmis.add(mediaPath) else if (premiereErreur == null) premiereErreur = err
+            if (json != null) transmis.add(m.chemin) else if (premiereErreur == null) premiereErreur = err
         }
         if (transmis.size == mediaPaths.size) {
             ResultatMediasMonitoring(true, null, transmis)
@@ -895,6 +970,7 @@ class GeoNatureUpload(
         idTableLocation: Long, idTypeMedia: Int?,
         /** Optionnel : rattache le média à un objet par son uuid (`uuid_attached_row`). */
         uuidAttachedRow: String? = null,
+        description: String = DESCRIPTION_MEDIA_ANCIENNE,
     ): Pair<JSONObject?, String?> {
         val chemin = cheminDepuisUri(mediaPath)
         if (chemin == null) {
@@ -927,7 +1003,7 @@ class GeoNatureUpload(
                             uuidAttachedRow?.takeIf { it.isNotEmpty() }?.let { append("uuid_attached_row", it) }
                             append("author", author)
                             append("title_fr", titre)
-                            append("description_fr", "Saisie GeoMys mobile")
+                            append("description_fr", description)
                             append("file", octets, Headers.build {
                                 append(HttpHeaders.ContentDisposition, "filename=\"${fichier.name}\"")
                                 append(HttpHeaders.ContentType, mime)
@@ -1070,6 +1146,31 @@ class GeoNatureUpload(
         private fun erreurMediaLocale(err: String?): Boolean =
             err != null && (err.startsWith("URI fichier invalide") || err.startsWith("Fichier inaccessible"))
 
+        /** Les altitudes min et max du MNT du serveur sous [geometry] (`POST /geo/altitude`, avec la
+         *  Feature, comme le web), null hors ligne ou en erreur. */
+        private suspend fun altitudesMntDe(
+            clients: ClientsGeoNature,
+            base: String,
+            token: String?,
+            cookies: String,
+            geometry: JSONObject,
+        ): Pair<Int?, Int?>? = try {
+            val feature = JSONObject().put("type", "Feature").put("geometry", geometry).put("properties", JSONObject())
+            val reponse = clients.postJson("$base/api/geo/altitude", feature.toString(), token, cookies, timeoutMs = 15_000)
+            if (reponse.status.value != 200) {
+                null
+            } else {
+                val alt = JSONObject(reponse.bodyAsText())
+                val min = alt.opt("altitude_min")?.toString()?.toDoubleOrNull()?.toInt()
+                val max = alt.opt("altitude_max")?.toString()?.toDoubleOrNull()?.toInt()
+                if (min == null && max == null) null else min to max
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+
         /** L'id_table_location d'une réponse `get_id_table_location` : entier nu, entre guillemets,
          *  ou JSON `{id_table_location}`. */
         private fun idTableLocationDepuis(texte: String): Long? =
@@ -1081,8 +1182,11 @@ class GeoNatureUpload(
             obs: Observation,
             nomenclatures: Map<String, Map<String, Int>>,
             mediasParCounting: List<List<JSONObject>> = emptyList(),
-            /** Champs additionnels à widget texte libre (envoyés en chaîne, cf. jsonDepuisMap). */
-            champsTexte: Set<String> = emptySet(),
+            /** Les champs additionnels du formulaire de l'occurrence et des dénombrements. */
+            champs: ChampsAdditionnelsEnvoi = ChampsAdditionnelsEnvoi(),
+            /** Le défaut du serveur de la technique d'observation (METH_OBS), pour une espèce dont la
+             *  caractérisation n'a pas été ouverte ; null : la base applique le sien. */
+            defautTechniqueObs: String? = null,
         ): JSONObject {
             // Dénombrement n° 0 — issu des champs à plat de l'Observation (mono-taxon ou 1er multi).
             val counting0 = buildCounting(
@@ -1095,7 +1199,7 @@ class GeoNatureUpload(
                 medias = mediasParCounting.getOrNull(0) ?: emptyList(),
                 additionalFields = obs.additionalFieldsCounting0,
                 nomenclatures = nomenclatures,
-                champsTexte = champsTexte,
+                champs = champs.denombrement,
             )
             val countings = JSONArray().put(counting0)
             // Dénombrements supplémentaires (mode multi-taxon).
@@ -1110,7 +1214,7 @@ class GeoNatureUpload(
                     medias = mediasParCounting.getOrNull(i + 1) ?: emptyList(),
                     additionalFields = d.additionalFields,
                     nomenclatures = nomenclatures,
-                    champsTexte = champsTexte,
+                    champs = champs.denombrement,
                 ))
             }
 
@@ -1123,10 +1227,11 @@ class GeoNatureUpload(
                 if (obs.notes.isNotEmpty()) put("comment", obs.notes)
                 put("cor_counting_occtax", countings)
                 // Champs de nomenclature de l'occurrence : pilotés par le registre unique. METH_OBS
-                // prend « 0 » par défaut (présence non qualifiée).
+                // vide prend le défaut du serveur, comme le formulaire web ; GeoMys-Android envoyait
+                // « Vu ».
                 val valeursOcc = mapOf(
                     "statutObs" to obs.statutObs,
-                    "techniqueObs" to (obs.techniqueObs ?: "0"),
+                    "techniqueObs" to (obs.techniqueObs ?: defautTechniqueObs.orEmpty()),
                     "etaBio" to obs.etaBio,
                     "comportement" to obs.comportement,
                     "statutBio" to obs.statutBio,
@@ -1148,9 +1253,7 @@ class GeoNatureUpload(
                 // Preuves (texte) pilotées par form_fields.
                 obs.champsOccExtra["digital_proof"]?.takeIf { it.isNotEmpty() }?.let { put("digital_proof", it) }
                 obs.champsOccExtra["non_digital_proof"]?.takeIf { it.isNotEmpty() }?.let { put("non_digital_proof", it) }
-                if (obs.additionalFieldsOccurrence.isNotEmpty()) {
-                    put("additional_fields", jsonDepuisMap(obs.additionalFieldsOccurrence, champsTexte))
-                }
+                put("additional_fields", ChampsAdditionnels.versJson(obs.additionalFieldsOccurrence, champs.occurrence))
             }
         }
 
@@ -1209,38 +1312,12 @@ class GeoNatureUpload(
             return anneau
         }
 
-        /** Noms des champs additionnels Occtax à widget TEXTE LIBRE (text, textarea, widget inconnu
-         *  rendu en texte) d'après le cache des définitions ([json] = `additionalFieldsOcctaxJson`) :
-         *  envoyés en CHAÎNE telle quelle, comme le client web — sans ça « 42 » partait en nombre et
-         *  « true » en booléen (audit 2026-08-27). Cache absent ou illisible → ensemble vide. */
-        internal fun champsAdditionnelsTexteLibre(json: String): Set<String> =
-            listeDepuisJson(AdditionalFieldDef.serializer(), json)
-                .filter { it.widget == WidgetType.TEXT || it.widget == WidgetType.TEXTAREA || it.widget == WidgetType.INCONNU }
-                .map { it.fieldName }.toSet()
-
-        /** Champs additionnels → JSON typé. [champsTexte] : champs à widget texte libre, laissés en
-         *  chaîne ; les autres sont typés par heuristique (nombre, booléen, tableau JSON d'une case
-         *  à cocher multiple). */
-        internal fun jsonDepuisMap(map: Map<String, String>, champsTexte: Set<String> = emptySet()): JSONObject = JSONObject().apply {
-            for ((k, v) in map) {
-                if (v.isEmpty()) continue
-                if (k in champsTexte) {
-                    put(k, v)
-                    continue
-                }
-                // Virgule décimale (claviers français) : « 12,5 » partait en chaîne (audit 2026-08-27).
-                val vNum = if (v.count { it == ',' } == 1 && !v.contains('.')) v.replace(',', '.') else v
-                when {
-                    v.equals("true", ignoreCase = true) -> put(k, true)
-                    v.equals("false", ignoreCase = true) -> put(k, false)
-                    v.toIntOrNull() != null -> put(k, v.toInt())
-                    vNum.toDoubleOrNull() != null -> put(k, vNum.toDouble())
-                    // Case à cocher multiple : tableau JSON (ex. ["1","3"]) → vrai JSONArray.
-                    v.startsWith("[") && v.endsWith("]") -> try { put(k, JSONArray(v)) } catch (_: Exception) { put(k, v) }
-                    else -> put(k, v)
-                }
-            }
-        }
+        /** Les champs additionnels du formulaire d'une occurrence et de ses dénombrements, pour le jeu
+         *  de données de son relevé. */
+        internal class ChampsAdditionnelsEnvoi(
+            val occurrence: List<AdditionalFieldDef> = emptyList(),
+            val denombrement: List<AdditionalFieldDef> = emptyList(),
+        )
 
         private fun buildCounting(
             nombreMin: Int,
@@ -1252,7 +1329,7 @@ class GeoNatureUpload(
             medias: List<JSONObject> = emptyList(),
             additionalFields: Map<String, String> = emptyMap(),
             nomenclatures: Map<String, Map<String, Int>>,
-            champsTexte: Set<String> = emptySet(),
+            champs: List<AdditionalFieldDef> = emptyList(),
         ): JSONObject = JSONObject().apply {
             put("count_min", nombreMin)
             put("count_max", nombreMax.coerceAtLeast(nombreMin))
@@ -1272,7 +1349,7 @@ class GeoNatureUpload(
                 medias.forEach { arr.put(it) }
                 put("medias", arr)
             }
-            if (additionalFields.isNotEmpty()) put("additional_fields", jsonDepuisMap(additionalFields, champsTexte))
+            put("additional_fields", ChampsAdditionnels.versJson(additionalFields, champs))
         }
 
         /** Normalise un libellé de nomenclature pour un appariement ROBUSTE entre instances : minuscule,
@@ -1321,6 +1398,17 @@ class GeoNatureUpload(
          *  de fichier local est déjà unique (horodaté à l'import). Il ne dépend PAS de la position
          *  dans la liste : un titre indexé « (1) », « (2) » se décalait dès qu'un fichier était
          *  sauté, rendant toute réconciliation impossible. */
+        /** La description qu'un média recevait d'office, avant les champs du formulaire média du web. */
+        internal const val DESCRIPTION_MEDIA_ANCIENNE = "Saisie GeoMys mobile"
+
+        /** Le nom d'un fichier local tel que le serveur le garde (`secure_filename` de werkzeug :
+         *  lettres, chiffres, `_`, `.` et `-` ASCII, les espaces en `_`). */
+        internal fun nomFichierServeur(mediaPath: String): String =
+            mediaPath.substringAfterLast('/').substringBefore('?')
+                .replace(' ', '_')
+                .filter { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' || it == '_' || it == '.' || it == '-' }
+                .trim('.', '_')
+
         internal fun titreMedia(titreBase: String, mediaPath: String): String {
             val nom = mediaPath.substringAfterLast('/').substringBefore('?').ifEmpty { "media" }
             return "$titreBase — $nom"

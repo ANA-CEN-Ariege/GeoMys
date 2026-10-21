@@ -27,6 +27,7 @@ import fr.ariegenature.geomys.store.io.FichierAtomique
 import kotlin.concurrent.Volatile
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
+import okio.ByteString.Companion.encodeUtf8
 import okio.FileSystem
 import okio.Path
 import okio.SYSTEM
@@ -128,6 +129,9 @@ class MonitoringCache(private val dir: Path, private val systeme: FileSystem = F
 
     // ─── Clés typées ──────────────────────────────────────────────────────────
     fun keyModules(): String = "modules.json"
+
+    /** Les droits de création de l'utilisateur sur les modules (cf. DroitsSuivis), lus à la synchro. */
+    fun keyDroits(): String = "droits_creation.json"
     fun keySchema(moduleCode: String): String = "schema_${safeKey(moduleCode)}.json"
     fun keyEnfants(moduleCode: String): String = "enfants_${safeKey(moduleCode)}.json"
     fun keyObjet(moduleCode: String, type: String, id: Int): String =
@@ -136,13 +140,25 @@ class MonitoringCache(private val dir: Path, private val systeme: FileSystem = F
      *  l'autocomplétion observateurs et la résolution id_role → nom complet en offline. */
     fun keyObservateurs(idListe: Int): String = "observateurs_$idListe.json"
 
-    /** Jeux de données actifs d'un protocole (`/api/meta/datasets?module_code=…`), mis en cache par
-     *  la synchro : id du jeu d'une visite envoyée, liste taxonomique d'une nouvelle saisie. */
-    fun keyDatasetsModule(moduleCode: String): String = "datasets_${safeKey(moduleCode)}.json"
-
     /** Cache local des OPTIONS d'un widget datalist/nomenclature de formulaire monitoring,
      *  indexé par son `apiUrl` (query params compris → clé unique par filtre). Peuplé au 1er
      *  fetch live ET au prefetch de synchro ; relu hors-ligne pour ne pas bloquer la saisie
      *  d'une nouvelle visite (liste déroulante vide). */
-    fun keyOptionsDatalist(apiUrl: String): String = "datalist_${safeKey(apiUrl)}.json"
+    fun keyOptionsDatalist(apiUrl: String): String {
+        val nom = safeKey(apiUrl)
+        if (nom.length <= LONGUEUR_MAX_ADRESSE) return "datalist_$nom.json"
+        // Une adresse trop longue pour un nom de fichier, limité à 255 octets sous Android et iOS :
+        // une nomenclature restreinte à beaucoup de codes (449 octets pour le « Code phénologique »
+        // de pt_ecoute_avifaune, sur le serveur de démonstration, le 21 octobre) ne s'écrivait pas,
+        // sans erreur visible, et sa liste restait vide. Son début, puis l'empreinte de l'adresse
+        // entière, qui sépare deux adresses au même début.
+        val empreinte = apiUrl.encodeUtf8().sha256().hex().take(16)
+        return "datalist_${nom.take(LONGUEUR_MAX_ADRESSE - empreinte.length - 1)}_$empreinte.json"
+    }
+
+    private companion object {
+        /** La partie adresse d'un nom de fichier : avec « datalist_ », « .json » et le plus long
+         *  suffixe d'écriture (« .corrupt », cf. FichierAtomique), le nom reste sous 255 octets. */
+        const val LONGUEUR_MAX_ADRESSE = 200
+    }
 }

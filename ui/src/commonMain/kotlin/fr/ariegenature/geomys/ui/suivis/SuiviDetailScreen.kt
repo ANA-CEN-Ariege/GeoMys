@@ -62,7 +62,7 @@ fun SuiviDetailScreen(
                             BoutonSuivi(ActionSuivi.FICHE, "Détails") { if (ligne.id > 0) onFiche(ligne) }
                             if (ligne.carte) BoutonSuivi(ActionSuivi.CARTE, "Voir sur carte") { if (ligne.id > 0) onCarte(ligne) }
                             if (ligne.saisieEnfant != null) {
-                                BoutonSuivi(ActionSuivi.NOUVELLE, ligne.libelleNouveau.orEmpty()) { if (ligne.id > 0) onNouvelle(ligne) }
+                                BoutonSuivi(ActionSuivi.NOUVELLE, ligne.libelleNouveau.orEmpty(), permis = ligne.nouvellePermise) { if (ligne.id > 0) onNouvelle(ligne) }
                             }
                         }
                     }

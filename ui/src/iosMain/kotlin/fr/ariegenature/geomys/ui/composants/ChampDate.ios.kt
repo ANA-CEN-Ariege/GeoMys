@@ -77,7 +77,9 @@ actual fun ChampDateHeure(millis: Long, heures: Boolean, onChange: (Long) -> Uni
         update = { selecteur ->
             selecteur.backgroundColor = fondIos.versUIColor()
             selecteur.datePickerMode = if (heures) UIDatePickerMode.UIDatePickerModeDateAndTime else UIDatePickerMode.UIDatePickerModeDate
-            selecteur.maximumDate = NSDate() // pas de date future
+            // Du 1ᵉʳ janvier 1735 à aujourd'hui, comme le pnx-date du web.
+            selecteur.minimumDate = NSDate.dateWithTimeIntervalSince1970(PREMIER_JOUR_WEB / 1000.0)
+            selecteur.maximumDate = NSDate()
             selecteur.setDate(NSDate.dateWithTimeIntervalSince1970(millis / 1000.0), animated = false)
             // Sans taille intrinsèque, le sélecteur rend la largeur proposée : il prend toute la largeur
             // offerte. À sa taille compressée, il passait au format court (« 28/05/2026 ») selon les jours.

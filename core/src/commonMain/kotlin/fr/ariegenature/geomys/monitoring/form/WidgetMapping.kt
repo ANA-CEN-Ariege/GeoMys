@@ -22,46 +22,40 @@ package fr.ariegenature.geomys.monitoring.form
 
 import fr.ariegenature.geomys.network.MonitoringApi
 
-/** Détection enrichie d'un champ taxonomie (parité isTaxonomyField de gn_mobile_monitoring) :
- *  au-delà du `type_widget`, on reconnaît un `type_util == taxonomy`, un champ nommé `cd_nom`, ou
- *  une api `taxref/allnamebylist/<id>`. */
+/** Un champ espèce : le widget `taxonomy` du web, ou une datalist de taxons (`type_util` taxonomy,
+ *  api `taxref/allnamebylist/<id>`), cherchée dans le cache TaxRef ; les valeurs restent les cd_nom
+ *  de la liste, comme sur le web. Un autre widget reste ce qu'il est, même nommé `cd_nom`. */
 private fun estChampTaxon(prop: MonitoringApi.MonitoringPropertySchema): Boolean {
-    if (prop.typeWidget.lowercase() in setOf("taxonomy", "taxon", "taxon-input", "taxonomy-input")) return true
-    if (prop.typeUtil?.lowercase() == "taxonomy") return true
-    if (prop.nom == "cd_nom") return true
-    if (prop.apiUrl?.contains("allnamebylist/") == true) return true
-    return false
+    val widget = prop.typeWidget.lowercase()
+    if (widget == "taxonomy") return true
+    return widget == "datalist" && (prop.typeUtil?.lowercase() == "taxonomy" || prop.apiUrl?.contains("allnamebylist/") == true)
 }
 
-/** true si le widget numérique accepte les décimaux : `number`/`float`/`decimal` — par opposition
- *  à `integer`, seul restreint aux entiers (parité web : <input type="number"> accepte les
- *  décimaux). Pilote le clavier ET la lecture de la valeur (cf. EditableField.decimal). */
-fun estWidgetDecimal(typeWidget: String): Boolean =
-    typeWidget.lowercase() in setOf("number", "float", "decimal")
+/** true si le widget numérique accepte les décimaux : `number`, l'`<input type="number">` du web,
+ *  qui les accepte. Pilote le clavier ET la lecture de la valeur (cf. EditableField.decimal). */
+fun estWidgetDecimal(typeWidget: String): Boolean = typeWidget.lowercase() == "number"
 
-/** Convertit un schéma de propriété gn_module_monitoring vers le [ViewType] du formulaire. Le
- *  `multiple` est lu dans le schéma — datalist, observers et dataset peuvent être simples (liste
- *  déroulante) ou multiples (dialogue à cases). Renvoie null pour les widgets non saisissables. */
+/** Convertit un schéma de propriété gn_module_monitoring vers le [ViewType] du formulaire, pour les
+ *  seuls widgets que rend le formulaire dynamique du web (dynamic-form.component.html) ; le choix
+ *  multiple est lu comme le composant web du widget ([MonitoringApi.MonitoringPropertySchema.multiple]).
+ *  Renvoie null pour les widgets que l'appli ne rend pas. */
 fun mapperViewType(prop: MonitoringApi.MonitoringPropertySchema): ViewType? {
     // Taxonomie détectée par plusieurs signaux (cf. estChampTaxon) — prioritaire, car un champ taxon
     // peut être déclaré en `datalist` côté serveur.
     if (estChampTaxon(prop)) return ViewType.TAXON
     return when (prop.typeWidget.lowercase()) {
-        "text", "string" -> ViewType.TEXT
-        "textarea", "observers-text" -> ViewType.TEXTAREA
-        "number", "integer", "float", "decimal" -> ViewType.NUMBER
+        "text" -> ViewType.TEXT
+        "textarea" -> ViewType.TEXTAREA
+        // `pnx-observers-text` : un champ d'une ligne.
+        "observers-text" -> ViewType.TEXT
+        "number" -> ViewType.NUMBER
         "date" -> ViewType.DATE
-        "datetime", "date-time", "timestamp" -> ViewType.DATETIME
         "time" -> ViewType.TIME
-        "select" ->
-            if (prop.multiple) ViewType.SELECT_MULTIPLE else ViewType.SELECT
-        // `radio` : choix unique en boutons radio (parité web GeoNature / gn_mobile_monitoring, qui
-        // rendent ce widget en boutons radio, pas en liste déroulante). Un `radio multiple` n'a pas
-        // de sens → on bascule sur le choix multiple à cases.
-        "radio" ->
-            if (prop.multiple) ViewType.SELECT_MULTIPLE else ViewType.RADIO
-        // Widget explicitement à choix multiple côté serveur, rendu en dialogue.
-        "multiselect", "multi_select", "select_multiple", "select-multiple" -> ViewType.SELECT_MULTIPLE
+        "select" -> ViewType.SELECT
+        // `radio` : choix unique en boutons radio, comme le web ; `bool_radio` (déprécié) : vrai pour
+        // le premier libellé, faux pour les autres.
+        "radio", "bool_radio" -> ViewType.RADIO
+        "multiselect" -> ViewType.SELECT_MULTIPLE
         // `checkbox` = GROUPE de cases à cocher à CHOIX MULTIPLE (une case par valeur de `values`,
         // plusieurs cochables), affiché directement comme sur le web GeoNature — et NON un booléen.
         // Le booléen unique, lui, c'est `bool_checkbox` / `bool_radio` (cf. GeoNature
@@ -70,44 +64,25 @@ fun mapperViewType(prop: MonitoringApi.MonitoringPropertySchema): ViewType? {
         // oui/non — ex. POPReptile « abondance » (« à vue » / « sur/sous plaques ») n'affichait
         // qu'une case au lieu de deux.
         "checkbox" -> ViewType.CHECKBOX_MULTIPLE
-        // Booléens (case unique vrai/faux) : différentes conventions serveur — toutes en case.
-        "bool_checkbox", "bool", "boolean" -> ViewType.CHECKBOX
+        // Booléen (case unique vrai/faux).
+        "bool_checkbox" -> ViewType.CHECKBOX
         // Widgets de type « liste alimentée par API » : tous unifiés sur SELECT(_MULTIPLE). Le
         // préchargement leur donne des `values` toutes prêtes depuis l'API déclarée dans le schéma
         // (api, keyLabel, keyValue, data_path).
         "datalist", "nomenclature", "observers", "dataset" ->
             if (prop.multiple) ViewType.SELECT_MULTIPLE else ViewType.SELECT
         // Taxonomie : déjà captée par estChampTaxon ci-dessus, conservée pour la lisibilité.
-        "taxonomy", "taxon", "taxon-input", "taxonomy-input" -> ViewType.TAXON
-        // `html` : bloc d'aide ou message injecté par le protocole web. Pas saisissable → on l'écarte
-        // explicitement (parité avec isHtmlWidget de gn_mobile_monitoring).
-        "html" -> null
+        "taxonomy" -> ViewType.TAXON
+        // `html` : texte du protocole, affiché comme sur le web, sans saisie.
+        "html" -> ViewType.HTML
         // `medias` : pièces jointes — envoi différé vers gn_commons après création de l'objet (cf.
         // OutboxEnvoi.envoyerUne).
         "medias" -> ViewType.MEDIA
-        // Non portés nativement, mais dégradés en TEXT pour ne pas perdre le champ — l'utilisateur
-        // saisira en clair plutôt que de voir le champ disparaître :
-        //   geometry → sélection sur carte (hors périmètre actuel des Suivis).
-        // NB : il n'existe pas de type_widget `min_max` en gn_module_monitoring — une fourchette est
-        // déclarée comme deux propriétés `integer`/`number` distinctes (ex. `altitude_min` +
-        // `altitude_max`), déjà rendues en NUMBER ci-dessus.
-        // Parité gn_mobile_monitoring : `default: return 'TextField'`.
-        else -> ViewType.TEXT
+        // Widget inconnu : le formulaire web n'affiche rien pour lui (aucun cas du générateur de
+        // formulaires) ; il est écarté et signalé.
+        else -> null
     }
 }
-
-/** Champs techniques toujours exclus du FORMULAIRE de saisie (parité globalFieldsToExclude de
- *  gn_mobile_monitoring). Ils restent dans le schéma (corps du POST) mais ne sont jamais
- *  éditables : identifiants, uuid, numérisateur, compteurs et dates calculés côté serveur. Filet
- *  de sécurité au cas où le serveur ne les marque pas tous `hidden:true` (certains protocoles
- *  redéclarent nb_visits/last_visit dans `specific` juste pour le libellé). */
-private val CHAMPS_EXCLUS_FORMULAIRE = setOf(
-    "uuid_base_visit", "uuid_observation", "uuid_base_site", "uuid_sites_group",
-    "uuid_module_complement",
-    "id_module", "id_digitiser", "id_base_site",
-    "nb_observations", "nb_visits", "last_visit",
-    "observers_txt",
-)
 
 /** Une liste d'[EditableField] construite à partir d'un object_type du schéma serveur, et les
  *  propriétés écartées (widgets non saisissables), pour pouvoir les signaler. */
@@ -116,41 +91,27 @@ data class FormulaireConstruction(
     val ignores: List<Pair<String, String>>, // (nom de propriété, type_widget)
 )
 
+/** L'ordre des champs du formulaire web (monitoring-form.component.ts, initObjFormDefiniton puis
+ *  sortObjFormDefinition) : l'ordre du schéma (specific, puis generic), les champs `medias` et
+ *  `types_site` renvoyés à la fin, puis ceux de `display_properties` en tête, dans leur ordre ; un
+ *  tri stable laisse les autres à leur place. */
+internal fun ordreDesChamps(noms: List<String>, displayProperties: List<String>): List<String> {
+    val enFin = setOf("medias", "types_site")
+    val parSchema = noms.filter { it !in enFin } + listOf("medias", "types_site").filter { it in noms }
+    val rang = displayProperties.withIndex().associate { (i, nom) -> nom to i }
+    return parSchema.sortedBy { rang[it] ?: Int.MAX_VALUE }
+}
+
 fun construireFormulaire(schemaObjet: MonitoringApi.MonitoringSchemaObjet): FormulaireConstruction {
-    // Parité version web monitoring (monitoring-form.component.ts → initObjFormDefiniton +
-    // sortObjFormDefinition) : on inclut TOUTES les propriétés du schéma fusionné generic+specific
-    // qui ont un type_widget exploitable, puis on trie par display_properties (display_form n'est
-    // PAS utilisé pour filtrer côté web). L'ancien filtrage par union(display_form,
-    // display_properties) masquait les champs canoniques comme `comments` et `id_dataset` que les
-    // protocoles laissent souvent hors de ces listes (ex. apollons). L'ordre final est :
-    // display_properties d'abord (dans l'ordre déclaré), puis les autres champs du schéma dans leur
-    // ordre serveur.
-    val displayProps = schemaObjet.displayProperties
-    val ordre = if (displayProps.isEmpty()) {
-        schemaObjet.properties.keys.toList()
-    } else {
-        val deja = LinkedHashSet<String>()
-        val resultat = mutableListOf<String>()
-        displayProps.forEach { if (it in schemaObjet.properties && deja.add(it)) resultat.add(it) }
-        schemaObjet.properties.keys.forEach { if (deja.add(it)) resultat.add(it) }
-        resultat
-    }
-    // Exclusions techniques + cas spécifique sites_group (id_inventor inexistant pour ce type).
-    var exclus = if (schemaObjet.type == "sites_group") {
-        CHAMPS_EXCLUS_FORMULAIRE + "id_inventor"
-    } else {
-        CHAMPS_EXCLUS_FORMULAIRE
-    }
-    // `nb_observations` n'est un compteur calculé QUE si l'objet a des observations-enfants
-    // (children_types non vide) : le serveur le remplit alors automatiquement. Quand l'objet n'a
-    // aucun enfant (ex. protocole Chevêches : la visite porte directement le nombre de contacts),
-    // c'est un vrai champ de saisie — comme sur le web. On le réintègre donc dans ce cas.
-    if (schemaObjet.childrenTypes.isEmpty()) exclus = exclus - "nb_observations"
+    // Comme le formulaire web : toutes les propriétés du schéma fusionné generic+specific qui ont un
+    // type_widget (le parseur écarte les autres), sauf celles masquées, dans l'ordre du web
+    // (display_form n'est PAS utilisé). Le champ du parent est retiré par l'appelant.
+    val ordre = ordreDesChamps(schemaObjet.properties.keys.toList(), schemaObjet.displayProperties)
     val fields = mutableListOf<EditableField>()
     val ignores = mutableListOf<Pair<String, String>>()
     ordre.forEach { nom ->
-        if (nom in exclus) return@forEach
         val prop = schemaObjet.properties[nom] ?: return@forEach
+        val widget = prop.typeWidget.lowercase()
         // Les propriétés `hidden:true` du schéma serveur restent dans le MonitoringSchemaObjet pour
         // le corps du POST (le serveur Marshmallow les attend) mais ne sont pas affichées.
         if (prop.hiddenBool) return@forEach
@@ -163,11 +124,29 @@ fun construireFormulaire(schemaObjet: MonitoringApi.MonitoringSchemaObjet): Form
             EditableField(
                 code = prop.nom,
                 viewType = viewType,
-                label = prop.label,
-                values = prop.valeurs.map { (v, l) -> PropertyValue(v, l) },
+                // `pnx-observers-text` porte son propre libellé, « Observateurs ».
+                label = if (widget == "observers-text") LIBELLE_OBSERVATEURS_TEXTE else prop.label,
+                values = if (prop.typeWidget.equals("bool_radio", ignoreCase = true)) {
+                    prop.valeurs.mapIndexed { i, (_, l) -> PropertyValue((i == 0).toString(), l, brut = i == 0) }
+                } else {
+                    prop.valeurs.map { (v, l) -> PropertyValue(v, l, brut = prop.valeursBrutes[v]) }
+                },
                 obligatoire = prop.obligatoire,
                 obligatoireExpr = prop.obligatoireExpr,
-                aide = prop.definition,
+                aide = prop.aide,
+                definition = prop.definition,
+                motif = prop.motif.takeIf { widget == "text" },
+                messageMotif = prop.messageMotif,
+                longueurMax = prop.longueurMax,
+                lignes = prop.lignes,
+                optionVide = when {
+                    viewType != ViewType.SELECT -> null
+                    widget == "select" -> "-".takeUnless { prop.sansOptionVide }
+                    widget == "datalist" -> "-- Aucun --".takeIf { prop.avecAucun && !prop.obligatoire }
+                    else -> null
+                },
+                effacable = viewType == ViewType.SELECT && widget in setOf("nomenclature", "observers", "dataset"),
+                selectSimple = viewType == ViewType.SELECT && widget == "select",
                 hiddenExpr = prop.hiddenExpr,
                 // Pour les widgets TAXON, l'id_list_taxonomy : d'abord celui porté par le champ
                 // lui-même (id_list / api allnamebylist), sinon celui déclaré au niveau de
@@ -187,12 +166,12 @@ fun construireFormulaire(schemaObjet: MonitoringApi.MonitoringSchemaObjet): Form
                 // l'envoi du fichier, après création de l'objet parent.
                 schemaDotTable = if (viewType == ViewType.MEDIA) prop.schemaDotTable else null,
                 decimal = viewType == ViewType.NUMBER && estWidgetDecimal(prop.typeWidget),
+                html = if (viewType == ViewType.HTML) prop.html.orEmpty() else null,
             )
         )
     }
-    // Les champs « Médias » sont toujours rejetés en fin de formulaire (l'ajout de photos vient après
-    // la saisie des données), quel que soit leur rang dans display_properties ou le schéma. partition
-    // conserve l'ordre relatif au sein de chaque groupe.
-    val (medias, autres) = fields.partition { it.viewType == ViewType.MEDIA }
-    return FormulaireConstruction(autres + medias, ignores)
+    return FormulaireConstruction(fields, ignores)
 }
+
+/** Le libellé d'un champ `observers-text` sur le web (la clé « Observers »). */
+const val LIBELLE_OBSERVATEURS_TEXTE = "Observateurs"

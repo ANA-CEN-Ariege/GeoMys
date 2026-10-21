@@ -370,7 +370,6 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
         }
     }
     LaunchedEffect(Unit) {
-        services.cachesSynchronises.armerRechargementSiRequis(services.config)
         val ouvrirParametres = when (ecranInitial) {
             "accueil", "mes-saisies", "detail-saisie", "saisie-multi", "saisie-suivante", "reprise-saisie", "releve-essai", "releve-nouveau",
             "caracterisation-essai", "denombrement-essai", "details-releve", "details-communs", "details-intercale",
@@ -378,7 +377,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             "nouvelle-visite", "nouvelle-visite-observateurs", "nouvelle-observation", "mes-visites", "carte-site", "carte-mares",
             "occhab-carte", "occhab-infos", "occhab-reprise", "occhab-edition", "occhab-station", "occhab-details", "occhab-habitat", "occhab-habitat-nouveau",
             "mes-stations", "explorer", "explorer-essai", "maps-manager", "maps-cartes", "maps-telechargement" -> false
-            "parametres" -> true
+            "parametres", "parametres-selections" -> true
             else -> !configurationComplete(services.config, services.taxRef)
         }
         if (ouvrirParametres) nav.navigate(RouteParametres)
@@ -505,6 +504,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 vm,
                 onFermer = { nav.popBackStack() },
                 onTaxonsListe = { id, nom -> nav.navigate(RouteTaxonsListe(id, nom)) },
+                defilerEnBas = ecranInitial == "parametres-selections",
             )
         }
         composable<RouteTaxonsListe> { entree ->
@@ -748,11 +748,12 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                     LaunchedEffect(Unit) { nav.popBackStack() }
                     return@composable
                 }
-                val vm = viewModel { CaracterisationViewModel(services, espece, comportementSeul = false) }
+                val vm = viewModel { CaracterisationViewModel(services, espece, comportementSeul = false, mono.saisie.idDatasetEffectif()) }
                 CaracterisationScreen(
                     vm,
                     sessionSaisie.session.typeSaisieLabel,
                     onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                    onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
                     onValide = { caracterisee ->
                         mono.appliquerCaracterisation(caracterisee)
                         nav.popBackStack()
@@ -766,11 +767,12 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 LaunchedEffect(Unit) { nav.popBackStack() }
                 return@composable
             }
-            val vm = viewModel { CaracterisationViewModel(services, espece, route.comportementSeul) }
+            val vm = viewModel { CaracterisationViewModel(services, espece, route.comportementSeul, releve.releve.idDatasetEffectif()) }
             CaracterisationScreen(
                 vm,
                 releve.typeSaisieLabel,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
                 onValide = { caracterisee ->
                     releve.releve.modifier(route.index) { caracterisee }
                     nav.popBackStack()
@@ -786,11 +788,12 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                     LaunchedEffect(Unit) { nav.popBackStack() }
                     return@composable
                 }
-                val vm = viewModel { DenombrementViewModel(services, espece) }
+                val vm = viewModel { DenombrementViewModel(services, espece, mono.saisie.idDatasetEffectif()) }
                 DenombrementScreen(
                     vm,
                     sessionSaisie.session.typeSaisieLabel,
                     onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                    onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
                     onValide = { liste ->
                         mono.appliquerDenombrements(liste)
                         nav.popBackStack()
@@ -804,11 +807,12 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 LaunchedEffect(Unit) { nav.popBackStack() }
                 return@composable
             }
-            val vm = viewModel { DenombrementViewModel(services, espece) }
+            val vm = viewModel { DenombrementViewModel(services, espece, releve.releve.idDatasetEffectif()) }
             DenombrementScreen(
                 vm,
                 releve.typeSaisieLabel,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
                 onValide = { liste ->
                     releve.releve.modifier(route.index) { it.avecDenombrements(liste) }
                     nav.popBackStack()
@@ -977,7 +981,10 @@ private fun EcranAccueil(
                 sessionSaisie.session.reinitialiser()
                 sessionSaisie.session.typeSaisieLabel = SaisieMono.LIBELLE
                 val config = services.config
-                val ecranReleve = ChampsAdditionnels.aDesChampsReleveRequisSansDefaut(config.additionalFieldsOcctaxJsonActif, config.idDataset.toIntOrNull())
+                val ecranReleve = ChampsAdditionnels.aDesChampsReleveRequisSansDefaut(
+                    config.additionalFieldsOcctaxJson,
+                    sessionSaisie.session.datasetNouveauReleve(config.idDatasetParDefaut),
+                )
                 nav.navigate(if (ecranReleve) RouteDetailsReleve(mono = true) else RouteSaisieMono())
             },
             monitoring = { nav.navigate(RouteSuivis) },

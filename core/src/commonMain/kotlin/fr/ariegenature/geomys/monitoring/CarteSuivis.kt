@@ -54,8 +54,9 @@ sealed interface ActionCarte {
         override val libelle = "Voir la fiche"
     }
 
-    /** La saisie de [childObjectType] sous l'objet (« Nouvelle visite »). */
-    data class NouvelleSaisie(val childObjectType: String, override val libelle: String) : ActionCarte
+    /** La saisie de [childObjectType] sous l'objet (« Nouvelle visite ») ; [permise] faux : sans le
+     *  droit de créer, comme le « + » grisé du web. */
+    data class NouvelleSaisie(val childObjectType: String, override val libelle: String, val permise: Boolean = true) : ActionCarte
 }
 
 /** La carte des géométries d'un objet de suivi ou d'un protocole. */
@@ -137,11 +138,12 @@ object CarteSuivis {
         objet: ObjetCarte,
         objetCourant: Boolean,
         schema: Map<String, MonitoringSchemaObjet>?,
+        peutCreer: (String) -> Boolean = { true },
         libelleNouveau: (String) -> String,
     ): List<ActionCarte> = buildList {
         if (!objetCourant) add(ActionCarte.Fiche)
         schema?.get(objet.type)?.childrenTypes?.firstOrNull { MonitoringSync.estTypeSaisie(it) }?.let { enfant ->
-            add(ActionCarte.NouvelleSaisie(enfant, libelleNouveau(enfant)))
+            add(ActionCarte.NouvelleSaisie(enfant, libelleNouveau(enfant), peutCreer(enfant)))
         }
     }
 

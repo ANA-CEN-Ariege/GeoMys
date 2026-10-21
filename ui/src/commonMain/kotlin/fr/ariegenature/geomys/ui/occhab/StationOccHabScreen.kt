@@ -23,7 +23,6 @@ package fr.ariegenature.geomys.ui.occhab
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -78,6 +77,7 @@ import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.ui.ressources.coche
 import fr.ariegenature.geomys.ui.ressources.ic_delete
 import fr.ariegenature.geomys.ui.ressources.ic_edit
+import fr.ariegenature.geomys.ui.occtax.BoutonDetailsIos
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import fr.ariegenature.geomys.ui.theme.FondGeoMys
 import fr.ariegenature.geomys.ui.theme.FormeContinue
@@ -112,7 +112,7 @@ fun StationOccHabScreen(vm: StationOccHabViewModel, onAccueil: () -> Unit, onHab
     }
     FondGeoMys {
         if (ios) ContenuIos(vm, onAccueil) else ContenuAndroid(vm, onAccueil)
-        DialogueDetailsStation(vm.details, vm::annulerDetails, vm::validerDetails)
+        EcranDetailsStation(vm.details, onAccueil, vm::annulerDetails, vm::validerDetails)
         AlerteEchecEcriture(vm.echecEcriture, vm::fermerEchecEcriture, StationOccHab.CONSIGNE_STATION)
     }
 }
@@ -153,10 +153,11 @@ private fun ContenuAndroid(vm: StationOccHabViewModel, onAccueil: () -> Unit) {
             Text(vm.jeuDeDonnees, fontSize = 13.sp, color = secondaire, modifier = Modifier.padding(top = 4.dp))
             Box(Modifier.padding(top = 12.dp).fillMaxWidth().height(1.dp).background(SURBRILLANCE))
             Text(StationOccHab.HABITATS, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp))
-            vm.habitats.forEach { h ->
+            vm.lignesHabitats().forEach { (h, ligne) ->
                 // La ligne n'est PAS cliquable : l'édition passe par le crayon, la suppression par la poubelle.
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(StationOccHab.libelleHabitat(h), fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Text(ligne.first, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    ligne.second?.let { Text(it, fontSize = 13.sp, color = secondaire, modifier = Modifier.padding(horizontal = 8.dp)) }
                     BoutonIcone(Res.drawable.ic_edit, CouleursGeoMys.primaire, "Modifier l'habitat", { vm.editerHabitat(h.id) }, cible = DpSize(36.dp, 36.dp))
                     BoutonIcone(Res.drawable.ic_delete, HOLO_ROUGE_FONCE, "Supprimer l'habitat", { vm.supprimerHabitat(h.id) }, cible = DpSize(36.dp, 36.dp))
                 }
@@ -177,26 +178,19 @@ private fun ContenuIos(vm: StationOccHabViewModel, onAccueil: () -> Unit) {
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(vm.titre, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
-                    BoutonIos(vm::ouvrirDetails, opaciteAppui = 0.6f) {
-                        Text(
-                            StationOccHab.DETAILS,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = CouleursGeoMys.jauneClair,
-                            modifier = Modifier
-                                .border(1.dp, CouleursGeoMys.jauneClair, FormeContinue(8.dp))
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
-                        )
-                    }
+                    // La pilule « Détails » du relevé OccTax (demande du 21 octobre : son contour plus
+                    // arrondi, au lieu des coins de 8 pt d'OccHabStationView).
+                    BoutonDetailsIos(vm::ouvrirDetails)
                 }
                 Text(vm.geometrie, fontSize = 13.sp, color = CouleursGeoMys.blanc70)
                 Text(vm.jeuDeDonnees, fontSize = 13.sp, color = CouleursGeoMys.blanc70)
                 Box(Modifier.fillMaxWidth().height(with(LocalDensity.current) { 1f.toDp() }).background(Color.White.copy(alpha = 0.15f)))
                 Text(StationOccHab.HABITATS, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 if (vm.habitats.isEmpty()) Text(StationOccHab.AUCUN_HABITAT, fontSize = 13.sp, color = CouleursGeoMys.blanc70)
-                vm.habitats.forEach { h ->
+                vm.lignesHabitats().forEach { (h, ligne) ->
                     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(StationOccHab.libelleHabitat(h), fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
+                        Text(ligne.first, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
+                        ligne.second?.let { Text(it, fontSize = 13.sp, color = CouleursGeoMys.blanc70) }
                         BoutonIos({ vm.editerHabitat(h.id) }, Modifier.size(40.dp), opaciteAppui = 0.6f) {
                             SymboleSf("pencil", 16f, listOf(CouleursGeoMys.jauneClair), graisse = GraisseSymbole.DEMI_GRASSE, description = "Modifier l'habitat")
                         }

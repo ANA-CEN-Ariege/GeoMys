@@ -34,8 +34,8 @@ import kotlin.test.assertTrue
 import okio.FileSystem
 import okio.SYSTEM
 
-/** Filtrage des valeurs de nomenclature par groupe taxonomique / regno (alimente les spinners
- *  de caractérisation/dénombrement) + valeurs par défaut serveur. */
+/** Filtrage des valeurs de nomenclature par le taxon (règne, group2, group3), celui du serveur
+ *  (alimente les listes de caractérisation et de dénombrement), et valeurs par défaut serveur. */
 class NomenclatureCacheTest {
 
     // Les objets d'Android deviennent des instances neuves par test, dans un dossier temporaire
@@ -56,29 +56,25 @@ class NomenclatureCacheTest {
         nomenclatures.setDefauts(emptyMap())
     }
 
-    private fun labels(groupes: Set<String>, regno: String) =
-        nomenclatures.filtrerPourGroupes("STATUT_BIO", groupes, regno).map { it.label }.toSet()
+    private fun labels(regne: String?, group2: String?, group3: String? = null) =
+        nomenclatures.filtrerPourTaxon("STATUT_BIO", GroupeTaxonomique(regne, group2, group3), filtresActifs = true).map { it.label }.toSet()
 
     @Test
-    fun valeur_sans_restriction_taxref_toujours_incluse() {
-        nomenclatures.setAll(mapOf("STATUT_BIO" to listOf(NomValeur(1, "Universel"))))
-        assertEquals(setOf("Universel"), labels(setOf("Oiseaux"), "Animalia"))
+    fun valeur_sans_ligne_taxonomique_exclue_quand_le_taxon_est_connu() {
+        // La jointure du serveur : une valeur sans ligne n'est jamais proposée pour un taxon.
+        nomenclatures.setAll(mapOf("STATUT_BIO" to listOf(NomValeur(1, "Sans ligne"))))
+        assertEquals(emptySet(), labels("Animalia", "Oiseaux"))
+        assertEquals(setOf("Sans ligne"), labels(null, null), "sans taxon, tout")
     }
 
     @Test
-    fun groupes_vides_renvoie_tout() {
-        nomenclatures.setAll(mapOf("STATUT_BIO" to listOf(
-            NomValeur(1, "A", listOf(TaxrefRestriction("Animalia", "Oiseaux"))),
-        )))
-        assertEquals(setOf("A"), labels(emptySet(), ""))
-    }
-
-    @Test
-    fun joker_regne_all_universel() {
+    fun la_ligne_doit_verifier_regne_et_groupes_a_la_fois() {
         nomenclatures.setAll(mapOf("STATUT_BIO" to listOf(
             NomValeur(1, "Joker", listOf(TaxrefRestriction("all", "Oiseaux"))),
         )))
-        assertEquals(setOf("Joker"), labels(setOf("Mammifères"), "Animalia"))
+        // Règne joker, mais groupe 2 « Oiseaux » : pas pour un mammifère (GeoMys-Android le proposait).
+        assertEquals(emptySet(), labels("Animalia", "Mammifères"))
+        assertEquals(setOf("Joker"), labels("Animalia", "Oiseaux"))
     }
 
     @Test
@@ -86,8 +82,8 @@ class NomenclatureCacheTest {
         nomenclatures.setAll(mapOf("STATUT_BIO" to listOf(
             NomValeur(1, "Anim", listOf(TaxrefRestriction("Animalia", "all"))),
         )))
-        assertTrue("Anim" in labels(setOf("Oiseaux"), "Animalia"))
-        assertFalse("Anim" in labels(setOf("Angiospermes"), "Plantae"), "autre regne exclu")
+        assertTrue("Anim" in labels("Animalia", "Oiseaux"))
+        assertFalse("Anim" in labels("Plantae", "Angiospermes"), "autre regne exclu")
     }
 
     @Test
@@ -96,7 +92,17 @@ class NomenclatureCacheTest {
             NomValeur(1, "Oiseau", listOf(TaxrefRestriction("Animalia", "Oiseaux"))),
             NomValeur(2, "Plante", listOf(TaxrefRestriction("Plantae", "Angiospermes"))),
         )))
-        assertEquals(setOf("Oiseau"), labels(setOf("oiseaux"), "Animalia"))
+        assertEquals(setOf("Oiseau"), labels("Animalia", "oiseaux"))
+    }
+
+    @Test
+    fun groupe_3() {
+        nomenclatures.setAll(mapOf("STATUT_BIO" to listOf(
+            NomValeur(1, "Gastéropode", listOf(TaxrefRestriction("Animalia", "Mollusques", "Gastéropodes"))),
+            NomValeur(2, "Mollusque", listOf(TaxrefRestriction("Animalia", "Mollusques"))),
+        )))
+        assertEquals(setOf("Gastéropode", "Mollusque"), labels("Animalia", "Mollusques", "Gastéropodes"))
+        assertEquals(setOf("Mollusque"), labels("Animalia", "Mollusques", "Bivalves"))
     }
 
     @Test

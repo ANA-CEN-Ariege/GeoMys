@@ -170,6 +170,7 @@ class TaxonSansCleTest {
         val config = GeoNatureConfig(MapSettings(), CoffreEnMemoire()).apply {
             urlServeur = serveur.base
             listesCacheJson = """[{"id":108,"nom":"Flore"}]"""
+            taxaListeId = "108"
             datasetsCacheJson = """[{"id":1,"nom":"JDD"}]"""
         }
         serveur.router(

@@ -50,8 +50,11 @@ class ReleveEnCoursTest {
 
     @Test
     fun un_nouveau_releve_enregistre_ses_especes_au_fil_de_l_eau() = runTest {
+        // Le jeu par défaut des Paramètres, choisi parmi les jeux proposés.
+        config.datasetsCacheJson = """[{"id":12,"nom":"JDD","moduleCodes":["OCCTAX"]}]"""
+        config.datasetsCreablesOcctax = setOf(12)
         config.idDataset = "12"
-        config.observateurDefautNom = "Alice"
+        config.nomUtilisateur = "MARTIN Alice"
         val session = session()
         val releve = ReleveEnCours(session, config, OuvertureReleve(geometrie = polygone), dernierTaxon = Taxon.PLANTE)
         assertEquals(Taxon.PLANTE, releve.taxonInitial)
@@ -61,7 +64,8 @@ class ReleveEnCoursTest {
         assertEquals(listOf("Merle noir", "Rougegorge familier"), obs.map { it.espece })
         assertEquals(setOf(releve.releveId), obs.map { it.releveId }.toSet())
         assertTrue(obs.all { it.geometryType == "Polygon" && it.latitude == 42.03 && it.longitude == 1.07 })
-        assertTrue(obs.all { it.determinateur == "Alice" && it.nombre == 1 })
+        // Déterminateur : le nom complet de l'utilisateur connecté, comme le web.
+        assertTrue(obs.all { it.determinateur == "MARTIN Alice" && it.nombre == 1 })
         // Jeu de données figé au premier enregistrement : le défaut de la config.
         assertTrue(obs.all { it.idDatasetReleve == 12 })
         // Les espèces gardent leur identité d'un enregistrement à l'autre.
@@ -181,18 +185,19 @@ class ReleveEnCoursTest {
         assertEquals(2_000L, session.detailsCommuns?.dateDebut)
     }
 
+    /** Les détails validés s'enregistrent aussitôt : sous GeoMys-Android, ils attendaient la
+     *  modification suivante du relevé, et un retour juste après les perdait. */
     @Test
-    fun les_details_du_releve_partent_avec_le_prochain_enregistrement() = runTest {
+    fun les_details_du_releve_sont_enregistres_des_leur_validation() = runTest {
         val session = session()
         val releve = ReleveEnCours(session, config, OuvertureReleve(geometrie = polygone), null)
         releve.ajouter(Taxon.OISEAU, "Merle noir", 4117)
-        releve.appliquerDetails(DetailsReleveResult(idDataset = 4, idsObservateurs = emptyList(), nomsObservateurs = emptyList(), additionnels = emptyMap(), comment = "haie", dateDebut = 1L, dateModifiee = true))
-        // Comme sous Android, le dialogue n'enregistre pas.
-        assertNull(session.observations.value.single().commentReleve)
+        releve.appliquerDetails(DetailsReleveResult(idDataset = 4, idsObservateurs = listOf(3), nomsObservateurs = listOf("Bob"), additionnels = emptyMap(), comment = "haie", dateDebut = 1L, dateModifiee = true))
+        val obs = session.observations.value.single()
+        assertEquals("haie", obs.commentReleve)
+        assertEquals(4, obs.idDatasetReleve)
+        assertEquals(listOf("Bob"), obs.observateursReleveNoms)
         assertTrue(session.saisieAPosteriori)
-        releve.synchroniser()
-        assertEquals("haie", session.observations.value.single().commentReleve)
-        assertEquals(4, session.observations.value.single().idDatasetReleve)
     }
 
     @Test
@@ -211,5 +216,18 @@ class ReleveEnCoursTest {
         assertEquals(5, retour.total)
         assertEquals(retour, retour.avecDenombrements(emptyList()))
         assertEquals(listOf(2, 3), retour.denombrements().map { it.nombreMin })
+    }
+
+    @Test
+    fun la_date_reste_a_choisir_quand_le_serveur_la_veut_vide() = runTest {
+        // `OCCTAX.DATE_FORM_WITH_TODAY` à faux (un serveur essayé le 21 octobre) : le relevé s'ouvre sur ses
+        // détails et ne se termine pas sans date.
+        val session = session()
+        assertFalse(ReleveEnCours(session, config, OuvertureReleve(geometrie = polygone), null).dateAChoisir(), "par défaut, la date du jour")
+        config.occtaxDateDuJour = false
+        val releve = ReleveEnCours(session, config, OuvertureReleve(geometrie = polygone), null)
+        assertTrue(releve.dateAChoisir())
+        releve.appliquerDetails(DetailsReleveResult(idDataset = 12, idsObservateurs = emptyList(), nomsObservateurs = emptyList(), additionnels = emptyMap(), dateDebut = 1_792_400_000_000L))
+        assertFalse(releve.dateAChoisir(), "posée par « Détails »")
     }
 }

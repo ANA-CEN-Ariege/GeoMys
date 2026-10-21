@@ -47,6 +47,7 @@ import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -56,6 +57,7 @@ import androidx.compose.ui.unit.sp
 import fr.ariegenature.geomys.store.ReglesSelectionOcctax
 import fr.ariegenature.geomys.ui.composants.BalayageRetourIosDesactive
 import fr.ariegenature.geomys.ui.composants.BandeauAvertissement
+import fr.ariegenature.geomys.ui.composants.BoutonAlerte
 import fr.ariegenature.geomys.ui.composants.BoutonContour
 import fr.ariegenature.geomys.ui.composants.BoutonPlein
 import fr.ariegenature.geomys.ui.composants.BoutonTexte
@@ -64,12 +66,14 @@ import fr.ariegenature.geomys.ui.composants.ChampAvecLibelleIos
 import fr.ariegenature.geomys.ui.composants.ChampMotDePasse
 import fr.ariegenature.geomys.ui.composants.ChampSelection
 import fr.ariegenature.geomys.ui.composants.ChampTexte
+import fr.ariegenature.geomys.ui.composants.DialogueConfirmation
 import fr.ariegenature.geomys.ui.composants.DialogueListe
 import fr.ariegenature.geomys.ui.composants.IndicateurActivite
 import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.RetourSysteme
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.TypeChamp
+import fr.ariegenature.geomys.ui.composants.barreChampObligatoire
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.composants.margesAndroid
 import fr.ariegenature.geomys.ui.composants.rememberDemandeNotifications
@@ -78,6 +82,7 @@ import fr.ariegenature.geomys.ui.ressources.coche
 import fr.ariegenature.geomys.ui.ressources.coche_orange
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import fr.ariegenature.geomys.ui.theme.FondGeoMys
+import kotlinx.coroutines.flow.first
 import org.jetbrains.compose.resources.painterResource
 
 /** Couleur d'un message de l'écran selon l'allure : `Couleurs.kt` et le thème Material sous
@@ -99,9 +104,9 @@ private fun couleur(nature: NatureMessage): Color {
 
 /** Écran Paramètres : connexion au serveur, chargement des données, sélections par défaut. On ne
  *  le quitte que par la coche (ou Retour sous Android), et seulement une fois la configuration
- *  complète. */
+ *  complète. [defilerEnBas] : ouvert au bas de l'écran (essais, `-ecran parametres-selections`). */
 @Composable
-fun ParametresScreen(vm: ParametresViewModel, onFermer: () -> Unit, onTaxonsListe: (Int, String) -> Unit) {
+fun ParametresScreen(vm: ParametresViewModel, onFermer: () -> Unit, onTaxonsListe: (Int, String) -> Unit, defilerEnBas: Boolean = false) {
     val toasts = LocalToasts.current
     val demanderNotifications = rememberDemandeNotifications()
     LaunchedEffect(vm) {
@@ -116,12 +121,20 @@ fun ParametresScreen(vm: ParametresViewModel, onFermer: () -> Unit, onTaxonsList
     val ios = estIos
     if (ios) BalayageRetourIosDesactive() else RetourSysteme(onRetour = vm::retour)
 
+    val defilement = rememberScrollState()
+    if (defilerEnBas) {
+        LaunchedEffect(vm.sectionDonneesVisible) {
+            snapshotFlow { defilement.maxValue }.first { it in 1 until Int.MAX_VALUE }
+            defilement.scrollTo(defilement.maxValue)
+        }
+    }
+
     FondGeoMys {
         Column(
             Modifier
                 .fillMaxSize()
                 .then(if (ios) Modifier.safeDrawingPadding() else Modifier.windowInsetsPadding(WindowInsets.safeDrawing))
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(defilement)
                 .padding(16.dp),
             verticalArrangement = if (ios) Arrangement.spacedBy(16.dp) else Arrangement.Top,
         ) {
@@ -157,6 +170,14 @@ fun ParametresScreen(vm: ParametresViewModel, onFermer: () -> Unit, onTaxonsList
                 if (ligne != null) onTaxonsListe(ligne.idListe, ligne.nomListe)
             },
             onFermer = vm::fermerTaxonsParListes,
+        )
+        DialogueConfirmation(
+            vm.confirmationVidage,
+            "Vider le cache ?",
+            "Les référentiels et les données chargées depuis GeoNature seront effacés : sans réseau, aucune " +
+                "saisie ne sera possible avant un nouveau chargement. Les saisies en attente d'envoi sont conservées.",
+            listOf(BoutonAlerte("Annuler", annulation = true), BoutonAlerte("Vider le cache", destructif = true, action = vm::viderLeCache)),
+            vm::fermerVidage,
         )
     }
 }
@@ -249,7 +270,7 @@ private fun ColumnScope.SectionChargement(vm: ParametresViewModel) {
             Spacer(Modifier.weight(1f))
             BoutonContour("Détails", vm::montrerTaxonsParListes, Modifier.width(140.dp), actif = compteurs?.detailsActif == true)
         }
-        BoutonTexte("Vider le cache", CouleursGeoMys.holoRougeFonce, vm::viderLeCache, actif = compteurs?.viderActif == true)
+        BoutonTexte("Vider le cache", CouleursGeoMys.holoRougeFonce, vm::demanderVidage, actif = compteurs?.viderActif == true)
     } else {
         Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
             for ((libelle, valeur) in lignes) LigneCompteur(libelle, valeur)
@@ -260,7 +281,7 @@ private fun ColumnScope.SectionChargement(vm: ParametresViewModel) {
             )
             vm.versionTaxRef?.let { Text(it.texte, fontSize = 12.sp, color = couleur(it.nature), modifier = Modifier.padding(top = 4.dp)) }
             BoutonTexte(
-                "Vider le cache", CouleursGeoMys.holoRougeFonce, vm::viderLeCache,
+                "Vider le cache", CouleursGeoMys.holoRougeFonce, vm::demanderVidage,
                 Modifier.padding(top = 4.dp), actif = compteurs?.viderActif == true,
             )
         }
@@ -280,13 +301,21 @@ private fun LigneCompteur(libelle: String, valeur: Int?) {
 
 // ─── Boîte 3 : sélections par défaut ───
 
+/** Les trois sélections par défaut, obligatoires : jeu de données et liste sans valeur au départ,
+ *  à choisir, observateur = l'utilisateur connecté. Vides, elles portent la barre rouge. */
 @Composable
 private fun ColumnScope.SectionSelections(vm: ParametresViewModel) {
     val ios = estIos
     // Jeu de données.
     if (ios && vm.datasets.isEmpty() && vm.tousDatasets.isNotEmpty()) {
         ChampAvecLibelleIos("Jeu de données") {
-            Text("Aucun proposé (droits CRUVED)", fontSize = 14.sp, color = CouleursGeoMys.blanc70)
+            // Rien à choisir : la configuration reste incomplète, la barre le dit.
+            Text(
+                "Aucun proposé (droits CRUVED)",
+                fontSize = 14.sp,
+                color = CouleursGeoMys.blanc70,
+                modifier = Modifier.barreChampObligatoire(vm.jddManquant),
+            )
         }
     } else if (vm.tousDatasets.isNotEmpty() || !ios) {
         ChampSelectionOuTitre(
@@ -296,17 +325,17 @@ private fun ColumnScope.SectionSelections(vm: ParametresViewModel) {
         ) {
             ChampSelection(
                 "Jeu de données", "Rechercher un jeu de données", vm.datasets, ReglesSelectionOcctax::libelle,
-                vm.datasetChoisi, vm::choisirDataset, margeHautAndroid = 12.dp, viderAuToucher = true,
+                vm.datasetChoisi, vm::choisirDataset, margeHautAndroid = 12.dp, viderAuToucher = true, barre = vm.jddManquant,
             )
         }
     }
     // Liste de taxons : un jeu de données peut imposer la sienne.
     val listes = vm.listes
-    val seule = listes.listes.firstOrNull()
-    if (ios && listes.imposee && seule != null) {
+    val imposee = listes.listes.firstOrNull()?.takeIf { listes.imposee }
+    if (ios && imposee != null) {
         ChampAvecLibelleIos("Listes") {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(ReglesSelectionOcctax.libelle(seule), fontSize = 15.sp, color = Color.White)
+                Text(ReglesSelectionOcctax.libelle(imposee), fontSize = 15.sp, color = Color.White)
                 Text("Liste imposée par le jeu de données", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CouleursGeoMys.vert)
             }
         }
@@ -314,10 +343,11 @@ private fun ColumnScope.SectionSelections(vm: ParametresViewModel) {
         ChampSelectionOuTitre(visible = listes.listes.isNotEmpty(), titre = "Listes", margeHaut = 20) {
             ChampSelection(
                 "Listes", "Rechercher une liste", listes.listes, ReglesSelectionOcctax::libelle,
-                vm.listeChoisie, vm::choisirListe, margeHautAndroid = 20.dp, actif = !listes.imposee,
+                imposee ?: vm.listeChoisie, vm::choisirListe, margeHautAndroid = 20.dp, actif = imposee == null,
+                barre = vm.listeManquante,
             )
         }
-        if (listes.imposee && !ios) {
+        if (imposee != null && !ios) {
             Text(
                 "Liste imposée par le jeu de données",
                 fontSize = 12.sp,
@@ -340,12 +370,13 @@ private fun ColumnScope.SectionSelections(vm: ParametresViewModel) {
             modifier = Modifier.fillMaxWidth().margesAndroid(haut = 6.dp),
         )
     }
-    // Observateur par défaut.
+    // Observateur par défaut : l'utilisateur connecté, sauf autre choix.
     if (vm.observateurs.isNotEmpty() || !ios) {
         ChampSelectionOuTitre(visible = vm.observateurs.isNotEmpty(), titre = "Observateur par défaut", margeHaut = 20) {
             ChampSelection(
                 "Observateur par défaut", "Rechercher un observateur", vm.observateurs, { it.nomComplet },
                 vm.observateurChoisi, vm::choisirObservateur, margeHautAndroid = 20.dp, viderAuToucher = true,
+                barre = vm.observateurManquant,
             )
         }
     }

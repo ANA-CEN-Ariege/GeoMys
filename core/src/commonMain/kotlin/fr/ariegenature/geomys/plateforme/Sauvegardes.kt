@@ -25,3 +25,7 @@ import okio.Path
  *  l'attribut « exclu de la sauvegarde ». Pour les caches retéléchargeables (TaxRef, Suivis…),
  *  qui gonfleraient la sauvegarde sans rien protéger. */
 expect fun exclureDesSauvegardes(dossier: Path)
+
+/** Rend [dossier] aux sauvegardes de l'appareil : l'inverse de [exclureDesSauvegardes], sous iOS
+ *  seulement. */
+expect fun rendreAuxSauvegardes(dossier: Path)

@@ -20,3 +20,5 @@ captures
 keystore.properties
 *.jks
 *.keystore
+# Audits : fichiers locaux, jamais versionnés (dépôt public), comme dans GeoMys-Android.
+AUDIT-*.md

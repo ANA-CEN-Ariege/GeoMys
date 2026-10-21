@@ -140,21 +140,23 @@ class CompatibiliteServeurTest {
     }
 
     @Test
-    fun vieux_serveur_sans_endpoint_config_reste_un_succes_avec_note() = runTest {
-        router(configServeur = null)  // 404 — endpoint absent des vieilles versions / proxy filtrant
+    fun vieux_serveur_sans_endpoint_config_est_refuse() = runTest {
+        // 404 : endpoint absent avant la 2.12 (21 octobre : plus de bénéfice du doute).
+        router(configServeur = null)
         val (ok, msg) = auth.testerConnexion(config)
-        assertTrue(ok, "l'absence de version ne doit pas faire échouer le test (bénéfice du doute)")
-        assertTrue(msg.contains("non détectée"), "une note doit signaler la version non détectée : $msg")
+        assertFalse(ok, "une version illisible fait échouer le test")
+        assertEquals(VERSION_INTROUVABLE, msg)
         assertEquals("", config.versionGeoNatureServeur)
-        assertTrue(config.serveurCompatible, "bénéfice du doute : la config reste utilisable")
+        assertFalse(config.serveurCompatible)
+        assertFalse(config.connexionConfiguree)
     }
 
     @Test
-    fun config_html_ou_cle_inconnue_ne_casse_pas_le_test_de_connexion() = runTest {
+    fun config_sans_version_est_refusee_sans_planter() = runTest {
         router(configServeur = """{"autre_cle":"valeur"}""")
         val (ok, msg) = auth.testerConnexion(config)
-        assertTrue(ok)
-        assertFalse(msg.contains("GeoNature v2"))
+        assertFalse(ok)
+        assertEquals(VERSION_INTROUVABLE, msg)
     }
 
     // Version minimale supportée

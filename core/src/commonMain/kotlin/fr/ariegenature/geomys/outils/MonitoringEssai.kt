@@ -25,6 +25,7 @@
 package fr.ariegenature.geomys.outils
 
 import fr.ariegenature.geomys.ServicesGeoNature
+import fr.ariegenature.geomys.model.MediaSuivi
 import fr.ariegenature.geomys.model.SaisieEnAttente
 import fr.ariegenature.geomys.util.maintenantMillis
 
@@ -43,6 +44,9 @@ suspend fun ServicesGeoNature.ajouterMonitoringEssai() {
     cache.setJson(cache.keyEnfants("chiro_gites"), """{"children":{"site":[]}}""")
     cache.setJson(cache.keyObservateurs(1), OBSERVATEURS)
     cache.setJson(cache.keyOptionsDatalist("meta/datasets?module_code=stom_ariege&active=true"), JEUX_STOM)
+    // Les droits de création (`/api/gn_commons/modules`) : visites et observations du STOM, mais pas
+    // celles des mares, dont le « + » est grisé comme sur le web.
+    monitoring.enregistrerDroits(DROITS)
     // La liste taxonomique du protocole STOM (id_list_taxonomy 100) : les oiseaux du référentiel
     // d'essai du lot 6 (`action=taxref-essai`, à lancer AVANT : il vide le cache).
     taxRef.ajouterListesParCdNom(OISEAUX_ESSAI.associateWith { listOf(LISTE_STOM) })
@@ -61,11 +65,23 @@ suspend fun ServicesGeoNature.ajouterMonitoringEssai() {
             dateLocale = maintenantMillis() - 3_600_000L,
             // Enregistrée sans sa température de fin : « à compléter ».
             champsManquants = listOf("Température de fin (°C)"),
+            // Une photo sans titre : le formulaire média du web l'exige.
+            mediaPathsLocal = listOf(PHOTO_ESSAI),
+            mediaSchemaDotTable = "gn_monitoring.t_base_visits",
+            mediasSuivis = listOf(MediaSuivi(PHOTO_ESSAI, champ = "medias", schemaDotTable = "gn_monitoring.t_base_visits")),
         ),
     )
 }
 
 private const val VISITE_EN_ATTENTE = "essai-visite-col-de-port"
+
+private const val PHOTO_ESSAI = "file:///essai/col-de-port.jpg"
+
+private val DROITS = """
+[{"module_code":"stom_ariege","cruved":{"C":0,"R":3},"objects":[{"code_object":"MONITORINGS_VISITES","cruved":{"C":3,"R":3}}]},
+ {"module_code":"mares_ana","cruved":{"C":0,"R":3},"objects":[{"code_object":"MONITORINGS_VISITES","cruved":{"C":0,"R":3}}]},
+ {"module_code":"chiro_gites","cruved":{"C":0,"R":1}}]
+""".trimIndent()
 
 private const val LISTE_STOM = 100
 
@@ -111,7 +127,7 @@ private val SCHEMA_STOM = """
   },
   "visit":{
     "label":"Visite","label_list":"Visites","genre":"F","id_field_name":"id_base_visit","uuid_field_name":"uuid_base_visit",
-    "parent_types":["site"],"children_types":["observation"],
+    "parent_types":["site"],"children_types":["observation"],"chained":true,
     "display_properties":["visit_date_min","heure_debut","meteo","vent","comments"],
     "display_list":["visit_date_min","meteo"],
     "sorts":[{"prop":"visit_date_min","dir":"desc"}],
@@ -128,12 +144,13 @@ private val SCHEMA_STOM = """
       "temperature_fin":{"type_widget":"number","attribut_label":"Température de fin (°C)","required":true,
         "definition":"Relevée à la fin des dix minutes d'écoute."},
       "meteo":{"type_widget":"select","attribut_label":"Météo","values":["Beau","Nuageux","Pluie"]},
-      "vent":{"type_widget":"radio","attribut_label":"Vent","values":["Nul","Faible","Fort"]}
+      "vent":{"type_widget":"radio","attribut_label":"Vent","values":["Nul","Faible","Fort"]},
+      "medias":{"type_widget":"medias","attribut_label":"Photos","schema_dot_table":"gn_monitoring.t_base_visits"}
     }
   },
   "observation":{
     "label":"Observation","label_list":"Observations","genre":"F","id_field_name":"id_observation",
-    "uuid_field_name":"uuid_observation","parent_types":["visit"],
+    "uuid_field_name":"uuid_observation","parent_types":["visit"],"chained":true,"keep":["distance"],"redirect_to_parent":true,
     "display_properties":["cd_nom","count","distance","comments"],
     "display_list":["cd_nom","count"],
     "generic":{

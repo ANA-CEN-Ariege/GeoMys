@@ -24,6 +24,8 @@
 package fr.ariegenature.geomys.network
 
 import fr.ariegenature.geomys.model.Sortie
+import fr.ariegenature.geomys.plateforme.ExecutionLongue
+import fr.ariegenature.geomys.plateforme.proteger
 import fr.ariegenature.geomys.store.GeoNatureConfig
 import fr.ariegenature.geomys.store.SortieStore
 import kotlin.coroutines.cancellation.CancellationException
@@ -82,7 +84,12 @@ private const val AVERT_PERSISTANCE =
         "créerait des doublons."
 
 /** L'envoi d'une saisie OCCTAX et la tenue du store, partagés par tous les écrans d'envoi. */
-class EnvoiSortie(private val upload: GeoNatureUpload, private val sortieStore: SortieStore) {
+class EnvoiSortie(
+    private val upload: GeoNatureUpload,
+    private val sortieStore: SortieStore,
+    /** Garde l'envoi de la mise en veille (tâche d'arrière-plan sous iOS). */
+    private val executionLongue: ExecutionLongue? = null,
+) {
 
     internal val envoisNonPersistes = EnvoisNonPersistes()
     private val verrous = VerrousEnvoiSortie()
@@ -101,7 +108,9 @@ class EnvoiSortie(private val upload: GeoNatureUpload, private val sortieStore: 
     suspend fun envoyerSortieVersGeoNature(
         sortie: Sortie,
         config: GeoNatureConfig,
-    ): ResultatEnvoiSortie = withContext(NonCancellable) {
+    ): ResultatEnvoiSortie = executionLongue.proteger("Envoi OccTax") { envoyerSansVeille(sortie, config) }
+
+    private suspend fun envoyerSansVeille(sortie: Sortie, config: GeoNatureConfig): ResultatEnvoiSortie = withContext(NonCancellable) {
         val verrou = verrous.pour(sortie.id)
         if (!verrou.tryLock()) {
             return@withContext ResultatEnvoiSortie(

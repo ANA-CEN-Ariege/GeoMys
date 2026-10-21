@@ -26,6 +26,8 @@ package fr.ariegenature.geomys.network
 import fr.ariegenature.geomys.journal.Journal
 import fr.ariegenature.geomys.json.JSONArray
 import fr.ariegenature.geomys.json.JSONObject
+import fr.ariegenature.geomys.monitoring.DroitsModule
+import fr.ariegenature.geomys.monitoring.DroitsSuivis
 import fr.ariegenature.geomys.network.http.ClientsGeoNature
 import fr.ariegenature.geomys.network.http.get
 import fr.ariegenature.geomys.store.GeoNatureConfig
@@ -62,13 +64,12 @@ data class MonitoringModule(
      *  2 = données de son organisme, 3 = toutes les données. */
     val cruved: Map<String, Int>? = null,
 ) {
-    /** True si l'utilisateur a au moins UN droit > 0 sur ce module (parité
-     *  `_hasModulePermissions` de gn_mobile_monitoring). Sert à masquer les modules sur lesquels
-     *  l'utilisateur n'a rien — typiquement filtrage de la liste des protocoles. Quand le bloc
-     *  CRUVED est absent (vieux serveur, cache antérieur au filtrage), on considère le module
-     *  visible : c'est le comportement historique de l'app, qu'on ne casse pas en silence. */
-    val aAuMoinsUnDroit: Boolean
-        get() = cruved == null || cruved.values.any { it > 0 }
+    /** True si l'utilisateur peut lire ce module (`R` > 0), la condition de la liste des
+     *  protocoles du web (`modules.component.ts` : `cruved.R >= 1`). Quand le bloc CRUVED est
+     *  absent (vieux serveur, cache antérieur au filtrage), on considère le module visible : c'est
+     *  le comportement historique de l'app, qu'on ne casse pas en silence. */
+    val lisible: Boolean
+        get() = cruved == null || (cruved["R"] ?: 0) > 0
 }
 
 /** Chargement et cache de la liste des modules (protocoles) de gn_module_monitoring :
@@ -91,6 +92,30 @@ class MonitoringModules(
      *  [MonitoringApi.invaliderCaches] quand l'URL/login/mdp serveur changent. */
     internal fun invaliderCacheMemoire() {
         dernierChargement = emptyList()
+        droitsLus = false
+    }
+
+    /** Les droits de création lus à la dernière synchro ([DroitsSuivis]), relus du cache une fois ;
+     *  null : jamais lus. */
+    @Volatile private var droits: Map<String, DroitsModule>? = null
+    @Volatile private var droitsLus = false
+
+    /** Garde les droits de création de [modulesJson], la réponse de `/api/gn_commons/modules`. */
+    fun enregistrerDroits(modulesJson: String) {
+        val lus = DroitsSuivis.lire(modulesJson)
+        cache.setJson(cache.keyDroits(), DroitsSuivis.versJson(lus))
+        droits = lus
+        droitsLus = true
+    }
+
+    /** Le « + » d'un objet de [type] du protocole [moduleCode] est-il permis, comme le web ? Voir
+     *  [DroitsSuivis.peutCreer] ; sans droits lus, oui. */
+    fun peutCreer(config: GeoNatureConfig, moduleCode: String, type: String): Boolean {
+        if (!droitsLus) {
+            droits = cache.getJson(cache.keyDroits())?.let { json -> try { DroitsSuivis.depuisJson(json) } catch (_: Exception) { null } }
+            droitsLus = true
+        }
+        return DroitsSuivis.peutCreer(droits, DroitsSuivis.niveaux(config.niveauxPermissionSuivisJson), moduleCode, type)
     }
 
     fun moduleParCode(moduleCode: String): MonitoringModule? =
@@ -163,8 +188,8 @@ class MonitoringModules(
      *  visites » à des utilisateurs pourtant habilités. Occtax/OccHab s'appuient sur un autre
      *  signal (cruved de gn_commons/modules, lui fiable) et conservent donc leur gating.
      *
-     *  [moduleCode] conservé pour l'API (et un éventuel gating futur basé sur le bon signal :
-     *  cruved par type d'objet, absent de la liste des modules). */
+     *  [moduleCode] conservé pour l'API. Le « + » d'ajout, lui, suit le bon signal, le droit par
+     *  type d'objet de `gn_commons/modules`, comme le web : [peutCreer]. */
     @Suppress("UNUSED_PARAMETER")
     fun moduleAutoriseCreation(moduleCode: String): Boolean = true
 
@@ -256,21 +281,21 @@ class MonitoringModules(
         // signifie "pas dans le menu web GeoNature" et non "désactivé". Ne pas filtrer
         // dessus sinon on cache tous les protocoles légitimes.
         //
-        // Filtrage CRUVED : on n'expose à l'utilisateur que les modules sur lesquels il a
-        // au moins UN droit > 0 (parité gn_mobile_monitoring). Le serveur renvoie déjà le
-        // bloc personnalisé par utilisateur dans la réponse — il suffit de l'appliquer.
-        // Les modules avec `cruved` absent (vieux serveurs, ou cache antérieur à cette
-        // version) sont préservés via [MonitoringModule.aAuMoinsUnDroit] pour ne pas
-        // disparaître silencieusement.
+        // Filtrage CRUVED : on n'expose à l'utilisateur que les modules qu'il peut lire, comme
+        // la liste des protocoles du web (`cruved.R >= 1`, demande du 21 octobre). Le serveur
+        // renvoie déjà le bloc personnalisé par utilisateur dans la réponse — il suffit de
+        // l'appliquer. Les modules avec `cruved` absent (vieux serveurs, ou cache antérieur à
+        // cette version) sont préservés via [MonitoringModule.lisible] pour ne pas disparaître
+        // silencieusement.
         val total = parsed.size
-        val filtres = parsed.filter { (m, _) -> m.aAuMoinsUnDroit }
+        val filtres = parsed.filter { (m, _) -> m.lisible }
         if (filtres.size < total) {
             Journal.i(
                 "MonitoringApi",
                 // Pas de login dans le message : les logs de prod ne doivent pas exposer
                 // d'identifiant utilisateur.
                 "chargerModules : ${total - filtres.size} module(s) masqué(s) par CRUVED " +
-                    "(droits nuls pour l'utilisateur), ${filtres.size} conservé(s)",
+                    "(pas de droit de lecture), ${filtres.size} conservé(s)",
             )
         }
         // Réécrit le cache disque avec uniquement les items accessibles, dans le même

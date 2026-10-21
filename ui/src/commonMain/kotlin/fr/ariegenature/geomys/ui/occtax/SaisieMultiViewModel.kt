@@ -255,8 +255,8 @@ class SaisieMultiViewModel(
         modePositionnement = false
         sommets = emptyList()
         val ecranReleve = ChampsAdditionnels.aDesChampsReleveRequisSansDefaut(
-            config.additionalFieldsOcctaxJsonActif,
-            config.idDataset.toIntOrNull(),
+            config.additionalFieldsOcctaxJson,
+            session.datasetNouveauReleve(config.idDatasetParDefaut),
         )
         _evenements.trySend(EvenementSaisieMulti.OuvrirReleve(geometrie, null, null, ecranReleve))
     }
@@ -304,8 +304,9 @@ class SaisieMultiViewModel(
 
     /** « i » : les détails communs déjà réglés, sinon les défauts de la configuration. */
     fun ouvrirDetailsCommuns() {
-        detailsCommuns = EtatDetailsReleve(DetailsReleveFormulaire.communs(session.detailsCommuns, config), services.nomenclatures, viewModelScope) { terme ->
-            services.habitats.rechercher(terme)
+        detailsCommuns = EtatDetailsReleve(DetailsReleveFormulaire.communs(session.detailsCommuns, config), services.nomenclatures, viewModelScope, services.taxRef) { terme ->
+            // Restreinte à `OCCTAX.CD_TYPO_HABITAT`, comme le web.
+            services.habitats.rechercher(terme, cdTypo = services.config.occtaxTypologieHabitat.takeIf { it > 0 })
         }
     }
 

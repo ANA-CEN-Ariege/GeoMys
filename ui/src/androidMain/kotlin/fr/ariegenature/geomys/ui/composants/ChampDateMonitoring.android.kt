@@ -23,8 +23,11 @@ import android.app.TimePickerDialog
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -32,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -50,7 +54,17 @@ actual fun ChampDateMonitoring(
     initiale: SelectionDateHeure,
     onChoix: (SelectionDateHeure) -> Unit,
     modifier: Modifier,
+    onEffacer: (() -> Unit)?,
 ) {
+    if (affichage != null && onEffacer != null) {
+        // Le « ✕ » rouge sans contour de la date de fin de « Détails du relevé ».
+        Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            ChampDateMonitoring(mode, affichage, initiale, onChoix, Modifier.weight(1f), null)
+            Spacer(Modifier.width(8.dp))
+            CaseDate("✕", couleur = MaterialTheme.colorScheme.error, contour = false, description = "Effacer", onClick = onEffacer)
+        }
+        return
+    }
     val contexte = LocalContext.current
     val depart by rememberUpdatedState(initiale)
     val rappel by rememberUpdatedState(onChoix)
@@ -71,11 +85,15 @@ actual fun ChampDateMonitoring(
                 when (mode) {
                     ModeDateHeure.HEURE -> choisirHeure(d)
                     // Le mois du sélecteur va de 0 à 11.
+                    // Du 1ᵉʳ janvier 1735 à aujourd'hui, comme la date du web.
                     ModeDateHeure.DATE -> DatePickerDialog(
                         contexte,
                         { _, a, m, j -> rappel(d.copy(annee = a, mois = m + 1, jour = j)) },
                         d.annee, d.mois - 1, d.jour,
-                    ).show()
+                    ).apply {
+                        datePicker.minDate = PREMIER_JOUR_WEB
+                        datePicker.maxDate = System.currentTimeMillis()
+                    }.show()
                     ModeDateHeure.DATE_HEURE -> DatePickerDialog(
                         contexte,
                         { _, a, m, j -> choisirHeure(d.copy(annee = a, mois = m + 1, jour = j)) },

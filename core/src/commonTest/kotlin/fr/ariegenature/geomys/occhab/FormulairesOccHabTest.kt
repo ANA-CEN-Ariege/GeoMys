@@ -73,21 +73,36 @@ class FormulairesOccHabTest {
                 ),
             )
         }
-        assertEquals(listOf(12 to "Prairies (12)", 15 to "Tourbières (15)"), DetailsStation.datasets(config))
-        config.datasetsCreablesOcchab = setOf(15)
-        assertEquals(listOf(15 to "Tourbières (15)"), DetailsStation.datasets(config))
+        // Comme le web : actifs, rattachés à OCCHAB et créables, nommés sans leur numéro ; sans liste
+        // des créables, aucun.
+        assertEquals(emptyList(), DetailsStation.datasets(config))
+        config.datasetsCreablesOcchab = setOf(12, 13, 14, 15)
+        assertEquals(listOf(12 to "Prairies"), DetailsStation.datasets(config))
+        assertEquals("Archives", DetailsStation.nomJeuInactif(config, 14), "jeu inactif d'une station : lecture seule")
+        assertNull(DetailsStation.nomJeuInactif(config, 12))
     }
 
     @Test
     fun champs_requis_dans_l_ordre_du_web() {
         val c = config()
         assertEquals("Choisissez un jeu de données", DetailsStation.champManquant(saisies(idDataset = null), c))
-        assertEquals("Choisissez au moins un observateur", DetailsStation.champManquant(saisies(observateurs = emptyList()), c))
+        assertEquals("Choisissez un observateur", DetailsStation.champManquant(saisies(observateurs = emptyList()), c))
         assertEquals("Choisissez la nature de l'objet géographique", DetailsStation.champManquant(saisies(nature = null), c))
-        assertNull(DetailsStation.champManquant(saisies(natureVisible = false, nature = null), c), "champ masqué : pas bloquant")
+        // Masquée sans valeur (pas de défaut du serveur) : requise quand même, comme sur le web.
+        assertEquals("Choisissez la nature de l'objet géographique", DetailsStation.champManquant(saisies(natureVisible = false, nature = null), c))
+        assertEquals("Choisissez une date de début", DetailsStation.champManquant(saisies().copy(dateMin = null), c), "date masquée : sans date du jour")
         assertNull(DetailsStation.champManquant(saisies(), c))
-        assertEquals("Altitude min supérieure à l'altitude max", DetailsStation.altitudesIncoherentes("900", " 800 "))
+        // Observateurs en texte libre (`OCCHAB.OBSERVER_AS_TXT`) : le texte est requis, pas la liste.
+        assertEquals("Saisissez les observateurs", DetailsStation.champManquant(saisies(observateurs = emptyList()).copy(observateursTexte = "  "), c))
+        assertNull(DetailsStation.champManquant(saisies(observateurs = emptyList()).copy(observateursTexte = "Alice"), c))
+        assertEquals("L'altitude max ne peut être inférieure à l'altitude min", DetailsStation.altitudesIncoherentes("900", " 800 "))
         assertNull(DetailsStation.altitudesIncoherentes("800", ""))
+        assertNull(DetailsStation.altitudesIncoherentes("800", "0"), "0 ne compte pas, comme dans le minMaxValidator du web")
+        assertEquals("L'altitude max ne peut être inférieure à l'altitude min", DetailsStation.altitudesIncoherentes("-5", "-10"))
+        // dateValidator du web : la fin ne précède pas le début.
+        assertEquals("La date de début ne peut pas être postérieure à la date de fin", DetailsStation.datesIncoherentes(2_000L, 1_000L))
+        assertNull(DetailsStation.datesIncoherentes(1_000L, 1_000L))
+        assertNull(DetailsStation.datesIncoherentes(null, 1_000L))
     }
 
     @Test
@@ -112,9 +127,17 @@ class FormulairesOccHabTest {
         }
         DetailsStation.appliquer(
             session,
-            saisies().copy(altitudeMin = "810", altitudeMax = null, surface = "", commentaire = "  revu  ", anaEval = { "{\"enjeu\":\"fort\"}" }),
+            saisies().copy(
+                altitudeMin = "810", altitudeMax = null, surface = "", commentaire = "  revu  ", anaEval = { "{\"enjeu\":\"fort\"}" },
+                profondeurMin = "2", profondeurMax = null, expositionVisible = true, exposition = 31, typeSolVisible = false, typeSol = null,
+            ),
             demarrage = false,
         )
+        assertEquals(31, session.details.idNomExposition)
+        assertEquals(31, session.stationAEnregistrer().idNomExposition, "part avec la station")
+        assertEquals(2, session.details.profondeurMin)
+        assertEquals(2, session.stationAEnregistrer().profondeurMin, "part avec la station")
+        assertNull(session.details.profondeurMax, "masquée : la valeur (vide) de la station")
         assertEquals(810, session.station.altitudeMin)
         assertEquals(850, session.station.altitudeMax, "champ masqué : valeur de la station")
         assertNull(session.station.surface, "champ vidé : effacé")
@@ -127,20 +150,64 @@ class FormulairesOccHabTest {
 
     @Test
     fun le_releve_precedent_reprend_tout_sauf_les_dates_et_le_commentaire() {
-        val config = config().apply {
-            observateurDefautId = "3"
-            observateurDefautNom = "DUPONT Alice"
-        }
+        val config = config().apply { idRoleUtilisateur = 3 }
         val vierge = detailsSessionParDefaut(config, aujourdhui = 86_400_000L)
-        assertEquals(listOf(3), vierge.observateursIds)
-        assertEquals(listOf("DUPONT Alice"), vierge.observateursNoms)
+        assertEquals(emptyList(), vierge.observateursIds, "le web ne pose aucun observateur")
         assertEquals(86_400_000L, vierge.dateMin)
-        DetailsStation.memoriser(config, OccHabDetailsSession(idDataset = 12, comment = "propre au relevé", dateMin = 5L))
+        config.datasetsCreablesOcchab = setOf(12)
+        config.datasetsOcchabCacheJson = listeVersJson(GeoNatureDataset.serializer(), listOf(GeoNatureDataset(12, "Prairies", moduleCodes = listOf("OCCHAB"))))
+        DetailsStation.memoriser(
+            config,
+            OccHabDetailsSession(idDataset = 12, comment = "propre au relevé", dateMin = 5L, idNomTypeSol = 40, idNomExposition = 31, profondeurMin = 2),
+        )
         val relu = detailsSessionParDefaut(config, aujourdhui = 172_800_000L)
         assertEquals(12, relu.idDataset)
         assertNull(relu.comment)
         assertEquals(172_800_000L, relu.dateMin)
         assertEquals(172_800_000L, relu.dateMax)
+        assertEquals(40, relu.idNomTypeSol)
+        assertNull(relu.idNomExposition, "propre à une station")
+        assertNull(relu.profondeurMin, "propre à une station")
+        // Un jeu qui n'est plus proposé (archivé, plus créable) n'est pas repris.
+        config.datasetsCreablesOcchab = setOf(15)
+        assertNull(detailsSessionParDefaut(config, aujourdhui = 172_800_000L).idDataset)
+    }
+
+    @Test
+    fun defauts_du_serveur_et_observateurs_en_texte() {
+        val config = config().apply {
+            idRoleUtilisateur = 3
+            occhabDefautsNomencJson = """{"TYPE_SOL":40,"DETERMINATION_TYP_HAB":50,"TECHNIQUE_COLLECT_HAB":60,"HAB_INTERET_COM":70,"ABONDANCE_HAB":80}"""
+        }
+        assertEquals(40, detailsSessionParDefaut(config).idNomTypeSol)
+        // Habitat : le web ne pré-remplit que le type de détermination et la technique de collecte.
+        assertEquals(50, HabitatOccHab.valeurInitiale(null, HabitatOccHab.TYPE_DETERMINATION.type, nouveau = true, config))
+        assertEquals(60, HabitatOccHab.valeurInitiale(null, HabitatOccHab.TECHNIQUE.type, nouveau = true, config))
+        assertNull(HabitatOccHab.valeurInitiale(null, HabitatOccHab.INTERET.type, nouveau = true, config))
+        assertNull(HabitatOccHab.valeurInitiale(null, HabitatOccHab.ABONDANCE.type, nouveau = true, config))
+        // Une date masquée n'a pas de date du jour.
+        config.occhabFormConfigJson = """{"date_max": false}"""
+        assertNull(detailsSessionParDefaut(config).dateMax)
+    }
+
+    @Test
+    fun une_valeur_absente_de_la_liste_en_cache_est_gardee_tant_qu_on_n_y_touche_pas() {
+        // Une liste avec l'entrée vide du web (intérêt communautaire, abondance), libellés label_fr.
+        val liste = ListeNomenclatureOccHab(listOf(NomValeur(31, "Nord", labelFr = "Nord (fr)"), NomValeur(32, "Sud")), avecEntreeVide = true)
+        assertEquals(listOf("", "Nord (fr)", "Sud"), liste.libelles)
+        // 99 n'est pas dans la liste en cache : affichée vide, elle reste.
+        assertEquals(0, liste.position(99))
+        assertEquals(99, liste.retenue(99, 0))
+        // Choisie par l'utilisateur : la valeur de la liste, ou vide.
+        assertEquals(32, liste.retenue(99, 2))
+        assertNull(liste.retenue(31, 0), "entrée vide choisie : vidée")
+        assertEquals(31, liste.retenue(31, liste.position(31)))
+        // Sans entrée vide (les autres listes du web) : rien d'affiché pour une valeur vide.
+        val sans = ListeNomenclatureOccHab(listOf(NomValeur(31, "Nord"), NomValeur(32, "Sud")))
+        assertEquals(listOf("Nord", "Sud"), sans.libelles)
+        assertEquals(-1, sans.position(null))
+        assertNull(sans.retenue(null, -1))
+        assertEquals(32, sans.retenue(null, 1))
     }
 
     // ─── Habitat ───
@@ -151,21 +218,27 @@ class FormulairesOccHabTest {
         assertTrue(HabitatOccHab.techniqueEstAutre(10, techniques))
         assertFalse(HabitatOccHab.techniqueEstAutre(1, techniques))
         assertFalse(HabitatOccHab.techniqueEstAutre(10, listOf(NomValeur(10, "Autre, préciser"))), "cd inconnu : règle inactive")
-        assertFalse(HabitatOccHab.peutValider(null, techniqueVisible = false, technique = null, precisionRequise = false, precision = null))
-        assertFalse(HabitatOccHab.peutValider(7, techniqueVisible = true, technique = null, precisionRequise = false, precision = null))
-        assertFalse(HabitatOccHab.peutValider(7, techniqueVisible = true, technique = 10, precisionRequise = true, precision = "  "))
-        assertTrue(HabitatOccHab.peutValider(7, techniqueVisible = true, technique = 10, precisionRequise = true, precision = "drone"))
-        assertEquals("Choisissez une technique de collecte", HabitatOccHab.manque(null, true, null, false, null))
-        assertEquals("Choisissez un habitat dans la liste HABREF", HabitatOccHab.manque(0, false, null, false, null))
-        assertEquals("Précision technique *", HabitatOccHab.libellePrecision(true))
+        assertFalse(HabitatOccHab.peutValider(null, technique = 1, precisionRequise = false, precision = null))
+        // Technique requise, affichée ou masquée (masquée, elle garde son défaut ; sans lui, bloquée).
+        assertFalse(HabitatOccHab.peutValider(7, technique = null, precisionRequise = false, precision = null))
+        assertFalse(HabitatOccHab.peutValider(7, technique = 10, precisionRequise = true, precision = "  "))
+        assertFalse(HabitatOccHab.peutValider(7, technique = 10, precisionRequise = true, precision = null), "précision masquée : bloquée")
+        assertTrue(HabitatOccHab.peutValider(7, technique = 10, precisionRequise = true, precision = "drone"))
+        assertEquals("Choisissez une technique de collecte", HabitatOccHab.manque(null, null, false, null))
+        assertEquals("Choisissez un habitat dans la liste HABREF", HabitatOccHab.manque(0, 1, false, null))
+        assertEquals("Veuillez fournir des précisions concernant la technique de collecte", HabitatOccHab.manque(7, 10, true, ""))
     }
 
     @Test
     fun habitat_retenu_nom_cite_conserve_et_champs_masques_preserves() {
         val existant = OccHabHabitat(cdHab = 7, habitatLabel = "Pelouses", nomCite = "Pelouse sèche (web)", determiner = "Moi", recouvrement = 40.0)
-        fun s(cd: Int, determinateur: String?, recouvrement: String?) = SaisiesHabitat(cd, " Pelouses ", determinateur, null, recouvrement, null, null, 1, null)
+        fun s(cd: Int, determinateur: String?, recouvrement: String?, choisi: Boolean = true) =
+            SaisiesHabitat(cd, " Pelouses ", determinateur, null, recouvrement, null, null, 1, null, choisiDansLaListe = choisi)
+        val intact = HabitatOccHab.habitat(existant, s(7, determinateur = "Moi", recouvrement = "40", choisi = false))
+        assertEquals("Pelouse sèche (web)", intact.nomCite, "habitat non rechoisi : nom cité conservé")
+        assertEquals("Pelouses", intact.habitatLabel)
         val meme = HabitatOccHab.habitat(existant, s(7, determinateur = "", recouvrement = "12,5"))
-        assertEquals("Pelouse sèche (web)", meme.nomCite, "même habitat HABREF : nom cité conservé")
+        assertEquals("Pelouses", meme.nomCite, "rechoisi dans la liste : le nom cité devient son libellé, comme le web")
         assertNull(meme.determiner, "champ visible vidé : effacé")
         assertEquals(12.5, meme.recouvrement, "virgule décimale acceptée")
         val change = HabitatOccHab.habitat(existant, s(8, determinateur = null, recouvrement = null))

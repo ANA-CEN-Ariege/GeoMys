@@ -27,9 +27,11 @@ package fr.ariegenature.geomys.monitoring
 import fr.ariegenature.geomys.network.MonitoringApi.LabelResolver
 import fr.ariegenature.geomys.network.MonitoringApi.MonitoringEnfant
 import fr.ariegenature.geomys.network.MonitoringApi.MonitoringObjet
+import fr.ariegenature.geomys.network.MonitoringApi.MonitoringPropertySchema
 import fr.ariegenature.geomys.network.MonitoringApi.MonitoringSchemaObjet
 import fr.ariegenature.geomys.network.MonitoringObjets
 import fr.ariegenature.geomys.network.MonitoringSync
+import fr.ariegenature.geomys.plateforme.comparateurFrancais
 import fr.ariegenature.geomys.util.DateAffichage
 
 /** L'affichage des objets d'un protocole de suivi, piloté par son schéma. */
@@ -62,23 +64,31 @@ object AffichageSuivis {
     fun labelTypeParDefaut(type: String): String =
         type.replace('_', ' ').replaceFirstChar { it.uppercase() }
 
-    /** Libellé d'un object_type en tête de liste (« Sites ») : schéma serveur en priorité
-     *  (label_list, puis label), sinon fallback générique (`labelPour` du détail). */
-    fun libelleListe(type: String, schema: Map<String, MonitoringSchemaObjet>?): String =
-        schema?.get(type)?.let { s -> (s.labelList ?: s.label)?.takeIf { it.isNotEmpty() } }
-            ?: labelTypeParDefaut(type)
+    /** Libellé d'un object_type en tête de liste (« Sites ») : son `label_list`, sinon son `label`
+     *  suivi d'un « s », comme le web (`initTemplate` de monitoring-object-base) ; sans schéma, le
+     *  repli générique (`labelPour` du détail). */
+    fun libelleListe(type: String, schema: Map<String, MonitoringSchemaObjet>?): String {
+        val s = schema?.get(type)
+        s?.labelList?.takeIf { it.isNotEmpty() }?.let { return it }
+        s?.label?.takeIf { it.isNotEmpty() }?.let { return "${it}s" }
+        return labelTypeParDefaut(type)
+    }
 
     /** Libellé d'un objet sous son nom, dans sa fiche (« Site ») : label, puis label_list. */
     fun libelleType(type: String, schemaCe: MonitoringSchemaObjet?): String =
         schemaCe?.label ?: schemaCe?.labelList ?: labelTypeParDefaut(type)
 
-    /** Sélectionne les object_types à afficher dans la liste principale et dans le résumé.
-     *  Filtre par `parent_type` : un type est macro s'il déclare le module comme parent.
-     *  Si l'API renvoie à plat des types avec parent commun (cas observé : sites_group + site
-     *  d'un protocole STOM-like), on garde uniquement les "racines" et on masque les enfants
-     *  qui apparaîtront via drill-down sur leur parent. */
+    /** Sélectionne les object_types à afficher dans la liste principale et dans le résumé. Comme le
+     *  web (`sites-groups.resolver.ts`) : une liste par type enfant du module (les clés de
+     *  `tree.module`, que le serveur expose en `children_types` du module), même quand ses objets ont
+     *  aussi un autre parent — les sites d'un protocole à groupes de sites, dont ceux sans groupe.
+     *  Sans cette déclaration, filtre par `parent_type` : un type est macro s'il déclare le module
+     *  comme parent ; à défaut, on garde uniquement les "racines" et on masque les enfants qui
+     *  apparaîtront via drill-down sur leur parent. */
     fun typesAfficherEnListe(typesPresents: List<String>, schema: Map<String, MonitoringSchemaObjet>?): List<String> {
         if (schema == null) return typesPresents
+        val duModule = schema["module"]?.childrenTypes.orEmpty()
+        typesPresents.filter { it in duModule }.takeIf { it.isNotEmpty() }?.let { return it }
         // Préférence : tout type qui déclare le module comme parent.
         val typesMacro = typesPresents.filter { schema[it]?.parentType == "module" }
         if (typesMacro.isNotEmpty()) return typesMacro
@@ -95,42 +105,97 @@ object AffichageSuivis {
     fun resume(types: List<String>, schema: Map<String, MonitoringSchemaObjet>?, comptes: Map<String, Int>): String =
         types.joinToString("  ·  ") { type -> "${libelleListe(type, schema)} : ${comptes[type] ?: 0}" }
 
-    /** Le nom de chaque enfant re-dérivé du `nameField` du schéma, quand il est renseigné. */
-    fun renommer(liste: List<MonitoringEnfant>, schemaType: MonitoringSchemaObjet?): List<MonitoringEnfant> {
+    /** Le nom de chaque enfant re-dérivé du `nameField` du schéma, quand il est renseigné : sa valeur
+     *  telle que le web l'affiche en titre (`description`, propriété résolue) — date en jj/mm/aaaa,
+     *  identifiant traduit par [resolver]. */
+    fun renommer(
+        liste: List<MonitoringEnfant>,
+        schemaType: MonitoringSchemaObjet?,
+        resolver: LabelResolver = LabelResolver(),
+    ): List<MonitoringEnfant> {
         val nf = schemaType?.nameField ?: return liste
+        val prop = schemaType.properties[nf]
         return liste.map { e ->
             val nomSchema = e.proprietes[nf]
-            if (!nomSchema.isNullOrEmpty()) e.copy(nom = nomSchema) else e
+            if (!nomSchema.isNullOrEmpty()) e.copy(nom = valeurAffichee(prop, nomSchema, resolver)) else e
         }
     }
 
-    /** Les enfants du détail d'un protocole : renommés par le `nameField`, puis triés par nom. Les
-     *  `sorts` du schéma sont volontairement ignorés : les protocoles l'utilisent surtout pour
-     *  ordonner par id (peu lisible côté utilisateur). */
+    /** Les enfants du détail d'un protocole : renommés par le `nameField`, puis triés comme les listes
+     *  du web, sur le premier critère des `sorts` de leur type (décision de l'utilisateur du
+     *  21 octobre : « comme le web ») ; voir [trierCommeLeServeur]. */
     fun enfantsDuProtocole(
         enfants: Map<String, List<MonitoringEnfant>>,
         schema: Map<String, MonitoringSchemaObjet>?,
+        resolver: LabelResolver = LabelResolver(),
     ): Map<String, List<MonitoringEnfant>> =
-        enfants.mapValues { (type, liste) -> MonitoringObjets.trierEnfants(renommer(liste, schema?.get(type)), emptyList()) }
+        enfants.mapValues { (type, liste) ->
+            val schemaType = schema?.get(type)
+            trierCommeLeServeur(renommer(liste, schemaType, resolver), schemaType?.sorts?.firstOrNull())
+        }
+
+    /** [liste] triée sur [critere] (propriété, `asc` ou `desc`) comme le serveur trie les listes du
+     *  web (`sites-groups.resolver.ts` lui passe `sorts[0]`) : les nombres par valeur, le reste à la
+     *  française ; une valeur absente vient en tête d'un tri décroissant et en fin d'un tri croissant,
+     *  comme sous PostgreSQL (un site jamais visité en tête d'un tri sur `last_visit desc`). Sans
+     *  critère, ou quand aucune ligne ne porte la propriété (le serveur n'envoie d'un enfant que les
+     *  champs de sa `display_list`), le tri par nom. */
+    fun trierCommeLeServeur(liste: List<MonitoringEnfant>, critere: Pair<String, String>?): List<MonitoringEnfant> {
+        val parNom = compareBy(comparateurFrancais()) { e: MonitoringEnfant -> e.nom }
+        val (prop, sens) = critere ?: return liste.sortedWith(parNom)
+        if (liste.none { it.proprietes.containsKey(prop) }) return liste.sortedWith(parNom)
+        val decroissant = sens == "desc"
+        val francais = comparateurFrancais()
+        val parCritere = Comparator<MonitoringEnfant> { a, b ->
+            val va = a.proprietes[prop]
+            val vb = b.proprietes[prop]
+            when {
+                va == null && vb == null -> 0
+                va == null -> if (decroissant) -1 else 1
+                vb == null -> if (decroissant) 1 else -1
+                else -> {
+                    val na = va.toDoubleOrNull()
+                    val nb = vb.toDoubleOrNull()
+                    val r = if (na != null && nb != null) na.compareTo(nb) else francais.compare(va, vb)
+                    if (decroissant) -r else r
+                }
+            }
+        }
+        return liste.sortedWith(parCritere.then(parNom))
+    }
 
     /** Construit le sous-titre d'une ligne enfant depuis `schema.display_list` (sans le
-     *  nameField, déjà en titre). Formate les dates ISO, résout les IDs en labels via le
-     *  resolver, ignore les valeurs vides ou null. */
+     *  nameField, déjà en titre), chaque valeur telle que le web l'affiche ([valeurAffichee] ; une
+     *  liste, ses valeurs jointes par « , »). Ignore les valeurs vides ou null. */
     fun sousTitrePourEnfant(e: MonitoringEnfant, schemaType: MonitoringSchemaObjet?, resolver: LabelResolver): String {
         val displayList = schemaType?.displayList.orEmpty()
         if (displayList.isEmpty()) return ""
         val nameField = schemaType?.nameField
         return displayList
             .filter { it != nameField }
-            .mapNotNull { k ->
-                val v = e.proprietes[k]?.takeIf { it.isNotEmpty() && it != "null" } ?: return@mapNotNull null
-                // Résolution ID → label si la propriété a un type_util géré.
-                val prop = schemaType?.properties?.get(k)
-                if (prop != null) resolver.resoudre(prop, v)?.let { return@mapNotNull it }
-                DateAffichage.isoVersFr(v)
-            }
+            .mapNotNull { k -> valeurDe(e.proprietes, e.valeursMultiples, k, schemaType?.properties?.get(k), resolver) }
             .joinToString(" · ")
     }
+
+    /** La valeur affichée de la propriété [cle] : simple ([proprietes]) ou multiple ([multiples],
+     *  valeurs jointes par « , » comme `getUtils` du web) ; null si elle est absente ou vide. */
+    private fun valeurDe(
+        proprietes: Map<String, String>,
+        multiples: Map<String, List<String>>,
+        cle: String,
+        prop: MonitoringPropertySchema?,
+        resolver: LabelResolver,
+    ): String? {
+        proprietes[cle]?.takeIf { it.isNotEmpty() && it != "null" }?.let { return valeurAffichee(prop, it, resolver) }
+        return multiples[cle]?.takeIf { it.isNotEmpty() }?.joinToString(", ") { valeurAffichee(prop, it, resolver) }
+    }
+
+    /** Une valeur telle que le web l'affiche (`resolveProperty`) : un identifiant traduit par
+     *  [resolver] (le champ de `display_field_names`), sinon [formatValeur] — date en jj/mm/aaaa
+     *  pour un champ date, ou une valeur qui en a la forme. */
+    fun valeurAffichee(prop: MonitoringPropertySchema?, valeur: String, resolver: LabelResolver): String =
+        prop?.let { resolver.resoudre(it, valeur) }
+            ?: formatValeur(valeur, date = prop?.typeWidget.equals("date", ignoreCase = true) || prop?.typeUtil == "date")
 
     /** Premier type de saisie (visite, passage, observation…) parmi les enfants déclarés par le
      *  schéma de [schemaType] : ce que crée le « + » d'une ligne de ce type. */
@@ -144,14 +209,18 @@ object AffichageSuivis {
 
     // ─── Fiche d'un objet ───
 
-    /** Titre d'une fiche : la valeur du nameField déclaré par le schéma, sinon heuristique. */
-    fun nomObjet(objet: MonitoringObjet, schemaCe: MonitoringSchemaObjet?): String =
-        schemaCe?.nameField?.let { objet.proprietes[it] }?.takeIf { it.isNotEmpty() }
+    /** Titre d'une fiche : la valeur du nameField déclaré par le schéma, telle que le web l'affiche
+     *  ([valeurAffichee]), sinon heuristique. */
+    fun nomObjet(objet: MonitoringObjet, schemaCe: MonitoringSchemaObjet?, resolver: LabelResolver = LabelResolver()): String {
+        val nf = schemaCe?.nameField
+        return nf?.let { objet.proprietes[it] }?.takeIf { it.isNotEmpty() }?.let { valeurAffichee(schemaCe.properties[nf], it, resolver) }
             ?: MonitoringObjets.extraireNomHeuristique(objet.proprietes, objet.type, objet.id)
+    }
 
     /** Les propriétés d'une fiche, « libellé » et « valeur ». Priorité au schéma serveur :
      *  `display_properties` dicte l'ORDRE et le SOUS-ENSEMBLE des champs à afficher (= ce que
-     *  montre l'interface web), `attribut_label` dicte le libellé. Sans schéma exploitable,
+     *  montre l'interface web), `attribut_label` dicte le libellé, et chaque valeur est celle du web
+     *  ([valeurAffichee] ; une liste, ses valeurs jointes par « , »). Sans schéma exploitable,
      *  fallback sur l'ancien filtre par blacklist. */
     fun proprietesAffichees(
         objet: MonitoringObjet,
@@ -160,9 +229,14 @@ object AffichageSuivis {
     ): List<Pair<String, String>> {
         val nameField = schemaCe?.nameField
         val displayList = schemaCe?.displayProperties.orEmpty()
-        val cles: List<String> = if (displayList.isNotEmpty()) {
-            displayList.filter { it != nameField && objet.proprietes.containsKey(it) }
-        } else {
+        if (displayList.isNotEmpty()) {
+            return displayList.filter { it != nameField }.mapNotNull { k ->
+                val prop = schemaCe?.properties?.get(k)
+                val valeur = valeurDe(objet.proprietes, objet.valeursMultiples, k, prop, resolver) ?: return@mapNotNull null
+                (prop?.label ?: labelChamp(k)) to valeur
+            }
+        }
+        val cles: List<String> = run {
             // Fallback (vieux schéma sans display_properties) : tous les scalaires moins
             // une blacklist de champs techniques.
             objet.proprietes.keys.filter { k ->
@@ -181,12 +255,22 @@ object AffichageSuivis {
             val v = objet.proprietes[k] ?: return@mapNotNull null
             // Schéma serveur en priorité (attribut_label), sinon mapping FR par défaut.
             val prop = schemaCe?.properties?.get(k)
-            val libelle = prop?.label ?: labelChamp(k)
-            // Résolution ID → label via le resolver si type_util est géré, sinon formatage.
-            val resolu = if (prop != null) resolver.resoudre(prop, v) else null
-            libelle to (resolu ?: formatValeur(v))
+            (prop?.label ?: labelChamp(k)) to valeurAffichee(prop, v, resolver)
         }
     }
+
+    /** L'onglet « Propriétés spécifiques » de la fiche d'un site sur le web : les champs propres à
+     *  ses types de site ([champs], cf. MonitoringDatalists.lireChampsTypesSite), dans l'ordre de
+     *  leur nom (pipe `keyvalue` d'Angular), avec leur valeur affichée. Un champ sans valeur est omis,
+     *  comme dans les propriétés. */
+    fun proprietesSpecifiques(
+        objet: MonitoringObjet,
+        champs: Map<String, MonitoringPropertySchema>,
+        resolver: LabelResolver,
+    ): List<Pair<String, String>> =
+        champs.entries.sortedBy { it.key }.mapNotNull { (nom, prop) ->
+            valeurDe(objet.proprietes, objet.valeursMultiples, nom, prop, resolver)?.let { prop.label.ifEmpty { labelChamp(nom) } to it }
+        }
 
     /** Label FR pour un nom de champ de gn_module_monitoring (best-effort), sinon clé nettoyée. */
     fun labelChamp(key: String): String = when (key) {
@@ -207,13 +291,16 @@ object AffichageSuivis {
         else -> key.replace('_', ' ').replaceFirstChar { it.uppercase() }
     }
 
-    /** Format léger : booleans en oui/non, dates ISO raccourcies, sinon raw. */
-    fun formatValeur(v: String): String {
+    /** Format léger : booléens en oui/non ; une date en jj/mm/aaaa, comme le web (`Utils.formatDate`),
+     *  pour un champ date ([date]) ou une valeur qui a la forme d'une date ISO ; sinon brut. */
+    fun formatValeur(v: String, date: Boolean = false): String {
         if (v == "true") return "oui"
         if (v == "false") return "non"
-        // Date ISO "YYYY-MM-DD..." → "YYYY-MM-DD" simple
-        return DateAffichage.isoTronquerDate(v)
+        return if (date || DATE_ISO.matches(v)) DateAffichage.isoVersFr(v) else v
     }
+
+    /** `2026-06-12`, `2026-06-12T08:00:00`, `2026-06-12 08:00:00.123+02:00`… */
+    private val DATE_ISO = Regex("""\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?""")
 
     /** Tri chronologique DÉCROISSANT (plus récentes d'abord) des enfants d'un type, en tenant
      *  compte de la DATE puis de l'HEURE de la visite. Schema-driven : le champ date est celui de

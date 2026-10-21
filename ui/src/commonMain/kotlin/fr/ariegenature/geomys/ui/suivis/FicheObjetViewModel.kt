@@ -59,6 +59,9 @@ class FicheObjetViewModel(
         private set
     var proprietes by mutableStateOf<List<Pair<String, String>>>(emptyList())
         private set
+    /** Les « Propriétés spécifiques » du web : les champs propres aux types d'un site. */
+    var proprietesSpecifiques by mutableStateOf<List<Pair<String, String>>>(emptyList())
+        private set
     var elements by mutableStateOf<List<ElementFiche>>(emptyList())
         private set
 
@@ -83,6 +86,7 @@ class FicheObjetViewModel(
         type = ""
         titre = ""
         proprietes = emptyList()
+        proprietesSpecifiques = emptyList()
         elements = emptyList()
         note = null
         objet = null
@@ -93,7 +97,7 @@ class FicheObjetViewModel(
             // après s'être affichée (demande du même jour). Hors réseau, le cache reste affiché.
             val s = resultat { services.monitoring.lireSchemaProtocole(moduleCode) }.getOrNull()
             schema = s
-            resolveur = s?.let { resultat { services.monitoringDatalists.lireResolveurLabels(services.config, it) }.getOrNull() }
+            resolveur = s?.let { resultat { services.monitoringDatalists.lireResolveurLabels(services.config, it, moduleCode) }.getOrNull() }
                 ?: LabelResolver()
             val enCache = resultat { lireFiche() }.getOrNull()
             val saisie = MonitoringSync.estSaisie(objectType, s)
@@ -117,9 +121,13 @@ class FicheObjetViewModel(
         chargement = false
         objet = o
         val schemaCe = schema?.get(o.type)
-        titre = AffichageSuivis.nomObjet(o, schemaCe)
+        titre = AffichageSuivis.nomObjet(o, schemaCe, resolveur)
         type = AffichageSuivis.libelleType(o.type, schemaCe)
         proprietes = AffichageSuivis.proprietesAffichees(o, schemaCe, resolveur)
+        proprietesSpecifiques = o.valeursMultiples["types_site"]?.takeIf { o.type == "site" }?.let { types ->
+            val champs = resultat { services.monitoringDatalists.lireChampsTypesSite(schemaCe, types) }.getOrNull().orEmpty()
+            AffichageSuivis.proprietesSpecifiques(o, champs, resolveur)
+        }.orEmpty()
         note = when {
             o.enfantsConnus -> null
             miseAJourEnCours -> AffichageSuivis.ENFANTS_EN_CHARGEMENT
@@ -146,6 +154,7 @@ class FicheObjetViewModel(
             o, schema, resolveur, toutes, fil,
             labelTypeEnCache = services.monitoringObjets::labelTypeEnCache,
             libelleNouveau = services.monitoringObjets::libelleNouveau,
+            peutCreer = { module, type -> services.monitoringModules.peutCreer(services.config, module, type) },
         )
         signature = FicheObjet.signatureOutbox(o, toutes)
     }

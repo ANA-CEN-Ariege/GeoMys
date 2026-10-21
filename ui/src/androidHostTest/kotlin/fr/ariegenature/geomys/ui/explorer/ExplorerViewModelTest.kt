@@ -31,6 +31,7 @@ import fr.ariegenature.geomys.geo.LatLon
 import fr.ariegenature.geomys.model.ObsExplorer
 import fr.ariegenature.geomys.model.Taxon
 import fr.ariegenature.geomys.ui.ServicesEssai
+import fr.ariegenature.geomys.ui.laisserFinirLeTravailDeFond
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -68,6 +69,7 @@ class ExplorerViewModelTest {
     @AfterTest
     fun nettoyer() {
         magasin.clear()
+        laisserFinirLeTravailDeFond()
         Dispatchers.resetMain()
         essai.nettoyer()
     }

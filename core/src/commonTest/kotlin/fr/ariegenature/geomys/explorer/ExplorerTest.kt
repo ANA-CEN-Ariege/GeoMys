@@ -26,6 +26,7 @@ import fr.ariegenature.geomys.model.ObsExplorer
 import fr.ariegenature.geomys.model.Taxon
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ExplorerTest {
@@ -34,7 +35,7 @@ class ExplorerTest {
         nom: String,
         lat: Double,
         lon: Double,
-        taxon: Taxon = Taxon.OISEAU,
+        taxon: Taxon? = Taxon.OISEAU,
         date: String = "2026-05-12",
         nombre: Int = 1,
         sci: String = "",
@@ -61,6 +62,20 @@ class ExplorerTest {
         assertEquals(liste, Explorer.filtrer(liste, null))
         assertEquals(10, Explorer.GROUPES.size)
         assertEquals(Taxon.entries.toSet(), Explorer.GROUPES.toSet())
+    }
+
+    @Test
+    fun une_observation_sans_groupe_n_est_montree_que_sans_filtre_et_ne_colore_pas_son_marqueur() {
+        // 21 octobre 2026 : un taxon absent du téléphone est gardé, sans groupe (icône neutre).
+        val inconnu = obs("inconnu", 43.0, 1.6, taxon = null)
+        val renard = obs("renard", 43.0, 1.6, Taxon.MAMMIFERE)
+        assertEquals(listOf(inconnu, renard), Explorer.filtrer(listOf(inconnu, renard), null))
+        assertEquals(listOf(renard), Explorer.filtrer(listOf(inconnu, renard), Taxon.MAMMIFERE))
+        // Le marqueur prend le groupe de la première observation qui en a un : la couleur d'avant.
+        val groupe = Explorer.regrouper(listOf(inconnu, renard)).single()
+        assertEquals(inconnu, groupe.premiere)
+        assertEquals(Taxon.MAMMIFERE, groupe.taxon)
+        assertNull(Explorer.regrouper(listOf(inconnu)).single().taxon)
     }
 
     @Test

@@ -18,7 +18,8 @@
 
 // Porté de GeoMys-Android @ cdd5196 (app/src/test/java/fr/ariegenature/geomys/MonitoringDatalistDatasetTest.kt) :
 // MockWebServer remplacé par ServeurSimule, Robolectric par MonitoringDeTest, les objets par des
-// instances, JUnit par kotlin.test.
+// instances, JUnit par kotlin.test. La nouvelle tentative sans `create` n'est plus reprise
+// (vérification des champs du 20 octobre).
 
 package fr.ariegenature.geomys.network
 
@@ -31,10 +32,10 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlinx.coroutines.test.runTest
 
-/** Datalist `dataset` ([MonitoringApi.chargerOptionsDatalist]) : le filtre `create=` (CRUVED
- *  action C) renvoie vide sur certaines instances alors que des jeux de données sont bien
- *  rattachés au module — bug terrain « rien dans le champ jeu de données » (Point écoute
- *  avifaune), qui bloquait toute saisie (champ requis). On retente alors sans `create`. */
+/** Datalist `dataset` ([MonitoringApi.chargerOptionsDatalist]) : une seule demande, filtre
+ *  `create=` (droit de création, CRUVED action C) compris, comme le composant pnx-datasets du web.
+ *  Une réponse vide fait foi : l'appli retentait sans `create`, et proposait des jeux où le serveur
+ *  refuserait l'envoi. */
 class MonitoringDatalistDatasetTest {
 
     private val m = MonitoringDeTest()
@@ -82,13 +83,12 @@ class MonitoringDatalistDatasetTest {
     )
 
     @Test
-    fun dataset_vide_avec_create_est_retente_sans_create() = runTest {
+    fun dataset_vide_avec_create_fait_foi() = runTest {
         val options = m.api.chargerOptionsDatalist(m.config, propDataset())
-        assertEquals(listOf("12" to "Suivi avifaune ANA"), options?.map { it.value to it.label },
-            "le dataset du module doit sortir via le repli sans create")
-        assertEquals(2, corpsRecus.size, "2 tentatives : avec create (vide) puis sans")
-        assertEquals(true, corpsRecus[0].contains("\"create\""), "la 1re porte le filtre create")
-        assertEquals(false, corpsRecus[1].contains("\"create\""), "la 2e ne le porte plus")
+        assertEquals(emptyList(), options, "aucun jeu où l'utilisateur peut créer")
+        assertEquals(1, corpsRecus.size, "pas de seconde demande sans create")
+        // Mise en cache, la liste vide est relue telle quelle hors ligne.
+        assertEquals(emptyList(), m.api.lireOptionsDatalist(m.config, propDataset()))
     }
 
     @Test
@@ -109,6 +109,7 @@ class MonitoringDatalistDatasetTest {
             """{"module_code":"pt_ecoute_avifaune","active":true,"create":"pt_ecoute_avifaune.MONITORINGS_VISITES"}""",
             corpsRecus.single(),
         )
-        assertEquals("/api/meta/datasets", m.serveur.chemins.last())
+        // Triés par nom, comme les demande le pnx-datasets du web.
+        assertEquals("/api/meta/datasets?orderby=dataset_name", m.serveur.chemins.last())
     }
 }

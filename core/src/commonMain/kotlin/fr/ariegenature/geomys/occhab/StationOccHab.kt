@@ -24,6 +24,7 @@ package fr.ariegenature.geomys.occhab
 import fr.ariegenature.geomys.model.OccHabHabitat
 import fr.ariegenature.geomys.model.OccHabSaisie
 import fr.ariegenature.geomys.model.OccHabStation
+import fr.ariegenature.geomys.store.NomValeur
 import fr.ariegenature.geomys.util.FormatDate
 import fr.ariegenature.geomys.util.GeoJsonCoords
 import fr.ariegenature.geomys.util.formaterDecimal
@@ -34,7 +35,7 @@ object StationOccHab {
     const val DETAILS = "Détails"
     const val HABITATS = "Habitats"
     const val AUCUN_HABITAT = "Aucun habitat pour l'instant — il est facultatif."
-    const val AJOUTER_HABITAT = "＋ Ajouter un habitat"
+    const val AJOUTER_HABITAT = "＋ Ajouter un habitat à la station"
     const val SAISIE_INTERROMPUE = "Saisie interrompue (application relancée) — reprenez depuis « Mes stations »"
     const val AUCUNE_MODIFICATION = "Aucune modification : la station reste telle quelle sur GeoNature"
     const val ENREGISTREE = "Votre station est enregistrée dans « Mes stations »"
@@ -64,8 +65,13 @@ object StationOccHab {
         return "Jeu de données : " + (nom ?: details.idDataset?.toString() ?: "(à choisir)")
     }
 
-    /** Libellé d'un habitat : HABREF, sinon le nom cité, sinon son code. */
-    fun libelleHabitat(h: OccHabHabitat): String = h.habitatLabel.ifBlank { h.nomCite }.ifBlank { "Habitat ${h.cdHab}" }
+    /** Libellé d'un habitat, celui du tableau du web : le nom cité, sinon HABREF, sinon son code. */
+    fun libelleHabitat(h: OccHabHabitat): String = h.nomCite.ifBlank { h.habitatLabel }.ifBlank { "Habitat ${h.cdHab}" }
+
+    /** Une ligne du tableau des habitats du web : « N°. nom cité », puis l'abondance (`label_default`)
+     *  si elle est connue. */
+    fun ligneHabitat(numero: Int, h: OccHabHabitat, abondances: List<NomValeur>): Pair<String, String?> =
+        "$numero. ${libelleHabitat(h)}" to h.idNomAbondance?.let { id -> abondances.firstOrNull { it.id == id }?.label }
 }
 
 /** Les onglets de « Mes stations ». */

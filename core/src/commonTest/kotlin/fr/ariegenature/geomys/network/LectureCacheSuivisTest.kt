@@ -137,4 +137,56 @@ class LectureCacheSuivisTest {
         assertNull(m.api.lireOptionsDatalist(m.config, proprietes.getValue("meteo")), "rien en cache : rien de demandé")
         assertTrue(m.serveur.requetes.isEmpty())
     }
+
+    @Test
+    fun groupes_de_sites_observateurs_des_champs_et_champs_affiches_viennent_du_cache() = runTest {
+        // 21 octobre : les identifiants affichés comme sur le web (display_field_names).
+        m.cache.setJson(
+            m.cache.keySchema("stom"),
+            """{"module":{"id_list_observer":3,"children_types":["sites_group","site"]},
+               "display_field_names":{"taxonomy":"lb_nom","sites_group":"sites_group_name","area":null},
+               "site":{"generic":{
+                 "id_sites_group":{"type_widget":"datalist","type_util":"sites_group","attribut_label":"Groupe",
+                   "api":"monitorings/list/stom/sites_group?id_module=18","keyValue":"id_sites_group","keyLabel":"sites_group_name"}}},
+               "visit":{"generic":{
+                 "observers":{"type_widget":"datalist","type_util":"user","attribut_label":"Observateurs",
+                   "api":"users/menu/7","keyValue":"id_role","keyLabel":"nom_complet","multiple":true}}}}""",
+        )
+        val schema = assertNotNull(m.api.lireSchemaProtocole("stom"))
+        assertEquals(
+            mapOf("taxonomy" to "lb_nom", "sites_group" to "sites_group_name"),
+            schema.getValue("module").champsAffichage,
+            "une valeur nulle laisse le défaut",
+        )
+        m.cache.setJson(m.cache.keyEnfants("stom"), """{"children":{"sites_group":[{"id":21,"properties":{"sites_group_name":"Vallée d'Aston"}}]}}""")
+        m.cache.setJson(m.cache.keyObservateurs(7), """[{"id_role":15,"nom_complet":"ROUX Léa"}]""")
+        val resolveur = m.datalists.lireResolveurLabels(m.config, schema, "stom")
+        assertEquals("Vallée d'Aston", resolveur.resoudre(schema.getValue("site").properties.getValue("id_sites_group"), "21"))
+        assertEquals("ROUX Léa", resolveur.resoudre(schema.getValue("visit").properties.getValue("observers"), "15"), "la liste propre au champ")
+        assertTrue(m.serveur.requetes.isEmpty())
+    }
+
+    @Test
+    fun les_champs_des_types_de_site_viennent_du_cache() = runTest {
+        // L'onglet « Propriétés spécifiques » du web (addSpecificConfig).
+        m.cache.setJson(
+            m.cache.keySchema("arbres"),
+            """{"site":{"generic":{"types_site":{"type_widget":"datalist","type_util":"types_site","attribut_label":"Types",
+                 "api":"monitorings/modules/arbres/types_sites","keyValue":"id_nomenclature_type_site","keyLabel":"label","multiple":true}}}}""",
+        )
+        val site = assertNotNull(m.api.lireSchemaProtocole("arbres")).getValue("site")
+        m.cache.setJson(
+            m.cache.keyOptionsDatalist(site.properties.getValue("types_site").apiUrl!!),
+            """{"count":2,"items":[
+                {"id_nomenclature_type_site":580,"label":"Arbre","config":{"specific":{
+                   "essence":{"type_widget":"text","attribut_label":"Essence"},
+                   "aide":{"type_widget":"html","html":"<b>Aide</b>"}}}},
+                {"id_nomenclature_type_site":581,"label":"Mare","config":{"specific":{
+                   "profondeur":{"type_widget":"number","attribut_label":"Profondeur"}}}}]}""",
+        )
+        val champs = m.datalists.lireChampsTypesSite(site, listOf("580"))
+        assertEquals(listOf("essence"), champs.keys.toList(), "le html exclu, le type 581 n'est pas celui du site")
+        assertEquals("Essence", champs.getValue("essence").label)
+        assertTrue(m.datalists.lireChampsTypesSite(site, emptyList()).isEmpty())
+    }
 }

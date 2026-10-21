@@ -32,6 +32,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import fr.ariegenature.geomys.occhab.detailsSessionParDefaut
 import fr.ariegenature.geomys.outils.ajouterOccHabEssai
 import fr.ariegenature.geomys.ui.ServicesEssai
+import fr.ariegenature.geomys.ui.laisserFinirLeTravailDeFond
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -62,6 +63,7 @@ class CarteOccHabEmpriseTest {
     @AfterTest
     fun nettoyer() {
         magasin.clear()
+        laisserFinirLeTravailDeFond()
         Dispatchers.resetMain()
         essai.nettoyer()
     }
@@ -112,6 +114,7 @@ class CarteOccHabEmpriseTest {
         carte.ajouterStation()
         val details = requireNotNull(carte.details) { "les informations obligatoires s'ouvrent" }
         details.choisirDataset(details.datasets.indexOfFirst { it.first == 21 })
+        details.choisirObservateur(0)
         carte.validerDetails(details.saisies())
 
         val evenements = evenementsJusquAuChargement(carte)

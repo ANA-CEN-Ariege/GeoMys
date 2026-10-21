@@ -561,14 +561,21 @@ internal fun FeuilleIos(
 }
 
 /** Une section d'un `Form` groupé de SwiftUI : son en-tête en capitales (13 pt, gris secondaire),
- *  puis ses lignes sur [fond] aux coins continus de 10 pt. */
+ *  puis ses lignes sur [fond] aux coins continus de 10 pt. [barre] : un champ obligatoire vide ou
+ *  refusé, la barre rouge à gauche des lignes, comme la bordure rouge du web. */
 @Composable
-internal fun SectionIos(titre: String?, modifier: Modifier = Modifier, fond: Color = FOND_LIGNE_FEUILLE_IOS, contenu: @Composable ColumnScope.() -> Unit) {
+internal fun SectionIos(
+    titre: String?,
+    modifier: Modifier = Modifier,
+    fond: Color = FOND_LIGNE_FEUILLE_IOS,
+    barre: Boolean = false,
+    contenu: @Composable ColumnScope.() -> Unit,
+) {
     Column(modifier.fillMaxWidth()) {
         if (titre != null) {
             Text(titre.uppercase(), fontSize = 13.sp, color = SECONDAIRE_FEUILLE_IOS, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp))
         }
-        Column(Modifier.fillMaxWidth().background(fond, FormeContinue(10.dp)), content = contenu)
+        Column(Modifier.fillMaxWidth().barreChampObligatoire(barre).background(fond, FormeContinue(10.dp)), content = contenu)
     }
 }
 

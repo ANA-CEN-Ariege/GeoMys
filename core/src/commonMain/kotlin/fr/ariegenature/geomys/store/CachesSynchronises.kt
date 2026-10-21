@@ -17,8 +17,10 @@
  */
 
 // Porté de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/store/CachesSynchronises.kt) :
-// les fonctions deviennent une classe sur les caches qu'elles vident ; armerRechargementSiRequis
-// reçoit la configuration au lieu du Context.
+// les fonctions deviennent une classe sur les caches qu'elles vident. Le rechargement forcé après une
+// mise à jour (armerRechargementSiRequis, et sa purge dans SyncRunner) est retiré le 21 octobre 2026 :
+// une réinstallation garde tout et ne demande rien, comme GeoMys-Android, dont la version des données
+// n'a jamais changé.
 
 package fr.ariegenature.geomys.store
 
@@ -39,8 +41,7 @@ class CachesSynchronises(
      * Purge les caches SYNCHRONISÉS (TaxRef, nomenclatures, habitats, monitoring, pictos) — ce que
      * « Recharger les données » réécrit. Ne touche NI aux saisies locales (Mes saisies / Mes stations /
      * Mes visites), NI aux JSON de config (datasets / listes / observateurs), NI aux sélections.
-     * Utilisé par le bouton « Vider le cache » de Paramètres et par SyncRunner au début d'une synchro
-     * de « rechargement requis » (cf. [armerRechargementSiRequis]).
+     * Utilisé par le bouton « Vider le cache » de Paramètres.
      */
     fun viderCachesSynchronises() {
         viderCachesReecritsEnPhaseB()
@@ -76,30 +77,5 @@ class CachesSynchronises(
         // mémoire par MonitoringApi (dernierChargement) et countModulesEnCache() la renvoie en
         // priorité — sans cette invalidation, le compteur de protocoles reste figé après une purge.
         monitoring.invaliderCaches()
-    }
-
-    /**
-     * Au lancement de l'application (MainActivity) : si la release installée EXIGE un rechargement des
-     * données ([GeoNatureConfig.VERSION_DONNEES_REQUISE] > [GeoNatureConfig.versionDonneesChargees])
-     * sur une installation qui a DÉJÀ des données, ARME le drapeau
-     * [GeoNatureConfig.rechargementRequisApresMaj] : `configurationComplete` devient faux ⇒ Paramètres
-     * s'ouvre, bloque la sortie et affiche le bandeau (mécanisme de 1ʳᵉ configuration réutilisé).
-     *
-     * RIEN N'EST PURGÉ ICI (audit 2026-08-27) : la purge se fait dans SyncRunner, une fois le serveur
-     * joignable et juste avant la réécriture des caches — pas de travail disque sur le thread UI, pas
-     * de course avec une synchro déjà en cours, et rien n'est perdu si l'appli est lancée hors-ligne
-     * (les données restent en place, seulement inaccessibles jusqu'à la synchro). SyncRunner
-     * enregistre la version chargée et désarme le drapeau en fin de synchro.
-     *
-     * Idempotent : drapeau déjà armé ⇒ false (la synchro suivante fera le travail). Une installation
-     * VIERGE (rien de chargé) suit le flux normal de 1ʳᵉ configuration, sans bandeau. Renvoie true si
-     * le drapeau vient d'être armé. Demande terrain 2026-08-27.
-     */
-    fun armerRechargementSiRequis(cfg: GeoNatureConfig): Boolean {
-        if (cfg.rechargementRequisApresMaj) return false
-        if (cfg.versionDonneesChargees >= GeoNatureConfig.VERSION_DONNEES_REQUISE) return false
-        if (taxRef.versionSauvegardee == null) return false
-        cfg.rechargementRequisApresMaj = true
-        return true
     }
 }

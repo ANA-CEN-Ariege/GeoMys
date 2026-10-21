@@ -56,13 +56,25 @@ internal fun LigneIos(modifier: Modifier = Modifier, contenu: @Composable () -> 
 
 /** Picker en menu : [libelle] au-dessus, en blanc 70 % (rien s'il est vide), puis la valeur choisie
  *  et ses chevrons, calés à gauche comme sous Android (demande du 20 octobre), en secondaire ; le
- *  toucher ouvre le menu du système. */
+ *  toucher ouvre le menu du système. Sans choix (-1), [invite] ; [onEffacer] : la croix des listes
+ *  du web au bout d'un choix. */
 @Composable
-internal fun LigneChoixIos(libelle: String, options: List<String>, selection: Int, onChoix: (Int) -> Unit) {
+internal fun LigneChoixIos(
+    libelle: String,
+    options: List<String>,
+    selection: Int,
+    invite: String? = null,
+    onEffacer: (() -> Unit)? = null,
+    onChoix: (Int) -> Unit,
+) {
+    val effacer = onEffacer?.takeIf { selection in options.indices }
     LigneIos {
-        Box(Modifier.fillMaxWidth()) {
-            ContenuLigneChoixIos(libelle, options.getOrNull(selection).orEmpty())
-            MenuSysteme(options, selection, onChoix, Modifier.matchParentSize())
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) {
+                ContenuLigneChoixIos(libelle, options.getOrNull(selection) ?: invite.orEmpty())
+                MenuSysteme(options, selection, onChoix, Modifier.matchParentSize())
+            }
+            if (effacer != null) CroixEffacerIos(effacer, Modifier.padding(start = 8.dp))
         }
     }
 }
@@ -89,7 +101,8 @@ internal fun ContenuLigneChoixIos(libelle: String, valeur: String) {
 }
 
 /** Champ de texte d'une ligne : nu, invite [indication] en gris, de [lignesMin] à [lignesMax]
- *  lignes (une seule si [lignesMax] vaut 1) ; [titre] au-dessus, en blanc 70 %. */
+ *  lignes (une seule si [lignesMax] vaut 1) ; [titre] au-dessus, en blanc 70 % ; [apres] au bout
+ *  de la ligne (le « ＋ » des profondeurs d'une station). */
 @Composable
 internal fun LigneTexteIos(
     valeur: String,
@@ -99,12 +112,36 @@ internal fun LigneTexteIos(
     lignesMax: Int = 1,
     clavier: KeyboardOptions = KeyboardOptions.Default,
     titre: String? = null,
+    apres: (@Composable () -> Unit)? = null,
 ) {
     LigneIos {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (titre != null) Text(titre, fontSize = 17.sp, color = CouleursGeoMys.blanc70)
-            ChampNuIos(valeur, onChange, indication, lignesMin, lignesMax, clavier)
+        if (apres == null) {
+            ColonneTexteIos(valeur, onChange, indication, lignesMin, lignesMax, clavier, titre)
+        } else {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                ColonneTexteIos(valeur, onChange, indication, lignesMin, lignesMax, clavier, titre, Modifier.weight(1f))
+                Spacer(Modifier.width(8.dp))
+                apres()
+            }
         }
+    }
+}
+
+/** Le [titre] et le champ d'une [LigneTexteIos]. */
+@Composable
+private fun ColonneTexteIos(
+    valeur: String,
+    onChange: (String) -> Unit,
+    indication: String,
+    lignesMin: Int,
+    lignesMax: Int,
+    clavier: KeyboardOptions,
+    titre: String?,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (titre != null) Text(titre, fontSize = 17.sp, color = CouleursGeoMys.blanc70)
+        ChampNuIos(valeur, onChange, indication, lignesMin, lignesMax, clavier)
     }
 }
 
@@ -129,10 +166,17 @@ private fun ChampNuIos(valeur: String, onChange: (String) -> Unit, indication: S
     )
 }
 
-/** Nombre : [libelle] au-dessus, en blanc 70 % (rien s'il est vide), puis le champ (invite « — »). */
+/** Nombre : [libelle] au-dessus, en blanc 70 % (rien s'il est vide), puis le champ (invite « — ») et
+ *  [apres] au bout de la ligne. */
 @Composable
-internal fun LigneNombreIos(libelle: String, valeur: String, onChange: (String) -> Unit, clavier: KeyboardOptions = ClavierNombresEtPonctuation) {
-    LigneTexteIos(valeur, onChange, "—", clavier = clavier, titre = libelle.ifEmpty { null })
+internal fun LigneNombreIos(
+    libelle: String,
+    valeur: String,
+    onChange: (String) -> Unit,
+    clavier: KeyboardOptions = ClavierNombresEtPonctuation,
+    apres: (@Composable () -> Unit)? = null,
+) {
+    LigneTexteIos(valeur, onChange, "—", clavier = clavier, titre = libelle.ifEmpty { null }, apres = apres)
 }
 
 /** Un texte sur une ligne, [couleur] blanc par défaut ; [titre] au-dessus, en blanc 70 %. */

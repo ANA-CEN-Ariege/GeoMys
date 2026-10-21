@@ -22,38 +22,45 @@
 package fr.ariegenature.geomys.saisie
 
 import fr.ariegenature.geomys.model.Taxon
-import fr.ariegenature.geomys.store.NomenclatureCache
+import fr.ariegenature.geomys.store.GroupeTaxonomique
+import fr.ariegenature.geomys.store.TaxRefCache
 
-/** Contexte taxonomique pour le filtrage des VALEURS de nomenclature (groupe2_inpn + regno),
- *  factorisé depuis les écrans de saisie. Logique pure : le filtrage des valeurs se fait ensuite
- *  via [NomenclatureCache.filtrerPourGroupes].
+/** Contexte taxonomique pour le filtrage des VALEURS de nomenclature, factorisé depuis les écrans de
+ *  saisie. Le filtrage se fait ensuite via [fr.ariegenature.geomys.store.NomenclatureCache.filtrerPourTaxon].
  *
  *  NB : la VISIBILITÉ des champs n'est plus décidée ici (elle l'était par taxon, en dur) — elle est
  *  désormais pilotée par la config serveur via [fr.ariegenature.geomys.store.OcctaxFieldsConfig].
  *  Seul le filtrage par taxon des valeurs reste pertinent et vit ici. */
 object ChampsTaxon {
 
-    /** Groupes de filtrage (group2_inpn) + regno (Plantae/Fungi/Animalia) pour restreindre les
-     *  nomenclatures proposées au taxon. Pour Plantes : union des groupes botaniques présents dans
-     *  le cache TaxRef (repli : tous). Pour les autres : groupe exact depuis l'argument
-     *  `groupe2Inpn`, ou repli par taxon. */
-    fun groupesEtRegno(taxon: Taxon, groupe2Inpn: String, nomenclatures: NomenclatureCache): Pair<Set<String>, String> =
-        when (taxon) {
-            Taxon.PLANTE -> Pair(nomenclatures.groupesBotaniquesConnus(), "Plantae")
-            Taxon.FONGE -> Pair(NomenclatureCache.GROUPES_FONGE, "Fungi")
-            Taxon.MOLLUSQUE, Taxon.INVERTEBRES -> Pair(setOf("Animalia"), "Animalia")
-            else -> {
-                val g = groupe2Inpn.ifEmpty {
-                    when (taxon) {
-                        Taxon.OISEAU -> "Oiseaux"
-                        Taxon.MAMMIFERE -> "Mammifères"
-                        Taxon.REPTILE -> "Reptiles"
-                        Taxon.BATRACIEN -> "Amphibiens"
-                        Taxon.POISSON -> "Poissons"
-                        Taxon.INSECTE -> "Insectes"
-                    }
-                }
-                Pair(setOf(g), NomenclatureCache.regno(pourGroupe = g))
-            }
-        }
+    /** Le règne, le group2_inpn et le group3_inpn du taxon [cdNom] dans le cache TaxRef, ceux que le
+     *  web transmet au serveur ; à défaut (pas de cd_nom, taxon hors du cache), le règne et le
+     *  groupe du [taxon] de la palette. GeoMys-Android filtrait les mollusques et autres invertébrés
+     *  sur « Animalia » comme s'il s'agissait d'un groupe, et les plantes sur l'union des groupes
+     *  botaniques. */
+    fun groupeTaxonomique(taxon: Taxon, cdNom: Int?, taxRef: TaxRefCache): GroupeTaxonomique {
+        val cle = cdNom?.toString()
+        return GroupeTaxonomique(
+            regne = cle?.let { taxRef.tousLesRegnes()[it] }?.takeIf { it.isNotBlank() } ?: regnePalette(taxon),
+            group2 = cle?.let { taxRef.tousLesGroupes()[it] }?.takeIf { it.isNotBlank() } ?: group2Palette(taxon),
+            group3 = cle?.let { taxRef.tousLesGroupes3()[it] }?.takeIf { it.isNotBlank() },
+        )
+    }
+
+    private fun regnePalette(taxon: Taxon): String = when (taxon) {
+        Taxon.PLANTE -> "Plantae"
+        Taxon.FONGE -> "Fungi"
+        else -> "Animalia"
+    }
+
+    /** Le group2_inpn d'un groupe de la palette, null quand il en couvre plusieurs. */
+    private fun group2Palette(taxon: Taxon): String? = when (taxon) {
+        Taxon.OISEAU -> "Oiseaux"
+        Taxon.MAMMIFERE -> "Mammifères"
+        Taxon.REPTILE -> "Reptiles"
+        Taxon.BATRACIEN -> "Amphibiens"
+        Taxon.POISSON -> "Poissons"
+        Taxon.INSECTE -> "Insectes"
+        Taxon.PLANTE, Taxon.FONGE, Taxon.MOLLUSQUE, Taxon.INVERTEBRES -> null
+    }
 }

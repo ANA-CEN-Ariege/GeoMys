@@ -40,11 +40,11 @@ class HabitatService(
     /** Recherche d'habitats : dans le cache OCCTAX, ou le cache DÉDIÉ OccHab si [occhab] (jamais le
      *  cache OCCTAX ; recherche sensible aux accents = mêmes résultats que le web, restreinte à la
      *  liste `OCCHAB.ID_LIST_HABITAT` chargée par la synchro). */
-    suspend fun rechercher(terme: String, limite: Int = 20, occhab: Boolean = false): List<HabitatSuggestion> =
+    suspend fun rechercher(terme: String, limite: Int = 20, occhab: Boolean = false, cdTypo: Int? = null): List<HabitatSuggestion> =
         withContext(Dispatchers.IO) {
             val t = terme.trim()
             if (t.length < 2) return@withContext emptyList()
             val cache = if (occhab) habitatsOccHab else habitatsOcctax
-            if (cache.estDisponible) cache.rechercher(t, limite) else emptyList()
+            if (cache.estDisponible) cache.rechercher(t, limite, cdTypo) else emptyList()
         }
 }

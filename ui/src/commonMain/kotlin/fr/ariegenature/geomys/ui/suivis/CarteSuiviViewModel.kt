@@ -36,6 +36,7 @@ import fr.ariegenature.geomys.geo.Emprise
 import fr.ariegenature.geomys.monitoring.ActionCarte
 import fr.ariegenature.geomys.monitoring.AffichageSuivis
 import fr.ariegenature.geomys.monitoring.CarteSuivis
+import fr.ariegenature.geomys.monitoring.DroitsSuivis
 import fr.ariegenature.geomys.monitoring.FilSegment
 import fr.ariegenature.geomys.monitoring.ObjetCarte
 import fr.ariegenature.geomys.network.MonitoringApi.MonitoringEnfant
@@ -182,7 +183,9 @@ class CarteSuiviViewModel(
      *  que le toucher a été pris. */
     fun toucher(objet: ObjetCarte) {
         val courant = objet.type == objectType && objet.id == id
-        val actions = CarteSuivis.actions(objet, courant, schema) { services.monitoringObjets.libelleNouveau(moduleCode, it) }
+        val actions = CarteSuivis.actions(objet, courant, schema, { services.monitoringModules.peutCreer(services.config, moduleCode, it) }) {
+            services.monitoringObjets.libelleNouveau(moduleCode, it)
+        }
         if (actions.isEmpty()) {
             _evenements.trySend(EvenementCarteSuivi.Toast(objet.label))
             return
@@ -198,7 +201,8 @@ class CarteSuiviViewModel(
     fun choisir(m: ActionsObjet, action: ActionCarte) {
         when (action) {
             ActionCarte.Fiche -> _evenements.trySend(EvenementCarteSuivi.Fiche(m.objet.type, m.objet.id, m.fil))
-            is ActionCarte.NouvelleSaisie -> _evenements.trySend(
+            // Sans le droit de créer, le message du « + » grisé du web.
+            is ActionCarte.NouvelleSaisie -> if (!action.permise) _evenements.trySend(EvenementCarteSuivi.Toast(DroitsSuivis.SANS_PERMISSION)) else _evenements.trySend(
                 EvenementCarteSuivi.NouvelleSaisie(
                     OuvertureNouvelleVisite(
                         moduleCode = moduleCode,

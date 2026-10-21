@@ -33,8 +33,8 @@ import androidx.lifecycle.ViewModel
 import fr.ariegenature.geomys.ServicesGeoNature
 import fr.ariegenature.geomys.model.AdditionalFieldsObject
 import fr.ariegenature.geomys.model.Denombrement
-import fr.ariegenature.geomys.model.Taxon
 import fr.ariegenature.geomys.occtax.ChampNomenclature
+import fr.ariegenature.geomys.occtax.DetailsReleveFormulaire
 import fr.ariegenature.geomys.occtax.EspeceReleve
 import fr.ariegenature.geomys.occtax.FormulairesEspece
 import fr.ariegenature.geomys.saisie.ChampsAdditionnels
@@ -52,14 +52,19 @@ class CarteDenombrement(
     val medias: SnapshotStateList<String>,
     val additionnels: EtatChampsAdditionnels,
 ) {
+    /** Les positions à l'ouverture ([FormulairesEspece.valeurRetenue]). */
+    val positionsInitiales: Map<String, Int> = positions.toMap()
+
     var min by mutableStateOf(min)
     var max by mutableStateOf(max)
 }
 
-/** Les dénombrements de l'espèce [espece] (le n° 0 tiré de ses champs à plat). */
+/** Les dénombrements de l'espèce [espece] (le n° 0 tiré de ses champs à plat). [idDataset] : le
+ *  jeu de données du relevé, dont dépendent les champs additionnels. */
 class DenombrementViewModel(
     private val services: ServicesGeoNature,
     espece: EspeceReleve,
+    idDataset: Int?,
 ) : ViewModel() {
     private val config = services.config
     private val nomenclatures = services.nomenclatures
@@ -68,34 +73,49 @@ class DenombrementViewModel(
     /** Le nom de l'espèce, sous le titre. */
     val nomEspece = espece.espece
 
-    private val groupesEtRegno = ChampsTaxon.groupesEtRegno(
-        espece.taxon,
-        FormulairesEspece.groupe2Inpn(espece, services.taxRef.tousLesGroupes()).orEmpty(),
-        nomenclatures,
-    )
+    /** Le taxon de l'espèce, qui filtre les valeurs proposées comme sur le web. */
+    private val groupe = ChampsTaxon.groupeTaxonomique(espece.taxon, espece.cdNom, services.taxRef)
 
-    /** Les nomenclatures d'un dénombrement ; « Stade de vie » devient « Stade phénologique » pour une
-     *  plante. */
+    /** Les nomenclatures d'un dénombrement, sous les libellés du web (« Stade de vie » aussi pour une
+     *  plante). */
     val champs: List<ChampNomenclature> = FormulairesEspece.champsVisibles(FormulairesEspece.COUNTING, formFields).map { champ ->
-        val libelle = if (espece.taxon == Taxon.PLANTE && champ.code == "STADE_VIE") "Stade phénologique" else champ.label
-        FormulairesEspece.champ(champ, nomenclatures, groupesEtRegno.first, groupesEtRegno.second, libelle)
+        FormulairesEspece.champ(champ, nomenclatures, groupe, config.nomenclaturesFiltreesParTaxon)
     }
+
+    /** Objet et type, au-dessus des effectifs ; stade et sexe, dessous. */
+    val champsAvantEffectifs = champs.filter { it.champ.code in FormulairesEspece.COUNTING_AVANT_EFFECTIFS }
+    val champsApresEffectifs = champs.filter { it.champ.code !in FormulairesEspece.COUNTING_AVANT_EFFECTIFS }
 
     val minVisible = champFormVisible(formFields, "count_min")
     val maxVisible = champFormVisible(formFields, "count_max")
 
-    /** Champs additionnels OCCTAX_DENOMBREMENT, restreints au jeu de données et aux listes du taxon. */
-    private val defs = run {
-        val listesDuTaxon = espece.cdNom?.let { services.taxRef.listesPourCdNom(it) }.orEmpty()
-        ChampsAdditionnels.fromJson(config.additionalFieldsOcctaxJsonActif)
-            .filter { it.appliqueA(AdditionalFieldsObject.COUNTING) }
-            .filter { it.visiblePour(config.idDataset.toIntOrNull(), listesDuTaxon) }
-    }
+    /** Le bloc Médias, si le serveur l'active (`OCCTAX.ENABLE_MEDIAS`). */
+    val mediasVisibles = config.occtaxMediasActifs
+
+    /** Les observateurs proposés aux champs additionnels `observers`. */
+    private val observateurs = DetailsReleveFormulaire.observateurs(config)
+
+    /** Champs additionnels OCCTAX_DENOMBREMENT du jeu de données du relevé. */
+    private val defs = ChampsAdditionnels.defsPour(config.additionalFieldsOcctaxJson, AdditionalFieldsObject.COUNTING, idDataset)
 
     val cartes = mutableStateListOf<CarteDenombrement>().apply { espece.denombrements().forEach { add(carte(it)) } }
 
     /** Dossier des copies locales des médias. */
     val dossierMedias: String = services.cheminMedias
+
+    /** Les médias présents à l'ouverture, et ceux retirés depuis : leurs fichiers ne s'effacent qu'à
+     *  la validation, pour qu'un « Quitter sans enregistrer » les rende à l'espèce. */
+    private val mediasInitiaux: Set<String> = cartes.flatMap { it.medias }.toSet()
+    private val retires = mutableListOf<String>()
+
+    /** Les valeurs saisissables, pour la garde de sortie. */
+    private fun valeurs(): List<Any?> =
+        cartes.map { c -> listOf(c.base, c.min, c.max, c.positions.toMap(), c.medias.toList(), c.additionnels.collecter()) }
+
+    private val initiales = valeurs()
+
+    /** L'écran a changé depuis son ouverture. */
+    fun modifie(): Boolean = valeurs() != initiales
 
     private fun carte(d: Denombrement) = CarteDenombrement(
         base = d,
@@ -108,7 +128,7 @@ class DenombrementViewModel(
             }
         },
         medias = mutableStateListOf<String>().apply { addAll(d.mediaUris) },
-        additionnels = EtatChampsAdditionnels(defs, d.additionalFields),
+        additionnels = EtatChampsAdditionnels(defs, d.additionalFields, observateurs, services.taxRef),
     )
 
     /** « ＋ Ajouter un dénombrement » : un nouveau, de 1. */
@@ -116,11 +136,11 @@ class DenombrementViewModel(
         cartes.add(carte(Denombrement()))
     }
 
-    /** Supprime le dénombrement [index] (il en reste au moins un) et les copies locales de ses
-     *  médias. */
+    /** Supprime le dénombrement [index] (il en reste au moins un) ; les copies locales de ses
+     *  médias s'effaceront à la validation. */
     fun supprimer(index: Int) {
         if (cartes.size <= 1 || index !in cartes.indices) return
-        cartes[index].medias.forEach(services::supprimerMedia)
+        retires += cartes[index].medias
         cartes.removeAt(index)
     }
 
@@ -130,7 +150,8 @@ class DenombrementViewModel(
         carte.min = texte
     }
 
-    fun ajusterMin(carte: CarteDenombrement, delta: Int) = saisirMin(carte, FormulairesEspece.ajuster(carte.min, delta, 1))
+    fun ajusterMin(carte: CarteDenombrement, delta: Int) =
+        saisirMin(carte, FormulairesEspece.ajuster(carte.min, delta, FormulairesEspece.PLANCHER_MIN))
 
     fun ajusterMax(carte: CarteDenombrement, delta: Int) {
         carte.max = FormulairesEspece.ajuster(carte.max, delta, FormulairesEspece.plancherMax(carte.min))
@@ -140,19 +161,42 @@ class DenombrementViewModel(
         cartes.getOrNull(index)?.medias?.addAll(uris)
     }
 
-    /** Retire un média du dénombrement et supprime sa copie locale. */
+    /** Retire un média du dénombrement ; sa copie locale s'effacera à la validation. */
     fun retirerMedia(carte: CarteDenombrement, uri: String) {
-        services.supprimerMedia(uri)
+        retires += uri
         carte.medias.remove(uri)
     }
 
-    /** ✓ : les dénombrements relus, ou le message d'un champ obligatoire vide (l'écran reste). */
+    /** « Quitter sans enregistrer » : les médias importés ici s'effacent, ceux retirés restent à
+     *  l'espèce. */
+    fun abandonner() {
+        (cartes.flatMap { it.medias } + retires).filter { it !in mediasInitiaux }.forEach(services::supprimerMedia)
+        retires.clear()
+    }
+
+    /** La valeur retenue de chaque nomenclature affichée de [c], par code. */
+    private fun valeursRetenues(c: CarteDenombrement): Map<String, String> = champs.associate { champ ->
+        val code = champ.champ.code
+        code to FormulairesEspece.valeurRetenue(
+            champ, FormulairesEspece.valeurDenombrement(c.base, champ.champ), nomenclatures.defautPour(code),
+            c.positionsInitiales[code] ?: 0, c.positions[code] ?: 0,
+        )
+    }
+
+    /** ✓ : les dénombrements relus, ou le message d'un champ obligatoire vide ou d'effectifs refusés
+     *  par le web (l'écran reste). */
     fun valider(): Pair<List<Denombrement>?, String?> {
-        val manquants = cartes.flatMap { it.additionnels.champsObligatoiresVides() }.distinct()
-        if (manquants.isNotEmpty()) return null to "Champs obligatoires à renseigner : ${manquants.joinToString(", ")}"
-        return cartes.map { c ->
-            val valeurs = champs.associate { champ -> champ.champ.code to champ.code(c.positions[champ.champ.code] ?: 0) }
-            FormulairesEspece.appliquerDenombrement(c.base.copy(mediaUris = c.medias.toList()), c.min, c.max, valeurs, c.additionnels.collecter())
+        val valeurs = cartes.map { valeursRetenues(it) }
+        cartes.indices.firstNotNullOfOrNull { i ->
+            FormulairesEspece.manque(champsAvantEffectifs, valeurs[i])
+                ?: FormulairesEspece.refusEffectifs(cartes[i].min, cartes[i].max)
+                ?: FormulairesEspece.manque(champsApresEffectifs, valeurs[i])
+        }?.let { return null to it }
+        cartes.firstNotNullOfOrNull { it.additionnels.refus() }?.let { return null to it }
+        retires.forEach(services::supprimerMedia)
+        retires.clear()
+        return cartes.mapIndexed { i, c ->
+            FormulairesEspece.appliquerDenombrement(c.base.copy(mediaUris = c.medias.toList()), c.min, c.max, valeurs[i], c.additionnels.collecter())
         } to null
     }
 }

@@ -32,6 +32,7 @@ import fr.ariegenature.geomys.monitoring.ElementFiche
 import fr.ariegenature.geomys.monitoring.FilSegment
 import fr.ariegenature.geomys.monitoring.filRacineSuivis
 import fr.ariegenature.geomys.ui.ServicesEssai
+import fr.ariegenature.geomys.ui.laisserFinirLeTravailDeFond
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.engine.mock.respondError
@@ -76,6 +77,7 @@ class FicheVisiteEnLigneTest {
     @AfterTest
     fun nettoyer() {
         magasin.clear()
+        laisserFinirLeTravailDeFond()
         Dispatchers.resetMain()
         essai.nettoyer()
     }
@@ -127,7 +129,7 @@ class FicheVisiteEnLigneTest {
         attendre("la fiche du cache, sans le serveur") { vm.note == AffichageSuivis.ENFANTS_HORS_CACHE }
         assertNull(vm.erreur)
         assertEquals(emptyList(), vm.elements.filterIsInstance<ElementFiche.Serveur>())
-        assertEquals(listOf("Date" to "2025-08-25"), vm.proprietes, "les propriétés reprises de la fiche du site")
+        assertEquals(listOf("Date" to "25/08/2025"), vm.proprietes, "les propriétés reprises de la fiche du site, la date comme le web")
     }
 
     private companion object {

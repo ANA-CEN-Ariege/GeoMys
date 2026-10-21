@@ -45,6 +45,11 @@ data class DetailsReleveResult(
     /** Champs relevé supplémentaires saisis (clé = clé `form_fields`), seulement ceux visibles +
      *  renseignés ; les champs masqués conservent leur valeur initiale. */
     val champsExtra: Map<String, String> = emptyMap(),
+    /** Heures saisies (« hh:mm »), null si vides : facultatives, comme sur le web. */
+    val heureDebut: String? = null,
+    val heureFin: String? = null,
+    /** Observateurs en texte libre (`observers_txt`), null quand ils se choisissent dans la liste. */
+    val observateursTexte: String? = null,
     /** true si l'utilisateur a réellement MODIFIÉ la date ou l'heure de DÉBUT dans ce dialogue
      *  (≠ simplement validé la valeur par défaut). Signale une saisie a posteriori : la date
      *  se propage aux relevés suivants et la carte garde l'emprise du relevé précédent

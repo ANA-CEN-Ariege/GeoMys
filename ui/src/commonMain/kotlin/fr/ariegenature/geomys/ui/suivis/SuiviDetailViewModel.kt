@@ -51,6 +51,8 @@ data class LigneObjetSuivi(
     val saisieEnfant: String?,
     /** « Nouvelle visite », « Nouveau passage »… : la description du « + ». */
     val libelleNouveau: String?,
+    /** Le droit de créer la saisie du « + » ; sinon il est grisé, comme sur le web. */
+    val nouvellePermise: Boolean = true,
 )
 
 /** Les objets d'un type ; [entete] seulement quand plusieurs types se partagent la liste. */
@@ -101,7 +103,7 @@ class SuiviDetailViewModel(private val services: ServicesGeoNature, val moduleCo
                 val schema = resultat { services.monitoring.lireSchemaProtocole(moduleCode) }.getOrNull()
                 // Résolveur des libellés (id_role, id_nomenclature, id_dataset → nom lisible).
                 val resolveur = schema?.let { s ->
-                    resultat { services.monitoringDatalists.lireResolveurLabels(services.config, s) }.getOrNull()
+                    resultat { services.monitoringDatalists.lireResolveurLabels(services.config, s, moduleCode) }.getOrNull()
                 } ?: LabelResolver()
                 lignes(enfantsBruts, schema, resolveur)
             }
@@ -116,9 +118,10 @@ class SuiviDetailViewModel(private val services: ServicesGeoNature, val moduleCo
         schema: Map<String, MonitoringSchemaObjet>?,
         resolveur: LabelResolver,
     ): Pair<String, List<SectionSuivi>> {
-        val enfants = AffichageSuivis.enfantsDuProtocole(enfantsBruts, schema)
-        // Sur un protocole avec hiérarchie (sites_group → site), seul le niveau macro est
-        // listé ; les niveaux inférieurs restent visibles dans la fiche de leur parent.
+        val enfants = AffichageSuivis.enfantsDuProtocole(enfantsBruts, schema, resolveur)
+        // Une liste par type enfant du module, comme le web : les groupes de sites et, si le
+        // protocole les y déclare aussi, les sites ; les niveaux inférieurs restent visibles dans la
+        // fiche de leur parent.
         val types = AffichageSuivis.typesAfficherEnListe(enfants.keys.toList(), schema)
         val plusieursTypes = types.size > 1
         val sections = types.mapNotNull { type ->
@@ -127,6 +130,7 @@ class SuiviDetailViewModel(private val services: ServicesGeoNature, val moduleCo
             val saisie = AffichageSuivis.typeSaisieEnfantServeur(type, schemaType)
             // « Nouvelle visite » : le même pour toutes les lignes du type.
             val libelleNouveau = saisie?.let { services.monitoringObjets.libelleNouveau(moduleCode, it) }
+            val permise = saisie?.let { services.monitoringModules.peutCreer(services.config, moduleCode, it) } ?: true
             SectionSuivi(
                 entete = if (plusieursTypes) AffichageSuivis.libelleListe(type, schema) else null,
                 lignes = items.map { e ->
@@ -138,6 +142,7 @@ class SuiviDetailViewModel(private val services: ServicesGeoNature, val moduleCo
                         carte = schemaType?.geometryType != null,
                         saisieEnfant = saisie,
                         libelleNouveau = libelleNouveau,
+                        nouvellePermise = permise,
                     )
                 },
             )

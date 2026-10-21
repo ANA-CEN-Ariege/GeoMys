@@ -45,6 +45,9 @@ class MonitoringApi(
     suspend fun chargerModules(config: GeoNatureConfig): List<MonitoringModule> =
         modules.chargerModules(config)
 
+    /** Voir [MonitoringModules.enregistrerDroits]. */
+    fun enregistrerDroits(modulesJson: String) = modules.enregistrerDroits(modulesJson)
+
     /** Voir [MonitoringModules.chargerModulesDepuisCache]. */
     suspend fun chargerModulesDepuisCache(): List<MonitoringModule>? = modules.chargerModulesDepuisCache()
 
@@ -61,6 +64,9 @@ class MonitoringApi(
         val nom: String,
         val proprietes: Map<String, String>,
         val geometrieGeoJson: String? = null,
+        /** Les propriétés à plusieurs valeurs (observateurs d'une visite, nomenclatures ou cases
+         *  multiples) : les identifiants, que l'affichage résout un à un, comme le web. */
+        val valeursMultiples: Map<String, List<String>> = emptyMap(),
     )
 
     /** Schéma d'une propriété d'un object_type (un champ saisissable). Vient des blocs
@@ -80,17 +86,31 @@ class MonitoringApi(
         /** Valeurs prédéfinies pour `select`/`radio` (value → label). Vide pour les datalists
          *  qui sont alimentés dynamiquement par appel API. */
         val valeurs: List<Pair<String, String>> = emptyList(),
-        /** Pour widget=`datalist` : champs nécessaires au fetch des options. */
+        /** Chaque valeur de [valeurs] avec son type JSON (nombre, booléen, texte) : celle qu'envoie le
+         *  formulaire web. */
+        val valeursBrutes: Map<String, Any> = emptyMap(),
+        /** Pour widget=`datalist` : champs nécessaires au fetch des options. [application] :
+         *  `GeoNature` (l'api du serveur), `TaxHub` (celle de TaxHub), sinon une adresse brute. */
         val apiUrl: String? = null,
         val application: String? = null,
+        /** `data` d'une datalist (JSON) : le web demande alors ses options en POST, avec ce corps. */
+        val donneesPost: String? = null,
         val keyLabel: String? = null,
         val keyValue: String? = null,
         val dataPath: String? = null,
+        /** Choix multiple, lu comme le composant web du widget (voir le parseur). */
         val multiple: Boolean = false,
-        /** Valeur par défaut scalaire (text/number/date) — `value` ou `default` simple. */
+        /** Widget `html` : le texte HTML que le web affiche. */
+        val html: String? = null,
+        /** Valeur initiale scalaire : la `value` du schéma, seule valeur initiale que pose le
+         *  formulaire web (`toForm` de gn_module_monitoring) ; le `default` ne vaut que pour une
+         *  datalist ([defautDatalist]). */
         val defaultValue: String? = null,
-        /** Valeur par défaut sous forme objet pour nomenclature : `{cd_nomenclature: "18"}` ou
-         *  `{label_default: "Imago"}`. Résolu en `id_nomenclature` côté UI via les options. */
+        /** [defaultValue] avec son type JSON (nombre, booléen, texte), tel qu'envoyé pour un champ
+         *  masqué. */
+        val valeurTypee: Any? = null,
+        /** Valeur initiale objet d'une nomenclature (`value: {code_nomenclature_type, cd_nomenclature}`),
+         *  résolue en `id_nomenclature` par son `cd_nomenclature`, comme le web. */
         val defaultObjet: Map<String, String> = emptyMap(),
         /** Filtres déclarés pour restreindre les options renvoyées (datalist/nomenclature).
          *  Format : Map<champ_filtre → liste de valeurs acceptables>. Ex chronoventaire stade :
@@ -113,9 +133,9 @@ class MonitoringApi(
          *  seulement au passage 2). Évaluée par le renderer contre les valeurs courantes ;
          *  null = se fier au booléen [MonitoringPropertySchema] `obligatoire`. */
         val obligatoireExpr: String? = null,
-        /** `hidden: true` côté schéma serveur : champ technique caché à l'UI (id_base_visit,
-         *  id_module, medias, nb_observations…). Inclus dans le payload POST avec valeur
-         *  null sinon le serveur Marshmallow plante. */
+        /** `hidden: true` côté schéma serveur : champ caché à l'écran (id_base_visit, id_module,
+         *  medias…) mais présent dans le corps envoyé, comme sur le web : avec sa `value` s'il en a
+         *  une (le cd_nom fixe d'un protocole mono-espèce), null sinon. */
         val hiddenBool: Boolean = false,
         /** Liste taxonomique propre à CE champ (lue depuis `id_list` ou l'api
          *  `taxref/allnamebylist/<id>`). Prime sur l'`idListTaxonomy` du module pour
@@ -147,6 +167,30 @@ class MonitoringApi(
          *  pour ne lister que les jeux où l'utilisateur connecté a le droit CRUVED `C` sur
          *  cet object — parité formulaire web monitoring. */
         val creatableInModule: String? = null,
+        /** Widget `nomenclature` : les seuls `cd_nomenclature` proposés (`cd_nomenclatures` du
+         *  schéma), déjà portés par [apiUrl] ; vide = toute la nomenclature. */
+        val cdNomenclatures: List<String> = emptyList(),
+        /** `default` d'une datalist : appliqué seulement s'il porte la clé [keyValue] et désigne une
+         *  option (composant datalist du web). */
+        val defautDatalist: Map<String, String> = emptyMap(),
+        /** `orderBy` d'une datalist : options triées par libellé, `asc` ou `desc` ; null = l'ordre
+         *  du serveur. */
+        val ordreOptions: String? = null,
+        /** Widget `observers` : le code de la liste d'observateurs (`code_list`), lue par
+         *  `users/menu_from_code/<code>` quand le champ n'a pas d'`id_list`. */
+        val codeList: String? = null,
+        /** `help` : l'aide que le web montre sous le champ. */
+        val aide: String? = null,
+        /** `pattern` (et son message `pattern_message`) d'un texte ; `max_length`. */
+        val motif: String? = null,
+        val messageMotif: String? = null,
+        val longueurMax: Int? = null,
+        /** `rows` d'une zone de texte. */
+        val lignes: Int? = null,
+        /** `noNullOption` d'un `select` : pas d'entrée vide « - ». */
+        val sansOptionVide: Boolean = false,
+        /** `nullDefault` d'une datalist : l'entrée « -- Aucun -- » quand elle n'est pas requise. */
+        val avecAucun: Boolean = false,
     )
 
     /** Schéma d'un object_type déclaré par un protocole dans son `config/objects.json` serveur,
@@ -210,10 +254,21 @@ class MonitoringApi(
          *  du passage » vs « Édition de l'observation ». Null = inconnu (heuristique
          *  voyelle initiale uniquement). */
         val genre: String? = null,
+        /** `chained` : le formulaire d'un nouvel objet propose « Enchaîner les saisies ». */
+        val enchainable: Boolean = false,
+        /** `keep` : les champs repris d'une saisie à la suivante quand on les enchaîne. */
+        val gardes: List<String> = emptyList(),
+        /** `redirect_to_parent` : après « Valider », le web montre le parent plutôt que l'objet. */
+        val retourAuParent: Boolean = false,
+        /** Pour le type « module » : `display_field_names` du protocole, le champ que le web affiche
+         *  pour chaque `type_util` (`taxonomy` → `nom_vern,lb_nom`, `sites_group` →
+         *  `sites_group_name`…). */
+        val champsAffichage: Map<String, String> = emptyMap(),
     )
 
     /** Cache des labels résolus depuis le serveur — permet de remplacer les IDs (id_role,
-     *  id_nomenclature, id_dataset) par leurs labels au moment de l'affichage. */
+     *  id_nomenclature, id_dataset…) par leurs labels au moment de l'affichage, comme le web
+     *  (`resolveProperty` de gn_module_monitoring, avec les `display_field_names` du protocole). */
     data class LabelResolver(
         /** code_nomenclature_type → (id_nomenclature → label_fr). */
         val nomenclatures: Map<String, Map<String, String>> = emptyMap(),
@@ -224,6 +279,10 @@ class MonitoringApi(
         /** Le cache TaxRef, pour les champs taxon (global sous Android) ; null = cd_nom laissés
          *  à l'appelant. */
         val taxRef: TaxRefCache? = null,
+        /** Les autres `type_util` (`site`, `sites_group`, `habitat`, `module`…) → (identifiant → libellé). */
+        val autres: Map<String, Map<String, String>> = emptyMap(),
+        /** `display_field_names` du protocole (cf. [MonitoringSchemaObjet.champsAffichage]). */
+        val champsAffichage: Map<String, String> = emptyMap(),
     ) {
         /** Résout l'ID d'une propriété en label si une correspondance existe. Retourne null si
          *  le type_util n'est pas géré ou si l'ID n'est pas trouvé. */
@@ -233,20 +292,33 @@ class MonitoringApi(
                 "user" -> users[valeur]
                 "nomenclature" -> prop.nomenclatureType?.let { nomenclatures[it]?.get(valeur) }
                 "dataset" -> datasets[valeur]
-                // Champ taxon (ex. `cd_nom`, type_util "taxonomy") : la valeur est un cd_nom.
-                // On le résout en nom scientifique via le cache TaxRef (avec le vernaculaire
-                // entre parenthèses s'il est connu), à l'image du web qui affiche `nom_vern,lb_nom`.
-                // runCatching : si le cache TaxRef n'est pas fourni ou pas lisible, on retombe sur
-                // le formatage brut (= numéro) côté appelant plutôt que de planter.
-                "taxonomy" -> runCatching {
-                    val cd = valeur.toIntOrNull() ?: return null
-                    val cache = taxRef ?: return null
-                    val sci = cache.entreesParCdNom()[cd]?.sciNom ?: return null
-                    val vern = cache.getVernaculaireParCdNom(cd)
-                    if (vern != null) "$sci ($vern)" else sci
-                }.getOrNull()
-                else -> null
+                "taxonomy" -> taxon(valeur)
+                null -> null
+                else -> autres[prop.typeUtil]?.get(valeur)
             }
+        }
+
+        /** Un cd_nom tel que le web l'affiche : le champ `taxonomy` de [champsAffichage], une liste
+         *  de champs dont le premier renseigné l'emporte (`nom_vern,lb_nom` : le nom vernaculaire, à
+         *  défaut le nom latin), celle de gn_module_monitoring s'il manque. runCatching : un cache
+         *  TaxRef absent ou illisible laisse le numéro à l'appelant plutôt que de planter. */
+        private fun taxon(valeur: String): String? = runCatching {
+            val cd = valeur.toIntOrNull() ?: return null
+            val cache = taxRef ?: return null
+            (champsAffichage["taxonomy"] ?: TAXON_PAR_DEFAUT).split(',').firstNotNullOfOrNull { champ ->
+                when (champ.trim()) {
+                    "nom_vern" -> cache.getVernaculaireParCdNom(cd)
+                    "lb_nom" -> cache.entreesParCdNom()[cd]?.sciNom
+                    "nom_valide" -> cache.nomValideParCdNom(cd)
+                    "cd_nom" -> valeur
+                    else -> null
+                }?.takeIf { it.isNotEmpty() }
+            }
+        }.getOrNull()
+
+        companion object {
+            /** `TAXONOMY_DISPLAY_FIELD_NAME` par défaut de gn_module_monitoring. */
+            const val TAXON_PAR_DEFAUT = "nom_vern,lb_nom"
         }
     }
 
@@ -273,6 +345,8 @@ class MonitoringApi(
         /** Faux pour une fiche reconstituée depuis sa ligne chez son parent : ses enfants (les
          *  observations d'une visite passée) ne sont pas dans le cache, [enfants] est vide. */
         val enfantsConnus: Boolean = true,
+        /** Cf. [MonitoringEnfant.valeursMultiples]. */
+        val valeursMultiples: Map<String, List<String>> = emptyMap(),
     )
 
     /** Voir [MonitoringObjets.chargerObjet]. */
@@ -303,6 +377,8 @@ class MonitoringApi(
         val label: String,
         val cdNomenclature: String? = null,
         val labelDefaut: String? = null,
+        /** [value] avec son type JSON, tel que le formulaire web l'envoie. */
+        val brut: Any? = null,
     )
 
     /** Voir [MonitoringDatalists.chargerOptionsDatalist]. */

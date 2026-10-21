@@ -54,7 +54,8 @@ expect fun ChampDateHeure(
     fondIos: Color = CouleursGeoMys.fondBas,
 )
 
-/** Android : une case du dialogue « Détails du relevé » (jour, heure, « ＋ » de la date de fin) :
+/** Android : une case du dialogue « Détails du relevé » (jour, heure, « ＋ » de la date de fin), et
+ *  le « ＋ » des profondeurs d'une station :
  *  TextView de 15 sp, marges de 10 × 8 dp, contour de 1 dp colorOnSurfaceVariant aux coins de
  *  6 dp, sans effet au toucher ; sans contour pour le « ✕ » ([contour] faux). */
 @Composable

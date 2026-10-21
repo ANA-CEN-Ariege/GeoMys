@@ -30,20 +30,17 @@ import fr.ariegenature.geomys.model.GeoNatureObservateur
 /** Les listes proposées pour un jeu de données, et si ce jeu de données impose la sienne. */
 data class ListesProposees(val listes: List<GeoNatureListe>, val imposee: Boolean)
 
-/** Ce que les Paramètres PROPOSENT (jeu de données, liste de taxons, observateur par défaut) et ce
- *  qui reste SÉLECTIONNÉ après une synchro, un changement de jeu de données ou un « Vider le cache ».
- *  Une sélection absente de ce qui est proposé est un fantôme : l'écran la purge, sans quoi un id
- *  périmé validait la configuration à tort. */
+/** Les sélections par défaut des Paramètres (jeu de données, liste de taxons, observateur) : ce
+ *  qu'ils PROPOSENT et ce qui reste SÉLECTIONNÉ après une synchro ou un « Vider le cache ». Elles
+ *  sont obligatoires, sans valeur d'office : le jeu et la liste sont à choisir, l'observateur est
+ *  l'utilisateur connecté. Une sélection absente de ce qui est proposé est un fantôme, que l'écran
+ *  purge. */
 object ReglesSelectionOcctax {
 
-    /** Jeux de données proposés : actifs, rattachés au module OCCTAX — ou sans module déclaré,
-     *  pour les instances qui n'exposent pas ce tableau — et créables (CRUVED C, comme le web ;
-     *  ensemble vide = pas de restriction). */
+    /** Jeux de données proposés, ceux du formulaire du web (`active`, `module_code` et `create`
+     *  OCCTAX) : actifs, rattachés au module OCCTAX et créables. */
     fun datasetsProposes(datasets: List<GeoNatureDataset>, creables: Set<Int>): List<GeoNatureDataset> =
-        datasets.filter {
-            it.actif && (it.moduleCodes.isEmpty() || "OCCTAX" in it.moduleCodes) &&
-                (creables.isEmpty() || it.id in creables)
-        }
+        datasets.filter { it.actif && "OCCTAX" in it.moduleCodes && it.id in creables }
 
     /** Libellé d'un jeu de données dans le menu : « nom (id) ». */
     fun libelle(dataset: GeoNatureDataset): String = "${dataset.nom} (${dataset.id})"
@@ -52,13 +49,13 @@ object ReglesSelectionOcctax {
     fun libelle(liste: GeoNatureListe): String = "${liste.nom} (${liste.id})"
 
     /** Jeu de données à garder sélectionné : celui de [idStocke] s'il est encore proposé, sinon
-     *  null (sélection fantôme à purger). */
+     *  null (sélection fantôme à purger, ou aucune). */
     fun datasetValide(idStocke: String, proposes: List<GeoNatureDataset>): GeoNatureDataset? {
         val id = idStocke.toIntOrNull() ?: return null
         return proposes.firstOrNull { it.id == id }
     }
 
-    /** Un jeu de données qui porte un `id_taxa_list` IMPOSE sa liste : on ne propose plus qu'elle
+    /** Un jeu de données qui porte un `id_taxa_list` IMPOSE sa liste : on ne montre plus qu'elle
      *  (synthétisée « Liste <id> » si le serveur ne l'expose pas via /biblistes). Sinon, toutes. */
     fun listesProposees(toutes: List<GeoNatureListe>, dataset: GeoNatureDataset?): ListesProposees {
         val idImpose = dataset?.idTaxaList ?: return ListesProposees(toutes, imposee = false)
@@ -66,29 +63,36 @@ object ReglesSelectionOcctax {
         return ListesProposees(listOf(liste), imposee = true)
     }
 
-    /** Id de la liste à sélectionner : l'imposée d'abord, puis la sélection stockée si elle est
-     *  encore proposée, puis la liste UNIQUE — sauf juste après un « Vider le cache »
-     *  ([selectionsReinitialisees]), où l'on repart d'une ardoise vierge — sinon aucune (""). */
-    fun listeChoisie(idStocke: String, proposees: ListesProposees, selectionsReinitialisees: Boolean): String {
-        if (proposees.imposee) return proposees.listes.first().id.toString()
-        val id = idStocke.toIntOrNull()
-        if (id != null && proposees.listes.any { it.id == id }) return id.toString()
-        if (proposees.listes.size == 1 && !selectionsReinitialisees) return proposees.listes[0].id.toString()
-        return ""
+    /** Liste à garder sélectionnée : celle de [idStocke] si elle existe encore parmi [toutes], sinon
+     *  aucune. Jamais de liste choisie d'office, même unique. Une liste imposée par le jeu de données
+     *  ne remplace pas ce choix : elle l'emporte seulement pour les relevés de ce jeu. */
+    fun listeChoisie(idStocke: String, toutes: List<GeoNatureListe>): GeoNatureListe? {
+        val id = idStocke.toIntOrNull() ?: return null
+        return toutes.firstOrNull { it.id == id }
     }
 
-    /** Observateur à sélectionner : la sélection stockée si elle est encore dans la liste, sinon
-     *  l'utilisateur CONNECTÉ ([idRoleConnecte], id_role relevé au login) s'il y figure — y compris
-     *  après un « Vider le cache » : contrairement au jeu de données et à la liste, l'observateur
+    /** Observateurs proposés : ceux de la liste d'OccTax, plus l'utilisateur connecté
+     *  ([idRoleConnecte], [nomConnecte]) s'il n'y figure pas, comme le web le pose toujours. */
+    fun observateursProposes(
+        observateurs: List<GeoNatureObservateur>,
+        idRoleConnecte: Int,
+        nomConnecte: String,
+    ): List<GeoNatureObservateur> {
+        if (idRoleConnecte <= 0 || nomConnecte.isBlank() || observateurs.any { it.idRole == idRoleConnecte }) return observateurs
+        return observateurs + GeoNatureObservateur(idRoleConnecte, nomConnecte)
+    }
+
+    /** Observateur à montrer sélectionné : celui de [idStocke] s'il est encore proposé, sinon
+     *  l'utilisateur CONNECTÉ ([idRoleConnecte]), y compris après un « Vider le cache » : le défaut
      *  retombe toujours sur celui qui saisit. Sinon aucun. */
     fun observateurChoisi(
         idStocke: String,
-        observateurs: List<GeoNatureObservateur>,
+        proposes: List<GeoNatureObservateur>,
         idRoleConnecte: Int,
     ): GeoNatureObservateur? {
         val id = idStocke.toIntOrNull()
-        observateurs.firstOrNull { it.idRole == id }?.let { return it }
+        proposes.firstOrNull { it.idRole == id }?.let { return it }
         val idRole = idRoleConnecte.takeIf { it > 0 } ?: return null
-        return observateurs.firstOrNull { it.idRole == idRole }
+        return proposes.firstOrNull { it.idRole == idRole }
     }
 }

@@ -17,7 +17,7 @@
  */
 
 // Porté de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/network/GeoNatureBrowse.kt,
-// ObsExplorer) : passé dans model/, sans autre changement.
+// ObsExplorer) : passé dans model/. Le groupe peut manquer (21 octobre 2026).
 
 package fr.ariegenature.geomys.model
 
@@ -30,5 +30,7 @@ data class ObsExplorer(
     val longitude: Double,
     val date: String,
     val nombre: Int,
-    val taxon: Taxon = Taxon.OISEAU
+    /** Le groupe ; null quand ni la Synthèse ni le cache TaxRef du téléphone ne le donnent : l'Explorer
+     *  montre l'observation quand même, avec une icône neutre. */
+    val taxon: Taxon? = null
 )

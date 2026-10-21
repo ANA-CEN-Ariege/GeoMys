@@ -24,9 +24,14 @@ import okio.Path
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLIsExcludedFromBackupKey
 
+actual fun exclureDesSauvegardes(dossier: Path) = marquer(dossier, exclu = true)
+
+actual fun rendreAuxSauvegardes(dossier: Path) = marquer(dossier, exclu = false)
+
+/** L'attribut vaut pour le dossier ET tout son contenu. */
 @OptIn(ExperimentalForeignApi::class)
-actual fun exclureDesSauvegardes(dossier: Path) {
+private fun marquer(dossier: Path, exclu: Boolean) {
     val ok = NSURL.fileURLWithPath(dossier.toString(), isDirectory = true)
-        .setResourceValue(true, forKey = NSURLIsExcludedFromBackupKey, error = null)
-    if (!ok) Journal.w("Sauvegardes", "Exclusion de la sauvegarde impossible : $dossier")
+        .setResourceValue(exclu, forKey = NSURLIsExcludedFromBackupKey, error = null)
+    if (!ok) Journal.w("Sauvegardes", "Attribut de sauvegarde impossible à poser (exclu = $exclu) : $dossier")
 }

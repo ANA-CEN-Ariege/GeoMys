@@ -49,13 +49,13 @@ suspend fun ServicesGeoNature.ajouterOccHabEssai() {
             GeoNatureDataset(22, "Tourbières de l'Ariège", moduleCodes = listOf("OCCHAB")),
         ),
     )
-    config.datasetsCreablesOcchab = emptySet()
-    if (config.observateursCacheJson.isEmpty()) {
-        config.observateursCacheJson = listeVersJson(
-            GeoNatureObservateur.serializer(),
-            listOf(GeoNatureObservateur(3, "DUPONT Alice"), GeoNatureObservateur(7, "MARTIN Paul"), GeoNatureObservateur(12, "ROUX Inès")),
-        )
-    }
+    // Créables (POST `create` OCCHAB) et observateurs de la liste d'OccHab : sans eux, le formulaire
+    // ne propose rien, comme le web.
+    config.datasetsCreablesOcchab = setOf(21, 22)
+    config.observateursOcchabCacheJson = listeVersJson(
+        GeoNatureObservateur.serializer(),
+        listOf(GeoNatureObservateur(3, "DUPONT Alice"), GeoNatureObservateur(7, "MARTIN Paul"), GeoNatureObservateur(12, "ROUX Inès")),
+    )
     nomenclatures.completer(
         mapOf(
             "NAT_OBJ_GEO" to listOf(NomValeur(301, "Inventoriel", cd = "In"), NomValeur(302, "Stationnel", cd = "St"), NomValeur(303, "Ne sait pas", cd = "NSP")),

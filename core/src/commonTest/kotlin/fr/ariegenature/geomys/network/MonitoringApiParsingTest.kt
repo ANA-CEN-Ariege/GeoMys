@@ -61,7 +61,7 @@ class MonitoringApiParsingTest {
     // ── parserUnePropriete ────────────────────────────────────────────────────
     @Test
     fun propriete_texte_basique() {
-        val v = JSONObject("""{"type_widget":"text","label":"Commentaire","required":true}""")
+        val v = JSONObject("""{"type_widget":"text","attribut_label":"Commentaire","required":true}""")
         val p = MonitoringSchemas.parserUnePropriete("comment", v)!!
         assertEquals("comment", p.nom)
         assertEquals("text", p.typeWidget)
@@ -70,16 +70,40 @@ class MonitoringApiParsingTest {
     }
 
     @Test
-    fun label_deduit_du_nom_si_absent() {
-        val p = MonitoringSchemas.parserUnePropriete("date_min", JSONObject("""{"type_widget":"date"}"""))!!
-        assertEquals("Date min", p.label) // underscores → espaces + capitale initiale
+    fun seules_les_cles_du_web_comptent() {
+        // Le web n'affiche que `attribut_label`, ne lit que `type_widget` et `hidden`.
+        val p = MonitoringSchemas.parserUnePropriete("date_min", JSONObject("""{"type_widget":"date","label":"Début"}"""))!!
+        assertEquals("", p.label)
         assertFalse(p.obligatoire)
+        assertNull(MonitoringSchemas.parserUnePropriete("a", JSONObject("""{"widget":"select"}""")))
+        assertNull(MonitoringSchemas.parserUnePropriete("b", JSONObject("""{"type":"number"}""")))
+        assertNull(MonitoringSchemas.parserUnePropriete("c", JSONObject("""{"type_widget":"text","display":"x === 1"}"""))!!.hiddenExpr)
     }
 
     @Test
-    fun type_widget_repli_sur_widget_puis_type() {
-        assertEquals("select", MonitoringSchemas.parserUnePropriete("a", JSONObject("""{"widget":"select"}"""))!!.typeWidget)
-        assertEquals("number", MonitoringSchemas.parserUnePropriete("b", JSONObject("""{"type":"number"}"""))!!.typeWidget)
+    fun choix_multiple_lu_comme_le_composant_web_du_widget() {
+        fun multiple(json: String) = MonitoringSchemas.parserUnePropriete("m", JSONObject(json))!!.multiple
+        assertTrue(multiple("""{"type_widget":"datalist","multiple":true}"""))
+        assertFalse(multiple("""{"type_widget":"datalist","multi_select":true}"""))
+        assertTrue(multiple("""{"type_widget":"observers","multi_select":true}"""))
+        assertFalse(multiple("""{"type_widget":"nomenclature","multiple":true}"""))
+        assertFalse(multiple("""{"type_widget":"radio","multiple":true}"""))
+        assertTrue(multiple("""{"type_widget":"multiselect"}"""))
+    }
+
+    @Test
+    fun valeurs_avec_leur_type_json_et_bool_radio() {
+        val p = MonitoringSchemas.parserUnePropriete("n", JSONObject("""{"type_widget":"select","values":["1",2,{"label":"Trois","value":3}]}"""))!!
+        assertEquals(listOf("1" to "1", "2" to "2", "3" to "Trois"), p.valeurs)
+        assertEquals(mapOf<String, Any>("1" to "1", "2" to 2, "3" to 3), p.valeursBrutes)
+        val oui = fr.ariegenature.geomys.monitoring.form.construireFormulaire(
+            MonitoringApi.MonitoringSchemaObjet(
+                type = "visit", label = null, labelList = null, nameField = null, parentType = null, childrenTypes = emptyList(),
+                properties = linkedMapOf("b" to MonitoringSchemas.parserUnePropriete("b", JSONObject("""{"type_widget":"bool_radio","attribut_label":"B","values":["Oui","Non"]}"""))!!),
+            ),
+        ).fields.single().values
+        assertEquals(listOf(true, false), oui.map { it.brut })
+        assertEquals(listOf("Oui", "Non"), oui.map { it.label })
     }
 
     @Test
@@ -104,11 +128,12 @@ class MonitoringApiParsingTest {
     }
 
     @Test
-    fun champ_specific_sans_widget_infere_text_ou_date() {
-        // En bloc specific, un champ sans widget reçoit text (ou date si type_util=date).
-        assertEquals("text", MonitoringSchemas.parserUnePropriete("x", JSONObject("{}"), enSpecific = true)!!.typeWidget)
-        val d = MonitoringSchemas.parserUnePropriete("d", JSONObject("""{"type_util":"date"}"""), enSpecific = true)!!
-        assertEquals("date", d.typeWidget)
+    fun champ_sans_widget_ecarte_meme_en_specific() {
+        // Comme le formulaire web, qui ne garde que les définitions munies d'un type_widget.
+        assertNull(MonitoringSchemas.parserUnePropriete("x", JSONObject("{}"), enSpecific = true))
+        assertNull(MonitoringSchemas.parserUnePropriete("d", JSONObject("""{"type_util":"date"}"""), enSpecific = true))
+        // Masqué, il reste au schéma pour le corps envoyé.
+        assertEquals("", MonitoringSchemas.parserUnePropriete("t", JSONObject("""{"hidden":true}"""))!!.typeWidget)
     }
 
     // ── heuristiques pures ─────────────────────────────────────────────────────

@@ -31,6 +31,7 @@ import fr.ariegenature.geomys.monitoring.form.PropositionTaxon
 import fr.ariegenature.geomys.outils.ajouterMonitoringEssai
 import fr.ariegenature.geomys.outils.ajouterTaxRefEssai
 import fr.ariegenature.geomys.ui.ServicesEssai
+import fr.ariegenature.geomys.ui.laisserFinirLeTravailDeFond
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -66,6 +67,7 @@ class LigneContexteNouvelleVisiteTest {
     @AfterTest
     fun nettoyer() {
         magasin.clear()
+        laisserFinirLeTravailDeFond()
         Dispatchers.resetMain()
         essai.nettoyer()
     }
@@ -85,7 +87,7 @@ class LigneContexteNouvelleVisiteTest {
     }
 
     @Test
-    fun la_ligne_de_contexte_survit_a_enregistrer_et_suivante() {
+    fun la_ligne_de_contexte_survit_aux_saisies_enchainees() {
         val ecran = vm {
             NouvelleVisiteViewModel(
                 services,
@@ -99,16 +101,25 @@ class LigneContexteNouvelleVisiteTest {
             )
         }
         attendre("le formulaire d'une observation") { ecran.etat != null }
-        assertTrue(ecran.modeChaine, "observations en chaîne")
+        // L'interrupteur du web, proposé (`chained`), éteint à l'ouverture.
+        assertTrue(ecran.enchainementPropose, "observations enchaînables")
+        assertEquals("Valider", ecran.libelleBouton)
+        ecran.enchainer = true
+        assertEquals("Valider et enchaîner les saisies", ecran.libelleBouton)
         assertEquals(CONTEXTE, ecran.contexte.lineSequence().first())
 
         val premier = requireNotNull(ecran.etat)
         premier.choisirPropositionTaxon("cd_nom", PropositionTaxon("Merle noir", 4117, null))
         premier.saisirTexte("count", "2")
+        premier.choisirRadio("distance", 1)
         attendre("l'observation complète") { ecran.boutonActif }
         ecran.enregistrer()
         attendre("le formulaire de l'observation suivante") { ecran.etat.let { it != null && it !== premier } }
         assertEquals(CONTEXTE, ecran.contexte.lineSequence().first(), "la ligne de contexte est reposée avec le formulaire suivant")
+        val suivant = requireNotNull(ecran.etat)
+        assertEquals("25 à 100 m", suivant.lireValeurs()["distance"], "le champ `keep` est repris, comme sur le web")
+        assertEquals(null, suivant.lireValeurs()["cd_nom"], "les autres repartent à vide")
+        assertTrue(ecran.enchainer, "l'enchaînement reste activé")
     }
 
     private companion object {

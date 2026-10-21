@@ -84,13 +84,10 @@ class MonitoringSync(
             progression(idx + 1, modules.size, objetsCharges)
             try {
                 // Le schéma + les enfants directs sont indépendants → fetch en parallèle pour
-                // gagner ~1 RTT par module. Les jeux de données du protocole aussi : la nouvelle
-                // saisie y lit sa liste taxonomique, sans requête (best-effort).
+                // gagner ~1 RTT par module.
                 val (schema, enfantsParType) = coroutineScope {
                     val schemaDef = async { essayer { api.chargerSchemaProtocole(config, module.moduleCode) }.getOrNull() }
                     val enfantsDef = async { essayer { api.chargerEnfants(config, module.moduleCode) }.getOrDefault(emptyMap()) }
-                    val jeuxDef = async { essayer { datalists.chargerDatasetsDuModule(config, module.moduleCode) } }
-                    awaitAll(schemaDef, enfantsDef, jeuxDef)
                     schemaDef.await() to enfantsDef.await()
                 }
                 // Le `id_list_observer` est porté par le type "module" du schéma. On le

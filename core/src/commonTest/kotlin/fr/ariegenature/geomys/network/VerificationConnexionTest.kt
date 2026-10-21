@@ -51,7 +51,7 @@ class VerificationConnexionTest {
         val resultat = verification.verifier(config())
         assertTrue(resultat.reussi)
         assertEquals("2.16.0", resultat.version)
-        assertEquals("Alice Test", resultat.utilisateur)
+        assertEquals("Test Alice", resultat.utilisateur, "nom_role prenom_role, comme le nom_complet du web")
         assertEquals(42, resultat.idRole)
         assertEquals(200, resultat.appelAuthentifie)
         val modules = serveur.requetes.last()

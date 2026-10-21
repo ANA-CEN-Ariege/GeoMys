@@ -25,6 +25,8 @@ package fr.ariegenature.geomys.network
 
 import fr.ariegenature.geomys.model.OccHabSaisie
 import fr.ariegenature.geomys.model.OccHabStation
+import fr.ariegenature.geomys.plateforme.ExecutionLongue
+import fr.ariegenature.geomys.plateforme.proteger
 import fr.ariegenature.geomys.store.GeoNatureConfig
 import fr.ariegenature.geomys.store.OccHabStore
 import fr.ariegenature.geomys.store.StationsServeurCache
@@ -57,6 +59,8 @@ class EnvoiOccHab(
     private val occHabUpload: OccHabUpload,
     private val store: OccHabStore,
     private val stationsServeur: StationsServeurCache,
+    /** Garde l'envoi de la mise en veille (tâche d'arrière-plan sous iOS). */
+    private val executionLongue: ExecutionLongue? = null,
     private val altitudesMnt: suspend (OccHabStation) -> Pair<Int, Int>?,
 ) {
 
@@ -83,6 +87,13 @@ class EnvoiOccHab(
         seulement: Set<String>? = null,
         /** Envoi d'UNE station — injectable pour les tests (défaut : le POST réseau réel). */
         envoyer: suspend (OccHabStation, GeoNatureConfig) -> OccHabEnvoiResult = occHabUpload::envoyer,
+    ): ResultatEnvoiOccHab = executionLongue.proteger("Envoi OccHab") { envoyerSansVeille(saisie, config, seulement, envoyer) }
+
+    private suspend fun envoyerSansVeille(
+        saisie: OccHabSaisie,
+        config: GeoNatureConfig,
+        seulement: Set<String>?,
+        envoyer: suspend (OccHabStation, GeoNatureConfig) -> OccHabEnvoiResult,
     ): ResultatEnvoiOccHab = withContext(Dispatchers.IO) {
         // Même verrou que côté Occtax (cf. EnvoiSortie) : les écrans OccHab n'avaient eux aussi que
         // des drapeaux `envoiEnCours` d'instance, aveugles d'un écran à l'autre. « Tentée » est
@@ -173,7 +184,10 @@ class EnvoiOccHab(
                     }
                     // L'ACQUIS d'abord : la station créée est marquée AVANT tout le reste — un
                     // ré-envoi ne la re-postera pas (recalcule aussi l'état de la saisie).
-                    val persiste = store.marquerStationEnvoyee(saisie.id, station.id, res.idStationServeur)
+                    // La version partie (fusionnée avec le serveur, habitats munis de leurs ids)
+                    // remplace la copie locale.
+                    val envoyee = res.envoyee ?: station
+                    val persiste = store.marquerStationEnvoyee(saisie.id, station.id, res.idStationServeur, contenu = res.envoyee)
                     if (persiste) {
                         nbCrees++
                         // La version qui vient de partir devient l'état de référence du serveur : on
@@ -184,13 +198,14 @@ class EnvoiOccHab(
                         // « station serveur », comme le lecteur du chargement : l'empreinte d'origine
                         // est recalculée au prochain import pour édition.
                         stationsServeur.upsert(
-                            station.copy(
+                            envoyee.copy(
                                 idStationServeur = res.idStationServeur ?: station.idStationServeur,
                                 envoyeGeoNature = true,
                                 origineServeur = true,
                                 envoiIncertain = false,
                                 derniereErreurEnvoi = null,
                                 empreinteOrigine = null,
+                                origineJson = null,
                             )
                         )
                     } else {

@@ -21,7 +21,10 @@
 
 package fr.ariegenature.geomys.network
 
+import fr.ariegenature.geomys.model.AdditionalFieldDef
 import fr.ariegenature.geomys.model.OccHabStation
+import fr.ariegenature.geomys.model.WidgetType
+import fr.ariegenature.geomys.saisie.ChampsAdditionnels
 import fr.ariegenature.geomys.util.AnaEval
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -46,33 +49,36 @@ class LotCAuditTest {
 
     @Test
     fun champs_additionnels_virgule_decimale_acceptee() {
-        val json = GeoNatureUpload.jsonDepuisMap(mapOf(
-            "recouvrement" to "12,5", "nombre" to "12", "point" to "12.5", "liste" to "1,2,3", "texte" to "a,b",
-        ))
+        fun def(nom: String, widget: WidgetType) = AdditionalFieldDef(idField = 1, fieldName = nom, fieldLabel = nom, widget = widget)
+        val json = ChampsAdditionnels.versJson(
+            mapOf("recouvrement" to "12,5", "nombre" to "12", "point" to "12.5", "liste" to "1,2,3", "texte" to "a,b"),
+            listOf(def("recouvrement", WidgetType.NUMBER), def("nombre", WidgetType.NUMBER), def("point", WidgetType.NUMBER), def("liste", WidgetType.TEXT)),
+        )
         assertEquals(12.5, json.getDouble("recouvrement"), 1e-9)
         assertEquals(12, json.getInt("nombre"))
         assertEquals(12.5, json.getDouble("point"), 1e-9)
-        assertEquals("1,2,3", json.getString("liste"), "plusieurs virgules = texte")
+        assertEquals("1,2,3", json.getString("liste"), "un texte reste un texte")
         assertEquals("a,b", json.getString("texte"))
     }
 
     @Test
     fun champs_additionnels_texte_libre_envoyes_en_chaine_comme_le_web() {
-        val defs = """[
+        val defs = ChampsAdditionnels.fromJson(
+            """[
           {"idField":1,"fieldName":"remarque","fieldLabel":"Remarque","widget":"TEXT"},
           {"idField":2,"fieldName":"note","fieldLabel":"Note","widget":"TEXTAREA"},
           {"idField":3,"fieldName":"exotique","fieldLabel":"Exotique","widget":"INCONNU"},
           {"idField":4,"fieldName":"effectif","fieldLabel":"Effectif","widget":"NUMBER"},
-          {"idField":5,"fieldName":"vu","fieldLabel":"Vu","widget":"CHECKBOX"}
-        ]"""
-        val texte = GeoNatureUpload.champsAdditionnelsTexteLibre(defs)
-        assertEquals(setOf("remarque", "note", "exotique"), texte)
-        assertEquals(emptySet(), GeoNatureUpload.champsAdditionnelsTexteLibre("<html>"),
-            "cache illisible → aucun champ texte (heuristique)")
-        val json = GeoNatureUpload.jsonDepuisMap(
-            mapOf("remarque" to "42", "note" to "true", "effectif" to "42", "vu" to "true"), texte)
+          {"idField":5,"fieldName":"vu","fieldLabel":"Vu","widget":"BOOL_CHECKBOX"}
+        ]""",
+        )
+        val json = ChampsAdditionnels.versJson(
+            mapOf("remarque" to "42", "note" to "true", "exotique" to "1", "effectif" to "42", "vu" to "true"),
+            defs,
+        )
         assertEquals("42", json.getString("remarque"))
         assertEquals("true", json.getString("note"))
+        assertEquals("1", json.getString("exotique"))
         assertEquals(42, json.getInt("effectif"))
         assertTrue(json.getBoolean("vu"))
     }

@@ -234,7 +234,7 @@ fun SaisieMultiScreen(
             boutons = listOf(BoutonAlerte("OK", action = vm::quitter)),
             onFermer = vm::fermerResultatEnvoi,
         )
-        DialogueDetailsReleve(vm.detailsCommuns, vm::fermerDetailsCommuns, vm::validerDetailsCommuns)
+        EcranDetailsReleve(vm.detailsCommuns, SaisieMultiViewModel.LIBELLE, onAccueil, vm::fermerDetailsCommuns, vm::validerDetailsCommuns)
         AlerteEchecEcriture(vm.echecFin, vm::fermerEchecFin, FinSaisie.CONSIGNE_ECHEC)
         // Échec de l'auto-save du brouillon (disque plein ?) : alerte BLOQUANTE — sans elle, la
         // saisie affichée ne vit qu'en mémoire.

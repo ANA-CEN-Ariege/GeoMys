@@ -18,6 +18,7 @@
 
 package fr.ariegenature.geomys.ui.composants
 
+import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import androidx.compose.runtime.Composable
@@ -29,7 +30,15 @@ actual fun rememberVibration(): () -> Unit {
     val contexte = LocalContext.current
     return remember(contexte) {
         {
-            contexte.getSystemService(Vibrator::class.java)?.vibrate(VibrationEffect.createOneShot(60, VibrationEffect.DEFAULT_AMPLITUDE))
+            val vibreur = contexte.getSystemService(Vibrator::class.java)
+            // VibrationEffect n'existe que depuis Android 8 : avant, la durée seule, comme
+            // GeoMys-Android (sans cette garde, chaque « + » plantait sous Android 7).
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibreur?.vibrate(VibrationEffect.createOneShot(60, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibreur?.vibrate(60)
+            }
         }
     }
 }

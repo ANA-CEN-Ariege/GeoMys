@@ -19,7 +19,8 @@
 // Porté de GeoMys-Android @ cdd5196 (app/src/test/java/fr/ariegenature/geomys/FormulaireRendererTest.kt) : le
 // cas de mise en page, laissé de côté au lot 4 (les 14 autres sont dans FormulaireEtatTest, côté socle).
 // Robolectric et la hiérarchie des vues deviennent un test Compose sans fenêtre, sur le simulateur iOS,
-// l'allure Android imposée : la barre rouge est dessinée par la boîte du seul champ.
+// l'allure Android imposée : la barre rouge est dessinée par la boîte du seul champ. Propre au portage :
+// les champs d'une photo sous l'allure iOS (formulaire média du web, 20 octobre).
 
 package fr.ariegenature.geomys.ui.suivis
 
@@ -33,9 +34,11 @@ import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import com.russhwolf.settings.MapSettings
+import fr.ariegenature.geomys.model.MediaSuivi
 import fr.ariegenature.geomys.monitoring.form.EditableField
 import fr.ariegenature.geomys.monitoring.form.FormulaireEtat
 import fr.ariegenature.geomys.monitoring.form.ViewType
@@ -75,13 +78,14 @@ class MiseEnPageFormulaireTest {
         // Demande terrain : la barre appartient au CHAMP (elle en a la hauteur), le libellé
         // n'est pas souligné. Elle doit donc border le champ seul, pas le bloc du libellé.
         val e = etat(listOf(EditableField("vide", ViewType.TEXT, "Vide", obligatoire = true)))
-        var barres by mutableStateOf(e.barresRouges(modeCompletion = true))
+        var barres by mutableStateOf(e.barresRouges())
         setContent {
             CompositionLocalProvider(LocalApparence provides Apparence.ANDROID) {
                 MaterialTheme { FormulaireMonitoring(e, barres, {}, {}) }
             }
         }
-        val libelle = onNodeWithText("Vide *").getBoundsInRoot()
+        // Le libellé du web, sans « * ».
+        val libelle = onNodeWithText("Vide").getBoundsInRoot()
         val bordure = onNodeWithTag(etiquetteChamp("vide")).getBoundsInRoot()
         val avecBarre = onNode(hasSetTextAction()).getBoundsInRoot().left - bordure.left
         // Le libellé est au-dessus de ce que borde la barre, et n'est pas décalé par elle.
@@ -92,5 +96,34 @@ class MiseEnPageFormulaireTest {
         waitForIdle()
         val sansBarre = onNode(hasSetTextAction()).getBoundsInRoot().left - onNodeWithTag(etiquetteChamp("vide")).getBoundsInRoot().left
         assertEquals(3.dp, avecBarre - sansBarre)
+    }
+
+    @Test
+    fun une_photo_a_son_titre_sa_description_et_son_auteur_sous_ios() = runComposeUiTest {
+        val photo = MediaSuivi("file:///essai/col-de-port.jpg", champ = "medias", schemaDotTable = "gn_monitoring.t_base_visits")
+        val e = etat(listOf(EditableField("medias", ViewType.MEDIA, "Photos", value = listOf(photo))))
+        setContent {
+            CompositionLocalProvider(LocalApparence provides Apparence.IOS) {
+                MaterialTheme { FormulaireMonitoring(e, e.barresRouges(), {}, {}) }
+            }
+        }
+        onNodeWithText("col-de-port.jpg").assertExists()
+        // Le titre, la description et l'auteur, dans cet ordre, chacun sous son libellé.
+        val champs = onAllNodes(hasSetTextAction())
+        val titre = champs[0].getBoundsInRoot()
+        val description = champs[1].getBoundsInRoot()
+        val auteur = champs[2].getBoundsInRoot()
+        assertTrue(onNodeWithText("Titre").getBoundsInRoot().bottom <= titre.top)
+        assertTrue(titre.bottom <= onNodeWithText("Description").getBoundsInRoot().top)
+        assertTrue(description.bottom <= onNodeWithText("Auteur").getBoundsInRoot().top)
+        assertTrue(onNodeWithText("Auteur").getBoundsInRoot().bottom <= auteur.top)
+        // Sans titre, requis sur le web, la barre (3 pt, à 8 pt du champ) décale le seul champ du titre.
+        assertEquals(11.dp, titre.left - description.left)
+        assertEquals(description.left, auteur.left)
+        // Le titre saisi, la barre disparaît, et le média le garde pour l'envoi.
+        champs[0].performTextInput("Mare au lever du jour")
+        waitForIdle()
+        assertEquals(onAllNodes(hasSetTextAction())[1].getBoundsInRoot().left, onAllNodes(hasSetTextAction())[0].getBoundsInRoot().left)
+        assertEquals("Mare au lever du jour", e.mediasPourEnvoi().single().titre)
     }
 }

@@ -60,20 +60,20 @@ class ListeIncompleteTest {
         taxRef.vider()
     }
 
-    /** Configuration par ailleurs valide : connexion, jeu de données, liste et observateur en
-     *  cache, et des taxons chargés. */
+    /** Configuration par ailleurs valide : connexion, jeu de données (proposé), liste et
+     *  observateur en cache et choisis, et des taxons chargés. */
     private fun configValide() = t.services.config.apply {
         urlServeur = "https://exemple.test"
         login = "u"
         motDePasse = "p"
         serveurCompatible = true
-        datasetsCacheJson = """[{"id":1,"nom":"JDD"}]"""
+        datasetsCacheJson = """[{"id":1,"nom":"JDD","moduleCodes":["OCCTAX"]}]"""
+        datasetsCreablesOcctax = setOf(1)
         idDataset = "1"
         listesCacheJson = """[{"id":100,"nom":"Saisie"}]"""
         taxaListeId = "100"
         observateursCacheJson = """[{"idRole":7,"nom":"DUPONT jean"}]"""
         observateurDefautId = "7"
-        rechargementRequisApresMaj = false
     }
 
     private fun poserDesTaxons() {
@@ -81,6 +81,18 @@ class ListeIncompleteTest {
             mapOf(TaxRefCache.normaliser("Machaon") to TaxRefEntry(54468, "Papilio machaon", "Machaon"))
         )
         taxRef.versionSauvegardee = "17"
+        taxRef.listesSynchronisees = listOf(100)
+    }
+
+    @Test
+    fun la_liste_de_saisie_doit_etre_sur_le_telephone() {
+        // 21 octobre : la synchro ne charge que les listes utiles ; une liste choisie après coup se
+        // télécharge à son choix, et la saisie l'attend.
+        poserDesTaxons()
+        taxRef.listesSynchronisees = listOf(200)
+        assertFalse(configurationComplete(configValide(), taxRef), "la liste 100 n'est pas chargée")
+        taxRef.listesSynchronisees = listOf(200, 100)
+        assertTrue(configurationComplete(configValide(), taxRef))
     }
 
     @Test

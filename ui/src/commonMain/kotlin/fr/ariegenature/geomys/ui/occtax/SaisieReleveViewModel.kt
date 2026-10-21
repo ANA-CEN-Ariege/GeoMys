@@ -36,6 +36,7 @@ import fr.ariegenature.geomys.occtax.DetailsReleveResult
 import fr.ariegenature.geomys.occtax.EspeceReleve
 import fr.ariegenature.geomys.occtax.OuvertureReleve
 import fr.ariegenature.geomys.occtax.ReleveEnCours
+import fr.ariegenature.geomys.occtax.RequisEspece
 import fr.ariegenature.geomys.occtax.libelleChampEspece
 import fr.ariegenature.geomys.store.NidificationOiseaux
 import fr.ariegenature.geomys.store.SuggestionTaxon
@@ -78,7 +79,7 @@ class SaisieReleveViewModel(
     val evenements = _evenements.receiveAsFlow()
 
     /** Le champ espèce : groupe, mode, texte, propositions, statut TaxRef. */
-    val champ = EtatChampEspece(services, viewModelScope, releve.taxonInitial, ::libelleChampEspece)
+    val champ = EtatChampEspece(services, viewModelScope, releve.taxonInitial, ::libelleChampEspece, idDataset = { releve.idDatasetEffectif() })
 
     val groupes: List<Taxon>? get() = champ.groupes
     val taxon: Taxon get() = champ.taxon
@@ -97,11 +98,14 @@ class SaisieReleveViewModel(
     private var dejaAffiche = false
 
     /** À chaque affichage de l'écran (onViewCreated) : le relevé est enregistré ; au retour d'un
-     *  sous-écran, la palette revient au groupe de la première espèce, comme sous Android. */
+     *  sous-écran, la palette revient au groupe de la première espèce, comme sous Android. Sans jeu
+     *  de données connu, le relevé commence par ses détails, comme le web : le jeu est obligatoire. */
     fun afficher() {
-        if (dejaAffiche) champ.replacerGroupe(releve.especes.value.firstOrNull()?.taxon ?: Taxon.OISEAU)
+        val premier = !dejaAffiche
+        if (!premier) champ.replacerGroupe(releve.especes.value.firstOrNull()?.taxon ?: Taxon.OISEAU)
         dejaAffiche = true
         releve.synchroniser()
+        if (premier && (releve.idDatasetEffectif() == null || releve.dateAChoisir())) ouvrirDetails()
     }
 
     fun choisirTaxon(nouveau: Taxon) = champ.choisirTaxon(nouveau)
@@ -121,7 +125,7 @@ class SaisieReleveViewModel(
     fun dicter(candidats: List<String>) {
         saisir(candidats.first())
         viewModelScope.launch {
-            val (statut, _) = services.taxRefService.rechercherParmiCandidats(candidats, taxon, config, nomScientifique)
+            val (statut, _) = services.taxRefService.rechercherParmiCandidats(candidats, taxon, champ.listeTaxons, nomScientifique)
             if (statut is TaxRefStatut.Trouve) {
                 // Le premier nom français du taxon, sinon son nom scientifique.
                 val nomFrancais = statut.nomFrancais?.split(",")?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() }
@@ -132,17 +136,31 @@ class SaisieReleveViewModel(
         }
     }
 
+    /** Ajoute l'espèce, même si le taxon est déjà dans le relevé : sans la confirmation du web
+     *  (demande du 21 octobre 2026). */
     private fun ajouter(nom: String, cdNom: Int?) {
         val index = releve.ajouter(taxon, nom, cdNom)
         champ.vider()
-        declencherCaracterisationSiNidification(index)
+        // Des champs additionnels obligatoires sans valeur par défaut : l'écran qui les porte s'ouvre
+        // d'office, comme le web montre le formulaire du taxon avant de l'enregistrer (21 octobre).
+        val requis = releve.requis()
+        when {
+            requis.occurrence.isNotEmpty() -> ouvrirCaracterisation(index)
+            requis.denombrement.isNotEmpty() -> ouvrirDenombrement(index)
+            else -> declencherCaracterisationSiNidification(index)
+        }
     }
 
+    /** Les champs additionnels obligatoires à remplir des espèces : leur ligne les montre en rouge. */
+    fun requis(): RequisEspece = releve.requis()
+
     /** Oiseaux seulement : une espèce en période de nidification ce mois-ci ouvre d'elle-même sa
-     *  caractérisation, réduite au comportement (indice de nidification). */
+     *  caractérisation, réduite au comportement (indice de nidification) — si le serveur montre ce
+     *  champ (`behaviour`), sans quoi l'écran s'ouvrirait vide. */
     private fun declencherCaracterisationSiNidification(index: Int) {
         val espece = releve.especes.value.getOrNull(index) ?: return
         if (espece.taxon != Taxon.OISEAU) return
+        if (!config.champFormVisible("behaviour")) return
         val cdNom = espece.cdNom ?: return
         viewModelScope.launch {
             if (nidification.estEnPeriode(cdNom, moisCourant())) {
@@ -167,8 +185,9 @@ class SaisieReleveViewModel(
 
     /** « Détails » : le dialogue sur les valeurs du relevé. */
     fun ouvrirDetails() {
-        details = EtatDetailsReleve(DetailsReleveFormulaire.pourReleve(releve, config), services.nomenclatures, viewModelScope) { terme ->
-            services.habitats.rechercher(terme)
+        details = EtatDetailsReleve(DetailsReleveFormulaire.pourReleve(releve, config), services.nomenclatures, viewModelScope, services.taxRef) { terme ->
+            // Restreinte à `OCCTAX.CD_TYPO_HABITAT`, comme le web.
+            services.habitats.rechercher(terme, cdTypo = services.config.occtaxTypologieHabitat.takeIf { it > 0 })
         }
     }
 
@@ -177,16 +196,29 @@ class SaisieReleveViewModel(
         details = null
     }
 
-    /** « Valider » : le relevé prend les détails ; ils sont enregistrés avec la prochaine
-     *  modification du relevé, comme sous Android. */
+    /** « Valider » : le relevé prend les détails, et les enregistre aussitôt. */
     fun validerDetails(resultat: DetailsReleveResult) {
         releve.appliquerDetails(resultat)
         fermerDetails()
+        // Un autre jeu de données peut imposer une autre liste de taxons.
+        champ.actualiserListe()
     }
 
     /** ✓ : le relevé est enregistré (sans espèce, comme relevé d'absence), puis retour à l'écran
      *  précédent — la carte multi-taxons y enchaîne sur le positionnement du relevé suivant. */
     fun terminer() {
+        // Le jeu de données est obligatoire : sans lui, le relevé ne se termine pas.
+        if (releve.idDatasetEffectif() == null) {
+            _evenements.trySend(EvenementReleve.Message(DetailsReleveFormulaire.CHOISIR_JDD))
+            ouvrirDetails()
+            return
+        }
+        // La date aussi, quand le serveur la veut à choisir.
+        if (releve.dateAChoisir()) {
+            _evenements.trySend(EvenementReleve.Message(DetailsReleveFormulaire.CHOISIR_DATE_DEBUT))
+            ouvrirDetails()
+            return
+        }
         val message = releve.terminer()
         _evenements.trySend(EvenementReleve.Message(message))
         _evenements.trySend(EvenementReleve.Termine)

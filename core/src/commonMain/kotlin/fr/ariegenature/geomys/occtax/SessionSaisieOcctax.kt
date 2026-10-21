@@ -122,6 +122,12 @@ class SessionSaisieOcctax(
     fun datasetSortie(): Int? =
         _observations.value.firstNotNullOfOrNull { it.idDatasetReleve?.takeIf { d -> d > 0 } }
 
+    /** Le jeu de données d'un NOUVEAU relevé de la saisie : celui des détails communs, sinon celui
+     *  des relevés déjà enregistrés, sinon celui des Paramètres ([idDatasetParametres]). Ses champs
+     *  additionnels sont ceux que le web montre pour lui. */
+    fun datasetNouveauReleve(idDatasetParametres: Int?): Int? =
+        detailsCommuns?.idDataset ?: datasetSortie() ?: idDatasetParametres?.takeIf { it > 0 }
+
     fun ajouterObservation(obs: Observation) {
         _observations.update { it + obs }
         persisterBrouillon()
@@ -173,13 +179,13 @@ class SessionSaisieOcctax(
      *  repositionné d'un coup) en UNE mutation → UN seul auto-save. */
     fun mettreAJourObservationsPositions(ids: Collection<String>, lat: Double, lon: Double) {
         if (ids.isEmpty()) return
-        modifier(ids) { it.copy(latitude = lat, longitude = lon) }
+        modifier(ids) { it.copy(latitude = lat, longitude = lon, champsReleveExtra = it.champsReleveExtra - ALTITUDES) }
     }
 
     /** Met à jour les sommets d'un relevé ligne/polygone : applique le nouveau geometryCoordsJson et
      *  recentre lat/lon (centroïde) sur toutes les obs ciblées. */
     fun mettreAJourGeometrieReleve(ids: Collection<String>, coordsJson: String, lat: Double, lon: Double) {
-        modifier(ids) { it.copy(geometryCoordsJson = coordsJson, latitude = lat, longitude = lon) }
+        modifier(ids) { it.copy(geometryCoordsJson = coordsJson, latitude = lat, longitude = lon, champsReleveExtra = it.champsReleveExtra - ALTITUDES) }
     }
 
     private fun modifier(ids: Collection<String>, transformation: (Observation) -> Observation) {
@@ -300,3 +306,7 @@ class SessionSaisieOcctax(
         locationTracker.arreter()
     }
 }
+
+/** Les altitudes d'un relevé, que le web recalcule (MNT du serveur) à chaque changement de sa
+ *  géométrie : un relevé déplacé les perd, l'envoi les redemande au serveur. */
+private val ALTITUDES = setOf("altitude_min", "altitude_max")

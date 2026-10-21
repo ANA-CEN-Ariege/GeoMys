@@ -31,21 +31,19 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 
 /**
- * Purge du « rechargement requis après mise à jour » (SyncRunner).
+ * Les purges des caches synchronisés, et la synchro qui suit une mise à jour de l'application.
  *
- * RÉGRESSION COUVERTE (audit 2026-09-14, R1-C2) : la purge était faite APRÈS la phase A, qui venait
- * précisément de réécrire les deux caches HABREF et les stations serveur — et la phase B ne les
- * réécrit jamais. Après un rechargement pourtant annoncé RÉUSSI, l'utilisateur se retrouvait sans
- * aucun habitat proposé hors ligne : saisie OccHab impossible, l'habitat y étant obligatoire.
- *
- * L'invariant tient en une phrase : **SyncRunner ne purge que ce que la phase B réécrit derrière
- * elle** ; le bouton « Vider le cache » de Paramètres, lui, enlève tout.
+ * RÉGRESSION COUVERTE (audit 2026-09-14, R1-C2) : la purge du rechargement après mise à jour était
+ * faite APRÈS la phase A, qui venait de réécrire les deux caches HABREF et les stations serveur — et
+ * la phase B ne les réécrit jamais : plus aucun habitat proposé hors ligne. Depuis le 21 octobre 2026,
+ * la synchro ne purge plus rien après une mise à jour : elle réécrit ses caches, et ne retélécharge
+ * TaxRef que si sa version a changé sur le serveur ou si le format de son cache a changé. Le bouton
+ * « Vider le cache » de Paramètres, lui, enlève tout.
  */
 class PurgeRechargementApresMajTest {
 
@@ -95,29 +93,46 @@ class PurgeRechargementApresMajTest {
 
     // ── Le SITE D'APPEL, testé pour de bon ──
 
-    /** Les deux tests ci-dessus prouvent que les DEUX purges se comportent correctement — pas que
-     *  SyncRunner appelle la bonne. Or c'est précisément le site d'appel qui portait le défaut.
-     *  Sous Android, une garde lisait la source de SyncRunner ; portée, la synchro se teste. */
-    @Test
-    fun rechargement_requis_purge_la_phase_B_et_epargne_ce_que_la_phase_A_vient_d_ecrire() = runTest {
+    /** Une installation chargée par une version précédente de l'application, devant le GeoNatureSimulé
+     *  (TaxRef v17, une liste, la 100) : son TaxRef est-il [formatAJour] ? */
+    private fun installationPrecedente(formatAJour: Boolean) {
         s.config.urlServeur = t.serveur.base
         s.config.login = "alice"
         s.config.motDePasse = "pwd"
-        // Données d'une version précédente, et drapeau armé au lancement (armerRechargementSiRequis).
+        s.config.versionDonneesChargees = GeoNatureConfig.VERSION_DONNEES_REQUISE - 1
+        s.config.taxaListeId = "100"
         s.taxRef.remplacerTout(mapOf("ancien" to TaxRefEntry(1, "Ancien taxon")))
-        s.taxRef.versionSauvegardee = "16"
-        s.config.rechargementRequisApresMaj = true
+        s.taxRef.versionSauvegardee = "17"
+        s.taxRef.listesSynchronisees = listOf(100)
+        s.taxRef.versionFormat = if (formatAJour) TaxRefCache.VERSION_FORMAT else null
         t.serveur.routerGeoNatureComplet()
+    }
+
+    @Test
+    fun apres_une_mise_a_jour_taxref_n_est_pas_retelecharge_a_version_egale() = runTest {
+        installationPrecedente(formatAJour = true)
 
         s.synchro.executer()
 
         assertTrue(s.synchro.etat.value.succes, s.synchro.etat.value.resume)
-        assertNull(s.taxRef.get("ancien"), "la purge de la phase B a vidé l'ancien TaxRef")
-        assertEquals("17", s.taxRef.versionSauvegardee)
-        assertEquals(1, s.habitatsOcctax.count, "HABREF Occtax écrit par la phase A, puis effacé")
-        assertEquals(1, s.habitatsOccHab.count, "HABREF OccHab écrit par la phase A, puis effacé")
-        assertTrue(s.stationsServeur.dateChargement != null, "stations serveur écrites par la phase A, puis effacées")
-        assertFalse(s.config.rechargementRequisApresMaj, "drapeau désarmé après la synchro")
+        assertEquals(1, s.taxRef.get("ancien")?.cdNom, "TaxRef gardé : sa version n'a pas changé sur le serveur")
+        assertNull(s.taxRef.get(TaxRefCache.normaliser("Muscicapa striata")))
+        assertEquals(1, s.habitatsOcctax.count, "HABREF Occtax écrit par la phase A")
+        assertEquals(1, s.habitatsOccHab.count, "HABREF OccHab écrit par la phase A")
+        assertTrue(s.stationsServeur.dateChargement != null, "stations serveur écrites par la phase A")
         assertEquals(GeoNatureConfig.VERSION_DONNEES_REQUISE, s.config.versionDonneesChargees)
+    }
+
+    @Test
+    fun un_cache_de_taxref_d_un_format_ancien_est_retelecharge_meme_a_version_egale() = runTest {
+        installationPrecedente(formatAJour = false)
+
+        s.synchro.executer()
+
+        assertTrue(s.synchro.etat.value.succes, s.synchro.etat.value.resume)
+        assertNull(s.taxRef.get("ancien"), "TaxRef retéléchargé pour son nouveau format")
+        assertEquals(4319, s.taxRef.get(TaxRefCache.normaliser("Muscicapa striata"))?.cdNom)
+        assertEquals(TaxRefCache.VERSION_FORMAT, s.taxRef.versionFormat)
+        assertEquals("17", s.taxRef.versionSauvegardee)
     }
 }

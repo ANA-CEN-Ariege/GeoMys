@@ -23,18 +23,20 @@ package fr.ariegenature.geomys.network
 
 /** Version minimale de GeoNature supportée par l'application.
  *
- *  Justification : l'app appelle TaxHub via [GeoNatureConfig.urlTaxhub] — l'URL publiée par le
- *  serveur (`t_mobile_apps` → `settings.sync.taxhub_url`) si présente, sinon `<URL_GEONATURE>/api/taxhub`
- *  (TaxHub INTÉGRÉ, 2.15+). Une instance qui héberge TaxHub ailleurs et le publie reste donc gérée ;
- *  une instance ancienne (TaxHub séparé non publié) verra la synchro des taxons échouer.
- *  L'endpoint `/api/gn_commons/config` qui permet de détecter la
- *  version existe lui depuis la 2.12 : en dessous, la version n'est pas détectable et le
- *  test de connexion l'indique sans bloquer (bénéfice du doute — proxy filtrant possible).
+ *  Justification : l'app appelle TaxHub via [GeoNatureConfig.urlTaxhub] — celui du web,
+ *  `<URL_GEONATURE>/api/taxhub` (TaxHub INTÉGRÉ, 2.15+), sinon l'URL publiée par le serveur
+ *  (`t_mobile_apps` → `settings.sync.taxhub_url`). L'endpoint `/api/gn_commons/config` qui permet de
+ *  détecter la version existe lui depuis la 2.12 : en dessous, la version n'est pas détectable et le
+ *  test de connexion refuse le serveur (21 octobre ; il le laissait passer, au bénéfice du doute).
  *
  *  Quand une version détectée est inférieure à ce minimum, le test de connexion échoue et
  *  [fr.ariegenature.geomys.store.GeoNatureConfig.serveurCompatible] invalide la config
  *  (toutes les opérations réseau sont gelées) jusqu'à un nouveau test réussi. */
 const val VERSION_GEONATURE_MINIMALE = "2.15"
+
+/** Le test de connexion d'un serveur dont la version ne se lit pas. */
+const val VERSION_INTROUVABLE =
+    "Version de GeoNature introuvable : serveur trop ancien (v$VERSION_GEONATURE_MINIMALE au moins) ou adresse incorrecte."
 
 /** Compare deux versions pointées numériquement : "2.9" < "2.15" < "2.15.1" (comparaison
  *  par segment, PAS lexicographique). Un suffixe non numérique de segment est ignoré

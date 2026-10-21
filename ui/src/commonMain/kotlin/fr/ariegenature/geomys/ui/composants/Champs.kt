@@ -58,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -270,7 +271,9 @@ internal fun <T> filtreAutocompleteIos(elements: List<T>, libelle: (T) -> String
  *    si [actif] est faux (liste imposée par le jeu de données). La liste est celle d'un
  *    AutoCompleteTextView (ListeDeroulanteAndroid).
  *  - iOS : `AutocompleteRow` de GeoMys-IOS : la sélection en pastille avec sa croix, sinon un champ
- *    de recherche aux suggestions déroulées en dessous. */
+ *    de recherche, ses suggestions AU-DESSUS du champ (le clavier cachait celles du dessous).
+ *  Moins de [SEUIL_RECHERCHE_LISTE] éléments : pas de clavier, le toucher déroule toute la liste.
+ *  [barre] : la barre rouge d'un choix obligatoire encore vide, à gauche du champ. */
 @Composable
 fun <T> ChampSelection(
     titre: String,
@@ -283,12 +286,14 @@ fun <T> ChampSelection(
     margeHautAndroid: Dp = 0.dp,
     actif: Boolean = true,
     viderAuToucher: Boolean = false,
+    barre: Boolean = false,
 ) {
     if (LocalApparence.current == Apparence.IOS) {
-        SelectionIos(titre, indication, elements, libelle, selection, onSelection, modifier)
+        SelectionIos(titre, indication, elements, libelle, selection, onSelection, modifier, barre)
         return
     }
     val focus = LocalFocusManager.current
+    val sansClavier = elements.size < SEUIL_RECHERCHE_LISTE
     var texte by remember(selection) { mutableStateOf(selection?.let(libelle) ?: "") }
     var saisie by remember(selection) { mutableStateOf("") }
     var ouvert by remember { mutableStateOf(false) }
@@ -296,11 +301,12 @@ fun <T> ChampSelection(
     val propositions = remember(elements, saisie) { filtreArrayAdapter(elements, libelle, saisie) }
     val interactions = remember { MutableInteractionSource() }
     // Toucher le champ ouvre la liste entière (`showDropDown`), après avoir vidé le texte pour les
-    // jeux de données et les observateurs (`setText("", false)` de GeoMys-Android).
-    LaunchedEffect(interactions, actif, viderAuToucher) {
+    // jeux de données et les observateurs (`setText("", false)` de GeoMys-Android) quand on peut
+    // taper.
+    LaunchedEffect(interactions, actif, viderAuToucher, sansClavier) {
         interactions.interactions.collect { interaction ->
             if (interaction is PressInteraction.Release && actif) {
-                if (viderAuToucher) texte = ""
+                if (viderAuToucher && !sansClavier) texte = ""
                 saisie = ""
                 ouvert = true
             }
@@ -313,7 +319,7 @@ fun <T> ChampSelection(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(top = margeHautAndroid, bottom = 4.dp),
         )
-        Box(Modifier.padding(top = 4.dp)) {
+        Box(Modifier.padding(top = 4.dp).barreChampObligatoire(barre)) {
             OutlinedTextField(
                 value = texte,
                 onValueChange = {
@@ -333,6 +339,7 @@ fun <T> ChampSelection(
                         true
                     },
                 enabled = actif,
+                readOnly = sansClavier,
                 label = { Text(indication) },
                 textStyle = styleSaisieMaterial(),
                 singleLine = true,
@@ -465,7 +472,10 @@ private class PositionListeDeroulante(private val decalage: Int, private val hau
     }
 }
 
-/** `AutocompleteRow` de GeoMys-IOS (ConfigGeoNatureView.swift). */
+/** `AutocompleteRow` de GeoMys-IOS (ConfigGeoNatureView.swift) : la sélection en pastille avec sa
+ *  croix, sinon un champ de recherche. La liste s'affiche AU-DESSUS du champ (demande du 21 octobre :
+ *  en bas de l'écran, le clavier cachait celle du dessous). Moins de [SEUIL_RECHERCHE_LISTE]
+ *  éléments : pas de champ de recherche ni de clavier, toucher la ligne déroule toute la liste. */
 @Composable
 private fun <T> SelectionIos(
     titre: String,
@@ -475,16 +485,50 @@ private fun <T> SelectionIos(
     selection: T?,
     onSelection: (T?) -> Unit,
     modifier: Modifier,
+    barre: Boolean,
 ) {
+    val sansClavier = elements.size < SEUIL_RECHERCHE_LISTE
     var requete by remember { mutableStateOf("") }
+    // Sans clavier : la liste entière est déroulée. Avec : les suggestions, masquées par un toucher
+    // ailleurs jusqu'à la frappe suivante.
+    var ouvert by remember { mutableStateOf(false) }
+    var suggestionsMasquees by remember { mutableStateOf(false) }
+    var largeur by remember { mutableStateOf(0) }
+    var haut by remember { mutableStateOf(0f) }
     val focus = LocalFocusManager.current
+    val liste = when {
+        sansClavier -> if (ouvert) elements else emptyList()
+        selection == null && !suggestionsMasquees -> filtreAutocompleteIos(elements, libelle, requete)
+        else -> emptyList()
+    }
+    val choisir: (T) -> Unit = { element ->
+        requete = ""
+        ouvert = false
+        focus.clearFocus()
+        onSelection(element)
+    }
+    val mesure = Modifier.onGloballyPositioned {
+        largeur = it.size.width
+        haut = it.positionInWindow().y
+    }
+    // La liste, ancrée au champ qui la compose, au-dessus de lui.
+    val listeDessus: @Composable () -> Unit = {
+        if (liste.isNotEmpty() && largeur > 0) {
+            PopupListeDessusIos(largeur, haut, liste, libelle, choisir) {
+                ouvert = false
+                suggestionsMasquees = true
+            }
+        }
+    }
     Column(modifier.padding(vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(titre, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
         if (selection != null) {
             Row(
                 Modifier
                     .fillMaxWidth()
+                    .then(mesure)
                     .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                    .then(if (sansClavier) Modifier.clickable(remember { MutableInteractionSource() }, indication = null) { ouvert = true } else Modifier)
                     .padding(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -502,58 +546,115 @@ private fun <T> SelectionIos(
                         requete = ""
                     }
                 ) { SymboleSf("xmark.circle.fill", 17f, listOf(CouleursGeoMys.blanc70)) }
+                listeDessus()
+            }
+        } else if (sansClavier) {
+            // Rien de choisi : l'invite, et le toucher déroule la liste.
+            Row(
+                Modifier
+                    .then(mesure)
+                    .barreChampObligatoire(barre)
+                    .fillMaxWidth()
+                    .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+                    .clickable(remember { MutableInteractionSource() }, indication = null) { ouvert = true }
+                    .padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(indication, style = styleSaisieIos.copy(color = Color(0x4DEBEBF5)), modifier = Modifier.weight(1f))
+                SymboleSf("chevron.up.chevron.down", 13f, listOf(CouleursGeoMys.blanc70))
+                listeDessus()
             }
         } else {
             val filtres = filtreAutocompleteIos(elements, libelle, requete)
-            Column {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
-                        .padding(10.dp),
-                ) {
-                    if (requete.isEmpty()) Text(indication, style = styleSaisieIos.copy(color = Color(0x4DEBEBF5)))
-                    BasicTextField(
-                        value = requete,
-                        onValueChange = { requete = it },
-                        singleLine = true,
-                        textStyle = styleSaisieIos,
-                        cursorBrush = SolidColor(CouleursGeoMys.jauneClair),
-                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false),
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (filtres.isNotEmpty()) {
-                    LazyColumn(
-                        Modifier
-                            .padding(top = 4.dp)
-                            .heightIn(max = 200.dp)
-                            .background(Color.White.copy(alpha = 0.04f), RoundedCornerShape(6.dp)),
-                    ) {
-                        itemsIndexed(filtres) { i, element ->
-                            Text(
-                                libelle(element),
-                                fontSize = 15.sp,
-                                color = Color.White,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        requete = ""
-                                        focus.clearFocus()
-                                        onSelection(element)
-                                    }
-                                    .background(Color.White.copy(alpha = 0.04f))
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                            )
-                            if (i < filtres.lastIndex) SeparateurIos()
-                        }
-                    }
-                }
+            // La barre borde le champ de recherche, pas les suggestions.
+            Box(
+                Modifier
+                    .then(mesure)
+                    .barreChampObligatoire(barre)
+                    .fillMaxWidth()
+                    .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+                    .padding(10.dp),
+            ) {
+                if (requete.isEmpty()) Text(indication, style = styleSaisieIos.copy(color = Color(0x4DEBEBF5)))
+                BasicTextField(
+                    value = requete,
+                    onValueChange = {
+                        requete = it
+                        suggestionsMasquees = false
+                    },
+                    singleLine = true,
+                    textStyle = styleSaisieIos,
+                    cursorBrush = SolidColor(CouleursGeoMys.jauneClair),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                listeDessus()
             }
             if (requete.isNotBlank() && filtres.isEmpty()) {
                 Text("Aucun résultat", fontSize = 13.sp, color = CouleursGeoMys.blanc70, modifier = Modifier.padding(vertical = 4.dp))
             }
         }
+    }
+}
+
+/** La liste d'un choix des Paramètres sous iOS, posée AU-DESSUS du champ qui la compose (de [largeur]
+ *  px, son haut à [hautChamp] px dans la fenêtre) : pas plus haute que la place entre la barre d'état
+ *  et le champ, aux lignes de la liste groupée de GeoMys-IOS. Sans focus : le clavier reste au champ,
+ *  qui continue de filtrer. Un toucher ailleurs la ferme ([onFermer]). */
+@Composable
+private fun <T> PopupListeDessusIos(
+    largeur: Int,
+    hautChamp: Float,
+    elements: List<T>,
+    libelle: (T) -> String,
+    onChoix: (T) -> Unit,
+    onFermer: () -> Unit,
+) {
+    val densite = LocalDensity.current
+    val ecart = with(densite) { 6.dp.roundToPx() }
+    val hautVisible = WindowInsets.statusBars.getTop(densite)
+    val hauteurMax = max(hautChamp.roundToInt() - hautVisible - 2 * ecart, 0)
+    Popup(
+        popupPositionProvider = remember(ecart) { PositionListeDessus(ecart) },
+        onDismissRequest = onFermer,
+        properties = PopupProperties(focusable = false),
+    ) {
+        val forme = RoundedCornerShape(10.dp)
+        LazyColumn(
+            with(densite) { Modifier.width(largeur.toDp()).heightIn(max = hauteurMax.toDp()) }
+                .clip(forme)
+                .background(FOND_LIGNE_FEUILLE_IOS, forme),
+        ) {
+            itemsIndexed(elements) { i, element ->
+                if (i > 0) SeparateurIos(Modifier.padding(start = 12.dp))
+                Text(
+                    libelle(element),
+                    fontSize = 15.sp,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onChoix(element) }
+                        .padding(horizontal = 12.dp, vertical = 11.dp),
+                )
+            }
+        }
+    }
+}
+
+/** Position de [PopupListeDessusIos] : alignée sur le bord gauche du champ, son bas à [ecart] px
+ *  au-dessus de lui, ramenée dans la fenêtre. */
+private class PositionListeDessus(private val ecart: Int) : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowSize: IntSize,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize,
+    ): IntOffset {
+        val x = anchorBounds.left.coerceAtMost(windowSize.width - popupContentSize.width).coerceAtLeast(0)
+        val y = (anchorBounds.top - ecart - popupContentSize.height).coerceAtLeast(0)
+        return IntOffset(x, y)
     }
 }
 

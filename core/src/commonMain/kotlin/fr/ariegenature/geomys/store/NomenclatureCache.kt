@@ -32,7 +32,7 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 
 @Serializable
-data class TaxrefRestriction(val regne: String, val group2Inpn: String)
+data class TaxrefRestriction(val regne: String, val group2Inpn: String, val group3Inpn: String = "all")
 /** [cd] = cd_nomenclature serveur (stable inter-instances, contrairement à l'id) — sert aux
  *  règles métier calquées sur le web (ex. OccHab : technique de collecte cd "10" = « Autre,
  *  préciser » → précision technique requise). null sur un cache d'avant l'ajout du champ
@@ -40,10 +40,25 @@ data class TaxrefRestriction(val regne: String, val group2Inpn: String)
 @Serializable
 data class NomValeur(
     val id: Int,
+    /** `label_default` : la clé de tri du serveur (`ORDER BY label_default`). */
     val label: String,
     val taxref: List<TaxrefRestriction> = emptyList(),
     val cd: String? = null,
-)
+    /** `label_fr`, le libellé qu'affichent les listes du web ; null sur un cache d'avant son ajout. */
+    val labelFr: String? = null,
+) {
+    /** Le libellé affiché, celui du web : `label_fr`, à défaut `label_default`. */
+    val libelle: String get() = labelFr?.takeIf { it.isNotBlank() } ?: label
+}
+
+/** Le taxon d'une saisie pour le filtre taxonomique des nomenclatures : son règne, son
+ *  group2_inpn et son group3_inpn, ceux que le web transmet au serveur, chacun null s'il est inconnu. */
+data class GroupeTaxonomique(val regne: String?, val group2: String?, val group3: String?) {
+    companion object {
+        /** Aucun taxon : toutes les valeurs (les nomenclatures d'un relevé). */
+        val AUCUN = GroupeTaxonomique(null, null, null)
+    }
+}
 
 /** Les valeurs de nomenclature et leurs défauts, dans les réglages [prefs] (`nomenclature_cache`).
  *  Une seule instance dans l'appli. */
@@ -73,24 +88,18 @@ class NomenclatureCache(private val prefs: Settings, private val taxRef: TaxRefC
 
     val estDisponible: Boolean get() = charger().isNotEmpty()
 
-    // Filtre pour un ensemble de groupes + regno — même logique que l'app iOS.
-    // Règles (GeoNature utilise "all" comme joker) :
-    //   regno="all"                          → universel, s'applique à tout
-    //   regno=X, group2_inpn="all"           → tout le royaume X
-    //   group2_inpn=G (insensible casse)     → groupe exact
-    // Taxref vide = universel. Groupes vides = inconnu → retourne tout.
-    fun filtrerPourGroupes(type: String, groupes: Set<String>, regno: String = ""): List<NomValeur> {
-        val groupesLower = groupes.map { it.lowercase() }.toSet()
-        return get(type).filter { v ->
-            when {
-                v.taxref.isEmpty() -> true
-                groupes.isEmpty()  -> true
-                else -> v.taxref.any { r ->
-                    r.regne.equals("all", ignoreCase = true) ||
-                    (r.regne.equals(regno, ignoreCase = true) && r.group2Inpn.equals("all", ignoreCase = true)) ||
-                    groupesLower.contains(r.group2Inpn.lowercase())
-                }
-            }
+    /** Les valeurs de [type] que le serveur propose pour [taxon] (get_nomenclature_list de
+     *  pypnnomenclature) : sans règne connu, ou filtres désactivés ([filtresActifs] :
+     *  `ENABLE_NOMENCLATURE_TAXONOMIC_FILTERS`), toutes ; sinon celles dont UNE ligne taxonomique
+     *  vérifie à la fois règne ∈ {all, R}, et, pour chaque groupe connu, groupe ∈ {all, G}. Une
+     *  valeur sans ligne taxonomique est exclue, comme par la jointure du serveur. */
+    fun filtrerPourTaxon(type: String, taxon: GroupeTaxonomique, filtresActifs: Boolean): List<NomValeur> {
+        val valeurs = get(type)
+        val regne = taxon.regne?.takeIf { it.isNotBlank() }
+        if (regne == null || !filtresActifs) return valeurs
+        fun accepte(ligne: String, cible: String?) = cible.isNullOrBlank() || ligne.equals("all", ignoreCase = true) || ligne.equals(cible, ignoreCase = true)
+        return valeurs.filter { v ->
+            v.taxref.any { r -> accepte(r.regne, regne) && accepte(r.group2Inpn, taxon.group2) && accepte(r.group3Inpn, taxon.group3) }
         }
     }
 
@@ -160,13 +169,6 @@ class NomenclatureCache(private val prefs: Settings, private val taxRef: TaxRefC
             "Lichens", "Chlorophytes et charophytes", "Rhodophytes",
             "Trachéophytes", "Bryophytes", "Plantes"
         )
-
-        // Déduit le regno (Plantae / Animalia / Fungi…) depuis le group2_inpn.
-        fun regno(pourGroupe: String): String = when {
-            GROUPES_BOTANIQUES.contains(pourGroupe) -> "Plantae"
-            GROUPES_FONGE.contains(pourGroupe)      -> "Fungi"
-            else -> "Animalia"
-        }
 
         private const val KEY = "nom_cache_v1"
         private const val KEY_DEFAUTS = "nom_defauts_v1"

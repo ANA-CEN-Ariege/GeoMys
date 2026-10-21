@@ -73,9 +73,9 @@ fun ServicesGeoNature.enregistrerConnexion(url: String, login: String, motDePass
     return ChangementConnexion.IDENTITE
 }
 
-/** Vide les trois sélections OCCTAX (jeu de données, liste, observateur) et les caches JSON qui
- *  peuplent leurs menus, plus les champs additionnels OCCTAX. Appelé par « Vider le cache » et au
- *  changement d'identité serveur. */
+/** Vide les sélections par défaut d'OCCTAX (jeu de données, liste, observateur) et les caches JSON
+ *  qui peuplent leurs menus, plus les champs additionnels OCCTAX et les observateurs d'OccHab.
+ *  Appelé par « Vider le cache » et au changement d'identité serveur. */
 fun GeoNatureConfig.reinitialiserSelectionsOcctax() {
     idDataset = ""
     nomDataset = ""
@@ -85,21 +85,21 @@ fun GeoNatureConfig.reinitialiserSelectionsOcctax() {
     datasetsCacheJson = ""
     listesCacheJson = ""
     observateursCacheJson = ""
+    observateursOcchabCacheJson = ""
     additionalFieldsOcctaxJson = ""
 }
 
-/** Texte du bandeau orange en tête des Paramètres, ou null s'il n'y a rien à signaler : mise à
- *  jour exigeant un rechargement, ou liste de taxons partiellement téléchargée. Aucun accès de
- *  secours vers les saisies n'accompagne ce bandeau : décision produit de 2026-09-18 (GeoMys-Android),
- *  le blocage de Paramètres est entier, quelle que soit sa cause. */
+/** Texte du bandeau orange en tête des Paramètres, ou null s'il n'y a rien à signaler : liste de
+ *  taxons partiellement téléchargée, qui bloque la saisie ; ou, sans rien bloquer, une mise à jour de
+ *  l'application qui lit des données nouvelles. Aucun accès de secours vers les saisies n'accompagne
+ *  ce bandeau : décision produit de 2026-09-18 (GeoMys-Android), le blocage de Paramètres est entier. */
 fun texteBandeauRechargement(config: GeoNatureConfig, taxRef: TaxRefCache): String? {
-    if (config.rechargementRequisApresMaj) {
-        return "Mise à jour de l'application : les données doivent être rechargées avant de continuer.\n" +
-            "Appuyez sur « Charger les données » (réseau nécessaire). Vos saisies en attente sont " +
-            "conservées."
-    }
     val incompletes = taxRef.listesIncompletes
-    if (incompletes.isEmpty()) return null
+    if (incompletes.isEmpty()) {
+        if (config.versionDonneesChargees >= GeoNatureConfig.VERSION_DONNEES_REQUISE || taxRef.versionSauvegardee == null) return null
+        return "Mise à jour de l'application : rechargez les données quand vous aurez du réseau, pour " +
+            "profiter de ses nouveautés. L'application reste utilisable d'ici là."
+    }
     return "Chargement incomplet : la liste de taxons ${incompletes.joinToString(", ")} n'a pas été " +
         "téléchargée en entier (réseau interrompu ou serveur indisponible).\n" +
         "Relancez « Charger les données » — sans quoi des espèces pourtant valides seraient " +
@@ -194,3 +194,4 @@ suspend fun ServicesGeoNature.taxonsParListes(): TaxonsParListes? = withContext(
     }
     TaxonsParListes(sousTitre, lignes)
 }
+

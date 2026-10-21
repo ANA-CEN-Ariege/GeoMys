@@ -42,7 +42,8 @@ class SaisieMono(
     taxonInitial: Taxon,
     additionnelsIntercales: Map<String, String>? = null,
 ) {
-    private val _modele = MutableStateFlow(EspeceReleve(taxonInitial, "", null))
+    // Le déterminateur du web pour chaque taxon, caractérisation ouverte ou non.
+    private val _modele = MutableStateFlow(EspeceReleve(taxonInitial, "", null, determinateur = determinateurParDefaut(config)))
 
     /** L'espèce de la série et ses caractérisation et dénombrement par défaut : chaque observation en
      *  est une copie. Le nom et le cd_nom ne sont posés qu'au démarrage ([demarrer]). */
@@ -66,6 +67,12 @@ class SaisieMono(
     var dateDebut: Long? = null
         private set
     var dateFin: Long? = null
+        private set
+    var heureDebut: String? = null
+        private set
+    var heureFin: String? = null
+        private set
+    var observateursTexte: String? = null
         private set
     var typGrp: String = ""
         private set
@@ -100,21 +107,36 @@ class SaisieMono(
         habitatLabel = res.habitatLabel
         dateDebut = res.dateDebut
         dateFin = res.dateFin
+        heureDebut = res.heureDebut
+        heureFin = res.heureFin
+        observateursTexte = res.observateursTexte
         typGrp = res.typGrp
         champsExtra = res.champsExtra
     }
 
+    /** Le jeu de données de la série : celui de « Détails », sinon celui de la saisie
+     *  ([SessionSaisieOcctax.datasetNouveauReleve]). */
+    fun idDatasetEffectif(): Int? = idDataset ?: session.datasetNouveauReleve(config.idDatasetParDefaut)
+
+    /** La date reste à choisir : le serveur la veut vide au départ (`DATE_FORM_WITH_TODAY` à faux,
+     *  comme le web) et « Détails » ne l'a pas encore posée. */
+    fun dateAChoisir(): Boolean = !config.occtaxDateDuJour && dateDebut == null
+
+    private val memoRequis = MemoRequis()
+
+    /** Les champs additionnels obligatoires à remplir de l'espèce, pour le jeu de la série. */
+    fun requis(): RequisEspece = memoRequis.pour(config.additionalFieldsOcctaxJson, idDatasetEffectif())
+
     /** Les valeurs de départ du dialogue « Détails du relevé » de la série. */
     fun donneesDetails(): DonneesDetailsReleve = DonneesDetailsReleve(
         titre = "Détails du relevé",
-        infos = emptyList(),
         datasets = DetailsReleveFormulaire.datasets(config),
-        idDataset = idDataset ?: config.idDataset.toIntOrNull(),
+        idDataset = idDatasetEffectif(),
         nomDataset = config.nomDataset.takeIf { it.isNotEmpty() },
         observateurs = DetailsReleveFormulaire.observateurs(config),
         idsObservateurs = DetailsReleveFormulaire.idsObservateursDepart(idsObservateurs, config),
         nomsObservateurs = DetailsReleveFormulaire.nomsObservateursDepart(nomsObservateurs, config),
-        defs = DetailsReleveFormulaire.defsReleve(config),
+        defsReleve = DetailsReleveFormulaire.defsReleve(config),
         additionnels = additionnelsReleve,
         formFieldsJson = config.formFieldsJson,
         typGrp = typGrp,
@@ -126,6 +148,11 @@ class SaisieMono(
         cdHab = cdHab,
         habitatLabel = habitatLabel,
         champsExtra = champsExtra,
+        heureDebut = heureDebut,
+        heureFin = heureFin,
+        heureFinVisible = config.heureFinVisible,
+        observateursEnTexte = config.occtaxObservateursEnTexte,
+        observateursTexte = observateursTexte ?: DetailsReleveFormulaire.observateursTexteDepart(config),
     )
 
     /** Ce que « + » enregistre en [latitude], [longitude] : une copie du modèle, relevé à part
@@ -136,9 +163,9 @@ class SaisieMono(
         val m = _modele.value
         return m.surObservation(Observation(espece = m.espece.ifEmpty { m.taxon.nomSingulier }, latitude = latitude, longitude = longitude)).copy(
             additionalFieldsReleve = additionnelsReleve.ifEmpty {
-                ChampsAdditionnels.defautsChampsReleve(config.additionalFieldsOcctaxJsonActif, config.idDataset.toIntOrNull())
+                ChampsAdditionnels.defautsChampsReleve(config.additionalFieldsOcctaxJson, idDatasetEffectif())
             },
-            idDatasetReleve = idDataset ?: session.datasetSortie() ?: config.idDataset.toIntOrNull()?.takeIf { it > 0 },
+            idDatasetReleve = idDatasetEffectif(),
             typGrpReleve = typGrp.ifEmpty { null },
             champsReleveExtra = champsExtra,
             observateursReleveIds = idsObservateurs,
@@ -148,6 +175,9 @@ class SaisieMono(
             habitatReleveLabel = habitatLabel,
             dateDebutReleve = dateDebut,
             dateFinReleve = dateFin,
+            heureDebutReleve = heureDebut,
+            heureFinReleve = heureFin,
+            observateursReleveTxt = observateursTexte,
         )
     }
 

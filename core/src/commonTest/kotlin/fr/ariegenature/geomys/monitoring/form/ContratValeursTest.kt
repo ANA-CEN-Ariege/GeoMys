@@ -146,8 +146,8 @@ class ContratValeursTest {
             EditableField("casesVides", ViewType.CHECKBOX_MULTIPLE, "J", values = options("1", "2")),
         ).lireValeurs()
         assertEquals("2", v["sel"])
-        assertEquals("", v["selInconnu"])
-        assertEquals("", v["selInt"], "un SELECT ne lit qu'une chaîne")
+        assertEquals("9", v["selInconnu"], "une valeur hors des options reste, comme sur le web")
+        assertEquals("2", v["selInt"], "une valeur numérique désigne son option")
         assertEquals("2", v["radio"], "un RADIO lit toString() de la valeur")
         assertEquals("", v["radioVide"])
         assertEquals(listOf("2", "9"), v["multi"], "liste reprise telle quelle")
@@ -158,19 +158,82 @@ class ContratValeursTest {
     }
 
     @Test
-    fun case_a_cocher_vraie_ou_null() = runTest {
-        val v = formulaire(
+    fun les_vides_envoyes_sont_ceux_du_web() = runTest {
+        val etat = formulaire(
+            EditableField("jamais", ViewType.TEXT, "A"),
+            EditableField("vide", ViewType.TEXT, "B", value = "x"),
+            EditableField("espaces", ViewType.TEXT, "C"),
+            EditableField("liste", ViewType.SELECT_MULTIPLE, "D", value = listOf("1"), values = options("1", "2")),
+            EditableField("listeJamais", ViewType.SELECT_MULTIPLE, "E", values = options("1", "2")),
+            EditableField("choix", ViewType.SELECT, "F", values = options("1", "2")),
+            EditableField("heure", ViewType.TIME, "G", value = "08:00"),
+        )
+        etat.saisirTexte("vide", "")
+        etat.saisirTexte("espaces", "  a ")
+        etat.validerChoixMultiple("liste", emptySet())
+        etat.effacerDateHeure("heure")
+        etat.flushChangementsEnAttente()
+        val v = etat.lireValeursPourEnvoi()
+        assertNull(v["jamais"], "jamais touché : null")
+        assertEquals("", v["vide"], "vidé : \"\"")
+        assertEquals("  a ", v["espaces"], "sans retirer d'espaces")
+        assertEquals(emptyList<Any?>(), v["liste"], "liste vidée : []")
+        assertNull(v["listeJamais"])
+        assertNull(v["choix"], "un choix vide : null")
+        assertEquals("", v["heure"], "heure vidée : \"\"")
+    }
+
+    @Test
+    fun motif_et_longueur_max_du_web() = runTest {
+        val etat = formulaire(
+            EditableField("code", ViewType.TEXT, "Code", motif = "[A-Z]{2}[0-9]+", messageMotif = "Deux lettres puis des chiffres"),
+            EditableField("court", ViewType.TEXTAREA, "Court", longueurMax = 3),
+            EditableField("multi", ViewType.SELECT_MULTIPLE, "Multi", values = options("1", "2", "3"), longueurMax = 2),
+        )
+        assertEquals(emptyList(), etat.champsInvalides(), "vides : valides")
+        etat.saisirTexte("code", "ab12")
+        etat.saisirTexte("court", "abcd")
+        etat.validerChoixMultiple("multi", setOf("1", "2", "3"))
+        etat.flushChangementsEnAttente()
+        assertEquals(listOf("code", "court", "multi"), etat.champsInvalides())
+        assertEquals("Deux lettres puis des chiffres", etat.erreurValidation("code"))
+        etat.saisirTexte("code", "AB12")
+        etat.saisirTexte("court", "abc")
+        etat.validerChoixMultiple("multi", setOf("1"))
+        etat.flushChangementsEnAttente()
+        assertEquals(emptyList(), etat.champsInvalides())
+        assertNull(etat.erreurValidation("code"))
+    }
+
+    @Test
+    fun un_select_garde_sa_valeur_hors_liste_grisee() = runTest {
+        val etat = formulaire(EditableField("sel", ViewType.SELECT, "A", value = "9", values = options("1", "2"), selectSimple = true))
+        assertEquals("9", etat.valeurHorsListe("sel"))
+        etat.choisirOption("sel", 0)
+        assertEquals("9", etat.lireValeursPourEnvoi()["sel"], "grisé : on ne le change pas")
+    }
+
+    @Test
+    fun case_a_cocher_a_trois_etats() = runTest {
+        // Comme le contrôle du formulaire web : null tant que rien n'y est posé, false une fois
+        // décochée ou posée à faux.
+        val etat = formulaire(
             EditableField("b", ViewType.CHECKBOX, "A", value = true),
             EditableField("s", ViewType.CHECKBOX, "B", value = "1"),
             EditableField("f", ViewType.CHECKBOX, "C", value = "false"),
             EditableField("z", ViewType.CHECKBOX, "D", value = 0),
             EditableField("n", ViewType.CHECKBOX, "E"),
-        ).lireValeurs()
+            EditableField("t", ViewType.CHECKBOX, "F"),
+        )
+        etat.cocher("t", true)
+        etat.cocher("t", false)
+        val v = etat.lireValeurs()
         assertEquals(true, v["b"])
         assertEquals(true, v["s"])
-        assertNull(v["f"], "jamais false : null")
-        assertNull(v["z"])
-        assertNull(v["n"])
+        assertEquals(false, v["f"], "posée à faux")
+        assertEquals(false, v["z"])
+        assertNull(v["n"], "jamais touchée")
+        assertEquals(false, v["t"], "cochée puis décochée")
     }
 
     @Test
@@ -264,18 +327,42 @@ class ContratValeursTest {
     }
 
     @Test
-    fun option_unique_masquee_ne_part_que_si_elle_est_requise() = runTest {
-        // EditableField.masque : un jeu de données à option unique, choisi d'office et masqué. Comme
-        // sous Android, un champ masqué ne part que s'il est requis ou posé par une règle.
-        val etat = formulaire(
-            EditableField("id_dataset", ViewType.SELECT, "JDD", value = "12", values = options("12"), masque = true),
-            EditableField("observers", ViewType.SELECT, "Obs", value = "7", values = options("7"), masque = true, obligatoire = true),
+    fun jeu_de_donnees_unique_masque_par_meta_dataset_mais_envoye() = runTest {
+        // Le web masque le jeu de données quand il n'y en a qu'un (`meta.dataset`) ; requis et choisi
+        // d'office, il part quand même, comme tout champ masqué.
+        val expr = "({meta}) => meta.dataset && Object.keys(meta.dataset).length == 1"
+        val unique = formulaire(
+            EditableField("id_dataset", ViewType.SELECT, "JDD", value = "12", values = options("12"), obligatoire = true, hiddenExpr = expr),
+            EditableField("note", ViewType.TEXT, "Note", value = "x", hiddenExpr = expr),
         )
-        assertEquals("12", etat.lireValeurs()["id_dataset"], "la valeur est lue")
-        assertFalse(etat.estVisible("id_dataset"))
-        val envoi = etat.lireValeursPourEnvoi()
-        assertFalse("id_dataset" in envoi)
-        assertEquals("7", envoi["observers"])
+        assertEquals("12", unique.lireValeurs()["id_dataset"], "la valeur est lue")
+        assertFalse(unique.estVisible("id_dataset"))
+        val envoi = unique.lireValeursPourEnvoi()
+        assertEquals("12", envoi["id_dataset"])
+        assertEquals("x", envoi["note"])
+        val deux = formulaire(
+            EditableField("id_dataset", ViewType.SELECT, "JDD", values = options("12", "13"), obligatoire = true, hiddenExpr = expr),
+        )
+        assertTrue(deux.estVisible("id_dataset"))
+    }
+
+    @Test
+    fun une_option_part_avec_le_type_json_de_sa_valeur() = runTest {
+        // Le web envoie la valeur de l'option telle que le schéma ou la liste la donne : « 1 » reste
+        // un texte, l'id d'une nomenclature reste un nombre.
+        val v = formulaire(
+            EditableField("nb_adulte", ViewType.SELECT, "Adultes", value = "1", values = listOf(PropertyValue("1", "1", brut = "1"))),
+            EditableField("id_nomenclature_sexe", ViewType.RADIO, "Sexe", value = "171", values = listOf(PropertyValue("171", "Femelle", brut = 171))),
+            EditableField(
+                "methodes", ViewType.SELECT_MULTIPLE, "Méthodes", value = listOf("2", "3"),
+                values = listOf(PropertyValue("2", "Vue", brut = 2), PropertyValue("3", "Ouïe", brut = "3")),
+            ),
+            EditableField("hors_liste", ViewType.SELECT, "Hors liste", value = "9", values = listOf(PropertyValue("9", "9"))),
+        ).lireValeursPourEnvoi()
+        assertEquals("1", v["nb_adulte"])
+        assertEquals(171, v["id_nomenclature_sexe"])
+        assertEquals(listOf(2, "3"), v["methodes"])
+        assertEquals("9", v["hors_liste"], "une option connue par son seul texte reste un texte")
     }
 
     @Test
@@ -291,6 +378,38 @@ class ContratValeursTest {
         ))
         assertFalse(etat.estVisible("calcule"))
         assertEquals("valeur du moteur", etat.lireValeursPourEnvoi()["calcule"])
+    }
+
+    @Test
+    fun une_regle_pose_un_taxon_qui_part_meme_masque() = runTest {
+        // POPAmphibien : « rien vu » pose le taxon Amphibiens dans le champ espèce, alors masqué. La
+        // règle était sans effet sur un champ espèce : l'observation partait sans cd_nom.
+        taxRef.vider()
+        taxRef.remplacerTout(mapOf(TaxRefCache.normaliser("Amphibiens, batraciens") to TaxRefEntry(914450, "Amphibia", "Amphibiens, batraciens")))
+        val etat = formulaire(
+            EditableField("presence", ViewType.RADIO, "Présence", value = "Oui", values = options("Oui", "Non")),
+            EditableField(
+                "cd_nom", ViewType.TAXON, "Espèce",
+                hiddenExpr = "({value}) => value.presence === 'Non'", obligatoireExpr = "({value}) => value.presence === 'Oui'",
+            ),
+            EditableField("count_min", ViewType.NUMBER, "Nombre minimum"),
+        )
+        etat.setReglesChange(listOf(
+            "({objForm, meta}) => {",
+            "if (objForm.value.presence === 'Non') {",
+            "objForm.patchValue({count_min : 0, cd_nom : {'cd_nom': 914450, 'lb_nom': 'Amphibia', 'nom_vern' : 'Amphibiens, batraciens'}}, {emitEvent : false})",
+            "}",
+            "}",
+        ))
+        assertNull(etat.lireValeurs()["cd_nom"])
+        etat.choisirRadio("presence", 1)
+        runCurrent()
+        assertFalse(etat.estVisible("cd_nom"))
+        assertEquals("Amphibiens, batraciens", etat.texte("cd_nom"))
+        val envoi = etat.lireValeursPourEnvoi()
+        assertEquals(914450, envoi["cd_nom"])
+        assertEquals(0, envoi["count_min"])
+        assertTrue(etat.champsInvalides().isEmpty())
     }
 
     @Test

@@ -26,6 +26,7 @@ package fr.ariegenature.geomys.monitoring.form
 
 import fr.ariegenature.geomys.json.JSONArray
 import fr.ariegenature.geomys.json.JSONObject
+import fr.ariegenature.geomys.model.MediaSuivi
 
 /** Le passage des valeurs du formulaire à ce qui est enregistré dans la file d'envoi des Suivis
  *  (`SaisieEnAttente.valeursJson`), puis au formulaire quand on rouvre la saisie. */
@@ -35,39 +36,48 @@ object ValeursFormulaire {
     data class Enregistrement(
         /** Le corps de la saisie, sans les champs MEDIA. */
         val valeursJson: String,
-        /** Les fichiers du premier champ MEDIA rempli (envoyés après création de l'objet). */
+        /** Les fichiers de tous les champs MEDIA (envoyés après création de l'objet). */
         val mediaPaths: List<String>,
-        /** La table de ce champ dans gn_commons (`schema_dot_table`), ou null. */
+        /** La table du premier champ MEDIA rempli dans gn_commons (`schema_dot_table`), ou null. */
         val mediaSchemaDotTable: String?,
-        /** Codes des champs TEXT et TEXTAREA : leur valeur n'est pas convertie en nombre à l'envoi,
-         *  même numérique (ex. commentaire « 42 », audit B6). */
+        /** Codes des valeurs en texte : elles partent en texte, même numériques (une option « 1 », un
+         *  commentaire « 42 »), comme dans le corps du web. */
         val champsTexteLibre: List<String>,
+        /** Codes des textes et des heures vidés par l'utilisateur, que le web envoie en "". */
+        val champsVidesGardes: List<String> = emptyList(),
+        /** Les médias de tous les champs MEDIA, avec leurs titre, auteur et description. */
+        val medias: List<MediaSuivi> = emptyList(),
     )
 
     /**
      * Prépare l'enregistrement d'une saisie à partir de [valeursPourEnvoi]
-     * ([FormulaireEtat.lireValeursPourEnvoi]) :
-     * - les fichiers du premier champ MEDIA rempli sont mis à part avec sa table, et TOUS les champs
-     *   MEDIA (remplis ou vides) sont retirés du corps : le serveur Marshmallow n'accepte pas un
+     * ([FormulaireEtat.lireValeursPourEnvoi]) et des [valeursFixes] des propriétés masquées, que les
+     * valeurs du formulaire remplacent :
+     * - les médias de tous les champs MEDIA ([medias], de [FormulaireEtat.mediasPourEnvoi]) sont mis à
+     *   part, et TOUS les champs MEDIA (remplis ou vides) sont retirés du corps : le serveur
+     *   Marshmallow n'accepte pas un
      *   media:"file://…" dans le POST de l'objet ; l'envoi des fichiers suit la création, par
      *   gn_commons ;
      * - les valeurs sont écrites en JSON par JSONObject, pour garder leurs types (Int, Double,
      *   Boolean, null, tableaux).
      */
-    fun preparerEnregistrement(champs: List<EditableField>, valeursPourEnvoi: Map<String, Any?>): Enregistrement {
-        val valeurs = valeursPourEnvoi.toMutableMap()
-        fun cheminsDe(f: EditableField): List<String> =
-            (valeurs[f.code] as? List<*>)?.filterIsInstance<String>()?.filter { it.isNotEmpty() }.orEmpty()
-        val champMedia = champs.firstOrNull { it.viewType == ViewType.MEDIA && cheminsDe(it).isNotEmpty() }
-        val mediaPaths = champMedia?.let { cheminsDe(it) }.orEmpty()
+    fun preparerEnregistrement(
+        champs: List<EditableField>,
+        valeursPourEnvoi: Map<String, Any?>,
+        valeursFixes: Map<String, Any> = emptyMap(),
+        medias: List<MediaSuivi> = emptyList(),
+    ): Enregistrement {
+        val valeurs: MutableMap<String, Any?> = (valeursFixes + valeursPourEnvoi).toMutableMap()
         champs.filter { it.viewType == ViewType.MEDIA }.forEach { valeurs.remove(it.code) }
         return Enregistrement(
             valeursJson = valeursJson(valeurs),
-            mediaPaths = mediaPaths,
-            mediaSchemaDotTable = champMedia?.schemaDotTable,
-            champsTexteLibre = champs
-                .filter { it.viewType == ViewType.TEXT || it.viewType == ViewType.TEXTAREA }
-                .map { it.code },
+            mediaPaths = medias.map { it.chemin },
+            mediaSchemaDotTable = medias.firstOrNull()?.schemaDotTable,
+            medias = medias,
+            // Les valeurs ont déjà leur type (nombre d'un champ numérique ou d'une option numérique) :
+            // un texte reste un texte.
+            champsTexteLibre = valeurs.filterValues { v -> v is String || (v is List<*> && v.any { it is String }) }.keys.toList(),
+            champsVidesGardes = valeursPourEnvoi.filterValues { it == "" }.keys.toList(),
         )
     }
 
@@ -135,29 +145,30 @@ object ValeursFormulaire {
             // MEDIA : le valeursJson ne contient PAS ce champ ; le pré-remplissage d'une édition
             // passe par [champsPreremplis].
             ViewType.MEDIA -> v.toString()
+            // Un texte du protocole n'a pas de valeur.
+            ViewType.HTML -> null
         }
     }
 
     /** Les champs d'une saisie rouverte : chaque champ présent dans [valeursPreremplies] reçoit sa
-     *  valeur typée ([typerPourField]), et le premier champ MEDIA les fichiers de la saisie
-     *  ([mediaPaths], qui ne font pas partie du valeursJson). */
+     *  valeur typée ([typerPourField]), et chaque champ MEDIA ses médias ([medias], qui ne font pas
+     *  partie du valeursJson). */
     fun champsPreremplis(
         champs: List<EditableField>,
         valeursPreremplies: Map<String, Any?>?,
-        mediaPaths: List<String>,
+        medias: List<MediaSuivi>,
     ): List<EditableField> {
         val avecValeurs = valeursPreremplies?.let { valeurs ->
             champs.map { f -> if (!valeurs.containsKey(f.code)) f else f.copy(value = typerPourField(f, valeurs[f.code])) }
         } ?: champs
-        if (mediaPaths.isEmpty()) return avecValeurs
-        var faitPour: String? = null
+        if (medias.isEmpty()) return avecValeurs
+        // Chaque média revient dans son champ ; ceux d'une saisie plus ancienne, sans champ, dans le
+        // premier champ MEDIA.
+        val premier = avecValeurs.firstOrNull { it.viewType == ViewType.MEDIA }?.code
         return avecValeurs.map { f ->
-            if (faitPour == null && f.viewType == ViewType.MEDIA) {
-                faitPour = f.code
-                f.copy(value = mediaPaths)
-            } else {
-                f
-            }
+            if (f.viewType != ViewType.MEDIA) return@map f
+            val siens = medias.filter { it.champ == f.code || (it.champ.isEmpty() && f.code == premier) }
+            if (siens.isEmpty()) f else f.copy(value = siens)
         }
     }
 

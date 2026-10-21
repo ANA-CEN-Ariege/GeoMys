@@ -24,10 +24,12 @@ package fr.ariegenature.geomys.network
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import fr.ariegenature.geomys.json.JSONArray
+import fr.ariegenature.geomys.occhab.CarteOccHab
 import kotlinx.atomicfu.atomic
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -206,6 +208,31 @@ class OccHabParserTest {
         assertEquals(43, h.idNomAbondance)
         assertEquals(44, h.idNomSensibilite)
         assertEquals(45, h.idNomInteretCommunautaire)
+    }
+
+    /** Les droits de la station et l'état de son cadre d'acquisition, renvoyés par la liste du
+     *  serveur (`+cruved`, `dataset.acquisition_framework.opened`) : une station fermée ou sans droit
+     *  de modification ne s'importe pas, avec le texte du web. */
+    @Test
+    fun droits_et_cadre_ferme_lus_et_station_non_importable() {
+        fun station(props: String) = OccHabApi.parserFeatureCollection(
+            """{"type":"FeatureCollection","features":[{"type":"Feature",
+              "geometry":{"type":"Point","coordinates":[1.4,42.9]},
+              "properties":{"id_station": 7, $props}}]}""",
+        ).single()
+        val fermee = station(""""cruved":{"U":true},"dataset":{"acquisition_framework":{"opened":false}}""")
+        assertTrue(fermee.cadreFerme)
+        assertTrue(CarteOccHab.nonImportable(fermee))
+        assertTrue(CarteOccHab.messageNonModifiable(fermee).endsWith("Cadre d'acquisition fermé, action impossible"))
+        val sansDroit = station(""""cruved":{"U":false},"dataset":{"acquisition_framework":{"opened":true}}""")
+        assertTrue(sansDroit.nonModifiableServeur)
+        assertTrue(CarteOccHab.messageNonModifiable(sansDroit).endsWith("Vous n'avez pas les permissions requises pour modifier cette station !"))
+        val libre = station(""""cruved":{"U":true},"dataset":{"acquisition_framework":{"opened":true}}""")
+        assertFalse(CarteOccHab.nonImportable(libre))
+        assertEquals(
+            "Cadre d'acquisition fermé, action impossible (HTTP 409).",
+            humaniserErreurReseau(GNErreur.EnvoiEchoue(409, "You cannot create or update a station on a closed acquisition framework.")),
+        )
     }
 
     /** Les `null` JSON du dump serveur restent des null Kotlin (org.json les transformerait en

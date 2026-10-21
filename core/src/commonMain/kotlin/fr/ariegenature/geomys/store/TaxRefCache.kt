@@ -40,7 +40,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
-import kotlinx.serialization.json.okio.decodeFromBufferedSource
 import kotlinx.serialization.json.okio.encodeToBufferedSink
 import okio.FileSystem
 import okio.Path
@@ -91,6 +90,8 @@ class TaxRefCache(
     // contenu partiel EST conservé (mieux que rien), mais le cache ne peut pas être considéré
     // comme fiable : la saisie refuserait des taxons pourtant valides, en accusant l'utilisateur.
     private val KEY_LISTES_INCOMPLETES = "gn_taxref_listes_incompletes_v1"
+    // Format du cache écrit par la dernière synchro de TaxRef (cf. VERSION_FORMAT).
+    private val KEY_FORMAT = "gn_taxref_format"
 
     // Gros fichiers stockés sur disque dans filesDir/taxref/.
     // SharedPreferences (XML lu/écrit en bloc) tronque ou échoue silencieusement
@@ -99,6 +100,7 @@ class TaxRefCache(
     private val FILE_GROUPES = "groupes_v1.json"
     private val FILE_GROUPES1 = "groupes1_v1.json"
     private val FILE_REGNES = "regnes_v1.json"
+    private val FILE_GROUPES3 = "groupes3_v1.json"
     private val FILE_INDEX_TAXON = "index_taxon_v1.json"
     private val FILE_LISTES = "listes_v1.json"
     // Index COMPLET cd_nom → noms français, construit à la synchro. Indispensable car le cache
@@ -111,6 +113,9 @@ class TaxRefCache(
     // papillon ET plante ; ou deux cd_nom TaxRef pour un même lb_nom) n'y a AUCUNE entrée et
     // devient invisible partout. Cet index, lui, est sans perte.
     private val FILE_SCI = "sci_v1.json"
+    // Index cd_nom → `nom_valide` de TAXREF, que le formulaire du web montre sous le taxon choisi
+    // (« TAXREF - Nom valide », form_fields.display_nom_valide).
+    private val FILE_NOMS_VALIDES = "noms_valides_v1.json"
 
     @Volatile private var mem: Map<String, TaxRefEntry>? = null
     // Verrou process-wide sérialisant les lire-modifier-écrire du cache principal (charger / set /
@@ -120,11 +125,13 @@ class TaxRefCache(
     @Volatile private var memGroupes: Map<String, String>? = null
     @Volatile private var memGroupes1: Map<String, String>? = null
     @Volatile private var memRegnes: Map<String, String>? = null
+    @Volatile private var memGroupes3: Map<String, String>? = null
     @Volatile private var memIndexTaxon: Map<String, List<Int>>? = null
     @Volatile private var memListes: Map<String, List<Int>>? = null
     @Volatile private var memEntreesParCdNom: Map<Int, TaxRefEntry>? = null
     @Volatile private var memVernsParCdNom: Map<Int, List<String>>? = null
     @Volatile private var memSciParCdNom: Map<Int, String>? = null
+    @Volatile private var memNomsValides: Map<Int, String>? = null
 
     /** Incrémenté à chaque écriture du cache ou de ses index. Sert aux mémos EXTERNES
      *  (TaxRefLocal) qui dérivent du cache et doivent tomber avec lui. */
@@ -501,8 +508,19 @@ class TaxRefCache(
     }
 
     /** Nombre de CLÉS de noms en cache (un cd_nom a plusieurs clés : nom scientifique +
-     *  vernaculaires). Sert aux tests « cache non vide » ; PAS au comptage de taxons affiché. */
+     *  vernaculaires). Sert aux tests « cache non vide » ; PAS au comptage de taxons affiché. Il
+     *  charge tout le cache : cf. [aDesDonnees] pour un écran qui s'ouvre. */
     val count: Int get() = charger().size
+
+    /** Des taxons sont en cache, sans charger le cache : son fichier existe (une synchro ne l'écrit
+     *  jamais vide, [vider] l'efface). [count] charge tout le cache, ce qui prend de 10 à 30 s sur
+     *  un téléphone d'entrée de gamme (MESURE-TAXREF.md) : Paramètres restait vide d'ici là. */
+    val aDesDonnees: Boolean
+        get() = try {
+            systeme.exists(fichier(FILE_CACHE))
+        } catch (_: Exception) {
+            false
+        }
 
     /** Nombre de taxons UNIQUES (cd_nom distincts) — c'est ce qu'on affiche à l'utilisateur,
      *  cohérent avec le détail par liste (où chaque ligne compte des cd_nom). */
@@ -617,6 +635,27 @@ class TaxRefCache(
     fun getVernaculaireParCdNom(cdNom: Int): String? =
         vernsParCdNom()[cdNom]?.firstOrNull()
 
+    /** Le `nom_valide` TAXREF d'un cd_nom, null s'il est inconnu (cache écrit avant son ajout). */
+    fun nomValideParCdNom(cdNom: Int): String? {
+        val m = memNomsValides ?: run {
+            val lu = lireFichier(FILE_NOMS_VALIDES)?.let { json ->
+                runCatching { JSON_STOCKAGE.decodeFromString(MAP_CHAINE_CHAINE, json) }.getOrNull()
+            }.orEmpty()
+            lu.entries.mapNotNull { (k, v) -> k.toIntOrNull()?.let { it to v } }.toMap().also { memNomsValides = it }
+        }
+        return m[cdNom]
+    }
+
+    /** Persiste l'index cd_nom → `nom_valide` (cf. [FILE_NOMS_VALIDES]). */
+    fun ajouterNomsValides(nomsValides: Map<Int, String>): Boolean {
+        val asString = nomsValides.entries.filter { it.value.isNotEmpty() }.associate { it.key.toString() to it.value }
+        if (asString.isEmpty()) return true
+        if (!ecrireFichier(FILE_NOMS_VALIDES, JSON_STOCKAGE.encodeToString(MAP_CHAINE_CHAINE, asString))) return false
+        version++
+        memNomsValides = asString.entries.associate { it.key.toInt() to it.value }
+        return true
+    }
+
     /** Nom à AFFICHER pour un cd_nom : nom français si connu (index complet [vernsParCdNom]), sinon
      *  nom scientifique. Null si le taxon n'est pas dans le cache (espèce hors listes synchronisées). */
     fun nomAffichageParCdNom(cdNom: Int): String? =
@@ -676,6 +715,21 @@ class TaxRefCache(
 
     fun tousLesGroupes1(): Map<String, String> = chargerGroupes1()
     fun tousLesRegnes(): Map<String, String> = chargerRegnes()
+
+    /** group3_inpn par cd_nom : avec le règne et le group2, le filtre taxonomique des nomenclatures
+     *  du serveur, que le web lui transmet. */
+    fun ajouterGroupes3(groupes3: Map<Int, String>): Boolean {
+        val existants = chargerGroupes3().toMutableMap()
+        groupes3.forEach { (k, v) -> if (v.isNotEmpty()) existants[k.toString()] = v }
+        val ok = ecrireFichier(FILE_GROUPES3, JSON_STOCKAGE.encodeToString(MAP_CHAINE_CHAINE, existants))
+        if (ok) {
+            memGroupes3 = existants
+            version++
+        }
+        return ok
+    }
+
+    fun tousLesGroupes3(): Map<String, String> = chargerGroupes3()
 
     /** Stocke les listes UsersHub auxquelles chaque cd_nom appartient.
      *  Sert au filtrage des additional_fields (un champ avec `id_list = X` ne s'affiche que
@@ -762,6 +816,14 @@ class TaxRefCache(
         } catch (e: Exception) { emptyMap() }
     }
 
+    private fun chargerGroupes3(): Map<String, String> {
+        memGroupes3?.let { return it }
+        val json = lireFichier(FILE_GROUPES3) ?: return emptyMap()
+        return try {
+            JSON_STOCKAGE.decodeFromString(MAP_CHAINE_CHAINE, json).also { memGroupes3 = it }
+        } catch (e: Exception) { emptyMap() }
+    }
+
     /** Index pré-calculé Taxon → list<cdNom> pour servir l'autocomplétion en O(1) sur switch. */
     fun setIndexParTaxon(index: Map<Taxon, List<Int>>): Boolean {
         val asString = index.mapKeys { it.key.name }
@@ -793,20 +855,22 @@ class TaxRefCache(
     }
 
     fun vider() {
-        listOf(FILE_CACHE, FILE_GROUPES, FILE_GROUPES1, FILE_REGNES, FILE_INDEX_TAXON, FILE_LISTES,
-            FILE_VERNS, FILE_SCI)
+        listOf(FILE_CACHE, FILE_GROUPES, FILE_GROUPES1, FILE_REGNES, FILE_GROUPES3, FILE_INDEX_TAXON, FILE_LISTES,
+            FILE_VERNS, FILE_SCI, FILE_NOMS_VALIDES)
             .forEach { runCatching { systeme.delete(fichier(it)) } }
-        listOf(KEY_VERSION, KEY_COMPTES, KEY_LISTE_SYNC, KEY_LISTES_SYNC, KEY_LISTES_INCOMPLETES)
+        listOf(KEY_VERSION, KEY_COMPTES, KEY_LISTE_SYNC, KEY_LISTES_SYNC, KEY_LISTES_INCOMPLETES, KEY_FORMAT)
             .forEach { prefs.remove(it) }
         mem = null
         memGroupes = null
         memGroupes1 = null
         memRegnes = null
+        memGroupes3 = null
         memIndexTaxon = null
         memListes = null
         memEntreesParCdNom = null
         memVernsParCdNom = null
         memSciParCdNom = null
+        memNomsValides = null
         memCdNomsDansListe = null
         memTousLesNoms = null
         memNomsParListe = null
@@ -818,6 +882,15 @@ class TaxRefCache(
     var versionSauvegardee: String?
         get() = prefs.getStringOrNull(KEY_VERSION)
         set(v) = if (v == null) prefs.remove(KEY_VERSION) else prefs.putString(KEY_VERSION, v)
+
+    /** Format du cache écrit par la dernière synchro de TaxRef ([VERSION_FORMAT]) ; null pour un
+     *  cache antérieur à ce suivi (21 octobre 2026). */
+    var versionFormat: Int?
+        get() = prefs.getIntOrNull(KEY_FORMAT)
+        set(v) = if (v == null) prefs.remove(KEY_FORMAT) else prefs.putInt(KEY_FORMAT, v)
+
+    /** Le cache a le format qu'attend cette version de l'application. */
+    val formatAJour: Boolean get() = (versionFormat ?: 0) >= VERSION_FORMAT
 
     /** id_liste UsersHub utilisé lors de la dernière synchro réussie — sert à détecter
      *  un changement de liste dans la config sans re-sync (cache obsolète).
@@ -853,11 +926,12 @@ class TaxRefCache(
         mem?.let { return it }
         val f = fichier(FILE_CACHE)
         if (!systeme.exists(f)) return emptyMap()
-        // Lecture en FLUX : on ne matérialise jamais tout le fichier en une String géante (sur
-        // 200k+ taxons, lecture en une chaîne puis décodage = dizaines de Mo → OOM sous Android ;
+        // Lecture à la main, comme le JsonReader de GeoMys-Android : quatre fois plus rapide que le
+        // décodeur générique en flux (LecteurCacheTaxRef). Les OCTETS du fichier, jamais une String
+        // géante (deux fois plus lourde ; sur 200k+ taxons, dizaines de Mo → OOM sous Android ;
         // cf. MESURE-TAXREF.md).
         return try {
-            systeme.read(f) { JSON_STOCKAGE.decodeFromBufferedSource(MAP_CACHE, this) }.also { mem = it }
+            LecteurCacheTaxRef.lire(systeme.read(f) { readByteArray() }).also { mem = it }
         } catch (e: Exception) {
             Journal.e(TAG, "Lecture du cache TaxRef impossible : ${e::class.simpleName} ${e.message}")
             emptyMap()
@@ -891,6 +965,12 @@ class TaxRefCache(
         FichierAtomique(systeme, fichier(FILE_CACHE), TAG).ecrire { JSON_STOCKAGE.encodeToBufferedSink(MAP_CACHE, cache, this) }
 
     companion object {
+        /** Format des données de TaxRef que range cette version de l'application. À incrémenter
+         *  quand la synchro garde une donnée de plus par taxon : la synchro suivante retélécharge
+         *  alors TaxRef une fois, même à version inchangée sur le serveur. Historique :
+         *  1 = groupes 3 et noms valides (20 octobre 2026). */
+        const val VERSION_FORMAT = 1
+
         // Suffixe d'article ajouté par l'INPN aux noms vernaculaires : "Triton palmé (Le)".
         // Couvre apostrophe ASCII ' et typographique ’, casse insensible.
         private val regexSuffixeArticle =

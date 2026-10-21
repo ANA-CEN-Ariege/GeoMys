@@ -97,6 +97,7 @@ import fr.ariegenature.geomys.ui.carte.enPosition
 import fr.ariegenature.geomys.ui.carte.rememberStyleFond
 import fr.ariegenature.geomys.ui.composants.AlerteEchecEcriture
 import fr.ariegenature.geomys.ui.composants.BandeauNavigation
+import fr.ariegenature.geomys.ui.composants.barreChampObligatoire
 import fr.ariegenature.geomys.ui.composants.BoutonAlerte
 import fr.ariegenature.geomys.ui.composants.BoutonContour
 import fr.ariegenature.geomys.ui.composants.BoutonIos
@@ -182,7 +183,7 @@ fun SaisieMonoScreen(
     FondGeoMys {
         if (vm.modeActif) EcranCarteMono(vm, onAccueil) else EcranReglages(vm, onAccueil)
 
-        DialogueDetailsReleve(vm.details, vm::fermerDetails, vm::validerDetails)
+        EcranDetailsReleve(vm.details, vm.session.typeSaisieLabel, onAccueil, vm::fermerDetails, vm::validerDetails)
         DialogueObservationsIci(vm)
         DialogueChoixFond(vm.choixFondVisible, vm.fond, vm::choisirFond, vm::fermerChoixFond)
         DialogueActions(
@@ -221,6 +222,10 @@ private fun EcranReglages(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
     val champ = vm.champ
     val ligne by champ.recherche.ligne.collectAsState()
     val modele by vm.saisie.modele.collectAsState()
+    // Un champ additionnel obligatoire vide : la barre rouge sur le bouton qui y mène (21 octobre).
+    val requis = vm.saisie.requis()
+    val caracterisationARemplir = requis.caracterisationIncomplete(modele)
+    val denombrementARemplir = requis.denombrementIncomplet(modele)
     // Seule une espèce RÉELLEMENT proposée ouvre la saisie.
     val demarrable = champ.texte.trim().isNotEmpty() && ligne.statut is TaxRefStatut.Trouve
     val dictee = rememberDictee(
@@ -241,6 +246,7 @@ private fun EcranReglages(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
             },
             ligne = ligne,
             synchroEnCours = champ.synchroEnCours,
+            nomValide = champ.nomValide,
             dictee = dictee,
             onMicro = { dictee.basculer(if (ios) vm.vocabulaire() else emptyList()) },
             modifier = modifier,
@@ -269,8 +275,8 @@ private fun EcranReglages(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
                 }
                 champEspece(Modifier)
                 Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BoutonContour("Caractérisation", vm::ouvrirCaracterisation, Modifier.weight(1f))
-                    BoutonContour("Dénombrement", vm::ouvrirDenombrement, Modifier.weight(1f))
+                    BoutonContour("Caractérisation", vm::ouvrirCaracterisation, Modifier.weight(1f).barreChampObligatoire(caracterisationARemplir))
+                    BoutonContour("Dénombrement", vm::ouvrirDenombrement, Modifier.weight(1f).barreChampObligatoire(denombrementARemplir))
                 }
                 indicateur?.let { Text(it, fontSize = 12.sp, color = BLEU_VARIANTE, modifier = Modifier.fillMaxWidth()) }
                 Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -306,8 +312,8 @@ private fun EcranReglages(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
                 }
                 champEspece(Modifier)
                 Row(Modifier.fillMaxWidth().padding(top = 12.dp)) {
-                    BoutonContour("Caractérisation", vm::ouvrirCaracterisation, Modifier.weight(1f).padding(end = 4.dp))
-                    BoutonContour("Dénombrement", vm::ouvrirDenombrement, Modifier.weight(1f).padding(start = 4.dp))
+                    BoutonContour("Caractérisation", vm::ouvrirCaracterisation, Modifier.weight(1f).padding(end = 4.dp).barreChampObligatoire(caracterisationARemplir))
+                    BoutonContour("Dénombrement", vm::ouvrirDenombrement, Modifier.weight(1f).padding(start = 4.dp).barreChampObligatoire(denombrementARemplir))
                 }
                 indicateur?.let { Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp)) }
                 Row(Modifier.fillMaxWidth().padding(top = 16.dp)) {

@@ -43,6 +43,7 @@ import fr.ariegenature.geomys.ui.ServicesEssai
 import fr.ariegenature.geomys.ui.carte.IssueTelechargement
 import fr.ariegenature.geomys.ui.carte.ZonesHorsLigne
 import fr.ariegenature.geomys.ui.composants.FluxChoisi
+import fr.ariegenature.geomys.ui.laisserFinirLeTravailDeFond
 import fr.ariegenature.geomys.util.uuidAleatoire
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -140,6 +141,7 @@ class MapsManagerViewModelTest {
     fun nettoyer() {
         portee.cancel()
         magasin.clear()
+        laisserFinirLeTravailDeFond()
         Dispatchers.resetMain()
         FileSystem.SYSTEM.deleteRecursively(racine)
         essai.nettoyer()

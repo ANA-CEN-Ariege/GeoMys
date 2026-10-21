@@ -29,7 +29,6 @@ import fr.ariegenature.geomys.model.GeoNatureDataset
 import fr.ariegenature.geomys.model.GeoNatureListe
 import fr.ariegenature.geomys.model.GeoNatureObservateur
 import fr.ariegenature.geomys.plateforme.ExecutionLongue
-import fr.ariegenature.geomys.store.CachesSynchronises
 import fr.ariegenature.geomys.store.GeoNatureConfig
 import fr.ariegenature.geomys.store.HabitatCacheStore
 import fr.ariegenature.geomys.store.StationsServeurCache
@@ -71,7 +70,6 @@ class SyncRunner(
     private val habitatsOcctax: HabitatCacheStore,
     private val habitatsOccHab: HabitatCacheStore,
     private val stationsServeur: StationsServeurCache,
-    private val caches: CachesSynchronises,
     private val taxRef: TaxRefCache,
     private val executionLongue: ExecutionLongue,
 ) {
@@ -138,12 +136,25 @@ class SyncRunner(
             // Suivis en parallèle juste après.
             publier("Jeux de données, listes, observateurs…")
             var protocolListIds: Set<Int> = emptySet()
-            var serveurJoignable = false
+            var toutesLesListes = false
             coroutineScope {
                 val mod = async {
-                    try { monitoring.chargerModules(config).mapNotNull { it.idListTaxonomy }.toSet() }
+                    try {
+                        val modules = monitoring.chargerModules(config)
+                        // + les listes propres à un champ espèce (`id_list`, que le `pnx-taxonomy` du web
+                        // interroge) et celles des types d'objets : lues dans le schéma en cache,
+                        // téléchargé à la première synchro.
+                        listesDesSuivis(
+                            modules.map { m ->
+                                m.idListTaxonomy to (
+                                    monitoring.lireSchemaProtocole(m.moduleCode)
+                                        ?: try { monitoring.chargerSchemaProtocole(config, m.moduleCode) } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
+                                    )
+                            },
+                        )
+                    }
                     catch (e: CancellationException) { throw e }
-                    catch (_: Exception) { emptySet() }
+                    catch (_: Exception) { ListesDesSuivis(emptySet(), false) }
                 }
                 val ds = async {
                     try {
@@ -156,7 +167,8 @@ class SyncRunner(
                 // Datasets CRÉABLES en Occtax (CRUVED C) — pour aligner la liste proposée sur le web.
                 // Best-effort : si indisponible, set vide = pas de restriction.
                 val dsCre = async {
-                    config.datasetsCreablesOcctax = browse.chargerIdsDatasetsCreables(config)
+                    // Un échec garde les créables précédents : vidés, plus aucun jeu ne serait proposé.
+                    browse.chargerIdsDatasetsCreables(config)?.let { config.datasetsCreablesOcctax = it }
                     null
                 }
                 val li = async {
@@ -177,9 +189,10 @@ class SyncRunner(
                 }
                 val add = async {
                     try {
+                        // La réponse du serveur fait foi, vide comprise : des champs supprimés sur le
+                        // serveur ne doivent plus être proposés. Un échec (exception) garde le cache.
                         val r = additionalFields.charger(config, "OCCTAX")
-                        if (r.isNotEmpty()) config.additionalFieldsOcctaxJson = listeVersJson(AdditionalFieldDef.serializer(), r)
-                        else if (config.additionalFieldsOcctaxJson.isEmpty()) config.additionalFieldsOcctaxJson = "[]"
+                        config.additionalFieldsOcctaxJson = listeVersJson(AdditionalFieldDef.serializer(), r)
                         null
                     } catch (e: CancellationException) { throw e
                     } catch (e: Exception) { e.message ?: "Erreur champs additionnels" }
@@ -206,7 +219,12 @@ class SyncRunner(
                 // échecs) ; Occtax absent de la réponse → drapeau INCHANGÉ (défaut permissif).
                 val occhab = async {
                     try {
-                        val modules = occHab.detecterModules(config, setOf(OccHabApi.MODULE_CODE, "OCCTAX"))
+                        val texteModules = occHab.chargerModulesGeoNature(config)
+                        val modules = texteModules?.let { occHab.modulesDetectes(it, setOf(OccHabApi.MODULE_CODE, "OCCTAX")) }.orEmpty()
+                        // Les droits de création des Suivis, par protocole et type d'objet, comme le web.
+                        if (texteModules != null) {
+                            try { monitoring.enregistrerDroits(texteModules) } catch (e: CancellationException) { throw e } catch (_: Exception) {}
+                        }
                         // Map VIDE = appel RATÉ (offline/timeout/annulé) → on NE TOUCHE PAS aux
                         // drapeaux : sinon un simple incident de synchro ferait DISPARAÎTRE la tuile
                         // OccHab et bloquerait l'envoi. Non vide (OCCTAX présent sur toute instance
@@ -220,12 +238,13 @@ class SyncRunner(
                         // + ids créables — pour ne proposer à la saisie que les bons JDD.
                         if (acces.disponible) {
                             try {
+                                // Une liste vide du serveur fait foi, comme sur le web ; un échec garde
+                                // le cache.
                                 val ds = browse.chargerDatasets(config, "OCCHAB")
-                                if (ds.isNotEmpty()) config.datasetsOcchabCacheJson = listeVersJson(GeoNatureDataset.serializer(), ds)
+                                config.datasetsOcchabCacheJson = listeVersJson(GeoNatureDataset.serializer(), ds)
                             } catch (e: CancellationException) { throw e
                             } catch (_: Exception) { /* datasets OccHab best-effort */ }
-                            config.datasetsCreablesOcchab =
-                                browse.chargerIdsDatasetsCreables(config, "OCCHAB")
+                            browse.chargerIdsDatasetsCreables(config, "OCCHAB")?.let { config.datasetsCreablesOcchab = it }
                             // Liste HABREF du module (OCCHAB.ID_LIST_HABITAT) → restreint
                             // l'autocomplétion habitat à la même liste que le web.
                             config.occhabIdListHabitat =
@@ -238,10 +257,15 @@ class SyncRunner(
                                     habitatsOccHab.remplacerTout(hab)
                             } catch (e: CancellationException) { throw e
                             } catch (_: Exception) { /* habitats OccHab optionnels */ }
-                            // formConfig (visibilité des champs) + défauts de nomenclature (ex. « In
-                            // situ ») → formulaire habitat identique au web.
+                            // formConfig (visibilité des champs), observateurs (texte libre ou liste
+                            // du module) + défauts de nomenclature (ex. « In situ ») → formulaire
+                            // identique au web.
                             try {
-                                browse.chargerFormConfigOccHab(config)?.let { config.occhabFormConfigJson = it }
+                                browse.chargerConfigOccHab(config)?.let { c ->
+                                    c.formConfigJson?.let { config.occhabFormConfigJson = it }
+                                    config.occhabObservateursEnTexte = c.observateursEnTexte
+                                    c.observateurs?.let { config.observateursOcchabCacheJson = listeVersJson(GeoNatureObservateur.serializer(), it) }
+                                }
                                 val defauts = occHab.chargerDefautsNomenclatures(config)
                                 if (defauts.isNotEmpty()) config.occhabDefautsNomencJson = JSON_STOCKAGE.encodeToString(DEFAUTS_NOMENCLATURES, defauts)
                             } catch (e: CancellationException) { throw e
@@ -271,36 +295,17 @@ class SyncRunner(
                     "Datasets créables" to dsCre.await(),
                 )
                 resultatsA.forEach { (nom, err) -> if (err != null) echecs += "$nom ($err)" }
-                protocolListIds = mod.await()
+                mod.await().let {
+                    protocolListIds = it.ids
+                    toutesLesListes = it.champSansListe
+                }
                 hab.await() // habitats : best-effort, pas d'ajout aux échecs
                 occhab.await() // détection module OccHab : best-effort
-                // Au moins une étape RÉSEAU a répondu (settings/créables renvoient toujours null,
-                // hors-ligne compris : on ne les compte pas) → le serveur est joignable.
-                serveurJoignable = protocolListIds.isNotEmpty() ||
-                    resultatsA.take(4).any { (_, err) -> err == null }
             }
 
-            // RECHARGEMENT REQUIS après mise à jour (cf. store/CachesSynchronises
-            // .armerRechargementSiRequis) : la purge des caches synchronisés se fait ICI — jamais
-            // au lancement — une fois le serveur joignable (phase A a répondu) et juste avant leur
-            // réécriture : pas de purge sur le thread UI, pas de course avec une synchro en cours,
-            // rien de perdu si l'appli est lancée hors-ligne. TaxRef vidé ⇒ retéléchargé même si
-            // sa version serveur est inchangée.
-            var purgeFaite = false
-            if (config.rechargementRequisApresMaj) {
-                if (serveurJoignable) {
-                    publier("Purge des anciennes données…")
-                    withContext(Dispatchers.IO) {
-                        // PAS viderCachesSynchronises() : la phase A vient de réécrire les deux
-                        // caches HABREF et les stations serveur, que la phase B ne retouche pas —
-                        // les purger ici les effaçait pour de bon (audit 2026-09-14, R1-C2).
-                        caches.viderCachesReecritsEnPhaseB()
-                    }
-                    purgeFaite = true
-                } else {
-                    echecs += "Serveur injoignable (rechargement après mise à jour non effectué)"
-                }
-            }
+            // Plus de purge après une mise à jour de l'application (21 octobre 2026) : la phase B
+            // réécrit ses caches, et TaxRef n'est retéléchargé que si sa version a changé sur le
+            // serveur ou si le format de son cache a changé (GeoNatureSync.synchroniserTaxRef).
 
             // Étapes 5-7 EN PARALLÈLE : caches indépendants (TaxRef / nomenclatures / monitoring),
             // et seul Suivis charge les modules → pas de course. On masque ainsi la durée des
@@ -321,7 +326,7 @@ class SyncRunner(
             coroutineScope {
                 val taxJob = async {
                     try {
-                        geoNatureSync.synchroniserTaxRef(config, protocolListIds, forcerTaxRef) { fait, listeIdx, listesTotales ->
+                        geoNatureSync.synchroniserTaxRef(config, protocolListIds, forcerTaxRef, toutesLesListes) { fait, listeIdx, listesTotales ->
                             publier(
                                 if (listesTotales == 0) "Récupération des taxons…"
                                 else "Liste $listeIdx/$listesTotales — $fait taxons cumulés…"
@@ -344,7 +349,8 @@ class SyncRunner(
                 nomJob.await().let { (n, m) -> nbNom = n; msgNom = m }
                 suiviJob.await().let { (n, m) -> nbModulesOk = n; msgSuivis = m }
             }
-            if (nbTaxons == 0) echecs += "TaxRef (${msgTaxRef.take(80)})"
+            // Aucune liste encore utile (liste à choisir dans Paramètres) n'est pas une erreur.
+            if (nbTaxons == 0 && msgTaxRef != GeoNatureSync.AUCUNE_LISTE_UTILE) echecs += "TaxRef (${msgTaxRef.take(80)})"
             if (nbNom == 0) echecs += "Nomenclatures ($msgNom)"
             // "Aucun module monitoring exposé" n'est pas une erreur (instance sans monitoring).
             if (nbModulesOk == 0 && !msgSuivis.startsWith("Aucun")) echecs += "Suivis (${msgSuivis.take(80)})"
@@ -361,16 +367,11 @@ class SyncRunner(
                 append(msgTaxRef)
                 if (nbTaxons > 0 && nbNom == 0) append("\n⚠ Nomenclatures : $msgNom")
             }
-            // Données de CETTE release désormais chargées (mécanisme « rechargement requis après
-            // mise à jour », cf. store/CachesSynchronises) — dès que TaxRef est en place, même si
-            // une étape secondaire a échoué (re-purger à chaque synchro sur un serveur où une étape
-            // échoue toujours rendrait l'appli inutilisable). Drapeau armé PENDANT cette synchro
-            // (donc sans purge ici) → on le laisse : la prochaine synchro purgera puis désarmera.
-            if (taxRef.versionSauvegardee != null &&
-                (purgeFaite || !config.rechargementRequisApresMaj)
-            ) {
+            // Données de CETTE release désormais chargées (le bandeau de Paramètres qui suggère de
+            // recharger après une mise à jour s'efface) — dès que TaxRef est en place, même si une
+            // étape secondaire a échoué.
+            if (taxRef.versionSauvegardee != null) {
                 config.versionDonneesChargees = GeoNatureConfig.VERSION_DONNEES_REQUISE
-                config.rechargementRequisApresMaj = false
             }
             _etat.value = Etat(enCours = false, texte = "Terminé", termine = true, succes = echecs.isEmpty(), resume = resume)
         } catch (c: CancellationException) {
@@ -402,4 +403,33 @@ class SyncRunner(
         /** Défauts de nomenclature OccHab (mnémonique → id), en JSON comme le faisait Gson. */
         val DEFAUTS_NOMENCLATURES = MapSerializer(String.serializer(), Int.serializer())
     }
+}
+
+/** Les listes de taxons des Suivis ([ids]) ; [champSansListe] : un champ espèce n'en a aucune. */
+data class ListesDesSuivis(val ids: Set<Int>, val champSansListe: Boolean)
+
+/** Les listes de taxons dont les protocoles ([protocoles] : la liste de chaque protocole, et son
+ *  schéma) peuvent avoir besoin : celle du protocole, de chaque type d'objet et de chaque champ
+ *  espèce. Un champ espèce sans liste propre prend celle de son type, sinon d'un autre type du
+ *  schéma (NouvelleVisite.preparer) ; sans aucune, le web y propose tout TaxRef : [ListesDesSuivis.champSansListe]. */
+fun listesDesSuivis(protocoles: List<Pair<Int?, Map<String, MonitoringApi.MonitoringSchemaObjet>?>>): ListesDesSuivis {
+    val ids = mutableSetOf<Int>()
+    var sansListe = false
+    for ((listeDeclaree, schema) in protocoles) {
+        val listeProtocole = listeDeclaree?.takeIf { it > 0 }
+        listeProtocole?.let(ids::add)
+        val objets = schema?.values.orEmpty()
+        val listeDuSchema = objets.firstNotNullOfOrNull { it.idListTaxonomy }
+        for (objet in objets) {
+            objet.idListTaxonomy?.let(ids::add)
+            for (p in objet.properties.values) {
+                p.idListTaxonomie?.let(ids::add)
+                val espece = p.typeWidget.equals("taxonomy", ignoreCase = true)
+                if (espece && p.idListTaxonomie == null && objet.idListTaxonomy == null && listeDuSchema == null && listeProtocole == null) {
+                    sansListe = true
+                }
+            }
+        }
+    }
+    return ListesDesSuivis(ids.filter { it > 0 }.toSet(), sansListe)
 }

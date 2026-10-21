@@ -147,16 +147,19 @@ class OccHabStore(fichier: FichierAtomique) :
         return index
     }
 
-    /** Marque une station envoyée et recalcule l'état de la saisie (envoyée = toutes envoyées). */
-    suspend fun marquerStationEnvoyee(saisieId: String, stationId: String, idStationServeur: Int?): Boolean =
+    /** Marque une station envoyée et recalcule l'état de la saisie (envoyée = toutes envoyées).
+     *  [contenu] : la station telle qu'elle est partie (fusionnée avec le serveur, habitats munis de
+     *  leurs ids), qui remplace alors la copie. */
+    suspend fun marquerStationEnvoyee(saisieId: String, stationId: String, idStationServeur: Int?, contenu: OccHabStation? = null): Boolean =
         majStation(saisieId, stationId) {
-            it.copy(
+            (contenu?.copy(id = it.id) ?: it).copy(
                 envoyeGeoNature = true,
                 idStationServeur = idStationServeur ?: it.idStationServeur,
                 derniereErreurEnvoi = null,
                 envoiIncertain = false, // envoi confirmé.
                 empreinteOrigine = null, // une remise en édition reprendra une empreinte fraîche.
                 origineEnvoyee = false,
+                origineJson = null,
             )
         }
 

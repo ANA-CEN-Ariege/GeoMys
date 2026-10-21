@@ -23,6 +23,7 @@
 package fr.ariegenature.geomys.network
 
 import com.russhwolf.settings.MapSettings
+import fr.ariegenature.geomys.explorer.Explorer
 import fr.ariegenature.geomys.model.GeoNatureDataset
 import fr.ariegenature.geomys.model.Taxon
 import fr.ariegenature.geomys.network.ServeurSimule.Companion.json
@@ -188,18 +189,24 @@ class GeoNatureBrowseTest {
     }
 
     @Test
-    fun datasets_creables_http_500_renvoie_un_set_vide() = runTest {
-        // Filet : pas de restriction.
+    fun datasets_creables_http_500_renvoie_null() = runTest {
+        // Échec : l'appelant garde les créables précédents.
         router("/api/meta/datasets" to { statut(500) })
-        assertTrue(browse.chargerIdsDatasetsCreables(config).isEmpty())
+        assertNull(browse.chargerIdsDatasetsCreables(config))
     }
 
     @Test
-    fun datasets_creables_login_refuse_renvoie_un_set_vide_sans_appel_au_endpoint() = runTest {
+    fun datasets_creables_login_refuse_renvoie_null_sans_appel_au_endpoint() = runTest {
         reponseLogin = { statut(401) }
         router("/api/meta/datasets" to { json("[]") })
-        assertTrue(browse.chargerIdsDatasetsCreables(config).isEmpty())
+        assertNull(browse.chargerIdsDatasetsCreables(config))
         assertTrue(chemins.none { it.startsWith("/api/meta") })
+    }
+
+    @Test
+    fun datasets_creables_reponse_vide_fait_foi() = runTest {
+        router("/api/meta/datasets" to { json("[]") })
+        assertEquals(emptySet(), browse.chargerIdsDatasetsCreables(config))
     }
 
     // ------------------------------------------------------------------ chargerListesTaxons
@@ -270,46 +277,34 @@ class GeoNatureBrowseTest {
         assertTrue(chemins.none { it.startsWith("/api/users/roles") }, "la liste curée dispense d'appeler /users/roles")
     }
 
+    // Le repli sur /users/roles est retiré (21 octobre) : le web n'affiche que la liste d'OccTax.
+
     @Test
-    fun observateurs_sans_liste_configuree_repli_sur_users_roles_groupes_exclus() = runTest {
-        // /api/gn_commons/config absent (404) → repli historique sur tous les rôles.
-        router(
-            "/api/users/roles" to {
-                json(
-                    """
-                    [
-                      {"id_role": 1, "prenom_role": "Jean", "nom_role": "Dupont"},
-                      {"id_role": 2, "groupe": true, "nom_role": "Grp Ornithos"},
-                      {"id_role": -5, "nom_role": "invalide"},
-                      {"id_role": 3, "nom_complet": "MARTIN paul"}
-                    ]
-                    """.trimIndent(),
-                )
-            },
-        )
-        val obs = browse.chargerObservateurs(config)
-        assertEquals(
-            listOf(1 to "Jean Dupont", 3 to "MARTIN paul"),
-            obs.map { it.idRole to it.nomComplet },
-        )
+    fun observateurs_sans_liste_configuree_leve_une_erreur_sans_users_roles() = runTest {
+        // /api/gn_commons/config absent (404) : la synchro gardera la liste du cache.
+        router("/api/users/roles" to { json("""[{"id_role":1,"nom_complet":"SEULE alice"}]""") })
+        assertFailsWith<GNErreur.EnvoiEchoue> { browse.chargerObservateurs(config) }
+        assertTrue(chemins.none { it.startsWith("/api/users/roles") }, "plus de repli sur tous les rôles")
     }
 
     @Test
-    fun observateurs_menu_vide_repli_sur_users_roles() = runTest {
+    fun observateurs_menu_vide_rend_une_liste_vide_comme_le_web() = runTest {
         router(
             "/api/gn_commons/config" to { json("""{"OCCTAX":{"id_observers_list":9}}""") },
             "/api/users/menu/9" to { json("[]") },
             "/api/users/roles" to { json("""[{"id_role":1,"nom_complet":"SEULE alice"}]""") },
         )
-        val obs = browse.chargerObservateurs(config)
-        assertEquals(listOf(1 to "SEULE alice"), obs.map { it.idRole to it.nomComplet })
+        assertEquals(emptyList(), browse.chargerObservateurs(config))
+        assertTrue(chemins.none { it.startsWith("/api/users/roles") }, "plus de repli sur tous les rôles")
     }
 
     @Test
-    fun observateurs_repli_en_erreur_http_500_leve_envoi_echoue() = runTest {
-        router("/api/users/roles" to { statut(500) })
-        val e = assertFailsWith<GNErreur.EnvoiEchoue>("EnvoiEchoue attendue") { browse.chargerObservateurs(config) }
-        assertEquals(500, e.code)
+    fun observateurs_menu_en_erreur_leve_envoi_echoue() = runTest {
+        router(
+            "/api/gn_commons/config" to { json("""{"OCCTAX":{"id_observers_list":9}}""") },
+            "/api/users/menu/9" to { statut(500) },
+        )
+        assertFailsWith<GNErreur.EnvoiEchoue>("EnvoiEchoue attendue") { browse.chargerObservateurs(config) }
     }
 
     // ------------------------------------------------------------------ chargerTousHabitats
@@ -422,7 +417,7 @@ class GeoNatureBrowseTest {
 
         val obs = navigation.recupererObsExplorer(config, minLon = 1.0, minLat = 42.5, maxLon = 2.0, maxLat = 43.5)
 
-        assertEquals(listOf("Tichodrome", "Erinaceus europaeus"), obs.map { it.nomCite })
+        assertEquals(listOf("Tichodrome", "Erinaceus europaeus", "Inconnu du cache"), obs.map { it.nomCite })
         assertEquals(Taxon.OISEAU, obs[0].taxon)
         assertEquals(3, obs[0].nombre)
         assertEquals("Tichodroma muraria", obs[0].nomSci)
@@ -430,11 +425,73 @@ class GeoNatureBrowseTest {
         assertEquals(Taxon.MAMMIFERE, obs[1].taxon)
         assertEquals("Hérisson d'Europe", obs[1].nomVern)
         assertEquals(1, obs[1].nombre, "count_min 0 ramené à 1")
+        // Taxon absent du téléphone : gardé, sans groupe (icône neutre), et non plus écarté (21 octobre).
+        assertNull(obs[2].taxon)
 
         val post = serveur.requetes.last()
         assertEquals(HttpMethod.Post, post.method)
         assertEquals("/api/synthese/for_web?limit=1000", post.url.encodedPathAndQuery)
         assertTrue(post.texte.contains(""""date_min":"2025-10-18""""), post.texte)
         assertTrue(post.texte.contains("""[[[1.0,42.5],[2.0,42.5],[2.0,43.5],[1.0,43.5],[1.0,42.5]]]"""), post.texte)
+    }
+
+    @Test
+    fun explorer_le_groupe_vient_de_la_synthese_ou_du_cache_sinon_il_manque() = runTest {
+        // 21 octobre 2026 : GeoMys-Android écartait les taxons absents du cache (171 des 195 observations
+        // d'une emprise du serveur de démonstration) et rangeait aux oiseaux ceux du cache sans groupe.
+        val navigation = GeoNatureBrowse(GeoNatureAuth(serveur.clients), serveur.clients, taxRef, horloge = { 1_792_324_800_000L })
+        taxRef.remplacerTout(
+            mapOf(
+                "epeire" to TaxRefEntry(10, "Araneus diadematus"),
+                "carex" to TaxRefEntry(11, "Carex pendula"),
+                "sans groupe" to TaxRefEntry(12, "Taxon sans groupe"),
+            ),
+        )
+        taxRef.ajouterGroupes(mapOf(10 to "Arachnides", 11 to "Angiospermes"))
+        taxRef.ajouterGroupes1etRegnes(emptyMap(), mapOf(10 to "Animalia", 11 to "Plantae"))
+        fun point(proprietes: String) = """{"geometry":{"type":"Point","coordinates":[1.5,42.9]},"properties":{$proprietes}}"""
+        val points = listOf(
+            point(""""cd_nom":10,"nom_cite":"epeire""""),
+            point(""""cd_nom":11,"nom_cite":"carex""""),
+            point(""""cd_nom":12,"nom_cite":"en cache sans groupe""""),
+            point(""""cd_nom":13,"nom_cite":"absent du telephone""""),
+            point(""""cd_nom":14,"group2_inpn":"Angiospermes","nom_cite":"groupe sans regne connu""""),
+            point(""""cd_nom":15,"group2_inpn":"Insectes","nom_cite":"groupe de la synthese""""),
+            point(""""nom_cite":"sans cd_nom""""),
+        )
+        router("/api/synthese/for_web" to { json("""{"type":"FeatureCollection","features":[${points.joinToString(",")}]}""") })
+        val obs = navigation.recupererObsExplorer(config, minLon = 1.0, minLat = 42.5, maxLon = 2.0, maxLat = 43.5)
+        assertEquals(
+            listOf(
+                "epeire" to Taxon.INVERTEBRES,
+                "carex" to Taxon.PLANTE,
+                "en cache sans groupe" to null,
+                "absent du telephone" to null,
+                "groupe sans regne connu" to null,
+                "groupe de la synthese" to Taxon.INSECTE,
+                "sans cd_nom" to null,
+            ),
+            obs.map { it.nomCite to it.taxon },
+        )
+    }
+
+    @Test
+    fun explorer_le_nom_que_for_web_envoie_par_defaut() = runTest {
+        // GeoNature 2.17 n'envoie par défaut ni nom_cite ni lb_nom, mais nom_vern_or_lb_nom (serveur de
+        // démonstration, 21 octobre) : un taxon sans nom français en cache restait « Espèce inconnue ».
+        val navigation = GeoNatureBrowse(GeoNatureAuth(serveur.clients), serveur.clients, taxRef, horloge = { 1_792_324_800_000L })
+        taxRef.remplacerTout(mapOf("carex pendula" to TaxRefEntry(5, "Carex pendula")))
+        taxRef.ajouterGroupes(mapOf(5 to "Angiospermes"))
+        router(
+            "/api/synthese/for_web" to {
+                json(
+                    """{"type":"FeatureCollection","features":[{"geometry":{"type":"Point","coordinates":[1.5,42.9]},
+                       "properties":{"cd_nom":5,"nom_vern_or_lb_nom":"Carex pendula","date_min":"2026-05-01","id_synthese":1}}]}""",
+                )
+            },
+        )
+        val obs = navigation.recupererObsExplorer(config, minLon = 1.0, minLat = 42.5, maxLon = 2.0, maxLat = 43.5).single()
+        assertEquals("Carex pendula", obs.nomCite)
+        assertEquals("Carex pendula", Explorer.titre(obs))
     }
 }

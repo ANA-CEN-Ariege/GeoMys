@@ -22,8 +22,10 @@
 package fr.ariegenature.geomys.occtax
 
 import fr.ariegenature.geomys.ServicesDeTest
+import fr.ariegenature.geomys.model.AdditionalFieldDef
 import fr.ariegenature.geomys.model.GeoNatureDataset
 import fr.ariegenature.geomys.model.GeoNatureObservateur
+import fr.ariegenature.geomys.model.WidgetType
 import fr.ariegenature.geomys.store.io.listeVersJson
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -62,14 +64,13 @@ class DetailsReleveFormulaireTest {
         dateFin: Long? = null,
     ) = DonneesDetailsReleve(
         titre = "Détails du relevé",
-        infos = emptyList(),
         datasets = emptyList(),
         idDataset = null,
         nomDataset = null,
         observateurs = emptyList(),
         idsObservateurs = emptyList(),
         nomsObservateurs = emptyList(),
-        defs = emptyList(),
+        defsReleve = emptyList(),
         additionnels = additionnels,
         formFieldsJson = "",
         typGrp = typGrp,
@@ -84,7 +85,7 @@ class DetailsReleveFormulaireTest {
     )
 
     @Test
-    fun seuls_les_jeux_actifs_occtax_et_creables_sont_proposes() {
+    fun seuls_les_jeux_actifs_occtax_et_creables_sont_proposes_sous_leur_nom() {
         config.datasetsCacheJson = listeVersJson(
             GeoNatureDataset.serializer(),
             listOf(
@@ -95,25 +96,64 @@ class DetailsReleveFormulaireTest {
                 GeoNatureDataset(5, "Non créable", moduleCodes = listOf("OCCTAX")),
             ),
         )
+        config.datasetsCreablesOcctax = setOf(1, 4, 5)
+        // Comme le pnx-datasets du web (active, module_code et create OCCTAX) : un jeu sans module
+        // OCCTAX n'est pas proposé, même créable.
+        assertEquals(listOf(1 to "Opportuniste", 5 to "Non créable"), DetailsReleveFormulaire.datasets(config))
         config.datasetsCreablesOcctax = setOf(1, 4)
-        assertEquals(listOf(1 to "Opportuniste (1)", 4 to "Sans module (4)"), DetailsReleveFormulaire.datasets(config))
+        assertEquals(listOf(1 to "Opportuniste"), DetailsReleveFormulaire.datasets(config))
         config.datasetsCacheJson = "pas du json"
         assertEquals(emptyList(), DetailsReleveFormulaire.datasets(config), "cache illisible : aucune proposition")
     }
 
     @Test
-    fun sans_observateur_porte_l_observateur_par_defaut_puis_l_utilisateur() {
-        config.observateursCacheJson = listeVersJson(GeoNatureObservateur.serializer(), listOf(GeoNatureObservateur(7, "Alice Martin")))
-        assertEquals(listOf(7 to "Alice Martin"), DetailsReleveFormulaire.observateurs(config))
+    fun sans_observateur_porte_l_utilisateur_connecte_comme_le_web() {
+        config.observateursCacheJson = listeVersJson(GeoNatureObservateur.serializer(), listOf(GeoNatureObservateur(7, "MARTIN Alice")))
+        assertEquals(listOf(7 to "MARTIN Alice"), DetailsReleveFormulaire.observateurs(config))
         config.idRoleUtilisateur = 12
         config.login = "amartin"
         assertEquals(listOf(12), DetailsReleveFormulaire.idsObservateursDepart(emptyList(), config))
-        assertEquals(listOf("amartin"), DetailsReleveFormulaire.nomsObservateursDepart(emptyList(), config))
-        config.observateurDefautId = "7"
-        config.observateurDefautNom = "Alice Martin"
-        assertEquals(listOf(7), DetailsReleveFormulaire.idsObservateursDepart(emptyList(), config))
-        assertEquals(listOf("Alice Martin"), DetailsReleveFormulaire.nomsObservateursDepart(emptyList(), config))
+        assertEquals(listOf("amartin"), DetailsReleveFormulaire.nomsObservateursDepart(emptyList(), config), "sans nom complet : l'identifiant")
+        config.nomUtilisateur = "MARTIN Bob"
+        assertEquals(listOf("MARTIN Bob"), DetailsReleveFormulaire.nomsObservateursDepart(emptyList(), config))
+        assertEquals("MARTIN Bob", DetailsReleveFormulaire.observateursTexteDepart(config), "observers_txt : le nom complet")
         assertEquals(listOf(3, 4), DetailsReleveFormulaire.idsObservateursDepart(listOf(3, 4), config), "ceux du relevé priment")
+    }
+
+    @Test
+    fun les_controles_du_releve_sont_ceux_du_web() {
+        val jour = millis(2026, 10, 19, 8, 30)
+        val veille = millis(2026, 10, 18, 8, 30)
+        fun refus(
+            debut: Long? = jour,
+            fin: Long? = jour,
+            hd: String = "",
+            hf: String = "",
+            obs: Boolean = true,
+            texte: Boolean = false,
+            simples: Map<String, String> = emptyMap(),
+            jeu: Boolean = true,
+        ) = DetailsReleveFormulaire.refus(debut, fin, hd, hf, obs, texte, simples, datasetChoisi = jeu)
+        assertNull(refus())
+        assertEquals("Choisissez un jeu de données", refus(jeu = false))
+        assertEquals("Choisissez un observateur", refus(obs = false))
+        assertEquals("Saisissez les observateurs", refus(obs = false, texte = true))
+        assertEquals("Choisissez une date de début", refus(debut = null))
+        // Le motif du web : « h:mm » ou « hh:mm », secondes permises.
+        assertNull(refus(hd = "8:30", hf = "09:15:30"))
+        assertEquals("Heure attendue au format hh:mm", refus(hd = "8h30", hf = "9:00"))
+        assertEquals("Heure attendue au format hh:mm", refus(hd = "24:00", hf = "24:00"))
+        assertEquals("La date de début ne peut pas être postérieure à la date de fin", refus(debut = jour, fin = veille))
+        // Une heure de début sans heure de fin, ou après elle le même jour (invalidHour).
+        assertEquals("L'heure de début ne peut pas être supérieure à l'heure de fin", refus(hd = "10:00"))
+        assertEquals("L'heure de début ne peut pas être supérieure à l'heure de fin", refus(hd = "10:00", hf = "9:59"))
+        assertNull(refus(debut = veille, fin = jour, hd = "10:00", hf = "09:00"), "sur deux jours, l'heure de fin peut précéder")
+        assertNull(refus(hf = "09:00"), "une heure de fin seule passe, comme sur le web")
+        // minMaxValidator : 0 et vide ne comptent pas ; les négatifs, si.
+        assertEquals("L'altitude max ne peut être inférieure à l'altitude min", refus(simples = mapOf("altitude_min" to "1200", "altitude_max" to "900")))
+        assertNull(refus(simples = mapOf("altitude_min" to "1200", "altitude_max" to "0")))
+        assertNull(refus(simples = mapOf("altitude_min" to "-20", "altitude_max" to "-5")))
+        assertEquals("La profondeur max ne peut être inférieure à la profondeur min", refus(simples = mapOf("depth_min" to "5", "depth_max" to "2")))
     }
 
     @Test
@@ -125,15 +165,6 @@ class DetailsReleveFormulaireTest {
     }
 
     @Test
-    fun la_date_de_fin_n_est_depliee_que_si_elle_differe_du_debut() {
-        val debut = millis(2026, 10, 19, 8, 30)
-        assertFalse(DetailsReleveFormulaire.finActiveAuDepart(donnees(dateDebut = debut, dateFin = debut)))
-        assertFalse(DetailsReleveFormulaire.finActiveAuDepart(donnees(dateDebut = debut, dateFin = null)))
-        assertTrue(DetailsReleveFormulaire.finActiveAuDepart(donnees(dateDebut = debut, dateFin = debut + 3_600_000)))
-        assertFalse(DetailsReleveFormulaire.finActiveAuDepart(donnees(dateDebut = debut, dateFin = debut + 3_600_000, avecFin = false)))
-    }
-
-    @Test
     fun choisir_le_jour_garde_l_heure_et_choisir_l_heure_garde_le_jour() {
         val depart = millis(2026, 10, 19, 8, 30, 15)
         val autreJour = DetailsReleveFormulaire.avecJour(depart, LocalDate(2026, 3, 29), paris)
@@ -141,23 +172,6 @@ class DetailsReleveFormulaireTest {
         assertEquals(LocalDateTime(2026, 3, 29, 8, 30, 15), local(autreJour))
         val autreHeure = DetailsReleveFormulaire.avecHeure(depart, 17, 5, paris)
         assertEquals(LocalDateTime(2026, 10, 19, 17, 5, 15), local(autreHeure))
-    }
-
-    @Test
-    fun sans_heures_le_releve_couvre_la_journee_et_la_fin_suit_le_debut() {
-        val debut = millis(2026, 10, 19, 8, 30, 15)
-        val fin = millis(2026, 10, 21, 10, 0)
-        val (d1, f1) = DetailsReleveFormulaire.dates(debut, fin, finActive = true, heures = false, avecFin = true, fuseau = paris)
-        assertEquals(LocalDateTime(2026, 10, 19, 0, 0), local(d1))
-        assertEquals(LocalDateTime(2026, 10, 21, 23, 59), local(f1))
-        // Fin repliée : elle vaut le début.
-        val (d2, f2) = DetailsReleveFormulaire.dates(debut, fin, finActive = false, heures = true, avecFin = true, fuseau = paris)
-        assertEquals(debut, d2)
-        assertEquals(debut, f2)
-        // Fin avant le début : ramenée au début.
-        val (d3, f3) = DetailsReleveFormulaire.dates(fin, debut, finActive = true, heures = true, avecFin = true, fuseau = paris)
-        assertEquals(fin, d3)
-        assertEquals(fin, f3)
     }
 
     @Test
@@ -196,5 +210,16 @@ class DetailsReleveFormulaireTest {
         assertEquals("", vide.typGrp)
         assertEquals("Pelouses", vide.habitatLabel)
         assertNull(vide.idDataset)
+    }
+
+    @Test
+    fun un_jeu_sans_champ_de_releve_n_envoie_pas_ceux_de_l_ancien_jeu() {
+        // Comme le web, qui reconstruit le formulaire au changement de jeu (21 octobre).
+        val strate = AdditionalFieldDef(1, "strate", "Strate", WidgetType.TEXT, objectsCode = listOf("OCCTAX_RELEVE"), datasetsIds = listOf(4))
+        val d = donnees(additionnels = mapOf("strate" to "herbacée", "ancien" to "x")).copy(idDataset = 4, defsReleve = listOf(strate))
+        val res = DetailsReleveFormulaire.resultat(d, 5 to "Atlas (5)", emptyList(), emptyMap(), "", null, "", emptyMap(), emptyMap(), 1L to 1L, false)
+        assertEquals(mapOf("ancien" to "x"), res.additionnels, "le champ du jeu 4 ne part pas ; une clé qu'aucun jeu ne définit reste")
+        val memeJeu = DetailsReleveFormulaire.resultat(d, 4 to "Opportuniste (4)", emptyList(), mapOf("strate" to "arborée"), "", null, "", emptyMap(), emptyMap(), 1L to 1L, false)
+        assertEquals(mapOf("strate" to "arborée"), memeJeu.additionnels, "le jeu qui le définit : la valeur saisie")
     }
 }

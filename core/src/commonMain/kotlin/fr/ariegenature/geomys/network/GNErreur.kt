@@ -44,14 +44,21 @@ internal fun parseErreur(code: Int, body: String?): String {
     if (body != null) {
         try {
             val j = JSONObject(body)
-            return j.optString("description").takeIf { it.isNotEmpty() }
+            val message = j.optString("description").takeIf { it.isNotEmpty() }
                 ?: j.optString("msg").takeIf { it.isNotEmpty() }
                 ?: j.optString("message").takeIf { it.isNotEmpty() }
-                ?: "HTTP $code"
+                ?: return "HTTP $code"
+            // Le refus d'un cadre d'acquisition fermé (409 depuis GeoNature 2.17.5), dans les mots du
+            // web (fr.json : « Cadre d'acquisition fermé, action impossible »).
+            if (code == 409 && message.contains("closed acquisition framework", ignoreCase = true)) return CADRE_ACQUISITION_FERME
+            return message
         } catch (_: Exception) {}
     }
     return "Erreur HTTP $code"
 }
+
+/** Le message du web pour un cadre d'acquisition fermé. */
+const val CADRE_ACQUISITION_FERME = "Cadre d'acquisition fermé, action impossible"
 
 /** Convertit une exception réseau (typiquement [GNErreur.EnvoiEchoue] ou [GNErreur.AuthEchouee])
  *  en message lisible par l'utilisateur final. Le code HTTP brut reste en parenthèses pour
@@ -73,6 +80,12 @@ fun humaniserErreurReseau(e: Throwable): String {
         401 -> "Identifiants expirés — reconnectez-vous depuis la config GeoNature (HTTP 401)."
         403 -> "Pas de droit d'accès à cette ressource (CRUVED) (HTTP 403)."
         404 -> "Ressource introuvable côté serveur (HTTP 404)."
+        // 2.17.5 : un relevé ou une station d'un cadre d'acquisition fermé ; le texte du web.
+        409 -> if (detail?.contains("closed acquisition framework", ignoreCase = true) == true) {
+            "Cadre d'acquisition fermé, action impossible (HTTP 409)."
+        } else {
+            "Erreur HTTP 409 : ${detail ?: e.message ?: "—"}"
+        }
         in 500..599 -> buildString {
             append("Erreur serveur (HTTP $code).")
             if (detail != null) append("\n\nDétail : $detail")

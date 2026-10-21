@@ -25,6 +25,7 @@ package fr.ariegenature.geomys.ui.composants
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -54,6 +55,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -67,8 +69,9 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 
-/** Liste déroulante : les [libelles] (le premier : l'entrée vide) et la position choisie
- *  [selection].
+/** Liste déroulante : les [libelles] (le premier : l'entrée vide, sauf avec [invite]) et la
+ *  position choisie [selection]. Les listes du web n'ont pas d'entrée vide : hors des [libelles]
+ *  (-1), [invite] s'affiche en gris, et [onEffacer] met au bout d'un choix la croix qui le vide.
  *  - Android : Spinner de Material (texte de 16 sp, caret de 24 dp à 12 dp du bord, liste ouverte
  *    par-dessus le champ, lignes de 48 dp) ; inerte et estompé si [actif] est faux ;
  *  - iOS : bouton sur fond blanc 8 % aux coins de 8 pt (libellé blanc, blanc 70 % pour l'entrée
@@ -80,9 +83,12 @@ fun ListeDeroulante(
     onChoix: (Int) -> Unit,
     modifier: Modifier = Modifier,
     actif: Boolean = true,
+    invite: String? = null,
+    onEffacer: (() -> Unit)? = null,
 ) {
-    if (estIos) ListeDeroulanteIos(libelles, selection, onChoix, modifier, actif)
-    else ListeDeroulanteAndroid(libelles, selection, onChoix, modifier, actif)
+    val effacer = onEffacer?.takeIf { actif && selection in libelles.indices }
+    if (estIos) ListeDeroulanteIos(libelles, selection, onChoix, modifier, actif, invite, effacer)
+    else ListeDeroulanteAndroid(libelles, selection, onChoix, modifier, actif, invite, effacer)
 }
 
 @Composable
@@ -92,10 +98,13 @@ private fun ListeDeroulanteAndroid(
     onChoix: (Int) -> Unit,
     modifier: Modifier,
     actif: Boolean,
+    invite: String?,
+    onEffacer: (() -> Unit)?,
 ) {
     var ouverte by remember { mutableStateOf(false) }
     var ancre by remember { mutableStateOf<Rect?>(null) }
     val couleurCaret = MaterialTheme.colorScheme.onSurfaceVariant
+    val choisi = libelles.getOrNull(selection)
     Box(
         modifier
             .fillMaxWidth()
@@ -105,12 +114,14 @@ private fun ListeDeroulanteAndroid(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                libelles.getOrNull(selection).orEmpty(),
+                choisi ?: invite.orEmpty(),
                 fontSize = 16.sp,
+                color = if (choisi == null) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
             )
+            if (onEffacer != null) CaseDate("✕", couleur = MaterialTheme.colorScheme.error, contour = false, description = "Effacer", onClick = onEffacer)
             // ic_spinner_caret : triangle de 24 dp, à 12 dp du bord, dans une zone de 48 dp.
             Canvas(Modifier.padding(end = 12.dp).size(24.dp)) {
                 val u = size.width / 24f
@@ -187,27 +198,46 @@ private fun ListeDeroulanteIos(
     onChoix: (Int) -> Unit,
     modifier: Modifier,
     actif: Boolean,
+    invite: String?,
+    onEffacer: (() -> Unit)?,
 ) {
-    Box(modifier.fillMaxWidth().alpha(if (actif) 1f else 0.4f)) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-                .padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                libelles.getOrNull(selection).orEmpty(),
-                fontSize = 17.sp,
-                color = if (selection == 0) CouleursGeoMys.blanc70 else Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(8.dp))
-            SymboleSf("chevron.down", 12f, listOf(CouleursGeoMys.blanc70), graisse = GraisseSymbole.DEMI_GRASSE)
+    val choisi = libelles.getOrNull(selection)
+    Row(
+        modifier
+            .fillMaxWidth()
+            .alpha(if (actif) 1f else 0.4f)
+            .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Le menu couvre le libellé et le chevron ; la croix, à côté, garde son toucher.
+        Box(Modifier.weight(1f)) {
+            Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    choisi ?: invite.orEmpty(),
+                    fontSize = 17.sp,
+                    color = if (choisi == null || (invite == null && selection == 0)) CouleursGeoMys.blanc70 else Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(8.dp))
+                SymboleSf("chevron.down", 12f, listOf(CouleursGeoMys.blanc70), graisse = GraisseSymbole.DEMI_GRASSE)
+            }
+            if (actif) MenuSysteme(libelles, selection, onChoix, Modifier.matchParentSize())
         }
-        if (actif) MenuSysteme(libelles, selection, onChoix, Modifier.matchParentSize())
+        if (onEffacer != null) CroixEffacerIos(onEffacer, Modifier.padding(end = 10.dp))
+    }
+}
+
+/** iOS : la croix des listes du web, qui vide le choix (`xmark` rouge, comme celle des champs à
+ *  filtre). */
+@Composable
+internal fun CroixEffacerIos(onEffacer: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier.clickable(remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClick = onEffacer),
+        contentAlignment = Alignment.Center,
+    ) {
+        SymboleSf("xmark", 13f, listOf(CouleursGeoMys.rougePastille), graisse = GraisseSymbole.DEMI_GRASSE, description = "Effacer")
     }
 }
 

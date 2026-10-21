@@ -46,11 +46,17 @@ data class SaisieEnAttente(
     val parentUuidLocal: String? = null,
     val parentIdField: String? = null,
     val nomsChampsSchema: List<String> = emptyList(),
-    /** Codes des champs texte-libre (widgets TEXT/TEXTAREA) du schéma. Sert à l'envoi à
-     *  NE PAS coercer en Int une valeur numérique saisie dans un commentaire (ex. "42")
-     *  — sinon Marshmallow rejette un Int sur un champ typé `string` côté serveur (audit B6).
-     *  Vide pour les saisies legacy → comportement historique (coercition de tout). */
+    /** Codes des valeurs en texte, qui partent en texte même numériques (un commentaire « 42 »,
+     *  une option « 1 »), comme dans le corps du web. Une saisie enregistrée avant le 20 octobre
+     *  2026 n'y a que ses champs TEXT et TEXTAREA (audit B6) : ses autres valeurs numériques en
+     *  texte partent en nombres, comme alors. */
     val champsTexteLibre: List<String> = emptyList(),
+    /** Les champs de widget `date`, envoyés en `année-mois-jour` sans zéros comme sur le web ; vide
+     *  pour une saisie enregistrée avant le 20 octobre 2026. */
+    val champsDate: List<String> = emptyList(),
+    /** Les textes et les heures vidés par l'utilisateur, envoyés en "" comme sur le web ; vide pour
+     *  une saisie enregistrée avant le 20 octobre 2026, dont les "" partent en null. */
+    val champsVidesGardes: List<String> = emptyList(),
     /** JSON sérialisé du payload des valeurs collectées par le form renderer. Stocké en
      *  String pour éviter les pertes de type Gson (Int → Double, etc.). Reparsé via
      *  JSONObject au moment de l'envoi. */
@@ -89,6 +95,10 @@ data class SaisieEnAttente(
     /** `schema_dot_table` du champ media (ex. `gn_monitoring.t_base_visits`), résolu en
      *  id_table_location côté envoi. Null si pas de média. */
     val mediaSchemaDotTable: String? = null,
+    /** Les médias de TOUS les champs `medias`, avec leurs titre, auteur et description saisis comme
+     *  sur le web ; null pour une saisie enregistrée avant le 20 octobre 2026, dont les médias sont
+     *  [mediaPathsLocal], titrés d'office à l'envoi. */
+    val mediasSuivis: List<MediaSuivi>? = null,
     /** Chemins des médias DÉJÀ TRANSMIS au serveur, acquis au fil de l'eau.
      *
      *  Sans cette mémoire, un « Réessayer » après un échec PARTIEL renvoyait la liste COMPLÈTE :
@@ -127,5 +137,16 @@ data class SaisieEnAttente(
     fun mediasARenvoyer(): List<String> {
         val acquis = mediasEnvoyes ?: return mediasLocaux()
         return mediasLocaux().filterNot { it in acquis }
+    }
+
+    /** Les médias détaillés : [mediasSuivis], sinon ceux d'une saisie plus ancienne, sans titre ni
+     *  champ, rattachés à la table de son unique champ médias. */
+    fun mediasDetailles(): List<MediaSuivi> =
+        mediasSuivis ?: mediasLocaux().map { MediaSuivi(it, schemaDotTable = mediaSchemaDotTable) }
+
+    /** Les médias détaillés qu'il reste à transmettre (cf. [mediasARenvoyer]). */
+    fun mediasDetaillesARenvoyer(): List<MediaSuivi> {
+        val acquis = mediasEnvoyes ?: return mediasDetailles()
+        return mediasDetailles().filterNot { it.chemin in acquis }
     }
 }

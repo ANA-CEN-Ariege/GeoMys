@@ -113,31 +113,42 @@ class OccHabApi(
     suspend fun detecterModules(
         config: GeoNatureConfig,
         codes: Set<String>,
-    ): Map<String, OccHabAcces> = withContext(Dispatchers.IO) {
+    ): Map<String, OccHabAcces> = chargerModulesGeoNature(config)?.let { modulesDetectes(it, codes) }.orEmpty()
+
+    /** La réponse brute de `GET /api/gn_commons/modules` : les modules de l'utilisateur, avec ses
+     *  droits sur eux et sur leurs objets. Null sur toute erreur. */
+    suspend fun chargerModulesGeoNature(config: GeoNatureConfig): String? = withContext(Dispatchers.IO) {
         val base = config.urlServeur.trim().trimEnd('/')
         val (token, _, cookies) = auth.loginAvecCookies(base, config.login, config.motDePasse)
-            ?: return@withContext emptyMap()
+            ?: return@withContext null
         try {
             val reponse = clients.get("$base/api/gn_commons/modules", token, cookies, 15000)
-            if (reponse.status.value != 200) return@withContext emptyMap()
-            val text = reponse.bodyAsText()
-            val arr = JSONArray(text)
-            val resultat = mutableMapOf<String, OccHabAcces>()
-            for (i in 0 until arr.length()) {
-                val m = arr.optJSONObject(i) ?: continue
-                val code = m.optString("module_code")
-                if (code !in codes) continue
-                val cruved = m.optJSONObject("cruved")
-                val c = cruved?.optInt("C", 0) ?: 0
-                val r = cruved?.optInt("R", 0) ?: 0
-                resultat[code] = OccHabAcces(disponible = true, peutCreer = c > 0, peutLire = r > 0)
-            }
-            resultat
+            if (reponse.status.value != 200) return@withContext null
+            reponse.bodyAsText()
         } catch (e: CancellationException) {
             throw e // ne PAS avaler l'annulation (sinon un sync annulé réinitialise les drapeaux).
         } catch (_: Exception) {
-            emptyMap()
+            null
         }
+    }
+
+    /** Les droits des modules [codes] dans [texte], la réponse de `/api/gn_commons/modules` (cf.
+     *  [detecterModules]) ; vide si elle est illisible. */
+    fun modulesDetectes(texte: String, codes: Set<String>): Map<String, OccHabAcces> = try {
+        val arr = JSONArray(texte)
+        val resultat = mutableMapOf<String, OccHabAcces>()
+        for (i in 0 until arr.length()) {
+            val m = arr.optJSONObject(i) ?: continue
+            val code = m.optString("module_code")
+            if (code !in codes) continue
+            val cruved = m.optJSONObject("cruved")
+            val c = cruved?.optInt("C", 0) ?: 0
+            val r = cruved?.optInt("R", 0) ?: 0
+            resultat[code] = OccHabAcces(disponible = true, peutCreer = c > 0, peutLire = r > 0)
+        }
+        resultat
+    } catch (_: Exception) {
+        emptyMap()
     }
 
     /**
@@ -387,6 +398,10 @@ class OccHabApi(
                     geometryCoordsJson = coordsJson,
                     geometryTrousJson = geom.trousJson,
                     geometryPartielle = geom.partielle,
+                    // Les droits de la station (`+cruved`) et l'état de son cadre d'acquisition,
+                    // que la liste du serveur renvoie et que le web lit pour griser ses boutons.
+                    nonModifiableServeur = props.optJSONObject("cruved")?.let { !it.optBoolean("U", true) } ?: false,
+                    cadreFerme = props.optJSONObject("dataset")?.optJSONObject("acquisition_framework")?.let { !it.optBoolean("opened", true) } ?: false,
                     idDataset = props.optInt("id_dataset", -1).takeIf { it > 0 },
                     observateursIds = obsIds,
                     observateursNoms = obsNoms,

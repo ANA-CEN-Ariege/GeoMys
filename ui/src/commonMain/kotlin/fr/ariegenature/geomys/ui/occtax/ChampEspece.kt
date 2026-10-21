@@ -93,7 +93,8 @@ private val VERT_TROUVE = Color(0xFF669900)
 private val ORANGE_NON_TROUVE = Color(0xFFFF8800)
 
 /** Le champ espèce : [libelle] rappelle le groupe, les [suggestions] se déroulent dès un caractère,
- *  le micro lance la [dictee] ([onMicro]) ; la [ligne] de statut dit si le nom désigne un taxon. */
+ *  le micro lance la [dictee] ([onMicro]) ; la [ligne] de statut dit si le nom désigne un taxon, et
+ *  donne son nom valide ([nomValide]) quand le serveur le demande, comme le web. */
 @Composable
 fun ChampEspece(
     texte: String,
@@ -106,18 +107,24 @@ fun ChampEspece(
     dictee: Dictee,
     onMicro: () -> Unit,
     modifier: Modifier = Modifier,
+    nomValide: ((Int) -> String?)? = null,
 ) {
     if (estIos) {
-        ChampEspeceIos(texte, onTexte, libelle, suggestions, onChoisir, ligne, synchroEnCours, dictee, onMicro, modifier)
+        ChampEspeceIos(texte, onTexte, libelle, suggestions, onChoisir, ligne, synchroEnCours, dictee, onMicro, modifier, nomValide)
     } else {
-        ChampEspeceAndroid(texte, onTexte, libelle, suggestions, onChoisir, ligne, synchroEnCours, onMicro, modifier)
+        ChampEspeceAndroid(texte, onTexte, libelle, suggestions, onChoisir, ligne, synchroEnCours, onMicro, modifier, nomValide)
     }
 }
 
-/** Texte de la ligne de statut (TaxRefLookupController de GeoMys-Android). */
-private fun texteStatut(statut: TaxRefStatut, synchroEnCours: Boolean, ios: Boolean): String = when (statut) {
+/** Texte de la ligne de statut (TaxRefLookupController de GeoMys-Android) ; un taxon trouvé montre
+ *  son nom valide sous le libellé du web (« TAXREF - Nom valide ») quand [nomValide] est donné. */
+private fun texteStatut(statut: TaxRefStatut, synchroEnCours: Boolean, ios: Boolean, nomValide: ((Int) -> String?)? = null): String = when (statut) {
     // Sous iOS, la coche est l'icône de la ligne.
-    is TaxRefStatut.Trouve -> (if (ios) "" else "✓ ") + "${statut.nomScientifique}  •  cd_nom ${statut.cdNom}"
+    is TaxRefStatut.Trouve -> (if (ios) "" else "✓ ") + if (nomValide != null) {
+        "TAXREF - Nom valide : ${nomValide(statut.cdNom) ?: statut.nomScientifique}"
+    } else {
+        "${statut.nomScientifique}  •  cd_nom ${statut.cdNom}"
+    }
     TaxRefStatut.NonTrouve -> "Nom invalide — choisissez parmi les propositions"
     // Une synchro réécrit le cache pendant une quinzaine de secondes : dire « rechargez les
     // données » à quelqu'un qui recharge n'aide pas.
@@ -136,6 +143,7 @@ private fun ChampEspeceAndroid(
     synchroEnCours: Boolean,
     onMicro: () -> Unit,
     modifier: Modifier,
+    nomValide: ((Int) -> String?)?,
 ) {
     var focalise by remember { mutableStateOf(false) }
     var ancre by remember { mutableStateOf<Rect?>(null) }
@@ -197,7 +205,7 @@ private fun ChampEspeceAndroid(
         val statut = ligne.statut
         if (ligne.texteVisible && statut != null) {
             Text(
-                texteStatut(statut, synchroEnCours, ios = false),
+                texteStatut(statut, synchroEnCours, ios = false, nomValide),
                 fontSize = 13.sp,
                 color = when (statut) {
                     is TaxRefStatut.Trouve -> VERT_TROUVE
@@ -222,6 +230,7 @@ private fun ChampEspeceIos(
     dictee: Dictee,
     onMicro: () -> Unit,
     modifier: Modifier,
+    nomValide: ((Int) -> String?)?,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Column {
@@ -295,7 +304,7 @@ private fun ChampEspeceIos(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 SymboleSf(icone, 12f, listOf(couleur))
-                Text(texteStatut(statut, synchroEnCours, ios = true), fontSize = 12.sp, color = couleur)
+                Text(texteStatut(statut, synchroEnCours, ios = true, nomValide), fontSize = 12.sp, color = couleur)
             }
         }
     }

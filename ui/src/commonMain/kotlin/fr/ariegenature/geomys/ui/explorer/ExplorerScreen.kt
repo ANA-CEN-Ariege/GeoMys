@@ -107,6 +107,7 @@ import fr.ariegenature.geomys.ui.occtax.couleur
 import fr.ariegenature.geomys.ui.occtax.icone
 import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.ui.ressources.ic_add
+import fr.ariegenature.geomys.ui.ressources.ic_eye
 import fr.ariegenature.geomys.ui.ressources.ic_location_on
 import fr.ariegenature.geomys.ui.ressources.ic_map
 import fr.ariegenature.geomys.ui.ressources.ic_remove
@@ -135,6 +136,10 @@ private val SECONDAIRE_IOS = Color(0x99EBEBF5)
 
 /** Côté d'un marqueur, en dp sous Android, en points sous iOS. */
 private const val TAILLE_MARQUEUR = 42f
+
+/** Le marqueur d'observations sans groupe connu (taxon absent du téléphone) : gris 600 de Material,
+ *  assez sombre pour l'icône et les chiffres blancs. */
+private val COULEUR_SANS_GROUPE = Color(0xFF757575)
 
 @Composable
 fun ExplorerScreen(vm: ExplorerViewModel, onAccueil: () -> Unit) {
@@ -228,13 +233,14 @@ private fun BoxScope.CarteExplorer(vm: ExplorerViewModel) {
 }
 
 /** Un marqueur : un disque de la couleur du groupe de la première observation, l'effectif en blanc gras
- *  s'il y en a plusieurs, sinon l'icône du groupe en blanc (56 % du disque).
+ *  s'il y en a plusieurs, sinon l'icône du groupe en blanc (56 % du disque). Sans groupe connu : disque
+ *  gris et œil, icône neutre.
  *  - Android : `creerIconeMarqueur` (disque de 42 dp moins 2 px, chiffres de 21, 17 puis 13 dp) ;
  *  - iOS : `TaxonMarker` (disque plein de 42 pt, chiffres de 17, 13 puis 11 pt selon leur nombre). */
 @Composable
 private fun MapOverlayScope.MarqueurGroupe(groupe: GroupeObs, onClick: () -> Unit) {
     val ios = estIos
-    val taxon = groupe.premiere.taxon
+    val taxon = groupe.taxon
     val nombre = groupe.observations.size
     val densite = LocalDensity.current
     val marge = if (ios) 0.dp else with(densite) { 2f.toDp() }
@@ -244,7 +250,7 @@ private fun MapOverlayScope.MarqueurGroupe(groupe: GroupeObs, onClick: () -> Uni
             .size(TAILLE_MARQUEUR.dp)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
             .padding(marge)
-            .background(taxon.couleur, CircleShape),
+            .background(taxon?.couleur ?: COULEUR_SANS_GROUPE, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         if (nombre > 1) {
@@ -268,7 +274,7 @@ private fun MapOverlayScope.MarqueurGroupe(groupe: GroupeObs, onClick: () -> Uni
             Text(nombre.toString(), color = Color.White, fontSize = taille, fontWeight = FontWeight.Bold, maxLines = 1)
         } else {
             Image(
-                painterResource(taxon.icone),
+                painterResource(taxon?.icone ?: Res.drawable.ic_eye),
                 contentDescription = null,
                 colorFilter = ColorFilter.tint(Color.White),
                 modifier = Modifier.size((TAILLE_MARQUEUR * 0.56f).dp),

@@ -25,6 +25,7 @@
 package fr.ariegenature.geomys.monitoring.form
 
 import fr.ariegenature.geomys.journal.Journal
+import fr.ariegenature.geomys.model.MediaSuivi
 import fr.ariegenature.geomys.store.TaxRefCache
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -52,8 +53,9 @@ import kotlin.time.Clock
  * 3. l'écran passe chaque saisie de l'utilisateur ([saisirTexte], [choisirOption]…), puis lit
  *    [lireValeursPourEnvoi] au moment d'enregistrer, après un [flushChangementsEnAttente].
  *
- * Les valeurs suivent EXACTEMENT le contrat de `lireValeurs` d'Android, dont l'envoi dépend : Int
- * contre Double, `""` contre `null`, `true` ou `null` pour une case, liste vide → `null`.
+ * Les valeurs suivent le contrat de `lireValeurs` d'Android, dont l'envoi dépend : Int contre
+ * Double, `""` contre `null`, liste vide → `null` ; une case vaut `null` tant que personne n'y a
+ * touché, comme le contrôle du formulaire web.
  *
  * [portee] porte l'anti-rebond de la frappe (220 ms), les notifications différées et le calcul des
  * propositions des champs espèce : celle de l'écran, pour qu'ils s'arrêtent avec lui. Tout le reste
@@ -85,8 +87,9 @@ class FormulaireEtat(
         /** TAXON : le texte, le cd_nom retenu, et le choix fait dans la liste avec son texte. */
         class Taxon(var texte: String, var cdNom: Int?, var choixFige: Pair<String, Int>?) : Saisie()
 
-        /** SELECT : l'option choisie, -1 pour « — choisir — ». */
-        class Choix(var index: Int) : Saisie()
+        /** SELECT : l'option choisie, -1 si aucune. [horsListe] : une valeur reçue absente des
+         *  options, que le web garde (grisée pour un `select`) tant qu'on n'en choisit pas d'autre. */
+        class Choix(var index: Int, var horsListe: Any? = null) : Saisie()
 
         /** RADIO : le bouton coché, -1 si aucun. */
         class Radio(var index: Int) : Saisie()
@@ -97,17 +100,23 @@ class FormulaireEtat(
         /** CHECKBOX_MULTIPLE : une case par option. */
         class Cases(val cochees: BooleanArray) : Saisie()
 
-        /** CHECKBOX. */
-        class Case(var cochee: Boolean) : Saisie()
+        /** CHECKBOX : cochée ou non, et [touchee] dès qu'une valeur y est posée (par l'utilisateur,
+         *  une règle, une valeur initiale `false`) : décochée, elle vaut alors `false` et non plus
+         *  `null`, comme le contrôle du formulaire web. */
+        class Case(var cochee: Boolean, var touchee: Boolean) : Saisie()
 
-        /** MEDIA : les URI des fichiers, dans l'ordre d'ajout. */
-        class Medias(val uris: MutableList<String>) : Saisie()
+        /** MEDIA : les fichiers, dans l'ordre d'ajout, avec leurs titre, auteur et description. */
+        class Medias(val items: MutableList<MediaSuivi>) : Saisie()
     }
 
     private val fieldsParCode = linkedMapOf<String, EditableField>()
     private val saisies = linkedMapOf<String, Saisie>()
 
-    /** Visibilité de chaque champ : `masque` à la construction, puis l'expression `hidden`. */
+    /** Les champs que l'utilisateur a touchés : vidé, un texte ou une heure part en "" et une liste
+     *  en [], comme sur le web ; jamais touché, null. */
+    private val touches = mutableSetOf<String>()
+
+    /** Visibilité de chaque champ, selon son expression `hidden`. */
     private val visibles = mutableMapOf<String, Boolean>()
 
     /** L'astérisque « obligatoire » de chaque libellé, rafraîchi avec la visibilité. */
@@ -151,12 +160,11 @@ class FormulaireEtat(
     private fun rendre(champs: List<EditableField>) {
         champs.forEach { f ->
             fieldsParCode[f.code] = f
-            // Champ choisi d'office à valeur unique (cf. EditableField.masque) : masqué, mais sa
-            // valeur reste lue par lireValeurs.
-            visibles[f.code] = !f.masque
+            visibles[f.code] = true
             // « * » statique de départ ; le `required` conditionnel est évalué juste après.
             requisAffiches[f.code] = f.obligatoire
-            saisies[f.code] = saisieInitiale(f)
+            // Un texte du protocole (HTML) n'a pas de valeur, comme il n'a pas de contrôle sur le web.
+            if (f.viewType != ViewType.HTML) saisies[f.code] = saisieInitiale(f)
             if (f.viewType == ViewType.TAXON) {
                 indicationsTaxon[f.code] = INDICATION_TAXON
                 chargerPropositions(f)
@@ -181,6 +189,8 @@ class FormulaireEtat(
     }
 
     private fun saisieInitiale(f: EditableField): Saisie = when (f.viewType) {
+        // Sans valeur : [rendre] ne lui donne pas de saisie.
+        ViewType.HTML -> Saisie.Texte("")
         ViewType.TEXT, ViewType.TEXTAREA, ViewType.NUMBER ->
             Saisie.Texte(f.value?.toString()?.takeIf { it.isNotEmpty() && it != "null" } ?: "")
         // DATE pré-remplie : une partie heure ISO éventuelle est retirée, puis lecture tolérante
@@ -202,21 +212,24 @@ class FormulaireEtat(
         ViewType.TAXON -> {
             var texte = ""
             var cd: Int? = null
-            // Pré-remplissage si la valeur est un cd_nom déjà connu (édition).
+            // Pré-remplissage si la valeur est un cd_nom (édition, ou `value` du schéma).
             (f.value as? Int)?.takeIf { it > 0 }?.let { c ->
-                val entree = taxRef.entreesParCdNom()[c]
                 // cd_nom sauvé mais absent du cache local (référentiel resynchronisé sur une autre
                 // liste…) : le cd_nom est gardé QUAND MÊME — sans lui, « Enregistrer les
                 // modifications » remplaçait en silence le cd_nom sauvé par null. Affichage brut,
                 // faute de nom (l'utilisateur peut le remplacer en tapant).
-                texte = if (entree != null) entree.nomFrOriginal ?: entree.sciNom else "cd_nom $c"
+                texte = nomTaxon(c)
                 cd = c
                 statutsTaxon[f.code] = statutRetenu(c)
             }
             (f.value as? String)?.takeIf { it.isNotEmpty() }?.let { texte = it }
             Saisie.Taxon(texte, cd, null)
         }
-        ViewType.SELECT -> Saisie.Choix((f.value as? String)?.let { v -> f.values.indexOfFirst { it.value == v } } ?: -1)
+        ViewType.SELECT -> {
+            val v = f.value?.takeIf { it.toString().isNotEmpty() && it.toString() != "null" }
+            val idx = v?.let { valeur -> f.values.indexOfFirst { it.value == valeur.toString() } } ?: -1
+            Saisie.Choix(idx, horsListe = v.takeIf { idx < 0 })
+        }
         // Pré-coché sur la valeur fournie (défaut serveur ou édition) ; le dernier bouton qui la
         // porte l'emporte, comme les check() successifs du RadioGroup.
         ViewType.RADIO -> {
@@ -238,20 +251,19 @@ class FormulaireEtat(
             Saisie.Cases(BooleanArray(f.values.size) { f.values[it].value in defaut })
         }
         // Cochée si la valeur est `true`, ou la chaîne "true"/"1" (le serveur envoie parfois une
-        // chaîne même pour un booléen).
-        ViewType.CHECKBOX -> Saisie.Case(
-            when (val v = f.value) {
-                is Boolean -> v
-                is String -> v.equals("true", ignoreCase = true) || v == "1"
-                is Number -> v.toInt() != 0
-                else -> false
-            },
-        )
-        // Édition : une liste (plusieurs fichiers) ou, par compatibilité, une chaîne unique.
+        // chaîne même pour un booléen) ; une valeur initiale `false` la laisse décochée mais posée.
+        ViewType.CHECKBOX -> Saisie.Case(estVrai(f.value), touchee = f.value != null && f.value.toString().isNotEmpty())
+        // Édition : les médias détaillés, ou, par compatibilité, des chemins (une liste, une chaîne).
         ViewType.MEDIA -> Saisie.Medias(
             when (val v = f.value) {
-                is List<*> -> v.filterIsInstance<String>().filter { it.isNotEmpty() }.toMutableList()
-                is String -> if (v.isNotEmpty()) mutableListOf(v) else mutableListOf()
+                is List<*> -> v.mapNotNull { m ->
+                    when (m) {
+                        is MediaSuivi -> m.copy(champ = f.code, schemaDotTable = m.schemaDotTable ?: f.schemaDotTable)
+                        is String -> m.takeIf { it.isNotEmpty() }?.let { MediaSuivi(it, champ = f.code, schemaDotTable = f.schemaDotTable) }
+                        else -> null
+                    }
+                }.toMutableList()
+                is String -> if (v.isNotEmpty()) mutableListOf(MediaSuivi(v, champ = f.code, schemaDotTable = f.schemaDotTable)) else mutableListOf()
                 else -> mutableListOf()
             },
         )
@@ -309,12 +321,8 @@ class FormulaireEtat(
                 if (s.texte != nouvelle) s.texte = nouvelle
             }
             is Saisie.Case -> {
-                val coche = when (valeur) {
-                    is Boolean -> valeur
-                    is Number -> valeur.toInt() != 0
-                    is String -> valeur.equals("true", true) || valeur == "1"
-                    else -> false
-                }
+                val coche = estVrai(valeur)
+                s.touchee = valeur != null
                 if (coche != s.cochee) {
                     s.cochee = coche
                     notifierChangement()
@@ -357,11 +365,40 @@ class FormulaireEtat(
                     }
                 }
             }
-            // TAXON : cible improbable d'une règle, non géré.
-            is Saisie.Taxon -> {}
+            // Le taxon d'une règle (POPAmphibien pose « Amphibiens » quand rien n'a été vu) : son
+            // cd_nom, et le nom que lui donne TaxRef. Le champ espèce notifie après la pose, comme
+            // une liste déroulante.
+            is Saisie.Taxon -> {
+                val cd = when (valeur) {
+                    is Number -> valeur.toInt()
+                    is String -> valeur.toIntOrNull()
+                    else -> null
+                }?.takeIf { it > 0 }
+                if (cd != s.cdNom) {
+                    s.cdNom = cd
+                    s.texte = cd?.let { nomTaxon(it) }.orEmpty()
+                    s.choixFige = cd?.let { s.texte to it }
+                    statutsTaxon[code] = cd?.let { statutRetenu(it) }
+                    erreursTaxon.remove(code)
+                    return 1
+                }
+            }
         }
         return 0
     }
+
+    /** Une valeur posée dans une case : `true`, ou la chaîne "true"/"1", ou un nombre non nul. */
+    private fun estVrai(valeur: Any?): Boolean = when (valeur) {
+        is Boolean -> valeur
+        is Number -> valeur.toInt() != 0
+        is String -> valeur.equals("true", ignoreCase = true) || valeur == "1"
+        else -> false
+    }
+
+    /** Le nom affiché d'un taxon : vernaculaire, sinon scientifique, sinon le cd_nom brut (taxon
+     *  absent du cache local). */
+    private fun nomTaxon(cd: Int): String =
+        taxRef.entreesParCdNom()[cd]?.let { it.nomFrOriginal ?: it.sciNom } ?: "cd_nom $cd"
 
     private fun listeDe(valeur: Any?): List<String> = when (valeur) {
         is List<*> -> valeur.map { it.toString() }
@@ -436,9 +473,24 @@ class FormulaireEtat(
     private fun estRequisPour(field: EditableField, valeurs: Map<String, Any?>): Boolean =
         field.obligatoire || (field.obligatoireExpr != null && HiddenExpr.evaluerBooleen(field.obligatoireExpr, valeurs))
 
-    /** Les messages sous les champs NUMBER qui ont des bornes. Une borne `(value) => value.autre`
-     *  doit être réévaluée quand l'autre champ change, pas seulement le champ courant. */
+    /** Les messages sous les champs NUMBER qui ont des bornes, et sous les dates hors de celles du
+     *  web (du 1ᵉʳ janvier 1735 à aujourd'hui). Une borne `({value}) => value.autre` doit être
+     *  réévaluée quand l'autre champ change, pas seulement le champ courant. */
     private fun appliquerValidations() {
+        // Le message du motif d'un texte, sous le champ, comme le web.
+        fieldsParCode.values.filter { it.motif != null }.forEach { field ->
+            val texte = (saisies[field.code] as? Saisie.Texte)?.texte
+            erreurs[field.code] = if (horsMotif(field, texte)) field.messageMotif ?: "Format non valide" else null
+        }
+        fieldsParCode.values.filter { it.viewType == ViewType.DATE }.forEach { field ->
+            val d = dateSaisie(field.code)
+            erreurs[field.code] = when {
+                d == null -> null
+                d > aujourdhui() -> "La date ne peut pas être postérieure à aujourd'hui"
+                d < PREMIER_JOUR_WEB -> "La date ne peut pas être antérieure au 1ᵉʳ janvier 1735"
+                else -> null
+            }
+        }
         val bornes = fieldsParCode.values.filter {
             it.viewType == ViewType.NUMBER && (it.minValue != null || it.maxValue != null)
         }
@@ -462,9 +514,12 @@ class FormulaireEtat(
      *    portent un (datalists nomenclature). C'est la cible des réécritures
      *    `meta.nomenclatures[value.X].cd_nomenclature` → `${X__cd}` de [HiddenExpr.normaliser]
      *    (protocoles loutre/blaireau). Aucun choix → clé absente → comparaison contre null (parité
-     *    web). */
+     *    web) ;
+     *  - [HiddenExpr.NB_JEUX_DE_DONNEES] : le nombre de jeux de données proposés, pour
+     *    `meta.dataset` (le jeu de données masqué quand il n'y en a qu'un). */
     private fun valeursPourExpressions(): Map<String, Any?> {
         val valeurs = lireValeurs().toMutableMap()
+        valeurs[HiddenExpr.NB_JEUX_DE_DONNEES] = fieldsParCode["id_dataset"]?.values?.size ?: 0
         fieldsParCode.forEach { (code, field) ->
             val courantStr = valeurs[code]?.toString() ?: ""
             val reference = dernieresValeursAuto[code] ?: valeursAuRendu[code] ?: ""
@@ -485,14 +540,13 @@ class FormulaireEtat(
      *  - TAXON → le cd_nom (Int), ou null ;
      *  - SELECT, RADIO → la valeur de l'option, "" si aucune ;
      *  - SELECT_MULTIPLE, CHECKBOX_MULTIPLE → List<String>, null si vide ;
-     *  - CHECKBOX → true, ou null (jamais false) ;
+     *  - CHECKBOX → true, false une fois touchée, null tant que rien n'y est posé ;
      *  - MEDIA → une COPIE de la liste des URI (vide si aucune). Rendue telle quelle, la liste du
      *    champ, modifiée en place à chaque photo, était partagée avec la référence prise après le
      *    rendu : un ajout de photos seul ne comptait pas comme une modification (GeoMys-Android
      *    `e69543d`).
      *
-     *  Tous les champs y figurent, masqués compris : la valeur d'un champ masqué est conservée (cf.
-     *  [lireValeursPourEnvoi]). */
+     *  Tous les champs y figurent, masqués compris : un champ masqué garde sa valeur. */
     fun lireValeurs(): Map<String, Any?> {
         val out = LinkedHashMap<String, Any?>()
         for ((code, s) in saisies) {
@@ -508,59 +562,60 @@ class FormulaireEtat(
                 }
                 is Saisie.DateHeure -> s.valeur ?: ""
                 is Saisie.Taxon -> s.cdNom
-                is Saisie.Choix -> if (s.index < 0) "" else f.values.getOrNull(s.index)?.value.orEmpty()
+                is Saisie.Choix -> if (s.index < 0) s.horsListe?.toString() ?: "" else f.values.getOrNull(s.index)?.value.orEmpty()
                 is Saisie.Radio -> if (s.index < 0) "" else f.values.getOrNull(s.index)?.value ?: ""
                 // Liste vide → null (« non renseigné », comme le formulaire web).
                 is Saisie.ChoixMultiple -> s.valeurs.takeIf { it.isNotEmpty() }
                 is Saisie.Cases -> f.values.filterIndexed { i, _ -> s.cochees[i] }.map { it.value }.takeIf { it.isNotEmpty() }
-                // Case non cochée = null (« non renseigné »), cochée = true.
-                is Saisie.Case -> if (s.cochee) true else null
-                is Saisie.Medias -> s.uris.toList()
+                // Case jamais touchée = null (« non renseigné »), comme le contrôle web.
+                is Saisie.Case -> if (s.cochee) true else if (s.touchee) false else null
+                is Saisie.Medias -> s.items.map { it.chemin }
             }
         }
         return out
     }
 
     /**
-     * Valeurs destinées à L'ENVOI : comme [lireValeurs], mais SANS les champs masqués.
+     * Valeurs destinées à L'ENVOI, comme le formulaire web (`postData` de gn_module_monitoring) :
+     * tous les champs, masqués compris, car un champ masqué garde son contrôle et sa valeur ; une
+     * option avec le type JSON de sa valeur (une valeur « 1 » du schéma part en texte, l'id d'une
+     * nomenclature en nombre).
      *
-     * Un champ masqué conserve sa valeur — l'utilisateur la retrouve si la condition redevient vraie
-     * — mais cette valeur ne doit pas partir au serveur, comme pour le client mobile officiel PnX-SI.
-     * Un protocole qui masque « nombre de nids » quand « espèce observée = non » transmettait sinon le
-     * nombre saisi avant la bascule : donnée fausse en base, sans aucun signal (audit 2026-09-14,
-     * R4-M4).
-     *
-     * DEUX EXCEPTIONS, qui suivent la règle du client officiel :
-     *  - un champ masqué mais REQUIS (`required` conditionnel encore vrai) est envoyé : le serveur le
-     *    refuserait autrement, et une incohérence du schéma ne doit pas faire perdre la saisie ;
-     *  - un champ POSÉ PAR UNE RÈGLE `change` est envoyé : c'est le moteur qui l'a calculé, sa valeur
-     *    est voulue même si le champ n'est pas montré.
-     *
-     * Le champ `masque` (option unique choisie d'office) est un champ masqué comme les autres : il ne
-     * part que s'il est requis ou posé par une règle, comme sous Android.
+     * Les propriétés `hidden: true` du schéma ne sont pas des champs du formulaire : leurs valeurs
+     * partent par [fr.ariegenature.geomys.monitoring.FormulairePrepare.valeursFixes].
      */
-    fun lireValeursPourEnvoi(): Map<String, Any?> {
-        val toutes = lireValeurs()
-        val requis = champsRequis()
-        return toutes.filterKeys { code ->
-            visibles[code] == true || code in requis || code in dernieresValeursAuto
+    fun lireValeursPourEnvoi(): Map<String, Any?> = lireValeurs().mapValues { (code, v) ->
+        val f = fieldsParCode.getValue(code)
+        val touche = code in touches
+        // Les vides du web : un texte ou une heure vidés partent en "", une liste vidée en [] ; jamais
+        // touchés, comme une date ou une liste à choix unique sans choix, en null.
+        when (f.viewType) {
+            ViewType.TEXT, ViewType.TEXTAREA, ViewType.TIME -> if (v == "" && !touche) return@mapValues null
+            ViewType.DATE, ViewType.DATETIME, ViewType.SELECT, ViewType.RADIO -> if (v == "") return@mapValues null
+            ViewType.SELECT_MULTIPLE, ViewType.CHECKBOX_MULTIPLE -> if (v == null && touche) return@mapValues emptyList<Any?>()
+            else -> {}
+        }
+        // Une valeur hors des options d'un `select`, que le web garde (grisée) : telle quelle.
+        (saisies[code] as? Saisie.Choix)?.horsListe?.let { return@mapValues it }
+        if (f.viewType !in VUES_A_OPTIONS) return@mapValues v
+        fun brut(valeur: Any?): Any? = f.values.firstOrNull { it.value == valeur }?.brut ?: valeur
+        when (v) {
+            is List<*> -> v.map(::brut)
+            "" -> v
+            else -> brut(v)
         }
     }
 
-    /** Codes des champs actuellement REQUIS (obligatoires en dur, ou par expression), remplis ou
-     *  non, masqués ou non. */
-    private fun champsRequis(): Set<String> {
-        val valeurs = valeursPourExpressions()
-        return fieldsParCode.filterValues { estRequisPour(it, valeurs) }.keys
-    }
-
-    /** Codes des champs requis (statiquement ou par expression) dont la valeur est vide ET qui sont
-     *  visibles (un champ masqué ne doit pas bloquer l'enregistrement). */
+    /** Codes des champs requis (statiquement ou par expression) dont la valeur est vide, masqués
+     *  compris : le web garde le contrôle d'un champ masqué avec ses validateurs, et un champ
+     *  requis vide, même masqué, empêche l'enregistrement. */
     fun champsObligatoiresManquants(): List<String> {
         val valeurs = valeursPourExpressions()
         return fieldsParCode.filter { (code, field) ->
-            if (!estRequisPour(field, valeurs)) return@filter false
-            if (visibles[code] != true) return@filter false
+            // Un média sans titre : le titre est obligatoire dans le formulaire média du web.
+            if (field.viewType == ViewType.MEDIA && (saisies[code] as? Saisie.Medias)?.items?.any { it.titre.isBlank() } == true) return@filter true
+            // Un bloc `html` n'a pas de contrôle sur le web : jamais manquant.
+            if (field.viewType == ViewType.HTML || !estRequisPour(field, valeurs)) return@filter false
             when (val v = valeurs[code]) {
                 null -> true
                 is String -> v.isBlank()
@@ -570,34 +625,73 @@ class FormulaireEtat(
         }.keys.toList()
     }
 
-    /** Codes des champs actuellement INVALIDES : violation de min/max (NUMBER), ou texte d'espèce
-     *  qui ne désigne aucun taxon proposable (TAXON). Un champ vide ne compte pas (c'est
-     *  `obligatoire` qui s'en charge), un champ masqué non plus. */
+    /** Codes des champs actuellement INVALIDES : violation de min/max (NUMBER) ou date hors des
+     *  bornes du web (DATE), masqués compris comme sur le web, où leurs validateurs restent actifs ;
+     *  texte d'espèce visible qui ne désigne aucun taxon proposable (TAXON). Un champ vide ne compte
+     *  pas (c'est `obligatoire` qui s'en charge). */
     fun champsInvalides(): List<String> {
         val valeurs = lireValeurs()
         return fieldsParCode.mapNotNull { (code, field) ->
-            if (visibles[code] != true) return@mapNotNull null
             when (field.viewType) {
                 // RÈGLE 2026-09-17 : dans un champ espèce, seuls les noms PROPOSÉS sont acceptés. Un
                 // texte qui ne désigne aucun taxon proposable bloque l'enregistrement tant qu'il n'est
                 // pas corrigé ou effacé (il partait sans cd_nom, l'espèce saisie disparaissait).
                 ViewType.TAXON -> {
                     val s = saisies[code] as Saisie.Taxon
-                    if (s.texte.isNotBlank() && s.cdNom == null) code else null
+                    if (visibles[code] == true && s.texte.isNotBlank() && s.cdNom == null) code else null
                 }
+                ViewType.DATE -> if (dateHorsBornes(code)) code else null
                 ViewType.NUMBER ->
-                    if (ValidationExpr.violation(valeurs[code], field.minValue, field.maxValue, valeurs) != null) code else null
-                else -> null
+                    if (ValidationExpr.violation(valeurs[code], field.minValue, field.maxValue, valeurs) != null || tropLong(field, valeurs[code])) code else null
+                else -> if (horsMotif(field, valeurs[code]) || tropLong(field, valeurs[code])) code else null
             }
         }
     }
 
-    /** MODE COMPLÉTION : les champs à marquer d'une barre rouge (obligatoires encore VIDES), pour
-     *  repérer d'un coup d'œil ce qu'il reste à saisir (demande terrain 2026-09-03). À relire à
-     *  chaque changement : la barre disparaît dès que le champ est rempli, et apparaît sur un champ
-     *  rendu obligatoire par un `required` conditionnel. Hors mode complétion, aucune. */
-    fun barresRouges(modeCompletion: Boolean): Set<String> =
-        if (modeCompletion) champsObligatoiresManquants().toSet() else emptySet()
+    /** `max_length` du web : la longueur d'un texte ou la taille d'une liste, sauf pour des médias et
+     *  des cases à cocher. */
+    private fun tropLong(field: EditableField, valeur: Any?): Boolean {
+        val max = field.longueurMax ?: return false
+        if (field.viewType == ViewType.MEDIA || field.viewType == ViewType.CHECKBOX_MULTIPLE) return false
+        return when (valeur) {
+            is List<*> -> valeur.size > max
+            null -> false
+            else -> valeur.toString().length > max
+        }
+    }
+
+    /** `pattern` d'un texte, encadré de `^…$` comme Angular ; une valeur vide et un motif invalide
+     *  passent. */
+    private fun horsMotif(field: EditableField, valeur: Any?): Boolean {
+        val motif = field.motif ?: return false
+        val texte = valeur?.toString().orEmpty()
+        if (texte.isEmpty()) return false
+        val regex = try {
+            Regex((if (motif.startsWith("^")) "" else "^") + motif + (if (motif.endsWith("$")) "" else "$"))
+        } catch (_: Exception) {
+            return false
+        }
+        return !regex.matches(texte)
+    }
+
+    /** Les champs à marquer d'une barre rouge, comme la bordure rouge du web (`ng-invalid`) : les
+     *  obligatoires encore VIDES et les valeurs refusées, dès l'ouverture du formulaire (en complétion
+     *  aussi, demande terrain 2026-09-03). À relire à chaque changement : la barre disparaît dès que
+     *  le champ est valide, et apparaît sur un champ rendu obligatoire par un `required`
+     *  conditionnel. */
+    fun barresRouges(): Set<String> = (champsObligatoiresManquants() + champsInvalides()).toSet()
+
+    private fun dateSaisie(code: String): kotlinx.datetime.LocalDate? =
+        (saisies[code] as? Saisie.DateHeure)?.valeur?.let { FormatsDate.lireDate(it) }
+
+    private fun aujourdhui(): kotlinx.datetime.LocalDate = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+
+    /** Une date en dehors de celles que propose le web (pnx-date : du 1ᵉʳ janvier 1735 à
+     *  aujourd'hui), choisie, reprise d'une saisie ou posée par une règle. */
+    private fun dateHorsBornes(code: String): Boolean {
+        val d = dateSaisie(code) ?: return false
+        return d > aujourdhui() || d < PREMIER_JOUR_WEB
+    }
 
     // ── Affichage ───────────────────────────────────────────────────────────────────────────────
 
@@ -656,8 +750,12 @@ class FormulaireEtat(
         else -> emptyList()
     }
 
-    /** Les fichiers d'un champ MEDIA. */
-    fun medias(code: String): List<String> = (saisies[code] as? Saisie.Medias)?.uris?.toList().orEmpty()
+    /** Les médias d'un champ MEDIA. */
+    fun medias(code: String): List<MediaSuivi> = (saisies[code] as? Saisie.Medias)?.items?.toList().orEmpty()
+
+    /** Les médias de tous les champs MEDIA, dans l'ordre des champs : ceux qui partent avec la
+     *  saisie. */
+    fun mediasPourEnvoi(): List<MediaSuivi> = saisies.values.filterIsInstance<Saisie.Medias>().flatMap { it.items }
 
     /** Le message de validation min/max sous un champ NUMBER, ou null. */
     fun erreurValidation(code: String): String? = erreurs[code]
@@ -673,7 +771,7 @@ class FormulaireEtat(
 
     /** Les propositions d'un champ TAXON pour [requete], vides tant qu'elles se calculent. */
     fun propositionsTaxon(code: String, requete: String?): List<PropositionTaxon> =
-        propositions[code]?.filtrer(requete).orEmpty()
+        if ((requete?.length ?: 0) < CARACTERES_TAXON) emptyList() else propositions[code]?.filtrer(requete).orEmpty().take(PROPOSITIONS_TAXON)
 
     // ── Saisies de l'utilisateur ────────────────────────────────────────────────────────────────
 
@@ -681,6 +779,7 @@ class FormulaireEtat(
     fun saisirTexte(code: String, texte: String) {
         val s = saisies[code] as? Saisie.Texte ?: return
         s.texte = texte
+        touches += code
         _revision.value++
         notifierChangementDebounce()
     }
@@ -700,6 +799,17 @@ class FormulaireEtat(
         val iso = FormatsDate.heure(heure, minute)
         s.valeur = iso
         s.affichage = iso
+        touches += code
+        notifierChangement()
+    }
+
+    /** Date ou heure effacée : le champ revient vide, comme une date ou une heure vidée sur le web. */
+    fun effacerDateHeure(code: String) {
+        val s = saisies[code] as? Saisie.DateHeure ?: return
+        if (s.valeur == null) return
+        s.valeur = null
+        s.affichage = null
+        touches += code
         notifierChangement()
     }
 
@@ -715,16 +825,23 @@ class FormulaireEtat(
     /** Option choisie dans un SELECT ([index] -1 = « — choisir — »). */
     fun choisirOption(code: String, index: Int) {
         val s = saisies[code] as? Saisie.Choix ?: return
-        if (index == s.index) return
+        // Un `select` dont la valeur n'est pas dans ses options est grisé sur le web.
+        if (s.horsListe != null && fieldsParCode[code]?.selectSimple == true) return
+        if (index == s.index && s.horsListe == null) return
         s.index = index
+        s.horsListe = null
         notifierChangement()
     }
 
-    /** Bouton coché d'un RADIO. */
+    /** La valeur hors options d'un `select`, que l'écran montre grisée ; null sinon. */
+    fun valeurHorsListe(code: String): String? =
+        (saisies[code] as? Saisie.Choix)?.horsListe?.toString()?.takeIf { fieldsParCode[code]?.selectSimple == true }
+
+    /** Bouton touché d'un RADIO : il se coche ; déjà coché, il se décoche, comme sur le web
+     *  (`onRadioChange` du formulaire dynamique de GeoNature). */
     fun choisirRadio(code: String, index: Int) {
         val s = saisies[code] as? Saisie.Radio ?: return
-        if (index == s.index) return
-        s.index = index
+        s.index = if (index == s.index) -1 else index
         notifierChangement()
     }
 
@@ -733,6 +850,7 @@ class FormulaireEtat(
         val s = saisies[code] as? Saisie.ChoixMultiple ?: return
         val f = fieldsParCode.getValue(code)
         s.valeurs = f.values.filter { it.value in choisies }.map { it.value }
+        touches += code
         notifierChangement()
     }
 
@@ -741,30 +859,43 @@ class FormulaireEtat(
         val s = saisies[code] as? Saisie.Cases ?: return
         if (s.cochees.getOrNull(index) == null || s.cochees[index] == coche) return
         s.cochees[index] = coche
+        touches += code
         notifierChangement()
     }
 
     /** Case d'un champ CHECKBOX. */
     fun cocher(code: String, coche: Boolean) {
         val s = saisies[code] as? Saisie.Case ?: return
-        if (s.cochee == coche) return
+        if (s.cochee == coche && s.touchee) return
         s.cochee = coche
+        s.touchee = true
         notifierChangement()
     }
 
-    /** Fichiers importés pour un champ MEDIA (sélection multiple). */
+    /** Fichiers importés pour un champ MEDIA (sélection multiple) : titre, auteur et description
+     *  vides, comme un nouveau média du web. */
     fun ajouterMedias(code: String, uris: List<String>) {
         val s = saisies[code] as? Saisie.Medias ?: return
-        val ajout = uris.filter { it.isNotEmpty() }
+        val f = fieldsParCode.getValue(code)
+        val ajout = uris.filter { it.isNotEmpty() && s.items.none { m -> m.chemin == it } }
         if (ajout.isEmpty()) return
-        s.uris.addAll(ajout)
+        s.items.addAll(ajout.map { MediaSuivi(it, champ = code, schemaDotTable = f.schemaDotTable) })
         notifierChangement()
     }
 
     /** ✕ d'un fichier d'un champ MEDIA. */
     fun retirerMedia(code: String, uri: String) {
         val s = saisies[code] as? Saisie.Medias ?: return
-        s.uris.remove(uri)
+        s.items.removeAll { it.chemin == uri }
+        notifierChangement()
+    }
+
+    /** Titre, auteur ou description d'un média du champ MEDIA [code] ; null laisse la valeur. */
+    fun modifierMedia(code: String, uri: String, titre: String? = null, auteur: String? = null, description: String? = null) {
+        val s = saisies[code] as? Saisie.Medias ?: return
+        val i = s.items.indexOfFirst { it.chemin == uri }.takeIf { it >= 0 } ?: return
+        val m = s.items[i]
+        s.items[i] = m.copy(titre = titre ?: m.titre, auteur = auteur ?: m.auteur, description = description ?: m.description)
         notifierChangement()
     }
 
@@ -861,6 +992,12 @@ class FormulaireEtat(
         /** L'indication d'un champ espèce vide. */
         const val INDICATION_TAXON = "Tapez le nom du taxon…"
 
+        /** Le premier jour que propose une date du web (pnx-date, `minDate`). */
+        private val PREMIER_JOUR_WEB = kotlinx.datetime.LocalDate(1735, 1, 1)
+
+        /** Les champs dont la valeur est celle d'une option. */
+        private val VUES_A_OPTIONS = setOf(ViewType.SELECT, ViewType.RADIO, ViewType.SELECT_MULTIPLE, ViewType.CHECKBOX_MULTIPLE)
+
         /** Une borne pour l'affichage : entière sans décimale (`10`, pas `10.0`) si elle est entière. */
         fun formaterBorne(d: Double): String =
             if (d == d.toLong().toDouble()) d.toLong().toString() else d.toString()
@@ -869,3 +1006,7 @@ class FormulaireEtat(
 
 /** Un jour et une heure pour les sélecteurs de date et d'heure ([mois] de 1 à 12). */
 data class SelectionDateHeure(val annee: Int, val mois: Int, val jour: Int, val heure: Int, val minute: Int)
+
+/** Le `pnx-taxonomy` du web : la recherche part du 3ᵉ caractère et rend 20 taxons. */
+const val CARACTERES_TAXON = 3
+const val PROPOSITIONS_TAXON = 20

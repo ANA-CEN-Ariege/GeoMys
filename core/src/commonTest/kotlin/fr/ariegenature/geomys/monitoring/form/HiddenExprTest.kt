@@ -195,13 +195,30 @@ class HiddenExprTest {
     }
 
     @Test
-    fun expression_meta_dataset_reste_non_reconnue_donc_visible() {
-        // Les expressions sur le contexte applicatif web (meta.dataset, meta.bChainInput…)
-        // ne sont pas évaluables ici : fallback « visible », sans crash. Le masquage
-        // dataset-unique est géré ailleurs (auto-sélection + masquage quand une seule
-        // option, cf. enrichirAvecOptions).
-        assertFalse(HiddenExpr.masquer(
-            "({meta}) => meta.dataset && Object.keys(meta.dataset).length == 1", emptyMap()))
+    fun expression_meta_dataset_sur_le_nombre_de_jeux_proposes() {
+        // Le jeu de données masqué quand il n'y en a qu'un : `meta.dataset` devient le nombre de jeux
+        // proposés, que fournit l'état du formulaire.
+        val expr = "({meta}) => meta.dataset && Object.keys(meta.dataset).length == 1"
+        assertTrue(HiddenExpr.masquer(expr, mapOf(HiddenExpr.NB_JEUX_DE_DONNEES to 1)))
+        assertFalse(HiddenExpr.masquer(expr, mapOf(HiddenExpr.NB_JEUX_DE_DONNEES to 2)))
+        assertFalse(HiddenExpr.masquer(expr, mapOf(HiddenExpr.NB_JEUX_DE_DONNEES to 0)))
+        assertFalse(HiddenExpr.masquer(expr, emptyMap()))
+    }
+
+    @Test
+    fun comparaisons_d_ordre_a_la_js() {
+        // POPAmphibien : `count_max < count_min` est vrai quand count_max est vide (null vaut 0).
+        val expr = "({value}) => !!value.count_min && value.count_max < value.count_min"
+        assertTrue(HiddenExpr.evaluerBooleen(expr, mapOf("count_min" to 3, "count_max" to null)))
+        assertTrue(HiddenExpr.evaluerBooleen(expr, mapOf("count_min" to 3, "count_max" to "")))
+        assertFalse(HiddenExpr.evaluerBooleen(expr, mapOf("count_min" to 3, "count_max" to 5)))
+        // Un texte non numérique ne se compare à aucun nombre (NaN) ; deux textes, dans l'ordre des
+        // chaînes.
+        assertFalse(HiddenExpr.evaluerBooleen("({value}) => value.x > 3", mapOf("x" to "abc")))
+        assertFalse(HiddenExpr.evaluerBooleen("({value}) => value.x <= 3", mapOf("x" to "abc")))
+        assertTrue(HiddenExpr.evaluerBooleen("({value}) => value.x < 'b'", mapOf("x" to "a")))
+        // Une case cochée vaut 1.
+        assertTrue(HiddenExpr.evaluerBooleen("({value}) => value.x >= 1", mapOf("x" to true)))
     }
 
     @Test

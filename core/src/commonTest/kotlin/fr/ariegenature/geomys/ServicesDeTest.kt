@@ -27,6 +27,8 @@ import fr.ariegenature.geomys.store.CoffreEnMemoire
 import fr.ariegenature.geomys.store.FabriqueReglages
 import fr.ariegenature.geomys.store.io.RacinesStockage
 import fr.ariegenature.geomys.util.uuidAleatoire
+import kotlinx.atomicfu.atomic
+import kotlinx.coroutines.flow.Flow
 import okio.FileSystem
 import okio.SYSTEM
 
@@ -34,8 +36,8 @@ import okio.SYSTEM
  *  MapSettings par nom), coffre en mémoire, serveur simulé. C'est ce que donnaient les objets
  *  globaux et Robolectric sous Android. [redemarrer] simule un démarrage à froid sur les mêmes
  *  disque et réglages ; le test appelle [nettoyer] à la fin. Les travaux confiés à
- *  ExecutionLongue attendent dans [travauxLongs] ; les positions GPS arrivent par
- *  [positions]. */
+ *  ExecutionLongue attendent dans [travauxLongs], et ceux qu'elle garde de la veille sont notés
+ *  dans [protections] ; les positions GPS arrivent par [positions]. */
 internal class ServicesDeTest(val serveur: ServeurSimule = ServeurSimule()) {
     private val systeme = FileSystem.SYSTEM
     val dossier = FileSystem.SYSTEM_TEMPORARY_DIRECTORY / "geomys-test-${uuidAleatoire()}"
@@ -43,12 +45,33 @@ internal class ServicesDeTest(val serveur: ServeurSimule = ServeurSimule()) {
     val travauxLongs = mutableListOf<suspend () -> Unit>()
     val positions = SourcePositionsSimulee()
 
+    /** Les noms des travaux menés par [ExecutionLongue.pendant], dans l'ordre. */
+    val protections = mutableListOf<String>()
+    private val protegesEnCours = atomic(0)
+
+    /** Un travail gardé de la veille est en cours. */
+    val protege: Boolean get() = protegesEnCours.value > 0
+
     private val socle = Socle(
         racines = RacinesStockage(dossier / "fichiers", dossier / "cache"),
         reglages = FabriqueReglages { nom -> reglages.getOrPut(nom) { MapSettings() } },
         coffre = CoffreEnMemoire(),
         clients = serveur.clients,
-        executionLongue = ExecutionLongue { _, _, travail -> travauxLongs += travail },
+        executionLongue = object : ExecutionLongue {
+            override fun lancer(nom: String, avancement: Flow<String>, travail: suspend () -> Unit) {
+                travauxLongs += travail
+            }
+
+            override suspend fun <T> pendant(nom: String, travail: suspend () -> T): T {
+                protections += nom
+                protegesEnCours.incrementAndGet()
+                try {
+                    return travail()
+                } finally {
+                    protegesEnCours.decrementAndGet()
+                }
+            }
+        },
         positions = positions,
         suiviGps = SuiviGpsDirect,
     )

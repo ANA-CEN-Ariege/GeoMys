@@ -33,8 +33,8 @@ import kotlinx.serialization.Serializable
 
 /**
  * Détails de STATION communs à toute une session OccHab (jeu de données, observateurs, dates,
- * méthode de calcul de surface, nature objet géo, commentaire). Conservés d'une station à
- * l'autre tant qu'on reste dans OccHab ; édités via le bouton « Détails ». Réinitialisés aux
+ * méthode de calcul de surface, nature objet géo, type de sol, exposition, profondeurs,
+ * commentaire). Conservés d'une station à l'autre tant qu'on reste dans OccHab ; édités via le bouton « Détails ». Réinitialisés aux
  * défauts serveur au démarrage d'une nouvelle session (tuile OccHab de l'accueil).
  * NB : altitudes et surface ne sont PAS ici — ce sont des propriétés PAR STATION (dérivées de
  * sa géométrie : surface auto-calculée, altitudes MNT), portées par [OccHabStation] directement.
@@ -50,6 +50,10 @@ data class OccHabDetailsSession(
     var dateMax: Long? = null,
     var idNomCalculSurface: Int? = null,
     var idNomObjetGeographique: Int? = null,
+    var idNomTypeSol: Int? = null,
+    var idNomExposition: Int? = null,
+    var profondeurMin: Int? = null,
+    var profondeurMax: Int? = null,
     var comment: String? = null,
     // L'interrupteur « Afficher mes stations déjà sur GeoNature » de GeoMys-Android (champ
     // `masquerStationsServeur`) est supprimé (décision du 19 octobre) : les stations du serveur
@@ -68,27 +72,35 @@ data class OccHabDetailsSession(
     fun versJson(): String = JSON_STOCKAGE.encodeToString(serializer(), this)
 }
 
-/** Détails de session par défaut (défauts serveur) : observateur par défaut, dates début ET fin
- *  = date du JOUR (sans heure — le serveur OccHab attend des dates yyyy-MM-dd), nomenclatures
- *  par défaut OccHab. Le JDD reste null (saisi au formulaire de la 1ʳᵉ station). */
+/** Détails de session par défaut, ceux du formulaire web : aucun observateur ni jeu de données, la
+ *  date du JOUR dans les dates affichées (sans heure — le serveur OccHab attend des dates
+ *  yyyy-MM-dd ; une date masquée reste vide), nomenclatures par défaut OccHab. */
 fun detailsSessionParDefaut(config: GeoNatureConfig, aujourdhui: Long = debutDuJour()): OccHabDetailsSession {
-    val obsId = config.observateurDefautId.trim().toIntOrNull()?.takeIf { it > 0 }
-        ?: config.idRoleUtilisateur.takeIf { it > 0 }
-    val obsNom = config.observateurDefautNom.ifBlank { config.nomUtilisateur }
+    val dateMin = aujourdhui.takeIf { config.occhabChampVisible("date_min") }
+    val dateMax = aujourdhui.takeIf { config.occhabChampVisible("date_max") }
     // RELEVÉ PRÉCÉDENT : le formulaire des informations obligatoires repart des valeurs
     // validées la dernière fois (JDD, observateurs, nomenclatures — demande terrain
-    // 2026-08-26) ; seules les DATES repartent systématiquement du jour.
+    // 2026-08-26) ; seules les DATES repartent systématiquement du jour. Un jeu de données qui
+    // n'est plus proposé (archivé, plus de droit de création) n'est pas repris : le web ne le
+    // proposerait pas.
     config.occhabDetailsPrecedentsJson.takeIf { it.isNotEmpty() }
         ?.let(OccHabDetailsSession::depuisJson)
-        ?.let { precedent -> return precedent.copy(dateMin = aujourdhui, dateMax = aujourdhui) }
+        ?.let { precedent ->
+            val jddPropose = precedent.idDataset?.let { id -> DetailsStation.datasets(config).any { it.first == id } } == true
+            return precedent.copy(
+                dateMin = dateMin,
+                dateMax = dateMax,
+                idDataset = precedent.idDataset.takeIf { jddPropose },
+                nomDataset = precedent.nomDataset.takeIf { jddPropose },
+            )
+        }
     return OccHabDetailsSession(
         idDataset = null,
-        observateursIds = listOfNotNull(obsId),
-        observateursNoms = if (obsId != null && obsNom.isNotBlank()) listOf(obsNom) else emptyList(),
-        dateMin = aujourdhui,
-        dateMax = aujourdhui,
+        dateMin = dateMin,
+        dateMax = dateMax,
         idNomCalculSurface = config.occhabDefautNomenclature("METHOD_CALCUL_SURFACE"),
         idNomObjetGeographique = config.occhabDefautNomenclature("NAT_OBJ_GEO"),
+        idNomTypeSol = config.occhabDefautNomenclature("TYPE_SOL"),
     )
 }
 
@@ -253,6 +265,10 @@ class SessionOccHab {
         // altitudes/surface : par STATION, portées par [station] (cf. stationAEnregistrer).
         idNomCalculSurface = s.idNomCalculSurface,
         idNomObjetGeographique = s.idNomObjetGeographique,
+        idNomTypeSol = s.idNomTypeSol,
+        idNomExposition = s.idNomExposition,
+        profondeurMin = s.profondeurMin,
+        profondeurMax = s.profondeurMax,
         comment = s.comment,
     )
 
@@ -296,8 +312,13 @@ class SessionOccHab {
      *  l'import d'une station serveur ou la remise en édition d'une station envoyée : tant que
      *  ni la géométrie, ni les habitats, ni les détails ne changent, `OccHabStore.upsertStation`
      *  ne l'écrit pas dans « Mes stations » (demande terrain 2026-08-27). */
-    fun figerEmpreinteOrigine() {
-        station = station.copy(empreinteOrigine = stationAEnregistrer().empreinteContenu())
+    fun figerEmpreinteOrigine(origine: OccHabStation? = null) {
+        station = station.copy(
+            empreinteOrigine = stationAEnregistrer().empreinteContenu(),
+            // [origine] : la station telle que reçue (du serveur, ou telle qu'envoyée), avant que
+            // l'édition ne la change, ses dates comprises : la base de la fusion à l'envoi.
+            origineJson = origine?.versOrigineJson() ?: station.origineJson,
+        )
     }
 
     /** Station à enregistrer/envoyer = géométrie + habitats (station courante) fusionnés avec le
@@ -316,6 +337,10 @@ class SessionOccHab {
         // de la dernière éditée.
         idNomCalculSurface = details.idNomCalculSurface,
         idNomObjetGeographique = details.idNomObjetGeographique,
+        idNomTypeSol = details.idNomTypeSol,
+        idNomExposition = details.idNomExposition,
+        profondeurMin = details.profondeurMin,
+        profondeurMax = details.profondeurMax,
         comment = details.comment,
     )
 }

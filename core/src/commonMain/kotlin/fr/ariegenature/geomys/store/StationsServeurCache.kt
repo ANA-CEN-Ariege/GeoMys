@@ -53,7 +53,8 @@ import okio.SYSTEM
  * ([fr.ariegenature.geomys.network.invaliderCachesSession] — URL/login/mdp : les id_station et
  * id_dataset sont propres à chaque instance, et les stations d'un autre compte n'ont rien à
  * faire ici). Fichier (trop gros pour SharedPreferences), écriture atomique comme
- * [HabitatCacheStore]. Une seule instance dans l'appli, sur le dossier des fichiers [dir].
+ * [HabitatCacheStore]. Une seule instance dans l'appli, sur le dossier des caches retéléchargeables
+ * [dir] (`filesDir/caches`), exclu des sauvegardes.
  */
 class StationsServeurCache(private val dir: Path, private val systeme: FileSystem = FileSystem.SYSTEM) {
 
@@ -171,7 +172,7 @@ class StationsServeurCache(private val dir: Path, private val systeme: FileSyste
     /** Réinitialise l'état mémoire (tests : chaque test repart du disque). */
     fun resetPourTests() { mem = null }
 
-    private companion object {
+    internal companion object {
         const val NOM_FICHIER = "stations_serveur_occhab_v1.json"
 
         /** Version du FORMAT des stations écrites dans ce fichier — à incrémenter dès qu'un champ

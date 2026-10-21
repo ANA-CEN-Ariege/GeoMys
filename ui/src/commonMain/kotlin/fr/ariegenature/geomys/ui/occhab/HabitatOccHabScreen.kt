@@ -76,6 +76,7 @@ import fr.ariegenature.geomys.ui.composants.BandeauNavigation
 import fr.ariegenature.geomys.ui.composants.BoutonIos
 import fr.ariegenature.geomys.ui.composants.BoutonMaterial
 import fr.ariegenature.geomys.ui.composants.ChampTexteFormulaire
+import fr.ariegenature.geomys.ui.composants.DialogueGardeSortie
 import fr.ariegenature.geomys.ui.composants.FOND_LIGNE_FORMULAIRE_IOS
 import fr.ariegenature.geomys.ui.composants.INVITE_IOS
 import fr.ariegenature.geomys.ui.composants.LigneChoixIos
@@ -89,7 +90,9 @@ import fr.ariegenature.geomys.ui.composants.PopupListeAndroid
 import fr.ariegenature.geomys.ui.composants.SectionIos
 import fr.ariegenature.geomys.ui.composants.SeparateurIos
 import fr.ariegenature.geomys.ui.composants.afficher
+import fr.ariegenature.geomys.ui.composants.barreChampObligatoire
 import fr.ariegenature.geomys.ui.composants.estIos
+import fr.ariegenature.geomys.ui.composants.rememberGardeSortie
 import fr.ariegenature.geomys.ui.composants.styleLibelleMaterial
 import fr.ariegenature.geomys.ui.composants.styleSaisieIos
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
@@ -98,8 +101,9 @@ import fr.ariegenature.geomys.ui.theme.FondGeoMys
 /** `?attr/colorControlHighlight` du thème sombre : le filet sous le bandeau. */
 private val SURBRILLANCE = Color(0x33FFFFFF)
 
-/** L'écran d'un habitat ; [onRetour] : l'habitat est enregistré, retour à la station. Le retour
- *  système (Android) ou le balayage depuis le bord (iOS) laisse la station sans cet habitat. */
+/** L'écran d'un habitat ; [onRetour] : retour à la station, l'habitat enregistré ou abandonné. Le
+ *  retour système (Android), le balayage depuis le bord (iOS) et la maison demandent avant
+ *  d'abandonner un habitat modifié. */
 @Composable
 fun HabitatOccHabScreen(vm: HabitatOccHabViewModel, onAccueil: () -> Unit, onRetour: () -> Unit) {
     val toasts = LocalToasts.current
@@ -113,9 +117,12 @@ fun HabitatOccHabScreen(vm: HabitatOccHabViewModel, onAccueil: () -> Unit, onRet
             }
         }
     }
+    val garde = rememberGardeSortie(vm::modifie, onRetour)
+    val accueil = { garde.demander(onAccueil) }
     FondGeoMys {
-        if (estIos) ContenuIos(vm, onAccueil) else ContenuAndroid(vm, onAccueil)
+        if (estIos) ContenuIos(vm, accueil) else ContenuAndroid(vm, accueil)
         AlerteEchecEcriture(vm.echecEcriture, vm::fermerEchecEcriture, StationOccHab.CONSIGNE_HABITAT)
+        DialogueGardeSortie(garde, "Habitat non enregistré")
     }
 }
 
@@ -149,7 +156,8 @@ private fun ContenuAndroid(vm: HabitatOccHabViewModel, onAccueil: () -> Unit) {
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
             Text(HabitatOccHab.TITRE, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 8.dp))
             LibelleOccHabAndroid(HabitatOccHab.LIBELLE_HABITAT)
-            ChampHabitatAndroid(vm)
+            // Les champs requis du web, vides, portent la barre rouge.
+            Column(Modifier.fillMaxWidth().barreChampObligatoire(vm.habitatManquant)) { ChampHabitatAndroid(vm) }
             Text(
                 HabitatOccHab.AIDE_FACULTATIF,
                 fontSize = 12.sp,
@@ -162,28 +170,32 @@ private fun ContenuAndroid(vm: HabitatOccHabViewModel, onAccueil: () -> Unit) {
                 ChampTexteFormulaire(
                     vm.determinateur,
                     { vm.determinateur = it },
-                    indication = HabitatOccHab.LIBELLE_DETERMINATEUR,
                     clavier = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                 )
             }
             vm.typeDetermination?.let { NomenclatureAndroid(it) }
-            vm.technique?.let { NomenclatureAndroid(it) }
+            vm.technique?.let { NomenclatureAndroid(it, vm.techniqueManquante) }
             if (vm.precisionVisible) {
-                LibelleOccHabAndroid(HabitatOccHab.libellePrecision(vm.precisionRequise))
-                ChampTexteFormulaire(
-                    vm.precision,
-                    { vm.precision = it },
-                    uneLigne = false,
-                    indication = HabitatOccHab.libellePrecision(false),
-                    clavier = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                )
+                // Sans libellé sur le web : son indication seule, et le message rouge tant qu'elle
+                // manque à « Autre, préciser ».
+                Box(Modifier.padding(top = 12.dp).fillMaxWidth().barreChampObligatoire(vm.precisionManquante)) {
+                    ChampTexteFormulaire(
+                        vm.precision,
+                        { vm.precision = it },
+                        uneLigne = false,
+                        indication = HabitatOccHab.INVITE_PRECISION,
+                        clavier = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    )
+                }
+                if (vm.precisionRequise && vm.precision.isBlank()) {
+                    Text(HabitatOccHab.PRECISION_MANQUANTE, fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                }
             }
             if (vm.recouvrementVisible) {
                 LibelleOccHabAndroid(HabitatOccHab.LIBELLE_RECOUVREMENT)
                 ChampTexteFormulaire(
                     vm.recouvrement,
                     { vm.recouvrement = filtrerRecouvrement(it) },
-                    indication = HabitatOccHab.INVITE_RECOUVREMENT,
                     clavier = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
             }
@@ -207,11 +219,14 @@ private fun ContenuAndroid(vm: HabitatOccHabViewModel, onAccueil: () -> Unit) {
     }
 }
 
-/** Une nomenclature : son libellé, puis le Spinner « — Non renseigné — » et ses valeurs. */
+/** Une nomenclature : son libellé, puis le Spinner et ses valeurs (l'entrée vide d'abord, pour les
+ *  listes qui en ont une sur le web) ; [manquante] : requise et vide, la barre rouge. */
 @Composable
-private fun NomenclatureAndroid(champ: ChampNomenclatureHabitat) {
+private fun NomenclatureAndroid(champ: ChampNomenclatureHabitat, manquante: Boolean = false) {
     LibelleOccHabAndroid(champ.definition.libelle)
-    ListeDeroulante(champ.liste.libelles, champ.position, { champ.position = it })
+    Box(Modifier.fillMaxWidth().barreChampObligatoire(manquante)) {
+        ListeDeroulante(champ.liste.libelles, champ.position, { champ.position = it })
+    }
 }
 
 /** Habitat : MaterialAutoCompleteTextView (EditText souligné), « Rechercher un habitat (HABREF)… » ;
@@ -244,6 +259,10 @@ private fun ChampHabitatAndroid(vm: HabitatOccHabViewModel) {
             }
         }
     }
+    // « Aucun élément trouvé » de l'autocomplétion du web, sous le champ.
+    if (vm.aucunResultatAffiche) {
+        Text(HabitatOccHab.AUCUN_RESULTAT, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+    }
 }
 
 // ─── iOS : OccHabHabitatView de GeoMys-IOS ───
@@ -257,7 +276,8 @@ private fun ContenuIos(vm: HabitatOccHabViewModel, onAccueil: () -> Unit) {
             Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            SectionIos(HabitatOccHab.LIBELLE_HABITAT, fond = FOND_LIGNE_FORMULAIRE_IOS) {
+            // Les champs requis du web, vides, portent la barre rouge.
+            SectionIos(HabitatOccHab.LIBELLE_HABITAT, fond = FOND_LIGNE_FORMULAIRE_IOS, barre = vm.habitatManquant) {
                 ChampHabitatIos(vm)
                 SeparateurIos(Modifier.padding(start = 16.dp))
                 LigneTexteSeulIos(HabitatOccHab.AIDE_FACULTATIF, couleur = CouleursGeoMys.blanc70, taille = 12f)
@@ -268,23 +288,28 @@ private fun ContenuIos(vm: HabitatOccHabViewModel, onAccueil: () -> Unit) {
                     LigneTexteIos(
                         vm.determinateur,
                         { vm.determinateur = it },
-                        HabitatOccHab.LIBELLE_DETERMINATEUR,
+                        "",
                         clavier = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
                     )
                 }
             }
             vm.typeDetermination?.let { NomenclatureIos(it) }
-            vm.technique?.let { NomenclatureIos(it) }
+            vm.technique?.let { NomenclatureIos(it, vm.techniqueManquante) }
             if (vm.precisionVisible) {
-                SectionIos(HabitatOccHab.libellePrecision(vm.precisionRequise), fond = FOND_LIGNE_FORMULAIRE_IOS) {
+                // Sans libellé sur le web : son indication seule, et le message rouge tant qu'elle
+                // manque à « Autre, préciser ».
+                SectionIos(null, fond = FOND_LIGNE_FORMULAIRE_IOS, barre = vm.precisionManquante) {
                     LigneTexteIos(
                         vm.precision,
                         { vm.precision = it },
-                        HabitatOccHab.libellePrecision(false),
+                        HabitatOccHab.INVITE_PRECISION,
                         lignesMin = 2,
                         lignesMax = 4,
                         clavier = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     )
+                    if (vm.precisionRequise && vm.precision.isBlank()) {
+                        LigneTexteSeulIos(HabitatOccHab.PRECISION_MANQUANTE, couleur = CouleursGeoMys.rougePastille, taille = 13f)
+                    }
                 }
             }
             if (vm.recouvrementVisible) {
@@ -292,7 +317,7 @@ private fun ContenuIos(vm: HabitatOccHabViewModel, onAccueil: () -> Unit) {
                     LigneTexteIos(
                         vm.recouvrement,
                         { vm.recouvrement = filtrerRecouvrement(it) },
-                        HabitatOccHab.INVITE_RECOUVREMENT,
+                        "",
                         clavier = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     )
                 }
@@ -313,10 +338,11 @@ private fun ContenuIos(vm: HabitatOccHabViewModel, onAccueil: () -> Unit) {
     }
 }
 
-/** Une nomenclature : Picker en menu, « — Non renseigné — » en tête. */
+/** Une nomenclature : Picker en menu (l'entrée vide en tête, pour les listes qui en ont une sur le
+ *  web) ; [manquante] : requise et vide, la barre rouge. */
 @Composable
-private fun NomenclatureIos(champ: ChampNomenclatureHabitat) {
-    SectionIos(champ.definition.libelle, fond = FOND_LIGNE_FORMULAIRE_IOS) {
+private fun NomenclatureIos(champ: ChampNomenclatureHabitat, manquante: Boolean = false) {
+    SectionIos(champ.definition.libelle, fond = FOND_LIGNE_FORMULAIRE_IOS, barre = manquante) {
         LigneChoixIos("", champ.liste.libelles, champ.position) { champ.position = it }
     }
 }
@@ -345,6 +371,10 @@ private fun ChampHabitatIos(vm: HabitatOccHabViewModel) {
                 }
             },
         )
+    }
+    if (vm.aucunResultatAffiche) {
+        SeparateurIos(Modifier.padding(start = 16.dp))
+        LigneTexteSeulIos(HabitatOccHab.AUCUN_RESULTAT, couleur = CouleursGeoMys.blanc70)
     }
     if (focalise && vm.resultatsDeroules) {
         vm.resultats.toList().forEach { h ->

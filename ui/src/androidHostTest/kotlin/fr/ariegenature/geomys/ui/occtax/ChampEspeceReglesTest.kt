@@ -32,24 +32,29 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import fr.ariegenature.geomys.model.AdditionalFieldDef
 import fr.ariegenature.geomys.model.Taxon
+import fr.ariegenature.geomys.model.WidgetType
 import fr.ariegenature.geomys.network.TaxRefStatut
 import fr.ariegenature.geomys.occtax.GeometrieFinale
 import fr.ariegenature.geomys.occtax.OuvertureReleve
 import fr.ariegenature.geomys.occtax.libelleChampEspece
 import fr.ariegenature.geomys.outils.ajouterTaxRefEssai
 import fr.ariegenature.geomys.store.SuggestionTaxon
+import fr.ariegenature.geomys.store.io.listeVersJson
 import fr.ariegenature.geomys.ui.ServicesEssai
+import fr.ariegenature.geomys.ui.laisserFinirLeTravailDeFond
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -73,8 +78,16 @@ class ChampEspeceReglesTest {
     @AfterTest
     fun nettoyer() {
         magasin.clear()
+        laisserFinirLeTravailDeFond()
         Dispatchers.resetMain()
         essai.nettoyer()
+    }
+
+    /** Un jeu de données proposé, choisi comme jeu par défaut des Paramètres. */
+    private fun jeuParDefaut() = services.config.apply {
+        datasetsCacheJson = """[{"id":12,"nom":"JDD","moduleCodes":["OCCTAX"]}]"""
+        datasetsCreablesOcctax = setOf(12)
+        idDataset = "12"
     }
 
     private inline fun <reified T : ViewModel> vm(noinline creer: () -> T): T =
@@ -169,11 +182,25 @@ class ChampEspeceReglesTest {
         assertEquals("", releve.texte, "le champ est vidé pour l'espèce suivante")
     }
 
+    @Test
+    fun un_taxon_deja_dans_le_releve_s_ajoute_sans_confirmation() = runTest {
+        // Demande du 21 octobre 2026 : plus de confirmation du web.
+        services.ajouterTaxRefEssai()
+        services.preferences.memoiserTaxon(Taxon.INSECTE)
+        val session = vm { SessionSaisieViewModel(services) }
+        val releve = vm { SaisieReleveViewModel(services, session, OuvertureReleve(geometrie = GeometrieFinale("Point", null, 42.9, 1.6))) }
+        releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
+        releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
+        assertEquals(listOf(54303, 54303), releve.releve.especes.value.map { it.cdNom })
+        assertEquals("", releve.texte, "le champ est vidé pour l'espèce suivante")
+    }
+
     /** Frappe trouvée ou refusée, choix d'une proposition, dictée, au relevé comme en saisie mono : le
      *  cache TaxRef reste identique, octet pour octet. */
     @Test
     fun aucun_chemin_de_saisie_n_ecrit_dans_le_cache_taxref() = runTest {
         services.ajouterTaxRefEssai()
+        jeuParDefaut()
         // Pas d'oiseau : l'ouverture automatique de la nidification lirait les ressources de l'appli.
         services.preferences.memoiserTaxon(Taxon.INSECTE)
         val avant = essai.contenuCacheTaxRef()
@@ -185,8 +212,10 @@ class ChampEspeceReglesTest {
         releve.champ.recherche.ligne.first { (it.statut as? TaxRefStatut.Trouve)?.cdNom == 54303 }
         releve.saisir("Papillon inconnu")
         releve.champ.recherche.ligne.first { it.statut == TaxRefStatut.NonTrouve }
-        releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
         releve.dicter(listOf("Papillon inconnu", "Machaon"))
+        releve.releve.especes.first { it.size == 1 }
+        // Le Machaon est déjà dans le relevé : il s'ajoute une seconde fois.
+        releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
         releve.releve.especes.first { it.size == 2 }
 
         val mono = vm { SaisieMonoViewModel(services, session, null) }
@@ -204,6 +233,7 @@ class ChampEspeceReglesTest {
     @Test
     fun la_saisie_mono_prend_la_suggestion_choisie_sans_re_resoudre_son_texte() = runTest {
         services.ajouterTaxRefEssai()
+        jeuParDefaut()
         val session = vm { SessionSaisieViewModel(services) }
         val mono = vm { SaisieMonoViewModel(services, session, null) }
         mono.choisirSuggestion(SuggestionTaxon("Machaon", 999999))
@@ -212,5 +242,69 @@ class ChampEspeceReglesTest {
         mono.demarrer()
         assertEquals(999999, mono.saisie.modele.value.cdNom, "la série porte le cd_nom choisi")
         assertTrue(mono.modeActif)
+    }
+
+    @Test
+    fun sans_jeu_de_donnees_le_releve_commence_par_ses_details_et_ne_se_termine_pas() = runTest {
+        services.ajouterTaxRefEssai()
+        services.preferences.memoiserTaxon(Taxon.INSECTE)
+        val session = vm { SessionSaisieViewModel(services) }
+        val releve = vm { SaisieReleveViewModel(services, session, OuvertureReleve(geometrie = GeometrieFinale("Point", null, 42.9, 1.6))) }
+        releve.afficher()
+        assertTrue(releve.details != null, "les détails s'ouvrent : le jeu est obligatoire")
+        releve.fermerDetails()
+        releve.terminer()
+        assertTrue(releve.details != null, "pas de fin sans jeu : les détails se rouvrent")
+        assertEquals(EvenementReleve.Message("Choisissez un jeu de données"), releve.evenements.first())
+    }
+
+    @Test
+    fun avec_un_jeu_par_defaut_le_releve_s_ouvre_sur_ses_especes() = runTest {
+        services.ajouterTaxRefEssai()
+        services.preferences.memoiserTaxon(Taxon.INSECTE)
+        jeuParDefaut()
+        val session = vm { SessionSaisieViewModel(services) }
+        val releve = vm { SaisieReleveViewModel(services, session, OuvertureReleve(geometrie = GeometrieFinale("Point", null, 42.9, 1.6))) }
+        releve.afficher()
+        assertNull(releve.details)
+        assertEquals(12, releve.releve.idDatasetEffectif())
+    }
+
+    @Test
+    fun sans_jeu_de_donnees_la_serie_mono_ne_demarre_pas() = runTest {
+        services.ajouterTaxRefEssai()
+        val session = vm { SessionSaisieViewModel(services) }
+        val mono = vm { SaisieMonoViewModel(services, session, null) }
+        assertTrue(mono.details != null, "les détails s'ouvrent d'emblée")
+        mono.fermerDetails()
+        mono.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
+        mono.demarrer()
+        assertTrue(!mono.modeActif, "la série attend son jeu de données")
+        assertTrue(mono.details != null)
+    }
+
+    @Test
+    fun un_champ_obligatoire_d_espece_ouvre_la_caracterisation_et_se_montre_en_rouge() = runTest {
+        // 21 octobre : sur certains serveurs, un champ additionnel d'occurrence est obligatoire, sans
+        // valeur par défaut ; le web montre le formulaire du taxon avant de l'enregistrer.
+        services.ajouterTaxRefEssai()
+        services.preferences.memoiserTaxon(Taxon.INSECTE)
+        jeuParDefaut()
+        services.config.additionalFieldsOcctaxJson = listeVersJson(
+            AdditionalFieldDef.serializer(),
+            listOf(
+                AdditionalFieldDef(1, "code_luf", "Code LUF", WidgetType.NUMBER, required = true, objectsCode = listOf("OCCTAX_OCCURENCE"), datasetsIds = listOf(12)),
+                AdditionalFieldDef(2, "remarque", "Remarque", WidgetType.TEXT, required = true, defaultValue = "RAS", objectsCode = listOf("OCCTAX_DENOMBREMENT")),
+            ),
+        )
+        val session = vm { SessionSaisieViewModel(services) }
+        val releve = vm { SaisieReleveViewModel(services, session, OuvertureReleve(geometrie = GeometrieFinale("Point", null, 42.9, 1.6))) }
+        releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
+        assertEquals(EvenementReleve.Caracterisation(0, comportementSeul = false), releve.evenements.first())
+        val requis = releve.requis()
+        val espece = releve.releve.especes.value.single()
+        assertTrue(requis.caracterisationIncomplete(espece), "le code LUF reste à remplir")
+        assertFalse(requis.denombrementIncomplet(espece), "la remarque a une valeur par défaut")
+        assertFalse(requis.caracterisationIncomplete(espece.copy(additionalFieldsOccurrence = mapOf("code_luf" to "12"))))
     }
 }

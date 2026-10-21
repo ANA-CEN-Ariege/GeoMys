@@ -26,16 +26,28 @@ package fr.ariegenature.geomys.store
 import com.russhwolf.settings.Settings
 import fr.ariegenature.geomys.json.JSONArray
 import fr.ariegenature.geomys.json.JSONObject
+import fr.ariegenature.geomys.model.GeoNatureDataset
+import fr.ariegenature.geomys.model.GeoNatureListe
+import fr.ariegenature.geomys.store.io.listeDepuisJson
 import kotlin.concurrent.Volatile
 
+/** Les clés de `OCCTAX.form_fields` que le schéma du serveur masque par défaut (FormConfig de
+ *  conf_schema_toml.py) ; toutes les autres sont affichées par défaut. */
+private val CHAMPS_MASQUES_PAR_DEFAUT = setOf(
+    "depth_min", "depth_max", "tech_collect", "group_type", "blurring", "source_status",
+    "geo_object_nature", "grp_method", "place_name", "precision",
+)
+
 /** Le champ de formulaire serveur [key] (clé de `OCCTAX.form_fields`, ex. `group_type`) est-il
- *  visible d'après [formFieldsJson] ? **true par défaut** si la clé est absente ou la config non
- *  publiée — on ne masque jamais un champ faute d'information. Partagé entre [GeoNatureConfig] et
- *  l'UI (DetailsReleveDialog). */
-fun champFormVisible(formFieldsJson: String, key: String): Boolean = try {
-    if (formFieldsJson.isBlank()) true
-    else JSONObject(formFieldsJson).optBoolean(key, true)
-} catch (_: Exception) { true }
+ *  visible d'après [formFieldsJson] ? Si la clé est absente ou la config non publiée, le défaut du
+ *  schéma du serveur, comme le web. Partagé entre [GeoNatureConfig] et l'UI (DetailsReleveDialog). */
+fun champFormVisible(formFieldsJson: String, key: String): Boolean {
+    val defaut = key !in CHAMPS_MASQUES_PAR_DEFAUT
+    return try {
+        if (formFieldsJson.isBlank()) defaut
+        else JSONObject(formFieldsJson).optBoolean(key, defaut)
+    } catch (_: Exception) { defaut }
+}
 
 /** Les réglages GeoNature (fichier `gn_config` de GeoMys-Android) : connexion, sélections,
  *  caches JSON de la configuration du serveur, et règles de validité de la saisie.
@@ -66,6 +78,9 @@ class GeoNatureConfig(private val prefs: Settings, private val coffre: CoffreMot
             }
         }
 
+    /** Le jeu de données par défaut des Paramètres, obligatoire mais sans valeur au départ :
+     *  l'utilisateur le choisit. Lire [idDatasetParDefaut], qui écarte un jeu qui n'est plus
+     *  proposé. */
     var idDataset: String
         get() = prefs.getString("gn_dataset", "")
         set(v) = prefs.putString("gn_dataset", v)
@@ -75,13 +90,39 @@ class GeoNatureConfig(private val prefs: Settings, private val coffre: CoffreMot
         get() = prefs.getString("gn_dataset_nom", "")
         set(v) = prefs.putString("gn_dataset_nom", v)
 
+    /** La liste de taxons par défaut des Paramètres (id), obligatoire mais sans valeur au départ
+     *  (cf. [listeParDefautValide]). Elle sert aux relevés dont le jeu de données n'impose pas la
+     *  sienne (cf. [listeTaxonsOcctax]). */
     var taxaListeId: String
         get() = prefs.getString("gn_taxa_liste", "")
         set(v) = prefs.putString("gn_taxa_liste", v)
 
-    /** Nom complet (prénom + nom) renvoyé par GeoNature lors de la dernière connexion réussie.
-     *  Mis à jour par GeoNatureAuth.testerConnexion. Fallback pour le déterminateur si
-     *  aucun observateur par défaut n'est sélectionné. */
+    /** L'observateur par défaut des Paramètres (id_role et nom complet), obligatoire : l'utilisateur
+     *  connecté au départ, modifiable. Il est l'observateur et le déterminateur d'un nouveau relevé ;
+     *  vide, l'utilisateur connecté. */
+    var observateurDefautId: String
+        get() = prefs.getString("gn_obs_defaut_id", "")
+        set(v) = prefs.putString("gn_obs_defaut_id", v)
+
+    var observateurDefautNom: String
+        get() = prefs.getString("gn_obs_defaut_nom", "")
+        set(v) = prefs.putString("gn_obs_defaut_nom", v)
+
+    /** L'observateur d'un nouveau relevé : celui des Paramètres, sinon l'utilisateur connecté,
+     *  comme le web ; null s'il n'est pas connu. */
+    val idObservateurParDefaut: Int?
+        get() = observateurDefautId.trim().toIntOrNull()?.takeIf { it > 0 } ?: idRoleUtilisateur.takeIf { it > 0 }
+
+    /** Le nom complet de [idObservateurParDefaut] : celui de l'observateur des Paramètres, sinon
+     *  celui de l'utilisateur connecté (« NOM Prénom »), sinon son identifiant. Le déterminateur et
+     *  le texte des observateurs d'un nouveau relevé. */
+    val nomObservateurParDefaut: String
+        get() = observateurDefautNom.takeIf { observateurDefautId.trim().toIntOrNull()?.let { id -> id > 0 } == true && it.isNotBlank() }
+            ?: nomUtilisateur.ifEmpty { login }
+
+    /** Nom complet (« NOM Prénom », le `nom_complet` du web) renvoyé par GeoNature lors de la
+     *  dernière connexion réussie, mis à jour par le test de connexion et la synchro : le
+     *  déterminateur par défaut et le texte des observateurs, comme sur le web. */
     var nomUtilisateur: String
         get() = prefs.getString("gn_nom_utilisateur", "")
         set(v) = prefs.putString("gn_nom_utilisateur", v)
@@ -93,6 +134,12 @@ class GeoNatureConfig(private val prefs: Settings, private val coffre: CoffreMot
         get() = prefs.getInt("gn_id_role_utilisateur", -1)
         set(v) = prefs.putInt("gn_id_role_utilisateur", v)
 
+    /** `id_organisme` de l'utilisateur connecté (renvoyé au login) : le web demande avec lui les
+     *  défauts de nomenclature d'OccTax (`defaultNomenclatures?organism=`). -1 s'il est inconnu. */
+    var idOrganisme: Int
+        get() = prefs.getInt("gn_id_organisme", -1)
+        set(v) = prefs.putInt("gn_id_organisme", v)
+
     /** Version de l'instance GeoNature relevée au dernier test de connexion réussi
      *  (`/api/gn_commons/config`, best-effort). Vide si inconnue. Affichée dans Paramètres
      *  pour diagnostiquer les comportements propres à une version serveur. */
@@ -100,30 +147,12 @@ class GeoNatureConfig(private val prefs: Settings, private val coffre: CoffreMot
         get() = prefs.getString("gn_version_serveur", "")
         set(v) = prefs.putString("gn_version_serveur", v)
 
-    /** Nom complet de l'observateur sélectionné comme déterminateur par défaut. */
-    var observateurDefautNom: String
-        get() = prefs.getString("gn_obs_defaut_nom", "")
-        set(v) = prefs.putString("gn_obs_defaut_nom", v)
-
-    /** id_role de l'observateur sélectionné comme déterminateur par défaut. */
-    var observateurDefautId: String
-        get() = prefs.getString("gn_obs_defaut_id", "")
-        set(v) = prefs.putString("gn_obs_defaut_id", v)
-
     /** Version des DONNÉES synchronisées présentes sur l'appareil (cf. [VERSION_DONNEES_REQUISE]).
      *  Écrite par SyncRunner en fin de synchro (TaxRef chargé) ; 0 = jamais synchronisé depuis
      *  l'introduction du mécanisme (v1.3.17). */
     var versionDonneesChargees: Int
         get() = prefs.getInt("gn_version_donnees_chargees", 0)
         set(v) = prefs.putInt("gn_version_donnees_chargees", v)
-
-    /** true entre le lancement qui a détecté une mise à jour exigeant un rechargement
-     *  (`armerRechargementSiRequis`) et la synchro qui l'effectue (purge au début de SyncRunner,
-     *  puis désarmement) : rend `configurationComplete` faux et pilote le bandeau explicatif et
-     *  les messages de blocage de l'écran Paramètres. */
-    var rechargementRequisApresMaj: Boolean
-        get() = prefs.getBoolean("gn_rechargement_requis_maj", false)
-        set(v) = prefs.putBoolean("gn_rechargement_requis_maj", v)
 
     /** true si le module OccHab est installé sur le serveur ET accessible à l'utilisateur
      *  (au moins un droit CRUVED). Détecté à la synchro via `GET /api/gn_commons/modules`.
@@ -167,13 +196,27 @@ class GeoNatureConfig(private val prefs: Settings, private val coffre: CoffreMot
         get() = prefs.getString("gn_occhab_formconfig", "")
         set(v) = prefs.putString("gn_occhab_formconfig", v)
 
-    /** Visibilité d'un champ du formulaire OccHab (`OCCHAB.formConfig[champ]`). Défaut true si la
-     *  config est absente ou le champ non listé — on ne masque QUE ce que le serveur masque. */
+    /** Visibilité d'un champ du formulaire OccHab (`OCCHAB.formConfig[champ]`). Si la config est
+     *  absente ou le champ non listé, le défaut du schéma du serveur (FormConfig) : affiché, sauf le
+     *  recouvrement. */
     fun occhabChampVisible(champ: String): Boolean {
+        val defaut = champ != "recovery_percentage"
         val json = occhabFormConfigJson
-        if (json.isBlank()) return true
-        return try { JSONObject(json).optBoolean(champ, true) } catch (_: Exception) { true }
+        if (json.isBlank()) return defaut
+        return try { JSONObject(json).optBoolean(champ, defaut) } catch (_: Exception) { defaut }
     }
+
+    /** `OCCHAB.OBSERVER_AS_TXT`, lu à la synchro : les observateurs d'une station se saisissent en
+     *  texte libre (`observers_txt`) au lieu d'être choisis dans une liste, comme sur le web. */
+    var occhabObservateursEnTexte: Boolean
+        get() = prefs.getBoolean("gn_occhab_observateurs_texte", false)
+        set(v) = prefs.putBoolean("gn_occhab_observateurs_texte", v)
+
+    /** Cache JSON des observateurs proposés par OccHab (List<GeoNatureObservateur>) : la liste
+     *  `OCCHAB.OBSERVER_LIST_ID` du serveur, qui peut différer de celle d'OccTax. */
+    var observateursOcchabCacheJson: String
+        get() = prefs.getString("gn_cache_obs_occhab", "")
+        set(v) = prefs.putString("gn_cache_obs_occhab", v)
 
     /** Valeurs par défaut des nomenclatures OccHab (`/occhab/defaultNomenclatures`), map
      *  mnémonique→id_nomenclature sérialisée. Pré-remplit les sélecteurs d'un NOUVEL habitat
@@ -236,13 +279,14 @@ class GeoNatureConfig(private val prefs: Settings, private val coffre: CoffreMot
         set(v) = prefs.putString("gn_cache_settings_occtax", v)
 
     /** URL de base de TaxHub publiée par le serveur (`t_mobile_apps` OCCTAX → `settings.sync.taxhub_url`),
-     *  rafraîchie à chaque synchro des settings. Vide ⇒ on déduit `<URL_GeoNature>/api/taxhub`. */
+     *  retenue à la synchro seulement quand le TaxHub intégré (`<URL_GeoNature>/api/taxhub`, celui du
+     *  web) ne répond pas. Vide ⇒ le TaxHub intégré. */
     var taxhubUrlCache: String
         get() = prefs.getString("gn_taxhub_url", "")
         set(v) = prefs.putString("gn_taxhub_url", v)
 
-    /** Base TaxHub RÉSOLUE pour tous les appels TaxRef/biblistes : l'URL publiée par le serveur si
-     *  présente (gère les instances où TaxHub est hébergé ailleurs), sinon déduite de l'URL GeoNature.
+    /** Base TaxHub RÉSOLUE pour tous les appels TaxRef/biblistes : celle du web, déduite de l'URL
+     *  GeoNature, sauf si la synchro a dû se rabattre sur l'URL publiée ([taxhubUrlCache]).
      *  Sans slash final ; les appelants ajoutent `/api/taxref…` ou `/api/biblistes`. */
     val urlTaxhub: String
         get() = taxhubUrlCache.trim().trimEnd('/')
@@ -255,16 +299,69 @@ class GeoNatureConfig(private val prefs: Settings, private val coffre: CoffreMot
         set(v) = prefs.putInt("gn_obs_duration_days", v)
 
     /** Visibilité des champs du formulaire Occtax DU SERVEUR (`OCCTAX.form_fields`), en JSON brut.
-     *  Vide = non publié ⇒ tout visible. Permet d'aligner la visibilité d'un champ sur le serveur
-     *  (par instance), ex. masquer le type de regroupement si le serveur le masque. */
+     *  Vide = non publié ⇒ les défauts du schéma du serveur. Permet d'aligner la visibilité d'un
+     *  champ sur le serveur (par instance), ex. masquer le type de regroupement si le serveur le
+     *  masque. */
     var formFieldsJson: String
         get() = prefs.getString("gn_form_fields", "")
         set(v) = prefs.putString("gn_form_fields", v)
 
     /** Le champ de formulaire serveur [key] (clé de `form_fields`, ex. `group_type`) est-il visible ?
-     *  **true par défaut** si la clé est absente ou la config non publiée — on ne masque jamais un
-     *  champ faute d'information (pas de régression sur un serveur qui n'expose pas `form_fields`). */
+     *  Si la clé est absente ou la config non publiée, le défaut du schéma du serveur. */
     fun champFormVisible(key: String): Boolean = champFormVisible(formFieldsJson, key)
+
+    /** `ENABLE_NOMENCLATURE_TAXONOMIC_FILTERS` du serveur : les nomenclatures d'une espèce sont
+     *  filtrées par son taxon. Vrai par défaut, comme le schéma. */
+    var nomenclaturesFiltreesParTaxon: Boolean
+        get() = prefs.getBoolean("gn_nomenc_filtres_taxon", true)
+        set(v) = prefs.putBoolean("gn_nomenc_filtres_taxon", v)
+
+    /** `OCCTAX.ENABLE_MEDIAS` : le bloc Médias d'un dénombrement. Vrai par défaut, comme le schéma. */
+    var occtaxMediasActifs: Boolean
+        get() = prefs.getBoolean("gn_occtax_medias", true)
+        set(v) = prefs.putBoolean("gn_occtax_medias", v)
+
+    /** `OCCTAX.digital_proof_validator` : une preuve numérique doit être une adresse (http, https,
+     *  ftp). Vrai par défaut, comme le schéma. */
+    var occtaxPreuveNumeriqueUrl: Boolean
+        get() = prefs.getBoolean("gn_occtax_preuve_url", true)
+        set(v) = prefs.putBoolean("gn_occtax_preuve_url", v)
+
+    /** `OCCTAX.observers_txt` : les observateurs d'un relevé se saisissent en texte libre, comme sur
+     *  le web. Faux par défaut, comme le schéma. */
+    var occtaxObservateursEnTexte: Boolean
+        get() = prefs.getBoolean("gn_occtax_observateurs_texte", false)
+        set(v) = prefs.putBoolean("gn_occtax_observateurs_texte", v)
+
+    /** `OCCTAX.EXPANDED_TAXON_ADVANCED_DETAILS` : la section « Avancé » d'un taxon est ouverte
+     *  d'emblée. Faux par défaut, comme le schéma. */
+    var occtaxAvanceOuvert: Boolean
+        get() = prefs.getBoolean("gn_occtax_avance_ouvert", false)
+        set(v) = prefs.putBoolean("gn_occtax_avance_ouvert", v)
+
+    /** `OCCTAX.CD_TYPO_HABITAT` : la typologie à laquelle le web restreint l'habitat d'un relevé ;
+     *  -1 sans restriction (défaut du schéma). */
+    var occtaxTypologieHabitat: Int
+        get() = prefs.getInt("gn_occtax_cd_typo", -1)
+        set(v) = prefs.putInt("gn_occtax_cd_typo", v)
+
+    /** `MONITORINGS.PERMISSION_LEVEL` du serveur (JSON), lu à la synchro : l'objet de permission de
+     *  chaque type d'objet des Suivis ; vide, les défauts de gn_module_monitoring. */
+    var niveauxPermissionSuivisJson: String
+        get() = prefs.getString("gn_suivis_niveaux_permission", "")
+        set(v) = prefs.putString("gn_suivis_niveaux_permission", v)
+
+    /** `OCCTAX.id_taxon_list` : la liste de taxons du formulaire du web, quand le jeu de données du
+     *  relevé n'en déclare pas ; -1 sans liste (tout TaxRef). */
+    var occtaxIdListeTaxons: Int
+        get() = prefs.getInt("gn_occtax_id_taxon_list", -1)
+        set(v) = prefs.putInt("gn_occtax_id_taxon_list", v)
+
+    /** `OCCTAX.DATE_FORM_WITH_TODAY` : la date du jour posée dans un nouveau relevé ; à faux, la date
+     *  reste vide, à choisir, comme sur le web (vrai par défaut). */
+    var occtaxDateDuJour: Boolean
+        get() = prefs.getBoolean("gn_occtax_date_du_jour", true)
+        set(v) = prefs.putBoolean("gn_occtax_date_du_jour", v)
 
     /** Taille de page pour la pagination TaxRef (`settings.sync.page_size` du serveur). Défaut 1000. */
     var taxrefPageSize: Int
@@ -285,15 +382,12 @@ class GeoNatureConfig(private val prefs: Settings, private val coffre: CoffreMot
      *  repli sur le réglage mobile `settings.input.date.enable_hours` si le serveur n'expose pas la clé. */
     val heuresVisibles: Boolean get() = champFormVisible("hour_min") && (formFieldsJson.isNotBlank() || dateAvecHeures)
 
+    /** L'heure de fin du relevé, sous sa propre clé `hour_max` (le web la montre à part). */
+    val heureFinVisible: Boolean get() = champFormVisible("hour_max") && (formFieldsJson.isNotBlank() || dateAvecHeures)
+
     /** Date de FIN du relevé proposée (le « + » du web) — pilotée par `form_fields.date_max`, avec
      *  repli sur `settings.input.date.enable_end_date` si le serveur n'expose pas form_fields. */
     val dateFinVisible: Boolean get() = champFormVisible("date_max") && (formFieldsJson.isNotBlank() || dateAvecFin)
-
-    /** Cache des champs additionnels Occtax filtré par le flag serveur `additional_fields` du
-     *  settings : renvoie "" (donc aucun champ additionnel rendu) si le serveur les désactive. À
-     *  utiliser dans tous les contextes d'AFFICHAGE des champs additionnels. */
-    val additionalFieldsOcctaxJsonActif: String
-        get() = if (OcctaxFieldsConfig.afficherChampsAdditionnels(settingsOcctaxJson)) additionalFieldsOcctaxJson else ""
 
     /** false quand le dernier test de connexion a détecté une version GeoNature inférieure
      *  à la minimale supportée ([fr.ariegenature.geomys.network.VERSION_GEONATURE_MINIMALE]).
@@ -308,35 +402,15 @@ class GeoNatureConfig(private val prefs: Settings, private val coffre: CoffreMot
         get() = urlServeur.trim().isNotEmpty() && login.trim().isNotEmpty() && motDePasse.isNotEmpty() &&
             serveurCompatible
 
+    /** La connexion est configurée : pré-requis des envois, chaque saisie portant son jeu de
+     *  données. */
     val estConfiguree: Boolean
-        get() = connexionConfiguree && idDataset.trim().isNotEmpty()
-
-    /** Le jeu de données configuré existe-t-il dans le cache des datasets du serveur courant ?
-     *  Un id_dataset hérité d'un autre serveur (ex. après changement d'URL) part en clé
-     *  étrangère invalide → 500 opaque côté GeoNature au lieu d'une vraie erreur de validation.
-     *  Si le cache est vide (datasets jamais synchronisés), on ne peut pas trancher → on
-     *  considère valide pour ne pas bloquer à tort un utilisateur en cours de configuration. */
-    val datasetValide: Boolean
-        get() {
-            val id = idDataset.trim().toIntOrNull()?.takeIf { it > 0 } ?: return false
-            val json = datasetsCacheJson.takeIf { it.isNotEmpty() } ?: return true
-            return try {
-                val arr = JSONArray(json)
-                (0 until arr.length()).any { arr.getJSONObject(it).optInt("id", -1) == id }
-            } catch (_: Exception) {
-                true
-            }
-        }
-
-    /** Config complète ET cohérente avec le serveur courant : pré-requis pour démarrer ou
-     *  envoyer une saisie (connexion + jeu de données réellement présent côté serveur). */
-    val saisiePossible: Boolean
-        get() = estConfiguree && datasetValide
+        get() = connexionConfiguree
 
     /** Un id est-il présent dans un cache JSON (liste d'objets) sous la clé [champ] ?
      *  Renvoie false si le cache est vide/illisible OU si l'id est absent — interprétation
-     *  STRICTE (à l'inverse de [datasetValide], permissif) : sert à n'AUTORISER une saisie que
-     *  lorsqu'on a la preuve que la sélection existe sur le serveur courant. */
+     *  STRICTE : sert à n'AUTORISER une saisie que lorsqu'on a la preuve que la sélection existe
+     *  sur le serveur courant. */
     private fun idPresentDansCache(json: String, id: Int?, champ: String): Boolean {
         if (id == null || id <= 0) return false
         val j = json.takeIf { it.isNotEmpty() } ?: return false
@@ -349,61 +423,101 @@ class GeoNatureConfig(private val prefs: Settings, private val coffre: CoffreMot
     }
 
 
-    /** Le jeu de données sélectionné est présent dans le cache ET marqué ACTIF (`actif=true`).
-     *  Un dataset archivé/inactif sur le serveur (cf. `actif:false`) reste présent dans le cache
-     *  mais NE doit PAS valider la config : une saisie y partirait dans le vide (invisible dans
-     *  l'interface web, masquée par défaut). `actif` absent du cache → permissif (true). */
-    val datasetActifDansCache: Boolean
-        get() {
-            val id = idDataset.trim().toIntOrNull()?.takeIf { it > 0 } ?: return false
-            val j = datasetsCacheJson.takeIf { it.isNotEmpty() } ?: return false
-            return try {
-                val arr = JSONArray(j)
-                (0 until arr.length()).any {
-                    val o = arr.getJSONObject(it)
-                    o.optInt("id", -1) == id && o.optBoolean("actif", true)
-                }
-            } catch (_: Exception) {
-                false
-            }
-        }
-
     /** Le jeu de données [id] est-il acceptable pour un envoi ? Permissif si le cache datasets est
-     *  vide (on ne peut pas trancher → on n'empêche pas l'envoi), strict sinon. Sert à valider un
-     *  override de relevé (« Détails du relevé ») AVANT le POST, pour éviter le 500 opaque sur FK
-     *  invalide — même garde que [datasetValide], mais pour un id arbitraire. */
+     *  vide (on ne peut pas trancher → on n'empêche pas l'envoi), strict sinon. Sert à valider le
+     *  jeu d'un relevé AVANT le POST : un id_dataset hérité d'un autre serveur (après changement
+     *  d'URL) partirait en clé étrangère invalide, 500 opaque. */
     fun datasetAcceptablePourEnvoi(id: Int): Boolean {
         if (datasetsCacheJson.isEmpty()) return true
         return idPresentDansCache(datasetsCacheJson, id, "id")
     }
 
-    /** La liste de taxons sélectionnée est présente dans le cache des listes. */
-    val listePresenteDansCache: Boolean
-        get() = idPresentDansCache(listesCacheJson, taxaListeId.trim().toIntOrNull(), "id")
+    /** La liste de taxons d'un relevé du jeu de données [idDataset] : celle du jeu (`id_taxa_list`),
+     *  comme le web, sinon la liste par défaut des Paramètres, sinon celle de la configuration
+     *  d'OccTax (`OCCTAX.id_taxon_list`) ; null : tous les taxons (ceux du cache). */
+    fun listeTaxonsOcctax(idDataset: Int?): Int? =
+        idDataset?.let { listesDesJeux()[it] }
+            ?: taxaListeId.trim().toIntOrNull()?.takeIf { it > 0 }
+            ?: occtaxIdListeTaxons.takeIf { it > 0 }
 
-    /** L'observateur (déterminateur) par défaut est présent dans le cache des observateurs. */
-    val observateurPresentDansCache: Boolean
-        get() = idPresentDansCache(observateursCacheJson, observateurDefautId.trim().toIntOrNull(), "idRole")
+    /** `id_taxa_list` de chaque jeu de données du cache, lu une fois par version du cache : le
+     *  champ espèce le demande à chaque ouverture d'un relevé. */
+    private fun listesDesJeux(): Map<Int, Int> {
+        val json = datasetsCacheJson
+        memoListesDesJeux?.let { (brut, listes) -> if (brut == json) return listes }
+        val listes = try {
+            val arr = JSONArray(json.ifEmpty { "[]" })
+            (0 until arr.length()).map { arr.getJSONObject(it) }
+                .mapNotNull { o -> o.optInt("idTaxaList", -1).takeIf { it > 0 }?.let { o.optInt("id", -1) to it } }
+                .toMap()
+        } catch (_: Exception) {
+            emptyMap()
+        }
+        memoListesDesJeux = json to listes
+        return listes
+    }
+
+    @Volatile private var memoListesDesJeux: Pair<String, Map<Int, Int>>? = null
+
+    /** Les jeux de données que le formulaire du web propose à un relevé (actifs, rattachés à OCCTAX
+     *  et créables), lus dans le cache. */
+    private fun idsDatasetsOcctaxProposes(): Set<Int> = try {
+        ReglesSelectionOcctax.datasetsProposes(listeDepuisJson(GeoNatureDataset.serializer(), datasetsCacheJson), datasetsCreablesOcctax)
+            .map { it.id }.toSet()
+    } catch (_: Exception) {
+        emptySet()
+    }
+
+    /** Le jeu de données par défaut des Paramètres s'il est encore proposé, sinon null : un jeu
+     *  fantôme (retiré du serveur, devenu inactif ou non créable) ne s'impose à aucun relevé. */
+    val idDatasetParDefaut: Int?
+        get() = idDataset.trim().toIntOrNull()?.takeIf { it > 0 && it in idsDatasetsOcctaxProposes() }
+
+    /** La liste de taxons par défaut est réglée : celle qu'impose le jeu de données par défaut, sinon
+     *  celle choisie, encore dans le cache. Sans aucune liste en cache, il n'y a rien à choisir. */
+    val listeParDefautValide: Boolean
+        get() = idDatasetParDefaut?.let { listesDesJeux()[it] } != null ||
+            idPresentDansCache(listesCacheJson, taxaListeId.trim().toIntOrNull(), "id") ||
+            listeDepuisJson(GeoNatureListe.serializer(), listesCacheJson).isEmpty()
+
+    /** L'observateur par défaut est réglé : celui choisi, l'utilisateur connecté ou un observateur
+     *  encore dans le cache, sinon l'utilisateur connecté, s'il est connu. */
+    val observateurParDefautValide: Boolean
+        get() {
+            val choisi = observateurDefautId.trim().toIntOrNull()?.takeIf { it > 0 } ?: return idRoleUtilisateur > 0
+            return choisi == idRoleUtilisateur || idPresentDansCache(observateursCacheJson, choisi, "idRole")
+        }
 
     /** Saisie OCCTAX (multi/mono) réellement réalisable : connexion configurée ET les trois
-     *  sélections (jeu de données, liste de taxons, observateur par défaut) sont chargées dans
-     *  les caches du serveur courant. Faux tant que les caches sont vides (rien synchronisé) ou
-     *  qu'une sélection est fantôme — pilote l'activation des boutons de saisie sur l'accueil. */
+     *  sélections par défaut des Paramètres réglées (jeu de données proposé, liste de taxons,
+     *  observateur), comme sous GeoMys-Android ; aucune n'est choisie d'office, sauf l'observateur.
+     *  Faux tant que les caches sont vides (rien synchronisé) — pilote l'activation des boutons de
+     *  saisie sur l'accueil. */
     val saisieOcctaxValide: Boolean
-        get() = connexionConfiguree && datasetActifDansCache &&
-            listePresenteDansCache && observateurPresentDansCache
+        get() = connexionConfiguree && idDatasetParDefaut != null && listeParDefautValide && observateurParDefautValide
 
     companion object {
-        /** Version des données synchronisées EXIGÉE par cette release. À INCRÉMENTER dans toute
-         *  release qui rend « Recharger les données » OBLIGATOIRE (nouveau cache, nouveau champ lu
-         *  à la synchro, format modifié…) : au premier lancement, une installation dont
-         *  [versionDonneesChargees] est en retard arrive sur Paramètres (bloqué) avec un bandeau ;
-         *  la synchro suivante purge les caches synchronisés avant de les réécrire (cf.
-         *  `armerRechargementSiRequis` / SyncRunner). Les JSON de config (datasets, listes,
-         *  observateurs, champs add., settings) ne sont pas purgés : ils sont REMPLACÉS par la
-         *  phase A quand elle répond non vide. Historique (GeoMys Common) :
-         *  1 = première version. */
-        const val VERSION_DONNEES_REQUISE = 1
+        /** Version des données synchronisées qu'attend cette release : à incrémenter quand la
+         *  synchro lit quelque chose de nouveau. Depuis le 21 octobre 2026, une installation en
+         *  retard n'est plus bloquée ni purgée, comme sous GeoMys-Android : les données en place
+         *  servent, un bandeau de Paramètres suggère « Recharger les données », et la synchro
+         *  suivante réécrit les caches. TaxRef n'est retéléchargé que si sa version a changé sur le
+         *  serveur, ou si le format de son cache a changé ([TaxRefCache.VERSION_FORMAT]).
+         *  Historique (GeoMys Common) :
+         *  1 = première version ;
+         *  2 = vérification des champs du 20 octobre : groupe 3 des taxons, lignes taxonomiques des
+         *      nomenclatures, réglages OccTax (médias, preuves, filtres taxonomiques) et OccHab
+         *      (observateurs) lus à la synchro, valeurs des champs additionnels, paramètres des listes
+         *      des Suivis ;
+         *  3 = alignement des formulaires sur le web (20 octobre) : `label_fr` des nomenclatures,
+         *      organisme et nom complet de l'utilisateur (défauts de nomenclature d'OccTax), réglages
+         *      du formulaire OccTax (observateurs en texte, section avancée, typologie d'habitat, liste
+         *      de taxons), valeurs typées et attributs des champs additionnels, noms valides TAXREF,
+         *      listes de taxons de la configuration d'OccTax et des champs des Suivis ;
+         *  4 = réponses du 20 octobre : droits de création des Suivis (`/api/gn_commons/modules`,
+         *      `MONITORINGS.PERMISSION_LEVEL`), listes des Suivis alimentées par une API (TaxHub,
+         *      adresses absolues, `data`). */
+        const val VERSION_DONNEES_REQUISE = 4
 
         // Mot de passe conservé EN MÉMOIRE uniquement quand le coffre est indisponible — jamais
         // persisté en clair sur disque. Perdu au redémarrage du process (re-saisie).

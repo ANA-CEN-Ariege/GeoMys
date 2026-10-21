@@ -36,6 +36,7 @@ import fr.ariegenature.geomys.saisie.filtrerSuggestions
 import fr.ariegenature.geomys.saisie.vocabulaireDictee
 import fr.ariegenature.geomys.store.SuggestionTaxon
 import fr.ariegenature.geomys.store.TaxRefEntry
+import fr.ariegenature.geomys.store.champFormVisible
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -48,17 +49,23 @@ private class Propositions(val liste: List<SuggestionTaxon>, val normalisees: Li
 
 /** Le champ espèce d'une saisie : palette des groupes chargés, mode « nom scientifique » (mémorisé),
  *  texte tapé, propositions filtrées à chaque frappe hors du fil de l'interface ([calcul]), ligne
- *  de statut TaxRef. [libelle] : l'invite du champ selon le groupe et le mode. */
+ *  de statut TaxRef. [libelle] : l'invite du champ selon le groupe et le mode. Les espèces sont
+ *  celles de la liste du relevé, comme sur le web : celle de son jeu de données ([idDataset]), sinon
+ *  celle de la configuration d'OccTax, sinon toutes. */
 class EtatChampEspece(
     private val services: ServicesGeoNature,
     private val portee: CoroutineScope,
     taxonInitial: Taxon,
     private val libelle: (Taxon, Boolean) -> String,
     private val calcul: CoroutineDispatcher = Dispatchers.Default,
+    private val idDataset: () -> Int? = { null },
 ) {
     private val config = services.config
     private val preferences = services.preferences
-    private val idListe: Int? get() = config.taxaListeId.trim().toIntOrNull()
+
+    /** La liste de taxons du relevé, relue au départ et à chaque changement de jeu de données
+     *  ([actualiserListe]). */
+    private var idListe: Int? = config.listeTaxonsOcctax(idDataset())
 
     /** Les groupes de la palette (ceux qui ont des taxons chargés), null pendant leur calcul. */
     var groupes by mutableStateOf<List<Taxon>?>(null)
@@ -82,13 +89,36 @@ class EtatChampEspece(
      *  choix referme la liste, comme `performCompletion` d'AutoCompleteTextView). */
     private var texteChoisi by mutableStateOf<String?>(null)
 
-    val recherche = RechercheTaxRef(portee) { nom -> services.taxRefService.rechercher(nom, taxon, config, nomScientifique) }
+    val recherche = RechercheTaxRef(portee) { nom -> services.taxRefService.rechercher(nom, taxon, idListe, nomScientifique) }
+
+    /** Le jeu de données du relevé a pu changer (« Détails ») : sa liste de taxons fait les
+     *  propositions, et le texte tapé est re-résolu. */
+    fun actualiserListe() {
+        val nouvelle = config.listeTaxonsOcctax(idDataset())
+        if (nouvelle == idListe) return
+        idListe = nouvelle
+        portee.launch {
+            val visibles = withContext(calcul) { services.taxRef.groupesNonVides(nouvelle) }
+            groupes = visibles
+            taxon = groupeDeDepart(taxon, visibles)
+            rafraichirPropositions()
+            recherche.relancer(texte)
+        }
+    }
+
+    /** La liste de taxons du relevé, pour la dictée. */
+    val listeTaxons: Int? get() = idListe
 
     val libelleChamp: String get() = libelle(taxon, nomScientifique)
 
     /** Les entrées du cache par cd_nom (nom scientifique d'un cd_nom). */
     var entrees by mutableStateOf<Map<Int, TaxRefEntry>>(emptyMap())
         private set
+
+    /** Le `nom_valide` TAXREF d'un taxon, que le web montre sous le taxon choisi (« TAXREF - Nom
+     *  valide ») quand `form_fields.display_nom_valide` le demande ; null : il n'est pas montré. */
+    val nomValide: ((Int) -> String?)? =
+        if (champFormVisible(config.formFieldsJson, "display_nom_valide")) services.taxRef::nomValideParCdNom else null
 
     /** Données de saisie en cours de rechargement : la ligne « pas de données » le dit. */
     val synchroEnCours: Boolean get() = services.synchro.actif
@@ -97,8 +127,9 @@ class EtatChampEspece(
         portee.launch {
             entrees = withContext(calcul) { services.taxRef.entreesParCdNom() }
         }
+        val liste = idListe
         portee.launch {
-            val visibles = withContext(calcul) { services.taxRef.groupesNonVides(idListe) }
+            val visibles = withContext(calcul) { services.taxRef.groupesNonVides(liste) }
             groupes = visibles
             taxon = groupeDeDepart(taxon, visibles)
             rafraichirPropositions()

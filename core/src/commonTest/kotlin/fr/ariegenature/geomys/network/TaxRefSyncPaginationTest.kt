@@ -64,6 +64,7 @@ class TaxRefSyncPaginationTest {
         // Biblistes lues depuis ce cache (peuplé par SyncRunner en conditions réelles) —
         // pas d'appel /biblistes. Datasets vides → pas de liste « privée » supplémentaire.
         listesCacheJson = """[{"id":7,"nom":"Liste test"}]"""
+        taxaListeId = "7"
         datasetsCacheJson = """[]"""
     }
 
@@ -143,5 +144,61 @@ class TaxRefSyncPaginationTest {
         assertEquals(0, nb)
         assertTrue(msg.contains("Aucun taxon"), "message d'échec attendu : $msg")
         assertEquals(listOf(7), taxRef.listesSynchronisees, "le marqueur du sync précédent doit survivre")
+    }
+
+    @Test
+    fun seules_les_listes_utiles_se_telechargent() = runTest {
+        // 21 octobre : la liste choisie, et non toutes celles du serveur (plus de 400 000 taxons
+        // cumulés sur certains).
+        config.listesCacheJson = """[{"id":7,"nom":"Liste test"},{"id":8,"nom":"Très grosse liste"}]"""
+        val demandees = mutableSetOf<String>()
+        serveur.router { path ->
+            Regex("id_liste=(\\d+)").find(path)?.groupValues?.get(1)?.let(demandees::add)
+            when {
+                path.contains("/api/taxhub/api/taxref/version") -> statut(404)
+                path.contains("/api/taxhub/api/taxref") -> json(page(1, 3))
+                else -> statut(404)
+            }
+        }
+        sync()
+        assertEquals(setOf("7"), demandees)
+        assertEquals(listOf(7), taxRef.listesSynchronisees)
+    }
+
+    @Test
+    fun un_champ_espece_sans_liste_fait_charger_toutes_les_listes() = runTest {
+        // Le web y propose tout TaxRef : toutes les listes publiques, comme avant le 21 octobre.
+        config.listesCacheJson = """[{"id":7,"nom":"Liste test"},{"id":8,"nom":"Autre liste"}]"""
+        val demandees = mutableSetOf<String>()
+        serveur.router { path ->
+            Regex("id_liste=(\\d+)").find(path)?.groupValues?.get(1)?.let(demandees::add)
+            when {
+                path.contains("/api/taxhub/api/taxref/version") -> statut(404)
+                path.contains("/api/taxhub/api/taxref") -> json(page(1, 3))
+                else -> statut(404)
+            }
+        }
+        geoNatureSync.synchroniserTaxRef(config, toutesLesListes = true) { _, _, _ -> }
+        assertEquals(setOf("7", "8"), demandees)
+    }
+
+    @Test
+    fun les_listes_des_suivis_et_le_champ_espece_sans_liste() {
+        fun prop(nom: String, widget: String, liste: Int? = null) =
+            MonitoringApi.MonitoringPropertySchema(nom = nom, typeWidget = widget, label = nom, obligatoire = false, idListTaxonomie = liste)
+        fun type(nom: String, liste: Int? = null, vararg props: MonitoringApi.MonitoringPropertySchema) = MonitoringApi.MonitoringSchemaObjet(
+            type = nom, label = nom, labelList = null, nameField = null, parentType = null, childrenTypes = emptyList(),
+            properties = props.associateBy { it.nom }, idListTaxonomy = liste,
+        )
+        // STOM : la liste du protocole ; un champ à sa propre liste.
+        val stom = 101 to mapOf("observation" to type("observation", null, prop("cd_nom", "taxonomy")))
+        val propre = null to mapOf("observation" to type("observation", null, prop("cd_nom", "taxonomy", liste = 205)))
+        assertEquals(ListesDesSuivis(setOf(101, 205), champSansListe = false), listesDesSuivis(listOf(stom, propre)))
+        // La liste d'un autre type du schéma suffit (NouvelleVisite.preparer).
+        val autreType = null to mapOf("module" to type("module", 103), "observation" to type("observation", null, prop("cd_nom", "taxonomy")))
+        assertFalse(listesDesSuivis(listOf(autreType)).champSansListe)
+        // RHOMEOOrthoptere sur le serveur de l'ANA : aucune liste nulle part.
+        val sansListe = null to mapOf("observation" to type("observation", null, prop("cd_nom", "taxonomy"), prop("nb", "number")))
+        assertTrue(listesDesSuivis(listOf(stom, sansListe)).champSansListe)
     }
 }

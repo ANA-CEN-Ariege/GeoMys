@@ -44,36 +44,48 @@ data class SaisiesHabitat(
     val abondance: Int?,
     /** Bloc ANA-EVAL relu de la section (habitat porteur d'un bloc), sinon null. */
     val anaEval: (() -> String?)? = null,
+    /** L'habitat a été choisi dans la liste pendant cette édition : le nom cité devient son libellé,
+     *  comme sur le web (`patchNomCite` à chaque sélection). Sinon l'habitat garde le sien. */
+    val choisiDansLaListe: Boolean = true,
 )
 
 /** Le formulaire de création / d'édition d'UN habitat OccHab (champs pilotés par
  *  `OCCHAB.formConfig`). */
 object HabitatOccHab {
 
+    // Les textes du formulaire web (occhab-form.component.html), sans astérisques comme lui.
     const val TITRE = "Habitat"
-    const val LIBELLE_HABITAT = "Habitat (HABREF) *"
-    const val INVITE_HABITAT = "Rechercher un habitat (HABREF)…"
+    const val LIBELLE_HABITAT = "Habitat"
+    const val INVITE_HABITAT = "Tapez les premières lettres..."
+    const val AUCUN_RESULTAT = "Aucun élément trouvé"
     const val AIDE_FACULTATIF =
         "La station est déjà enregistrée — l'habitat est facultatif : revenez en arrière pour la laisser sans habitat."
     const val LIBELLE_DETERMINATEUR = "Déterminateur"
-    const val LIBELLE_RECOUVREMENT = "Recouvrement (%)"
-    const val INVITE_RECOUVREMENT = "Recouvrement en %"
-    const val VALIDER = "Valider l'habitat"
-    const val NON_RENSEIGNE = "— Non renseigné —"
+    const val LIBELLE_RECOUVREMENT = "Pourcentage de recouvrement"
+    /** La précision n'a pas de libellé sur le web : seulement cette indication. */
+    const val INVITE_PRECISION = "Précision sur la technique de collecte"
+    const val PRECISION_MANQUANTE = "Veuillez fournir des précisions concernant la technique de collecte"
+    const val VALIDER = "Valider cet habitat"
 
+    // Le libellé du web, accents rétablis (« interet »).
     val INTERET = NomenclatureHabitat("community_interest", "HAB_INTERET_COM", "Habitat d'intérêt communautaire")
     val TYPE_DETERMINATION = NomenclatureHabitat("determination_type", "DETERMINATION_TYP_HAB", "Type de détermination")
-    val TECHNIQUE = NomenclatureHabitat("collection_technique", "TECHNIQUE_COLLECT_HAB", "Technique de collecte *")
+    val TECHNIQUE = NomenclatureHabitat("collection_technique", "TECHNIQUE_COLLECT_HAB", "Technique de collecte")
     val ABONDANCE = NomenclatureHabitat("abundance", "ABONDANCE_HAB", "Abondance")
 
-    /** « Précision technique », avec l'astérisque DYNAMIQUE : requise seulement quand la technique
-     *  de collecte vaut « Autre, préciser », parité avec le technicalValidator du web. */
-    fun libellePrecision(requise: Boolean): String = if (requise) "Précision technique *" else "Précision technique"
+    /** Les listes qui ont une entrée vide sur le web (`displayNullValue`) ; les autres n'en ont
+     *  pas. */
+    fun avecEntreeVide(d: NomenclatureHabitat): Boolean = d == INTERET || d == ABONDANCE
+
+    /** Les nomenclatures d'un NOUVEL habitat que le web pré-remplit du défaut OccHab du serveur
+     *  (initHabForm) ; l'intérêt communautaire et l'abondance partent vides. */
+    private val TYPES_A_DEFAUT = setOf(TYPE_DETERMINATION.type, TECHNIQUE.type)
 
     /** Défaut d'une nomenclature : la valeur de l'habitat édité, sinon — pour un NOUVEL habitat —
-     *  le défaut OccHab du serveur. */
+     *  le défaut OccHab du serveur, pour les seules listes que le web pré-remplit, affichées ou
+     *  masquées (le web le pose sur le contrôle, même caché, et l'envoie). */
     fun valeurInitiale(existante: Int?, type: String, nouveau: Boolean, config: GeoNatureConfig): Int? =
-        existante ?: if (nouveau) config.occhabDefautNomenclature(type) else null
+        existante ?: if (nouveau && type in TYPES_A_DEFAUT) config.occhabDefautNomenclature(type) else null
 
     /** La technique choisie vaut-elle « Autre, préciser » (cd_nomenclature « 10 ») ? Un cd absent
      *  du cache (synchro antérieure à l'ajout du champ) rend la règle inactive. */
@@ -82,20 +94,19 @@ object HabitatOccHab {
         return valeurs.firstOrNull { it.id == id }?.cd == "10"
     }
 
-    /** « Valider l'habitat » actif SEULEMENT quand les champs REQUIS sont remplis — alignés sur
-     *  les Validators.required du client web OccHab (form-service.ts) : l'habitat HABREF, la
-     *  technique de collecte si elle est affichée, la précision technique si la technique vaut
-     *  « Autre, préciser ». */
-    fun peutValider(cdHab: Int?, techniqueVisible: Boolean, technique: Int?, precisionRequise: Boolean, precision: String?): Boolean =
-        (cdHab ?: 0) > 0 &&
-            (!techniqueVisible || technique != null) &&
-            (!precisionRequise || !precision?.trim().isNullOrEmpty())
+    /** « Valider cet habitat » actif SEULEMENT quand les champs REQUIS sont remplis, comme les
+     *  Validators.required du web (form-service.ts) : l'habitat HABREF, la technique de collecte
+     *  (affichée ou non : masquée, elle garde son défaut, et sans lui le web reste bloqué), la
+     *  précision si la technique vaut « Autre, préciser » ([precision] null : champ masqué, donc
+     *  vide). */
+    fun peutValider(cdHab: Int?, technique: Int?, precisionRequise: Boolean, precision: String?): Boolean =
+        (cdHab ?: 0) > 0 && technique != null && (!precisionRequise || !precision?.trim().isNullOrEmpty())
 
     /** Garde MIROIR du bouton grisé (course clic/sélection) : le message du premier manque, ou
      *  null. */
-    fun manque(cdHab: Int?, techniqueVisible: Boolean, technique: Int?, precisionRequise: Boolean, precision: String?): String? = when {
-        techniqueVisible && technique == null -> "Choisissez une technique de collecte"
-        precisionRequise && precision?.trim().isNullOrEmpty() -> "Précisez la technique de collecte (« Autre, préciser »)"
+    fun manque(cdHab: Int?, technique: Int?, precisionRequise: Boolean, precision: String?): String? = when {
+        technique == null -> "Choisissez une technique de collecte"
+        precisionRequise && precision?.trim().isNullOrEmpty() -> PRECISION_MANQUANTE
         (cdHab ?: 0) <= 0 -> "Choisissez un habitat dans la liste HABREF"
         else -> null
     }
@@ -106,15 +117,16 @@ object HabitatOccHab {
 
     /** L'habitat retenu : [existant] mis à jour, ou un nouvel habitat. Champ VISIBLE → sa valeur
      *  fait foi (vide = effacé) ; champ MASQUÉ par formConfig (null) → la valeur existante est
-     *  préservée. Le nom cité saisi sur le web ou sous QGIS est CONSERVÉ tant que l'habitat HABREF
-     *  ne change pas (audit 2026-08-27). Le recouvrement accepte la virgule décimale. */
+     *  préservée. Le nom cité devient le libellé de l'habitat choisi dans la liste, comme sur le web ;
+     *  sans nouveau choix, l'habitat garde ses noms. Le recouvrement accepte la virgule décimale. */
     fun habitat(existant: OccHabHabitat?, s: SaisiesHabitat): OccHabHabitat {
         val cd = s.cdHab ?: 0
         val libelle = s.libelle.trim()
+        val rechoisi = s.choisiDansLaListe || existant == null
         return (existant ?: OccHabHabitat()).copy(
             cdHab = cd,
-            habitatLabel = libelle,
-            nomCite = if (existant != null && existant.cdHab == cd && existant.nomCite.isNotBlank()) existant.nomCite else libelle,
+            habitatLabel = if (rechoisi) libelle else existant.habitatLabel,
+            nomCite = if (rechoisi) libelle else existant.nomCite.ifBlank { libelle },
             determiner = s.determinateur?.trim()?.takeIf { it.isNotEmpty() } ?: if (s.determinateur == null) existant?.determiner else null,
             precisionTechnique = s.precision?.trim()?.takeIf { it.isNotEmpty() } ?: if (s.precision == null) existant?.precisionTechnique else null,
             recouvrement = s.recouvrement?.trim()?.replace(',', '.')?.toDoubleOrNull() ?: if (s.recouvrement == null) existant?.recouvrement else null,

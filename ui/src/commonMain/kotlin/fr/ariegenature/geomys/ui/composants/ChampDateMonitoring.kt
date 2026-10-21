@@ -42,7 +42,8 @@ enum class ModeDateHeure(
 }
 
 /** Un champ de date ou d'heure : [affichage] est le texte de la valeur (null tant que rien n'est
- *  choisi), [initiale] ce sur quoi s'ouvrent les sélecteurs ; [onChoix] reçoit le choix.
+ *  choisi), [initiale] ce sur quoi s'ouvrent les sélecteurs ; [onChoix] reçoit le choix ; une valeur
+ *  choisie s'efface par le « ✕ » qui la suit ([onEffacer]), comme une date vidée sur le web.
  *  - Android : TextView de 16 sp aux marges de 8 × 12 dp, contour gris translucide de 1 dp aux coins
  *    de 8 dp, l'invite en couleur secondaire ; le toucher ouvre DatePickerDialog, TimePickerDialog
  *    (24 h), ou l'un puis l'autre ;
@@ -56,4 +57,5 @@ expect fun ChampDateMonitoring(
     initiale: SelectionDateHeure,
     onChoix: (SelectionDateHeure) -> Unit,
     modifier: Modifier = Modifier,
+    onEffacer: (() -> Unit)? = null,
 )

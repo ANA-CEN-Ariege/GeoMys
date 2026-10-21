@@ -28,6 +28,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.Dispatchers
@@ -62,6 +63,18 @@ class TaxRefCacheTest {
         taxRef.ajouterListesParCdNom(mapOf(60585 to listOf(100, 200), 4001 to listOf(100)))
         assertEquals(listOf(100, 200), taxRef.listesPourCdNom(60585))
         assertEquals(listOf(100), taxRef.listesPourCdNom(4001))
+    }
+
+    @Test
+    fun des_donnees_se_voient_sans_charger_le_cache() {
+        // Paramètres s'ouvre sur ce signal (21 octobre) : le chargement complet prend de 10 à 30 s
+        // sur un téléphone d'entrée de gamme.
+        assertFalse(taxRef.aDesDonnees, "rien de chargé")
+        taxRef.remplacerTout(mapOf("merle noir" to TaxRefEntry(4117, "Turdus merula", "Merle noir")))
+        assertTrue(taxRef.aDesDonnees)
+        assertTrue(TaxRefCache(dossier, MapSettings()).aDesDonnees, "relu par un nouveau processus, sans rien charger")
+        taxRef.vider()
+        assertFalse(taxRef.aDesDonnees, "« Vider le cache » efface le fichier")
     }
 
     @Test

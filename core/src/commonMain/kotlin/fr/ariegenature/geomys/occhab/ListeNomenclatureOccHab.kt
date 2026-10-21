@@ -24,26 +24,32 @@ package fr.ariegenature.geomys.occhab
 import fr.ariegenature.geomys.plateforme.comparateurFrancais
 import fr.ariegenature.geomys.store.NomValeur
 
-/** La liste déroulante d'une nomenclature OccHab (détails de la station, habitat) : « — Non
- *  renseigné — » en tête, puis les valeurs du cache triées alphabétiquement (français, insensible
- *  à la casse et aux accents), comme les listes de nomenclature d'OccTax. */
-class ListeNomenclatureOccHab(valeurs: List<NomValeur>) {
+/** La liste déroulante d'une nomenclature OccHab (détails de la station, habitat), comme le
+ *  pnx-dumb-select du web : les valeurs du cache triées par `label_default` (l'`ORDER BY` du
+ *  serveur ; français, insensible à la casse et aux accents), affichées par leur `label_fr`. Une
+ *  entrée vide en tête seulement si [avecEntreeVide] (`displayNullValue` du web : intérêt
+ *  communautaire, abondance) ; sans elle, une valeur vide s'affiche vide (position -1) et ne se
+ *  choisit pas. */
+class ListeNomenclatureOccHab(valeurs: List<NomValeur>, private val avecEntreeVide: Boolean = false) {
 
     private val triees = valeurs.sortedWith(compareBy(comparateurFrancais()) { it.label })
+    private val decalage = if (avecEntreeVide) 1 else 0
 
-    /** Les libellés, l'entrée vide d'abord. */
-    val libelles: List<String> = listOf(NON_RENSEIGNE) + triees.map { it.label }
+    /** Les libellés, l'entrée vide (texte vide, comme le web) d'abord s'il y en a une. */
+    val libelles: List<String> = (if (avecEntreeVide) listOf("") else emptyList()) + triees.map { it.libelle }
 
-    /** Position de [id] dans [libelles] ; 0 (« — Non renseigné — ») s'il n'y est pas. */
+    /** Position de [id] dans [libelles] ; s'il n'y est pas, l'entrée vide, à défaut -1 (rien
+     *  d'affiché). */
     fun position(id: Int?): Int {
         val i = triees.indexOfFirst { it.id == id }
-        return if (i >= 0) i + 1 else 0
+        return if (i >= 0) i + decalage else if (avecEntreeVide) 0 else -1
     }
 
-    /** L'id_nomenclature choisi à [position], null pour « — Non renseigné — ». */
-    fun id(position: Int): Int? = if (position <= 0) null else triees.getOrNull(position - 1)?.id
+    /** L'id_nomenclature choisi à [position], null pour l'entrée vide. */
+    fun id(position: Int): Int? = if (position < decalage) null else triees.getOrNull(position - decalage)?.id
 
-    companion object {
-        const val NON_RENSEIGNE = "— Non renseigné —"
-    }
+    /** La valeur à retenir d'une liste ouverte sur [initiale] et laissée à [position] : celle de la
+     *  liste si l'utilisateur a changé de position (l'entrée vide la vide), sinon [initiale], même
+     *  absente de la liste en cache. */
+    fun retenue(initiale: Int?, position: Int): Int? = if (position != position(initiale)) id(position) else initiale
 }

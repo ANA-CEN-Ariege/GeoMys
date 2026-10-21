@@ -47,7 +47,11 @@ class EmpreinteExhaustiviteTest {
         // envoyé, et une telle station n'est pas importable — elle n'entre donc jamais dans « Mes
         // stations », où l'empreinte sert (cf. OccHabStation.geometryPartielle).
         "geometryPartielle",
+        // Droits de la station du serveur et état de son cadre : lus du serveur, jamais envoyés, et
+        // une telle station n'est pas importable.
+        "nonModifiableServeur", "cadreFerme",
         "envoyeGeoNature", "origineServeur", "derniereErreurEnvoi", "envoiIncertain", "empreinteOrigine", "origineEnvoyee",
+        "origineJson", // la base de la fusion à l'envoi, pas un contenu envoyé
         "habitats", // testé champ par champ ci-dessous
     )
 
