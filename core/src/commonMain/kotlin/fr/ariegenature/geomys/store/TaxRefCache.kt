@@ -315,9 +315,16 @@ class TaxRefCache(
      *  scientifique affiché rend le choix explicite, au lieu de le trancher par une heuristique.
      *  Vide quand la liste n'est pas exploitable (non synchronisée, ou couvrant tout le
      *  référentiel) — l'appelant retombe alors sur [nomsProposablesListe]. */
+    /** Les propositions de TOUT le cache (un champ espèce sans liste, qui cherche dans tout TaxRef
+     *  comme le web), porteuses de leur `cd_nom`, comme [propositionsListe]. */
+    fun propositionsToutes(): List<SuggestionTaxon> = propositionsDe(entreesParCdNom().keys)
+
     fun propositionsListe(idListe: Int): List<SuggestionTaxon> {
         if (indexResolutionListe(idListe).isEmpty()) return emptyList()
-        val autorises = cdNomsDansListe(idListe)
+        return propositionsDe(cdNomsDansListe(idListe))
+    }
+
+    private fun propositionsDe(autorises: Collection<Int>): List<SuggestionTaxon> {
         val parCdNom = entreesParCdNom()
         val verns = vernsParCdNom()
         val lignes = ArrayList<SuggestionTaxon>(autorises.size * 2)

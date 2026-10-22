@@ -28,11 +28,14 @@ package fr.ariegenature.geomys.network
 import fr.ariegenature.geomys.journal.Journal
 import fr.ariegenature.geomys.json.JSONArray
 import fr.ariegenature.geomys.json.JSONObject
+import fr.ariegenature.geomys.monitoring.NouvelleVisite
 import fr.ariegenature.geomys.network.http.ClientsGeoNature
 import fr.ariegenature.geomys.network.http.get
+import fr.ariegenature.geomys.network.http.patchJson
 import fr.ariegenature.geomys.network.http.postJson
 import fr.ariegenature.geomys.store.GeoNatureConfig
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.encodeURLParameter
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -46,46 +49,44 @@ class MonitoringEnvoi(
     private val clients: ClientsGeoNature,
 ) {
 
-    /** Cherche parmi les enfants directs de {parentObjectType}/{parentId} un objet portant [uuid]
-     *  dans son champ [uuidFieldName]. Anti-doublon : quand la RÉPONSE d'un POST s'est perdue
-     *  (coupure ou délai après que le serveur a traité), la saisie est marquée en échec alors que
-     *  l'objet existe — re-POSTer aveuglément le dupliquerait. Lecture EN DIRECT exclusivement
-     *  (jamais le cache : un cache antérieur au POST dirait « absent » à tort).
-     *  Renvoie l'id serveur si trouvé (0 si trouvé mais id illisible), null si absent.
-     *  LÈVE en cas d'erreur réseau ou d'authentification : l'appelant ne doit alors PAS re-POSTer. */
-    suspend fun chercherEnfantParUuid(
+    /** Cherche sur le serveur l'objet [objectType] dont [uuidFieldName] vaut [uuid] : l'anti-doublon
+     *  d'un POST resté sans réponse. Route `GET /monitorings/list/<module>/<type>?<champ uuid>=<uuid>`,
+     *  dont le serveur fait un filtre sur toute colonne du modèle (`get_list`, droits de lecture
+     *  appliqués). La fiche du parent (`?depth=1`), lue jusqu'au 21 octobre 2026, ne sérialise ses
+     *  enfants qu'avec leur `display_list`, sans uuid : l'objet passait toujours pour absent, et un
+     *  renvoi le recréait (audit du 21 octobre, C4 ; hérité de GeoMys-Android).
+     *  Renvoie son id serveur, 0 s'il existe mais que son id ne se lit pas, null s'il est absent.
+     *  LÈVE en cas d'erreur réseau, d'authentification ou de réponse illisible : l'appelant ne doit
+     *  alors PAS re-POSTer. */
+    suspend fun chercherParUuid(
         config: GeoNatureConfig,
         moduleCode: String,
-        parentObjectType: String,
-        parentId: Int,
-        childObjectType: String,
+        objectType: String,
         uuidFieldName: String,
         uuid: String,
     ): Int? = withContext(Dispatchers.IO) {
         val base = config.urlServeur.trim().trimEnd('/')
         val (token, _, cookies) = auth.loginAvecCookies(base, config.login, config.motDePasse)
             ?: throw GNErreur.AuthEchouee(401)
-        val reponse = clients.get("$base/api/monitorings/object/$moduleCode/$parentObjectType/$parentId?depth=1", token, cookies, timeoutMs = 15_000)
+        // `uuid_base_visit` → `id_base_visit`, `uuid_observation` → `id_observation` : la convention
+        // des types de gn_module_monitoring (`id_field_name`, `uuid_field_name`).
+        val champId = uuidFieldName.replaceFirst("uuid_", "id_")
+        val url = "$base/api/monitorings/list/$moduleCode/$objectType" +
+            "?$uuidFieldName=${uuid.encodeURLParameter()}&fields=$champId&fields=$uuidFieldName"
+        val reponse = clients.get(url, token, cookies, timeoutMs = 15_000)
         val code = reponse.status.value
         if (code != 200) {
-            throw GNErreur.EnvoiEchoue(code, "vérification anti-doublon ($parentObjectType #$parentId)")
+            throw GNErreur.EnvoiEchoue(code, "vérification anti-doublon ($objectType)")
         }
-        val obj = JSONObject(reponse.bodyAsText())
-        val arr = obj.optJSONObject("children")?.optJSONArray(childObjectType)
-            ?: return@withContext null
-        for (i in 0 until arr.length()) {
-            val item = arr.optJSONObject(i) ?: continue
-            val props = MonitoringObjets.aplatirProprietes(item.optJSONObject("properties"))
-            val uuidServeur = props[uuidFieldName].orEmpty()
-            if (uuidServeur.equals(uuid, ignoreCase = true)) {
-                // Même heuristique d'id que chargerObjet, avec repli sur les id_* des propriétés.
-                val id = item.optInt("id", item.optInt("${childObjectType}_id", -1))
-                    .takeIf { it > 0 }
-                    ?: props.entries.firstOrNull { (k, v) ->
-                        k.startsWith("id_") && (v.toIntOrNull() ?: 0) > 0
-                    }?.value?.toIntOrNull()
-                return@withContext id ?: 0
-            }
+        val objets = try {
+            JSONArray(reponse.bodyAsText())
+        } catch (e: Exception) {
+            throw GNErreur.EnvoiEchoue(code, "vérification anti-doublon ($objectType) : réponse illisible")
+        }
+        for (i in 0 until objets.length()) {
+            val objet = objets.optJSONObject(i) ?: continue
+            if (!objet.optString(uuidFieldName).equals(uuid, ignoreCase = true)) continue
+            return@withContext objet.optInt(champId, -1).takeIf { it > 0 } ?: 0
         }
         null
     }
@@ -157,25 +158,9 @@ class MonitoringEnvoi(
         val base = config.urlServeur.trim().trimEnd('/')
         val (token, idRoleAuth, cookies) = auth.loginAvecCookies(base, config.login, config.motDePasse)
             ?: throw GNErreur.AuthEchouee(401)
-
-        val properties = JSONObject()
-        // Lien au parent : injecté dans properties (le sélecteur de parent est masqué à l'écran, car
-        // déjà choisi par la navigation qui amène ici).
-        if (!parentIdField.isNullOrEmpty() && parentId != null && parentId > 0) {
-            properties.put(parentIdField, parentId)
-        }
-        for ((code, brut) in valeurs) {
-            // Un texte garde sa valeur String telle quelle : « 42 » dans un commentaire ne doit pas
-            // partir en nombre (audit B6), ni une option « 1 ».
-            val valeur = if (code in champsDate && brut is String) dateDuWeb(brut) else brut
-            properties.put(code, normaliserPourJson(valeur, preserverString = code in champsTexteLibre))
-        }
-        // uuid pré-généré côté client (cas où un média sera rattaché après création). Injecté
-        // seulement si l'appelant a fourni le nom du champ — sinon on ne sait pas où le mettre dans
-        // le corps et le serveur générera son propre uuid.
-        if (!uuidClient.isNullOrEmpty() && !uuidFieldName.isNullOrEmpty() && !properties.has(uuidFieldName)) {
-            properties.put(uuidFieldName, uuidClient)
-        }
+        val properties = proprietes(
+            parentIdField, parentId, valeurs, champsTexteLibre, champsDate, champsVidesGardes, uuidClient, uuidFieldName,
+        )
         // `id_digitiser` : le serveur attend l'id_role de l'utilisateur qui enregistre. Contrainte
         // NOT NULL côté base Suivis → un 500 silencieux sans ce champ. Dérivé EN DIRECT du login
         // courant (comme Occtax/OccHab) plutôt que de la copie persistée `config.idRoleUtilisateur` :
@@ -184,19 +169,6 @@ class MonitoringEnvoi(
         val idRole = idRoleAuth ?: config.idRoleUtilisateur.takeIf { it > 0 }
         if (idRole != null && !properties.has("id_digitiser")) {
             properties.put("id_digitiser", idRole)
-        }
-        // `id_dataset` : celui du formulaire, jamais un jeu inventé ici. Le formulaire web n'en pose
-        // pas d'autre, et un objet dont le schéma n'a pas ce champ (une observation) le recevait
-        // dans ses données spécifiques. `visit_date_max` aussi vient du formulaire (la date du jour
-        // quand elle est masquée, comme sur le web) : elle n'est plus copiée de `visit_date_min`.
-        // Les "" : un texte ou une heure vidés par l'utilisateur partent tels quels, comme sur le web
-        // ([champsVidesGardes]) ; les autres (une date, ou une saisie enregistrée avant le
-        // 20 octobre 2026) sont retirés et partent à null, une date vide cassant la lecture du serveur.
-        val cles = mutableListOf<String>()
-        properties.keys().forEach { k -> cles.add(k) }
-        cles.forEach { k ->
-            val v = properties.opt(k)
-            if (v is String && v.isEmpty() && (k !in champsVidesGardes || k in champsDate)) properties.remove(k)
         }
         // Complément : le serveur Marshmallow vérifie que TOUTES les propriétés du schéma sont
         // présentes dans le corps, y compris les champs techniques cachés à l'écran (id_base_visit,
@@ -229,6 +201,106 @@ class MonitoringEnvoi(
             ?: obj.optJSONObject("properties")?.optInt("id", -1)?.takeIf { it > 0 }
             ?: obj.optJSONObject("properties")?.optInt("id_$objectType", -1)?.takeIf { it > 0 }
             ?: 0
+    }
+
+    /** Modifie l'objet [id] déjà créé (visite, observation) avec ses [valeurs] actuelles :
+     *  `PATCH /monitorings/object/<module>/<type>/<id>`, comme le web à l'édition (`patch`, dont le
+     *  corps porte tous les champs du formulaire). Sans compléments null ni `[]` : le serveur garde une
+     *  propriété générique absente du corps, et `medias: []` détacherait les médias ; sans
+     *  `id_digitiser`, qui reste celui de la création. Sert à transmettre une saisie corrigée après un
+     *  envoi partiel (audit du 21 octobre, C3 ; décision de l'utilisateur : « envoyer de vraies mises
+     *  à jour »). */
+    suspend fun modifierObjet(
+        config: GeoNatureConfig,
+        moduleCode: String,
+        objectType: String,
+        id: Int,
+        parentIdField: String?,
+        parentId: Int?,
+        valeurs: Map<String, Any?>,
+        champsTexteLibre: Collection<String> = emptyList(),
+        champsDate: Collection<String> = emptyList(),
+        champsVidesGardes: Collection<String> = emptyList(),
+        uuidClient: String? = null,
+        uuidFieldName: String? = null,
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val base = config.urlServeur.trim().trimEnd('/')
+            val (token, _, cookies) = auth.loginAvecCookies(base, config.login, config.motDePasse)
+                ?: throw GNErreur.AuthEchouee(401)
+            val properties = proprietes(
+                parentIdField, parentId, valeurs, champsTexteLibre, champsDate, champsVidesGardes, uuidClient, uuidFieldName,
+            )
+            properties.remove("medias")
+            // Une valeur vidée part à null : absente du corps, le serveur garderait l'ancienne.
+            valeurs.filterValues { it == "" }.keys.forEach { k -> if (!properties.has(k)) properties.put(k, JSONObject.NULL) }
+            val url = "$base/api/monitorings/object/$moduleCode/$objectType/$id"
+            val reponse = clients.patchJson(url, JSONObject().put("properties", properties).toString(), token, cookies, timeoutMs = 20_000)
+            val code = reponse.status.value
+            if (code !in 200..299) {
+                val erreur = try { reponse.bodyAsText() } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
+                Journal.w(TAG, "PATCH $url → HTTP $code\n  réponse=$erreur")
+                throw GNErreur.EnvoiEchoue(code, erreur?.take(500) ?: "pas de message")
+            }
+            Result.success(Unit)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Result.failure(e)
+        }
+    }
+
+    /** Les `properties` d'un objet, à la création comme à la modification : le parent, les [valeurs]
+     *  au format du web, l'uuid client ; les "" retirés sauf les textes vidés ; la date de fin d'une
+     *  visite reprise de son début. */
+    private fun proprietes(
+        parentIdField: String?,
+        parentId: Int?,
+        valeurs: Map<String, Any?>,
+        champsTexteLibre: Collection<String>,
+        champsDate: Collection<String>,
+        champsVidesGardes: Collection<String>,
+        uuidClient: String?,
+        uuidFieldName: String?,
+    ): JSONObject {
+        val properties = JSONObject()
+        // Lien au parent : injecté dans properties (le sélecteur de parent est masqué à l'écran, car
+        // déjà choisi par la navigation qui amène ici).
+        if (!parentIdField.isNullOrEmpty() && parentId != null && parentId > 0) {
+            properties.put(parentIdField, parentId)
+        }
+        for ((code, brut) in valeurs) {
+            // Un texte garde sa valeur String telle quelle : « 42 » dans un commentaire ne doit pas
+            // partir en nombre (audit B6), ni une option « 1 ».
+            val valeur = if (code in champsDate && brut is String) dateDuWeb(brut) else brut
+            properties.put(code, normaliserPourJson(valeur, preserverString = code in champsTexteLibre))
+        }
+        // uuid pré-généré côté client (cas où un média sera rattaché après création). Injecté
+        // seulement si l'appelant a fourni le nom du champ — sinon on ne sait pas où le mettre dans
+        // le corps et le serveur générera son propre uuid.
+        if (!uuidClient.isNullOrEmpty() && !uuidFieldName.isNullOrEmpty() && !properties.has(uuidFieldName)) {
+            properties.put(uuidFieldName, uuidClient)
+        }
+        // `id_dataset` : celui du formulaire, jamais un jeu inventé ici. Le formulaire web n'en pose
+        // pas d'autre, et un objet dont le schéma n'a pas ce champ (une observation) le recevait
+        // dans ses données spécifiques.
+        // Les "" : un texte ou une heure vidés par l'utilisateur partent tels quels, comme sur le web
+        // ([champsVidesGardes]) ; les autres (une date, ou une saisie enregistrée avant le
+        // 20 octobre 2026) sont retirés et partent à null, une date vide cassant la lecture du serveur.
+        val cles = mutableListOf<String>()
+        properties.keys().forEach { k -> cles.add(k) }
+        cles.forEach { k ->
+            val v = properties.opt(k)
+            if (v is String && v.isEmpty() && (k !in champsVidesGardes || k in champsDate)) properties.remove(k)
+        }
+        // `visit_date_max` (en général NOT NULL en base) que le formulaire n'a pas remplie — masquée,
+        // ou vidée — reprend `visit_date_min`, comme dans la 0.1.0 et GeoMys-Android. Le web la mettait
+        // au jour de la saisie ; décision de l'utilisateur du 21 octobre : la date de début.
+        val dateFin = NouvelleVisite.DATE_FIN_VISITE
+        if (properties.has("visit_date_min") && !properties.has(dateFin)) {
+            properties.put(dateFin, properties.opt("visit_date_min"))
+        }
+        return properties
     }
 
     private companion object {

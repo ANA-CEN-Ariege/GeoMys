@@ -47,7 +47,8 @@ enum class ChangementConnexion {
  *  Tout changement invalide les caches de SESSION : le jeton du mot de passe précédent n'a plus
  *  cours. L'IDENTITÉ, c'est l'instance (URL) ou le compte (identifiant), pas le mot de passe : une
  *  rotation ou une faute de frappe corrigée ne change ni de serveur ni de compte, donc les
- *  sélections et les caches propres à l'instance restent valides. Changer d'identité purge en plus
+ *  sélections, les caches propres à l'instance (nomenclatures, stations du serveur) et sa version
+ *  restent valides. Changer d'identité purge en plus
  *  les pictogrammes et le cache disque des suivis, dont les ids appartiennent à l'ancienne
  *  instance, et réinitialise les trois sélections OCCTAX : un id de liste ou d'observateur peut
  *  exister sur les deux serveurs et y désigner autre chose. */
@@ -58,17 +59,21 @@ fun ServicesGeoNature.enregistrerConnexion(url: String, login: String, motDePass
     config.motDePasse = motDePasse
     val nouveau = Triple(config.urlServeur, config.login, config.motDePasse)
     if (ancien == nouveau) return ChangementConnexion.AUCUN
-    invalidationCaches.invaliderCachesSession()
     val identiteChangee = ancien.first != nouveau.first || ancien.second != nouveau.second
-    if (identiteChangee) {
-        pictos.vider()
-        monitoringCache.vider()
+    if (!identiteChangee) {
+        // Même serveur, même compte : seule la session tombe. Les nomenclatures, les stations du
+        // serveur et la version restent ; les vider laissait les formulaires sans listes hors réseau,
+        // sans qu'aucun rechargement ne soit demandé (audit du 21 octobre, M29).
+        invalidationCaches.invaliderSession()
+        return ChangementConnexion.MOT_DE_PASSE
     }
+    invalidationCaches.invaliderCachesSession()
+    pictos.vider()
+    monitoringCache.vider()
     // La version affichée appartient à l'ancienne instance ; le nouveau serveur sera jugé à son
     // premier test de connexion.
     config.versionGeoNatureServeur = ""
     config.serveurCompatible = true
-    if (!identiteChangee) return ChangementConnexion.MOT_DE_PASSE
     config.reinitialiserSelectionsOcctax()
     return ChangementConnexion.IDENTITE
 }

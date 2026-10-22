@@ -106,6 +106,13 @@ class MesSaisiesViewModel(private val services: ServicesGeoNature) : ViewModel()
         rafraichir()
     }
 
+    /** « Continuer la saisie » : refusé pendant un envoi. Une saisie marquée envoyée en cours de route
+     *  n'enregistrait plus les ajouts, qui ne partaient jamais (audit du 21 octobre, M35). */
+    fun peutContinuer(): Boolean {
+        if (envoiEnCours) _messages.trySend(MessageBref("Un envoi est en cours — réessayez ensuite."))
+        return !envoiEnCours
+    }
+
     // ─── Suppression ───
 
     fun demanderSuppression(sortie: Sortie) {

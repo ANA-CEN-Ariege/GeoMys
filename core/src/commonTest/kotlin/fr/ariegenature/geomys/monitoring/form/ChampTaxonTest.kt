@@ -75,12 +75,18 @@ class ChampTaxonTest {
     }
 
     @Test
-    fun sans_liste_les_cles_du_cache_sans_taxon() {
+    fun sans_liste_tout_le_cache_porteur_des_taxons() {
+        // 21 octobre : les clés du cache seules (« peziza sublaricina », en minuscules, sans taxon)
+        // devenaient des propositions sans graphie ni identifiant.
         val p = PropositionsTaxon.construire(taxRef, null)
         assertFalse(p.listeVide)
-        assertEquals(setOf("souci", "colias crocea", "genette"), p.propositions.map { it.nom }.toSet())
-        assertTrue(p.propositions.all { it.cdNom == null && it.secondaire == null })
-        assertEquals("liste=null (toutes), 3 suggestions", p.diagnostic)
+        assertEquals(setOf("Souci", "Calendula", "Colias crocea", "Genette", "Genetta genetta"), p.propositions.map { it.nom }.toSet())
+        assertTrue(p.propositions.all { it.cdNom != null })
+        assertEquals(setOf(190178, 641941), p.propositions.filter { it.nom == "Souci" }.map { it.cdNom }.toSet(), "un nom porté par deux taxons : une ligne chacun")
+        // Dessous, en italique : le nom scientifique sous un nom français, le nom français sous un nom scientifique.
+        assertEquals("Genetta genetta", p.propositions.single { it.nom == "Genette" }.secondaireAffiche)
+        assertEquals("Genette", p.propositions.single { it.nom == "Genetta genetta" }.secondaireAffiche)
+        assertEquals("liste=null (toutes), 6 suggestions", p.diagnostic)
     }
 
     @Test

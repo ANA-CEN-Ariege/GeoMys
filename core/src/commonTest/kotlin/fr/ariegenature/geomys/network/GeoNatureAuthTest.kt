@@ -163,12 +163,26 @@ class GeoNatureAuthTest {
     }
 
     @Test
-    fun connexion_sans_version_detectee_est_refusee() = runTest {
+    fun connexion_sans_version_detectee_reussit() = runTest {
+        // Seule une version lue trop ancienne refuse le serveur (21 octobre, après l'audit).
         serveur.repondreJson(200, """{"access_token":"t"}""")
         serveur.repondre(404)
         val c = config()
-        assertEquals(Pair(false, VERSION_INTROUVABLE), auth.testerConnexion(c))
-        assertFalse(c.serveurCompatible)
+        assertEquals(Pair(true, CONNEXION_SANS_VERSION), auth.testerConnexion(c))
+        assertTrue(c.serveurCompatible)
+    }
+
+    @Test
+    fun une_page_html_ou_un_502_a_la_place_de_la_version_ne_gele_pas_l_appli() = runTest {
+        // Portail captif ou proxy en panne après un login réussi : la version ne se lit pas.
+        serveur.repondreJson(200, """{"access_token":"t"}""")
+        serveur.repondre(200, "<html>portail</html>", "Content-Type" to "text/html")
+        val c = config()
+        assertEquals(Pair(true, CONNEXION_SANS_VERSION), auth.testerConnexion(c))
+        serveur.repondreJson(200, """{"access_token":"t"}""")
+        serveur.repondre(502)
+        assertEquals(Pair(true, CONNEXION_SANS_VERSION), auth.testerConnexion(c))
+        assertTrue(c.connexionConfiguree)
     }
 
     @Test

@@ -17,6 +17,13 @@
     <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
+            <!-- Les racines de Let's Encrypt (ISRG Root X1 et X2), absentes du magasin d'Android avant
+                 la 7.1.1 : depuis la fin de la contre-signature par DST Root CA X3 (30 septembre 2024),
+                 Android 7.0 ne joignait plus aucun serveur sous Let's Encrypt (audit du 21 octobre 2026,
+                 M42). Copiées du magasin de macOS ; empreintes SHA-256 vérifiées :
+                 X1 96:BC:EC:06:…:08:C6, X2 69:72:9B:8E:…:14:70. Elles expirent en 2035 et 2040. -->
+            <certificates src="@raw/isrg_root_x1" />
+            <certificates src="@raw/isrg_root_x2" />
         </trust-anchors>
     </base-config>
 </network-security-config>

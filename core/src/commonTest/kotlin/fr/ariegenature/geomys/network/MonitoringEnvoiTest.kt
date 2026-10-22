@@ -98,7 +98,7 @@ class MonitoringEnvoiTest {
     }
 
     @Test
-    fun formats_du_web_dates_sans_zeros_textes_gardes_et_pas_de_date_max_copiee() = runTest {
+    fun formats_du_web_dates_sans_zeros_textes_gardes_et_date_de_fin_reprise_du_debut() = runTest {
         val corps = mutableListOf<String>()
         serveur.routerRequetes { requete ->
             val chemin = requete.url.encodedPathAndQuery
@@ -127,7 +127,8 @@ class MonitoringEnvoiTest {
         assertEquals("1", props.get("nb_adulte"), "une option « 1 » reste un texte")
         assertEquals("1", props.getJSONArray("methodes").get(0), "dans une liste aussi")
         assertEquals(121, props.getJSONArray("observers").get(0))
-        assertTrue(props.isNull("visit_date_max"), "plus copiée de visit_date_min : le formulaire la fournit")
+        // Décision du 21 octobre : la date de fin non remplie reprend la date de début, comme la 0.1.0.
+        assertEquals("2026-3-5", props.getString("visit_date_max"))
     }
 
     @Test

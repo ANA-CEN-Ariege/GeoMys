@@ -69,6 +69,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.number
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.io.IOException
+import okio.ByteString.Companion.encodeUtf8
 import okio.FileSystem
 import okio.Path
 import okio.Path.Companion.toPath
@@ -106,6 +107,10 @@ data class EnvoiResult(
      *  après émission), avec l'id du relevé visé : peut-être créées côté serveur. Déjà persistées
      *  via [MarqueurEnvoiOcctax] ; remontées pour le récapitulatif. */
     val obsIncertaines: List<Pair<String, Int>> = emptyList(),
+    /** Occurrences et relevés modifiés après leur transmission, mis à jour pendant cet envoi (C3). */
+    val nbMisesAJour: Int = 0,
+    /** Ceux dont la mise à jour a échoué : la saisie reste à envoyer. */
+    val nbMisesAJourEnEchec: Int = 0,
 )
 
 /**
@@ -115,7 +120,14 @@ data class EnvoiResult(
  * serveur restaient non marquées et repartaient au ré-envoi (doublons, audit 2026-08-27).
  */
 interface MarqueurEnvoiOcctax {
-    suspend fun occurrenceCreee(obsId: String)
+    /** L'occurrence [obsId] est créée côté serveur ; [empreinte] et [empreinteReleve] : ce qui est
+     *  parti (cf. [GeoNatureUpload.empreinteOccurrence]). */
+    suspend fun occurrenceCreee(obsId: String, empreinte: String? = null, empreinteReleve: String? = null)
+
+    /** Des modifications sont transmises en mise à jour : par observation, les nouvelles empreintes
+     *  de son occurrence et de son relevé (une composante nulle ne change pas). */
+    suspend fun empreintesTransmises(empreintes: Map<String, Pair<String?, String?>>) {}
+
     suspend fun occurrenceIncertaine(obsId: String, idReleve: Int)
 
     /** PRÉ-MARQUAGE d'un groupe, AVANT son premier POST d'occurrence : tant qu'aucune réponse n'est
@@ -185,7 +197,11 @@ class GeoNatureUpload(
         // précédent (envoyeeServeur, persisté par l'appelant) ne repartent PAS — anti-doublon.
         val nbDejaEnvoyees = obsValides.count { it.envoyeeServeur }
         val aEnvoyer = obsValides.filterNot { it.envoyeeServeur }
-        if (aEnvoyer.isEmpty()) {
+        // Transmises, puis modifiées (« Continuer la saisie » après un envoi partiel) : leur
+        // modification part en mise à jour (audit du 21 octobre, C3 ; décision de l'utilisateur).
+        val occurrencesModifiees = obsValides.filter { it.envoyeeServeur && it.cdNom != null && it.empreinteEnvoi != null && it.empreinteEnvoi != empreinteOccurrence(it) }
+        val relevesModifies = obsValides.filter { it.envoyeeServeur && it.empreinteReleveEnvoi != null && it.empreinteReleveEnvoi != empreinteReleve(it) }
+        if (aEnvoyer.isEmpty() && occurrencesModifiees.isEmpty() && relevesModifies.isEmpty()) {
             // Tout avait déjà été créé (l'échec précédent portait sur le marquage final ou sur des
             // fichiers média disparus) : rien à poster, l'appelant peut clôturer.
             return@withContext EnvoiResult(nbCrees = 0, nbTotal = 0, premierIdReleve = null, nbDejaEnvoyees = nbDejaEnvoyees)
@@ -272,7 +288,7 @@ class GeoNatureUpload(
                     true -> {
                         nbCrees++
                         obsCreesIds.add(obs.id)
-                        marqueur?.occurrenceCreee(obs.id)
+                        marqueur?.occurrenceCreee(obs.id, empreinteOccurrence(obs), empreinteReleve(obs))
                     }
                     false -> groupe.add(obs)
                     null -> {
@@ -283,122 +299,37 @@ class GeoNatureUpload(
                 }
             }
             if (groupe.isEmpty()) continue
-            // Coordonnées du relevé : la première obs du groupe (toutes identiques pour un lot
-            // multi-taxons).
-            val lat = groupe.first().latitude
-            val lon = groupe.first().longitude
-            // Plage temporelle : par défaut, couvre toutes les obs du groupe (dates de saisie). Si
-            // « Détails du relevé » porte une date explicite (dateDebutReleve), elle PRIME (saisie a
-            // posteriori) ; dateFinReleve borne la fin, sinon = début.
-            val debutOverride = groupe.first().dateDebutReleve
-            val dateMin = debutOverride ?: groupe.minOf { it.date }
-            val dateMax = groupe.first().dateFinReleve ?: debutOverride ?: groupe.maxOf { it.date }
-
-            // additional_fields du relevé : portés par la 1re obs du groupe (toutes les obs d'un
-            // même releveId portent la même copie).
-            // Les champs additionnels du formulaire du relevé, typés comme le web : ceux de son jeu de
-            // données (fixé juste dessous).
-            val champsJeu = { objet: String, idJeu: Int? -> ChampsAdditionnels.defsPour(config.additionalFieldsOcctaxJson, objet, idJeu) }
-            // Surcharges du relevé (« Détails du relevé »), sinon valeurs par défaut : jeu de données
-            // du relevé sinon celui de la config ; observateurs du relevé, sinon l'unique ancien
-            // observateurReleveId, sinon l'utilisateur connecté.
-            val datasetGroupe = groupe.first().idDatasetReleve?.takeIf { it > 0 } ?: datasetParDefaut
             // Le jeu de données est obligatoire, comme sur le web : sans lui, le relevé attend qu'on
-            // le choisisse dans « Détails du relevé ».
+            // le choisisse dans « Détails du relevé ». Un jeu absent du serveur courant partirait en
+            // FK invalide → 500 opaque : le groupe est sauté avec un message clair.
+            val datasetGroupe = groupe.first().idDatasetReleve?.takeIf { it > 0 } ?: datasetParDefaut
             if (datasetGroupe == null) {
                 dernierCodeErreur = 0
                 derniereErreur = "Jeu de données manquant : choisissez-le dans « Détails du relevé »."
                 continue
             }
-            // Garde sur la surcharge de relevé : un jeu de données absent du serveur courant part en
-            // FK invalide → 500 opaque. On saute le groupe avec un message clair.
             if (!config.datasetAcceptablePourEnvoi(datasetGroupe)) {
                 dernierCodeErreur = 0
                 derniereErreur = "Jeu de données $datasetGroupe (choisi dans « Détails du relevé ») introuvable sur ce serveur."
                 continue
             }
-            // Sans observateur réglé, celui que « Détails » propose : l'observateur par défaut des
-            // Paramètres, au départ l'utilisateur connecté, comme le web.
-            val observateursGroupe = groupe.first().let { o ->
-                o.observateursReleveIds.filter { it > 0 }
-                    .ifEmpty { listOfNotNull(o.observateurReleveId?.takeIf { it > 0 }) }
-                    .ifEmpty { listOfNotNull(config.observateurDefautId.trim().toIntOrNull()?.takeIf { it > 0 } ?: idRole) }
-            }
+            val champsJeu = { objet: String, idJeu: Int? -> ChampsAdditionnels.defsPour(config.additionalFieldsOcctaxJson, objet, idJeu) }
             val uuidGrp = uuidReleveGroupe(cleGroupe)
-            val properties = JSONObject().apply {
-                // Identité client STABLE du relevé (colonne unique_id_sinp_grp) : permet de
-                // retrouver un relevé créé dont la réponse s'est perdue, au lieu d'en créer un
-                // second (audit 2026-09-14, R1-M1).
-                put("unique_id_sinp_grp", uuidGrp)
-                put("id_dataset", datasetGroupe)
-                put("date_min", DateEnvoi.date(dateMin))
-                put("date_max", DateEnvoi.date(dateMax))
-                // Les heures saisies dans « Détails », comme sur le web : facultatives, nulles sinon.
-                groupe.first().heureDebutReleve?.let { put("hour_min", it) }
-                groupe.first().heureFinReleve?.let { put("hour_max", it) }
-                put(
-                    "additional_fields",
-                    ChampsAdditionnels.versJson(groupe.first().additionalFieldsReleve, champsJeu(AdditionalFieldsObject.RELEVE, datasetGroupe)),
-                )
-                put("meta_device_entry", "mobile")
-                put("t_occurrences_occtax", JSONArray())
-                if (idRole != null) put("id_digitiser", idRole)
-                // Observateurs en texte libre (`OCCTAX.observers_txt`) : leur texte seul, comme le web,
-                // le nom complet de l'observateur par défaut à défaut ; sinon la liste.
-                if (config.occtaxObservateursEnTexte) {
-                    put("observers_txt", groupe.first().observateursReleveTxt?.takeIf { it.isNotBlank() } ?: config.nomObservateurParDefaut)
-                } else if (observateursGroupe.isNotEmpty()) {
-                    put("observers", JSONArray().apply { observateursGroupe.forEach { put(it) } })
-                }
-                groupe.first().commentReleve?.takeIf { it.isNotBlank() }?.let { put("comment", it) }
-                groupe.first().cdHabReleve?.takeIf { it > 0 }?.let { put("cd_hab", it) }
-                groupe.first().typGrpReleve?.takeIf { it.isNotEmpty() }?.let { code ->
-                    resolverIdNomenclature(code, "TYP_GRP", emptyMap(), tables)?.let { put("id_nomenclature_grp_typ", it) }
-                }
-                // Champs relevé supplémentaires pilotés par form_fields : entiers (altitude,
-                // profondeur, précision), textes (lieu, technique de regroupement) et nomenclatures
-                // (nature de l'objet géo, technique de collecte). Omis si vides ou illisibles.
-                val extraReleve = groupe.first().champsReleveExtra
-                extraReleve["altitude_min"]?.trim()?.toIntOrNull()?.let { put("altitude_min", it) }
-                extraReleve["altitude_max"]?.trim()?.toIntOrNull()?.let { put("altitude_max", it) }
-                extraReleve["depth_min"]?.trim()?.toIntOrNull()?.let { put("depth_min", it) }
-                extraReleve["depth_max"]?.trim()?.toIntOrNull()?.let { put("depth_max", it) }
-                extraReleve["precision"]?.trim()?.toIntOrNull()?.let { put("precision", it) }
-                extraReleve["place_name"]?.trim()?.takeIf { it.isNotEmpty() }?.let { put("place_name", it) }
-                extraReleve["grp_method"]?.trim()?.takeIf { it.isNotEmpty() }?.let { put("grp_method", it) }
-                extraReleve["geo_object_nature"]?.takeIf { it.isNotEmpty() }?.let { code ->
-                    resolverIdNomenclature(code, "NAT_OBJ_GEO", emptyMap(), tables)
-                        ?.let { put("id_nomenclature_geo_object_nature", it) }
-                }
-                extraReleve["tech_collect"]?.takeIf { it.isNotEmpty() }?.let { code ->
-                    resolverIdNomenclature(code, "TECHNIQUE_OBS", emptyMap(), tables)
-                        ?.let { put("id_nomenclature_tech_collect_campanule", it) }
-                }
-            }
-
-            val premiereObs = groupe.first()
-            val geometry = construireGeometrie(
-                type = premiereObs.geometryType,
-                coordsJson = premiereObs.geometryCoordsJson,
-                lat = lat,
-                lon = lon,
-            )
-            // Les altitudes du MNT du serveur (`POST /geo/altitude`), que le web pose dès le
-            // pointage : ici à l'envoi (rien n'est téléchargé pendant la saisie, décision du
-            // 20 octobre), quand aucune n'est saisie. Best-effort : sans réponse, elles restent vides.
-            if (!properties.has("altitude_min") && !properties.has("altitude_max")) {
-                altitudesMntDe(clients, base, token, cookies, geometry)?.let { (min, max) ->
-                    min?.let { properties.put("altitude_min", it) }
-                    max?.let { properties.put("altitude_max", it) }
-                }
-            }
+            val releveEnvoye = releveAEnvoyer(groupe, cleGroupe, datasetGroupe, config, tables, idRole, base, token, cookies)
+            val properties = releveEnvoye.properties
+            val geometry = releveEnvoye.geometry
+            val dateMin = releveEnvoye.dateMin
+            val empreinteReleveGroupe = empreinteReleve(groupe.first())
 
             // ANTI-DOUBLON DU RELEVÉ : si sa création a DÉJÀ été tentée (POST émis lors d'un envoi
             // précédent, puis processus tué ou réseau coupé), le relevé existe peut-être côté
             // serveur. On interroge son uuid AVANT d'en créer un second. Décisif pour un RELEVÉ SANS
             // ESPÈCE, où le relevé EST la donnée (R1-M1).
             var idReleveReutilise: Int? = null
-            if (groupe.any { it.releveTente }) {
+            // Des espèces de ce relevé déjà transmises (envoi partiel) : il existe, les nouvelles le
+            // rejoignent au lieu d'en ouvrir un second (audit du 21 octobre, M33).
+            val releveDejaCree = obsValides.any { (it.releveId ?: it.id) == cleGroupe && (it.envoyeeServeur || it.releveTente) }
+            if (groupe.any { it.releveTente } || releveDejaCree) {
                 when (val existant = relevePresent(base, token, cookies, uuidGrp)) {
                     is ReleveExistant.Trouve -> {
                         idReleveReutilise = existant.idReleve
@@ -478,7 +409,7 @@ class GeoNatureUpload(
                 nbCrees++
                 groupe.forEach {
                     obsCreesIds.add(it.id)
-                    marqueur?.occurrenceCreee(it.id)
+                    marqueur?.occurrenceCreee(it.id, empreinteReleve = empreinteReleveGroupe)
                 }
                 continue
             }
@@ -601,8 +532,9 @@ class GeoNatureUpload(
                     nbReussisGroupe++
                     obsCreesIds.add(obs.id)
                     // Acquis persisté IMMÉDIATEMENT (avant la suite du lot) : survit à une annulation
-                    // ou à la mort du processus pendant les occurrences suivantes.
-                    marqueur?.occurrenceCreee(obs.id)
+                    // ou à la mort du processus pendant les occurrences suivantes. Avec ce qui est
+                    // parti : une modification ultérieure partira en mise à jour (C3).
+                    marqueur?.occurrenceCreee(obs.id, empreinteOccurrence(obs), empreinteReleveGroupe)
                 } else if (code2 > 0) {
                     // SEUL un 4xx vaut rejet franc : rien n'a été créé, on lève l'incertitude posée par
                     // le pré-marquage. Un 5xx ne dit PAS que rien n'a été créé (un proxy peut rendre
@@ -635,7 +567,97 @@ class GeoNatureUpload(
             }
         }
 
-        if (nbCrees == 0) {
+        // ── Mises à jour de ce qui a changé depuis sa transmission (audit du 21 octobre, C3) ──
+        var nbMisesAJour = 0
+        var nbMisesAJourEnEchec = 0
+        val clesModifiees = (occurrencesModifiees + relevesModifies).map { it.releveId ?: it.id }.distinct()
+        for (cle in clesModifiees) {
+            val obsDuReleve = obsValides.filter { (it.releveId ?: it.id) == cle }
+            val occurrencesDuReleve = occurrencesModifiees.filter { (it.releveId ?: it.id) == cle }
+            val releveModifie = relevesModifies.any { (it.releveId ?: it.id) == cle }
+            val aFaire = occurrencesDuReleve.size + (if (releveModifie) 1 else 0)
+            fun echec(message: String) {
+                dernierCodeErreur = 0
+                derniereErreur = message
+                nbMisesAJourEnEchec += aFaire
+            }
+            val idReleve = when (val existant = relevePresent(base, token, cookies, uuidReleveGroupe(cle))) {
+                is ReleveExistant.Trouve -> existant.idReleve
+                ReleveExistant.Absent -> { echec("Relevé supprimé sur GeoNature : sa modification n'est pas transmise."); continue }
+                ReleveExistant.Indeterminable -> { echec("Relevé introuvable sur GeoNature pour le moment : sa modification sera retentée."); continue }
+            }
+            val datasetGroupe = obsDuReleve.first().idDatasetReleve?.takeIf { it > 0 } ?: datasetParDefaut
+            if (datasetGroupe == null || !config.datasetAcceptablePourEnvoi(datasetGroupe)) {
+                echec("Jeu de données du relevé introuvable : sa modification n'est pas transmise.")
+                continue
+            }
+            val transmises = mutableMapOf<String, Pair<String?, String?>>()
+            if (releveModifie) {
+                val releve = releveAEnvoyer(obsDuReleve, cle, datasetGroupe, config, tables, idRole, base, token, cookies, pourMiseAJour = true)
+                val corps = JSONObject().put("geometry", releve.geometry).put("properties", releve.properties).toString()
+                val code = try {
+                    clients.postJson("$base/api/occtax/OCCTAX/only/releve/$idReleve", corps, token, cookies, timeoutMs = 30_000).let { r ->
+                        r.status.value.also { if (it !in 200..299) derniereErreur = parseErreur(it, lireCorps(r)) }
+                    }
+                } catch (e: IOException) {
+                    derniereErreur = "Réseau interrompu pendant la mise à jour du relevé (${e.message ?: e::class.simpleName})"
+                    -1
+                }
+                if (code in 200..299) {
+                    nbMisesAJour++
+                    val empreinte = empreinteReleve(obsDuReleve.first())
+                    obsDuReleve.forEach { transmises[it.id] = null to empreinte }
+                } else {
+                    nbMisesAJourEnEchec++
+                    dernierCodeErreur = code.coerceAtLeast(0)
+                }
+            }
+            if (occurrencesDuReleve.isNotEmpty()) {
+                val detail = lireReleve(base, token, cookies, idReleve)
+                if (detail == null) {
+                    dernierCodeErreur = 0
+                    derniereErreur = "Relevé illisible sur GeoNature : la modification des espèces sera retentée."
+                    nbMisesAJourEnEchec += occurrencesDuReleve.size
+                } else {
+                    for (obs in occurrencesDuReleve) {
+                        val surLeServeur = occurrenceParUuid(detail, obs.uuidOccurrence)
+                        val idOccurrence = surLeServeur?.optInt("id_occurrence_occtax", -1)?.takeIf { it > 0 }
+                        if (surLeServeur == null || idOccurrence == null) {
+                            nbMisesAJourEnEchec++
+                            dernierCodeErreur = 0
+                            derniereErreur = "« ${obs.espece} » supprimée sur GeoNature : sa modification n'est pas transmise."
+                            continue
+                        }
+                        val corps = occurrencePourMiseAJour(
+                            obs, surLeServeur, tables,
+                            ChampsAdditionnelsEnvoi(
+                                ChampsAdditionnels.defsPour(config.additionalFieldsOcctaxJson, AdditionalFieldsObject.OCCURRENCE, datasetGroupe),
+                                ChampsAdditionnels.defsPour(config.additionalFieldsOcctaxJson, AdditionalFieldsObject.COUNTING, datasetGroupe),
+                            ),
+                            nomenclatures.defautPour("METH_OBS"),
+                        )
+                        val code = try {
+                            clients.postJson("$base/api/occtax/OCCTAX/occurrence/$idOccurrence", corps.toString(), token, cookies, timeoutMs = 30_000).let { r ->
+                                r.status.value.also { if (it !in 200..299) derniereErreur = parseErreur(it, lireCorps(r)) }
+                            }
+                        } catch (e: IOException) {
+                            derniereErreur = "Réseau interrompu pendant la mise à jour de « ${obs.espece} » (${e.message ?: e::class.simpleName})"
+                            -1
+                        }
+                        if (code in 200..299) {
+                            nbMisesAJour++
+                            transmises[obs.id] = empreinteOccurrence(obs) to transmises[obs.id]?.second
+                        } else {
+                            nbMisesAJourEnEchec++
+                            dernierCodeErreur = code.coerceAtLeast(0)
+                        }
+                    }
+                }
+            }
+            if (transmises.isNotEmpty()) marqueur?.empreintesTransmises(transmises)
+        }
+
+        if (nbCrees == 0 && nbMisesAJour == 0) {
             val msg = buildString {
                 append(derniereErreur ?: "Aucun relevé créé")
                 if (relevesOrphelinsEnvoi.isNotEmpty()) {
@@ -654,7 +676,134 @@ class GeoNatureUpload(
             nbDejaEnvoyees = nbDejaEnvoyees,
             messageDerniereErreur = derniereErreur,
             obsIncertaines = obsIncertaines.toList(),
+            nbMisesAJour = nbMisesAJour,
+            nbMisesAJourEnEchec = nbMisesAJourEnEchec,
         )
+    }
+
+    /** Le relevé d'un groupe, prêt à partir. [dateMin] sert aussi aux titres des médias. */
+    private class ReleveAEnvoyer(val properties: JSONObject, val geometry: JSONObject, val dateMin: Long)
+
+    /** Le relevé du [groupe] (ses observations d'un même `releveId`) : ses `properties`, sa géométrie
+     *  et les altitudes du MNT quand aucune n'est saisie. [pourMiseAJour] (audit du 21 octobre, C3) :
+     *  ni `t_occurrences_occtax` — le serveur remplacerait la liste, et supprimerait les occurrences
+     *  absentes —, ni `id_digitiser`, qui reste celui de la création ; un champ vidé part à null. */
+    private suspend fun releveAEnvoyer(
+        groupe: List<Observation>,
+        cleGroupe: String,
+        datasetGroupe: Int,
+        config: GeoNatureConfig,
+        tables: Map<String, Map<String, Int>>,
+        idRole: Int?,
+        base: String,
+        token: String?,
+        cookies: String,
+        pourMiseAJour: Boolean = false,
+    ): ReleveAEnvoyer {
+        val premiere = groupe.first()
+        // Plage temporelle : par défaut, couvre toutes les obs du groupe (dates de saisie). Si
+        // « Détails du relevé » porte une date explicite (dateDebutReleve), elle PRIME (saisie a
+        // posteriori) ; dateFinReleve borne la fin, sinon = début.
+        val debutOverride = premiere.dateDebutReleve
+        val dateMin = debutOverride ?: groupe.minOf { it.date }
+        val dateMax = premiere.dateFinReleve ?: debutOverride ?: groupe.maxOf { it.date }
+        // Les champs additionnels du formulaire du relevé, typés comme le web : ceux de son jeu de
+        // données. Portés par la 1re obs du groupe (toutes les obs d'un même releveId en ont la copie).
+        val champsReleve = ChampsAdditionnels.defsPour(config.additionalFieldsOcctaxJson, AdditionalFieldsObject.RELEVE, datasetGroupe)
+        // Sans observateur réglé, celui que « Détails » propose : l'observateur par défaut des
+        // Paramètres, au départ l'utilisateur connecté, comme le web.
+        val observateursGroupe = premiere.observateursReleveIds.filter { it > 0 }
+            .ifEmpty { listOfNotNull(premiere.observateurReleveId?.takeIf { it > 0 }) }
+            .ifEmpty { listOfNotNull(config.observateurDefautId.trim().toIntOrNull()?.takeIf { it > 0 } ?: idRole) }
+        // Un champ facultatif vide : omis à la création, null à la mise à jour (sinon le serveur
+        // garderait l'ancienne valeur).
+        fun JSONObject.champ(cle: String, valeur: Any?) {
+            if (valeur != null) put(cle, valeur) else if (pourMiseAJour) put(cle, JSONObject.NULL)
+        }
+        val properties = JSONObject().apply {
+            // Identité client STABLE du relevé (colonne unique_id_sinp_grp) : permet de
+            // retrouver un relevé créé dont la réponse s'est perdue, au lieu d'en créer un
+            // second (audit 2026-09-14, R1-M1).
+            put("unique_id_sinp_grp", uuidReleveGroupe(cleGroupe))
+            put("id_dataset", datasetGroupe)
+            put("date_min", DateEnvoi.date(dateMin))
+            put("date_max", DateEnvoi.date(dateMax))
+            // Les heures saisies dans « Détails », comme sur le web : facultatives, nulles sinon.
+            champ("hour_min", premiere.heureDebutReleve)
+            champ("hour_max", premiere.heureFinReleve)
+            put("additional_fields", ChampsAdditionnels.versJson(premiere.additionalFieldsReleve, champsReleve))
+            put("meta_device_entry", "mobile")
+            if (!pourMiseAJour) {
+                put("t_occurrences_occtax", JSONArray())
+                if (idRole != null) put("id_digitiser", idRole)
+            }
+            // Observateurs en texte libre (`OCCTAX.observers_txt`) : leur texte seul, comme le web,
+            // le nom complet de l'observateur par défaut à défaut ; sinon la liste.
+            if (config.occtaxObservateursEnTexte) {
+                put("observers_txt", premiere.observateursReleveTxt?.takeIf { it.isNotBlank() } ?: config.nomObservateurParDefaut)
+            } else if (observateursGroupe.isNotEmpty()) {
+                put("observers", JSONArray().apply { observateursGroupe.forEach { put(it) } })
+            }
+            champ("comment", premiere.commentReleve?.takeIf { it.isNotBlank() })
+            champ("cd_hab", premiere.cdHabReleve?.takeIf { it > 0 })
+            premiere.typGrpReleve?.takeIf { it.isNotEmpty() }?.let { code ->
+                resolverIdNomenclature(code, "TYP_GRP", emptyMap(), tables)?.let { put("id_nomenclature_grp_typ", it) }
+            }
+            // Champs relevé supplémentaires pilotés par form_fields : entiers (altitude,
+            // profondeur, précision), textes (lieu, technique de regroupement) et nomenclatures
+            // (nature de l'objet géo, technique de collecte). Omis si vides ou illisibles.
+            val extraReleve = premiere.champsReleveExtra
+            extraReleve["altitude_min"]?.trim()?.toIntOrNull()?.let { put("altitude_min", it) }
+            extraReleve["altitude_max"]?.trim()?.toIntOrNull()?.let { put("altitude_max", it) }
+            champ("depth_min", extraReleve["depth_min"]?.trim()?.toIntOrNull())
+            champ("depth_max", extraReleve["depth_max"]?.trim()?.toIntOrNull())
+            champ("precision", extraReleve["precision"]?.trim()?.toIntOrNull())
+            champ("place_name", extraReleve["place_name"]?.trim()?.takeIf { it.isNotEmpty() })
+            champ("grp_method", extraReleve["grp_method"]?.trim()?.takeIf { it.isNotEmpty() })
+            extraReleve["geo_object_nature"]?.takeIf { it.isNotEmpty() }?.let { code ->
+                resolverIdNomenclature(code, "NAT_OBJ_GEO", emptyMap(), tables)
+                    ?.let { put("id_nomenclature_geo_object_nature", it) }
+            }
+            extraReleve["tech_collect"]?.takeIf { it.isNotEmpty() }?.let { code ->
+                resolverIdNomenclature(code, "TECHNIQUE_OBS", emptyMap(), tables)
+                    ?.let { put("id_nomenclature_tech_collect_campanule", it) }
+            }
+        }
+        // Coordonnées du relevé : la première obs du groupe (toutes identiques pour un lot
+        // multi-taxons).
+        val geometry = construireGeometrie(
+            type = premiere.geometryType,
+            coordsJson = premiere.geometryCoordsJson,
+            lat = premiere.latitude,
+            lon = premiere.longitude,
+        )
+        // Les altitudes du MNT du serveur (`POST /geo/altitude`), que le web pose dès le
+        // pointage : ici à l'envoi (rien n'est téléchargé pendant la saisie, décision du
+        // 20 octobre), quand aucune n'est saisie. Best-effort : sans réponse, elles restent vides.
+        if (!properties.has("altitude_min") && !properties.has("altitude_max")) {
+            altitudesMntDe(clients, base, token, cookies, geometry)?.let { (min, max) ->
+                min?.let { properties.put("altitude_min", it) }
+                max?.let { properties.put("altitude_max", it) }
+            }
+        }
+        return ReleveAEnvoyer(properties, geometry, dateMin)
+    }
+
+    /** Le relevé serveur [idReleve] (`GET /releve/<id>`) : ses `properties`, occurrences et
+     *  dénombrements compris ; null s'il ne se lit pas. */
+    internal suspend fun lireReleve(base: String, token: String?, cookies: String, idReleve: Int): JSONObject? = try {
+        val reponse = clients.get("$base/api/occtax/OCCTAX/releve/$idReleve", token, cookies, timeoutMs = 30_000)
+        if (reponse.status.value !in 200..299) {
+            null
+        } else {
+            val racine = JSONObject(reponse.bodyAsText())
+            val releve = racine.optJSONObject("releve") ?: racine
+            releve.optJSONObject("properties") ?: releve
+        }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null
     }
 
     /** Résultat d'une recherche de relevé par uuid client. [Indeterminable] impose de NE RIEN
@@ -1178,6 +1327,63 @@ class GeoNatureUpload(
                 ?: try { JSONObject(texte).optLong("id_table_location", -1L).takeIf { it > 0 } } catch (_: Exception) { null })
                 ?.takeIf { it > 0 }
 
+        /** L'empreinte de l'occurrence de [obs] : les champs qu'en lit [buildOccurrence], médias à part.
+         *  Différente de celle enregistrée à sa transmission, l'espèce a été modifiée depuis. */
+        fun empreinteOccurrence(obs: Observation): String = empreinte(
+            listOf(
+                obs.cdNom, obs.espece, obs.notes, obs.nombre, obs.nombreMax, obs.sexe, obs.stadeVie, obs.objDenbr,
+                obs.typDenbr, obs.statutObs, obs.techniqueObs, obs.etaBio, obs.comportement, obs.statutBio,
+                obs.methDetermin, obs.preuveExist, obs.naturalite, obs.determinateur,
+                trie(obs.champsOccExtra), trie(obs.additionalFieldsOccurrence), trie(obs.additionalFieldsCounting0),
+            ) + obs.denombrementsAdditionnels.map { d ->
+                listOf(d.nombreMin, d.nombreMax, d.sexe, d.stadeVie, d.objDenbr, d.typDenbr, trie(d.additionalFields))
+            },
+        )
+
+        /** L'empreinte du relevé de [obs] : ce qu'en lit releveAEnvoyer (et la géométrie). */
+        fun empreinteReleve(obs: Observation): String = empreinte(
+            listOf(
+                obs.idDatasetReleve, obs.dateDebutReleve, obs.dateFinReleve, obs.heureDebutReleve, obs.heureFinReleve,
+                trie(obs.additionalFieldsReleve), obs.observateursReleveIds, obs.observateurReleveId, obs.observateursReleveTxt,
+                obs.commentReleve, obs.cdHabReleve, obs.typGrpReleve, trie(obs.champsReleveExtra),
+                obs.geometryType, obs.geometryCoordsJson, obs.latitude, obs.longitude,
+            ),
+        )
+
+        private fun trie(m: Map<String, String>): List<Pair<String, String>> = m.entries.sortedBy { it.key }.map { it.key to it.value }
+
+        private fun empreinte(valeurs: List<Any?>): String = valeurs.toString().encodeUtf8().sha256().hex().take(16)
+
+        /** L'occurrence portant [uuid] (`unique_id_occurence_occtax`) dans le relevé lu [releve]. */
+        internal fun occurrenceParUuid(releve: JSONObject, uuid: String): JSONObject? {
+            val occurrences = releve.optJSONArray("t_occurrences_occtax") ?: return null
+            return (0 until occurrences.length()).mapNotNull { occurrences.optJSONObject(it) }
+                .firstOrNull { it.optString("unique_id_occurence_occtax").equals(uuid, ignoreCase = true) }
+        }
+
+        /** Le corps de la mise à jour de l'occurrence [surLeServeur] (`POST /occurrence/<id>`), comme le
+         *  web : chaque dénombrement déjà sur le serveur porte son `id_counting_occtax` (dans l'ordre
+         *  de création), et le serveur met à jour la même ligne ; un nouveau n'en porte pas, il est
+         *  créé ; un dénombrement retiré dans l'appli est supprimé. Ni médias (le serveur garde ceux de
+         *  chaque dénombrement), ni identifiant SINP de dénombrement, que le serveur refuse de changer. */
+        internal fun occurrencePourMiseAJour(
+            obs: Observation,
+            surLeServeur: JSONObject,
+            nomenclatures: Map<String, Map<String, Int>>,
+            champs: ChampsAdditionnelsEnvoi,
+            defautTechniqueObs: String?,
+        ): JSONObject {
+            val corps = buildOccurrence(obs, nomenclatures, emptyList(), champs, defautTechniqueObs, pourMiseAJour = true)
+            val existants = surLeServeur.optJSONArray("cor_counting_occtax")?.let { tableau ->
+                (0 until tableau.length()).mapNotNull { tableau.optJSONObject(it)?.optInt("id_counting_occtax", -1)?.takeIf { id -> id > 0 } }.sorted()
+            }.orEmpty()
+            val countings = corps.getJSONArray("cor_counting_occtax")
+            for (i in 0 until countings.length()) {
+                existants.getOrNull(i)?.let { countings.getJSONObject(i).put("id_counting_occtax", it) }
+            }
+            return corps
+        }
+
         internal fun buildOccurrence(
             obs: Observation,
             nomenclatures: Map<String, Map<String, Int>>,
@@ -1187,6 +1393,8 @@ class GeoNatureUpload(
             /** Le défaut du serveur de la technique d'observation (METH_OBS), pour une espèce dont la
              *  caractérisation n'a pas été ouverte ; null : la base applique le sien. */
             defautTechniqueObs: String? = null,
+            /** Une mise à jour (C3) : un texte vidé part à null, sans quoi le serveur garderait l'ancien. */
+            pourMiseAJour: Boolean = false,
         ): JSONObject {
             // Dénombrement n° 0 — issu des champs à plat de l'Observation (mono-taxon ou 1er multi).
             val counting0 = buildCounting(
@@ -1224,7 +1432,7 @@ class GeoNatureUpload(
                 // Identité client stable de l'occurrence (acceptée par OccurrenceSchema) : permet de
                 // retrouver une occurrence créée sans réponse avant de la re-POSTer (anti-doublon).
                 put("unique_id_occurence_occtax", obs.uuidOccurrence)
-                if (obs.notes.isNotEmpty()) put("comment", obs.notes)
+                if (obs.notes.isNotEmpty()) put("comment", obs.notes) else if (pourMiseAJour) put("comment", JSONObject.NULL)
                 put("cor_counting_occtax", countings)
                 // Champs de nomenclature de l'occurrence : pilotés par le registre unique. METH_OBS
                 // vide prend le défaut du serveur, comme le formulaire web ; GeoMys-Android envoyait
@@ -1249,10 +1457,13 @@ class GeoNatureUpload(
                             resolverIdNomenclature(code, f.code, f.uploadLabels, nomenclatures)?.let { put(f.uploadKey, it) }
                         }
                     }
-                obs.determinateur?.takeIf { it.isNotEmpty() }?.let { put("determiner", it) }
+                fun texte(cle: String, valeur: String?) {
+                    if (!valeur.isNullOrEmpty()) put(cle, valeur) else if (pourMiseAJour) put(cle, JSONObject.NULL)
+                }
+                texte("determiner", obs.determinateur)
                 // Preuves (texte) pilotées par form_fields.
-                obs.champsOccExtra["digital_proof"]?.takeIf { it.isNotEmpty() }?.let { put("digital_proof", it) }
-                obs.champsOccExtra["non_digital_proof"]?.takeIf { it.isNotEmpty() }?.let { put("non_digital_proof", it) }
+                texte("digital_proof", obs.champsOccExtra["digital_proof"])
+                texte("non_digital_proof", obs.champsOccExtra["non_digital_proof"])
                 put("additional_fields", ChampsAdditionnels.versJson(obs.additionalFieldsOccurrence, champs.occurrence))
             }
         }

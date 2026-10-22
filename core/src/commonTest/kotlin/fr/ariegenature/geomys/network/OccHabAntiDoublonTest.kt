@@ -203,6 +203,61 @@ class OccHabAntiDoublonTest {
         }
     }
 
+    /** CRÉATION après un envoi incertain, station retrouvée : la copie locale, peut-être modifiée
+     *  depuis la tentative, part en MISE À JOUR, ses habitats appariés par leur identifiant SINP. Elle
+     *  était marquée envoyée telle quelle, et ses modifications se perdaient (audit du 21 octobre, C3). */
+    @Test
+    fun creation_incertaine_station_retrouvee_part_en_mise_a_jour() = runTest {
+        val lue = """{"type":"Feature","id":42,"geometry":{"type":"Point","coordinates":[1.4,42.9]},""" +
+            """"properties":{"id_station":42,"unique_id_sinp_station":"$uuid","id_dataset":12,"date_min":"2026-05-01 00:00:00",""" +
+            """"habitats":[{"id_habitat":77,"unique_id_sinp_hab":"hhhh-0001","cd_hab":629,"nom_cite":"Prairie"}]}}"""
+        serveur.routerRequetes { requete ->
+            val chemin = requete.url.encodedPathAndQuery
+            when {
+                chemin.startsWith("/api/auth/login") -> json("""{"access_token":"t","user":{"id_role":1}}""")
+                chemin.startsWith("/api/occhab/stations/?") -> json(reponseJson)
+                chemin == "/api/occhab/stations/42/" && requete.method == HttpMethod.Get -> json(lue)
+                chemin.startsWith("/api/occhab/stations") && requete.method == HttpMethod.Post ->
+                    json("""{"type":"Feature","id":42,"properties":{"id_station":42}}""")
+                else -> statut(404)
+            }
+        }
+        config.apply { urlServeur = serveur.base; login = "alice"; motDePasse = "pwd"; idDataset = "12" }
+        val locale = OccHabStation(
+            uuidStation = uuid, idDataset = 12, envoiIncertain = true, stationName = "Corrigée depuis",
+            habitats = listOf(
+                OccHabHabitat(uuidHabitat = "HHHH-0001", cdHab = 629, nomCite = "Prairie de fauche"),
+                OccHabHabitat(uuidHabitat = "hhhh-0002", cdHab = 630, nomCite = "Ajoutée depuis"),
+            ),
+        )
+        val res = t.services.occHabUpload.envoyer(locale, config)
+        assertTrue(res.dejaPresente)
+        assertEquals(42, res.idStationServeur)
+        val (_, chemin, corps) = requetesOcchabAvecCorps().single()
+        assertEquals("/api/occhab/stations/42/", chemin, "une mise à jour, pas une seconde station")
+        val props = JSONObject(corps).getJSONObject("properties")
+        assertEquals("Corrigée depuis", props.getString("station_name"))
+        val habitats = props.getJSONArray("habitats")
+        assertEquals(77, habitats.getJSONObject(0).getInt("id_habitat"), "l'habitat déjà créé garde sa ligne")
+        assertFalse(habitats.getJSONObject(1).has("id_habitat"), "le nouveau est créé")
+    }
+
+    @Test
+    fun creation_incertaine_station_retrouvee_mais_illisible_rien_ne_part() = runTest {
+        serveur.routerRequetes { requete ->
+            val chemin = requete.url.encodedPathAndQuery
+            when {
+                chemin.startsWith("/api/auth/login") -> json("""{"access_token":"t","user":{"id_role":1}}""")
+                chemin.startsWith("/api/occhab/stations/?") -> json(reponseJson)
+                else -> statut(404)
+            }
+        }
+        config.apply { urlServeur = serveur.base; login = "alice"; motDePasse = "pwd"; idDataset = "12" }
+        val locale = OccHabStation(uuidStation = uuid, idDataset = 12, envoiIncertain = true)
+        assertFailsWith<GNErreur.EnvoiIncertain> { t.services.occHabUpload.envoyer(locale, config) }
+        assertTrue(requetesOcchabAvecCorps().isEmpty(), "aucun POST")
+    }
+
     /** CRÉATION après un envoi incertain : la vérification par UUID filtre par `id_dataset` et, si
      *  elle ÉCHOUE (HTTP 500 / réseau), l'envoi ressort INCERTAIN sans aucun POST — re-POSTer à
      *  l'aveugle dupliquerait (audit 2026-08-27). */

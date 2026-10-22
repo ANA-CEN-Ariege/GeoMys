@@ -36,6 +36,7 @@ import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -270,7 +271,9 @@ class OutboxEnvoi(
                     // dejaTentee est lu sur l'instantané d'AVANT la transition SENDING : la valeur
                     // fraîche (saisieAJour) est toujours true — elle ne distingue plus une première
                     // tentative d'un nouvel envoi.
-                    val res = envoyerUne(config, saisieAJour, dejaTenteeAvant = saisie.dejaTentee)
+                    // NonCancellable : le POST et sa réponse d'un bloc, comme OccTax et OccHab — quitter
+                    // « Mes visites » pendant l'envoi ne laisse plus une visite créée sans son id.
+                    val res = withContext(NonCancellable) { envoyerUne(config, saisieAJour, dejaTenteeAvant = saisie.dejaTentee) }
                     envoyees++
                     val envoi = res.getOrNull()
                     if (envoi != null) {
@@ -369,6 +372,18 @@ class OutboxEnvoi(
      *  Si la saisie porte déjà [SaisieEnAttente.objetCree] (tentative précédente où seuls les médias
      *  avaient échoué — ex. mode avion pendant le transfert de la photo), le POST est SAUTÉ
      *  (re-POSTer dupliquerait l'objet) : on ne renvoie que les médias. */
+    /** Les valeurs enregistrées de [s], typées par la lecture JSON. */
+    private fun valeursDe(s: SaisieEnAttente): Map<String, Any?> {
+        val valeurs = mutableMapOf<String, Any?>()
+        val obj = JSONObject(s.valeursJson)
+        val cles = obj.keys()
+        while (cles.hasNext()) {
+            val k = cles.next()
+            valeurs[k] = if (obj.isNull(k)) null else obj.opt(k)
+        }
+        return valeurs
+    }
+
     private suspend fun envoyerUne(
         config: GeoNatureConfig,
         s0: SaisieEnAttente,
@@ -388,16 +403,11 @@ class OutboxEnvoi(
                 // serveur est INCONNU (réponse du POST illisible à l'époque), on tente de le
                 // récupérer par l'uuid client : sans lui, les enfants partiraient sans clé.
                 val idConnu = (s.idServeur ?: 0).takeIf { it > 0 }
-                val idRecupere = if (idConnu == null && s.uuidPayload != null &&
-                    s.uuidFieldName != null && s.parentObjectType != null &&
-                    (s.parentIdServeur ?: 0) > 0
-                ) {
-                    monitoringEnvoi.chercherEnfantParUuid(
+                val idRecupere = if (idConnu == null && s.uuidPayload != null && s.uuidFieldName != null) {
+                    monitoringEnvoi.chercherParUuid(
                         config = config,
                         moduleCode = s.moduleCode,
-                        parentObjectType = s.parentObjectType,
-                        parentId = s.parentIdServeur!!,
-                        childObjectType = s.objectType,
+                        objectType = s.objectType,
                         uuidFieldName = s.uuidFieldName,
                         uuid = s.uuidPayload,
                     )?.takeIf { it > 0 }
@@ -410,20 +420,36 @@ class OutboxEnvoi(
                 idServeur = idConnu ?: idRecupere ?: return Result.failure(
                     GNErreur.EnvoiEchoue(0, "objet créé côté serveur mais id inconnu — " +
                         "réessayez (récupération par uuid) ; ses enfants ne peuvent pas partir sans lui"))
-            } else {
-                // Anti-doublon : une saisie DÉJÀ tentée sans confirmation (réponse perdue en pleine
-                // coupure) peut exister côté serveur. Si elle porte un uuid client et que son parent
-                // serveur est connu, on vérifie AVANT de re-POSTer. Une erreur réseau pendant la
-                // vérification fait échouer l'envoi (pas de re-POST aveugle).
-                val peutVerifier = s.uuidPayload != null && s.uuidFieldName != null &&
-                    s.parentObjectType != null && (s.parentIdServeur ?: 0) > 0
-                val idExistant = if (dejaTenteeAvant && peutVerifier) {
-                    monitoringEnvoi.chercherEnfantParUuid(
+                // Modifiée depuis sa création (« Éditer » après un envoi partiel) : la modification
+                // part d'abord, en mise à jour ; elle se perdait (audit du 21 octobre, C3).
+                if (s.modifieeApresCreation) {
+                    monitoringEnvoi.modifierObjet(
                         config = config,
                         moduleCode = s.moduleCode,
-                        parentObjectType = s.parentObjectType,
-                        parentId = s.parentIdServeur!!,
-                        childObjectType = s.objectType,
+                        objectType = s.objectType,
+                        id = idServeur,
+                        parentIdField = s.parentIdField,
+                        parentId = s.parentIdServeur,
+                        valeurs = valeursDe(s),
+                        champsTexteLibre = s.champsTexteLibre,
+                        champsDate = s.champsDate,
+                        champsVidesGardes = s.champsVidesGardes,
+                        uuidClient = s.uuidPayload,
+                        uuidFieldName = s.uuidFieldName,
+                    ).getOrElse { return Result.failure(it) }
+                    outbox.mettreAJour(s.uuid) { it.copy(modifieeApresCreation = false) }
+                }
+            } else {
+                // Anti-doublon : une saisie DÉJÀ tentée sans confirmation (réponse perdue en pleine
+                // coupure) peut exister côté serveur. Si elle porte un uuid client, on la cherche par
+                // lui AVANT de re-POSTer. Une erreur réseau pendant la vérification fait échouer
+                // l'envoi (pas de re-POST aveugle).
+                val peutVerifier = s.uuidPayload != null && s.uuidFieldName != null
+                val idExistant = if (dejaTenteeAvant && peutVerifier) {
+                    monitoringEnvoi.chercherParUuid(
+                        config = config,
+                        moduleCode = s.moduleCode,
+                        objectType = s.objectType,
                         uuidFieldName = s.uuidFieldName,
                         uuid = s.uuidPayload,
                     )
@@ -447,13 +473,7 @@ class OutboxEnvoi(
                     // doublon est possible si la 1re tentative avait en réalité abouti. Signalé à
                     // l'utilisateur par le message de fin d'envoi.
                     doublonPossible = dejaTenteeAvant && !peutVerifier
-                    val valeurs = mutableMapOf<String, Any?>()
-                    val obj = JSONObject(s.valeursJson)
-                    val cles = obj.keys()
-                    while (cles.hasNext()) {
-                        val k = cles.next()
-                        valeurs[k] = if (obj.isNull(k)) null else obj.opt(k)
-                    }
+                    val valeurs = valeursDe(s)
                     val resVisite = monitoringEnvoi.envoyerVisite(
                         config = config,
                         moduleCode = s.moduleCode,

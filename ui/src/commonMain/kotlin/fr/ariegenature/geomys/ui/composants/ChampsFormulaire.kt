@@ -45,7 +45,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
@@ -94,14 +93,12 @@ fun ChampTexteFormulaire(
     lignesMin: Int = 1,
     uneLigne: Boolean = true,
     clavier: KeyboardOptions = KeyboardOptions.Default,
-    centre: Boolean = false,
     compactAndroid: Boolean = false,
     indication: String? = null,
     lignesMax: Int = Int.MAX_VALUE,
     lignesMaxAndroid: Int = Int.MAX_VALUE,
     interactions: MutableInteractionSource = remember { MutableInteractionSource() },
 ) {
-    val alignement = if (centre) TextAlign.Center else TextAlign.Start
     if (estIos) {
         BasicTextField(
             value = valeur,
@@ -109,7 +106,7 @@ fun ChampTexteFormulaire(
             singleLine = uneLigne,
             minLines = lignesMin,
             maxLines = if (uneLigne) 1 else lignesMax,
-            textStyle = styleSaisieIos.copy(textAlign = alignement),
+            textStyle = styleSaisieIos,
             cursorBrush = SolidColor(CouleursGeoMys.jauneClair),
             keyboardOptions = clavier,
             interactionSource = interactions,
@@ -128,7 +125,7 @@ fun ChampTexteFormulaire(
         val focalise by interactions.collectIsFocusedAsState()
         val trait = if (focalise) CouleursGeoMys.orange else MaterialTheme.colorScheme.onSurfaceVariant
         val epaisseur = if (focalise) 2.dp else 1.dp
-        val style = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface, textAlign = alignement)
+        val style = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp, color = MaterialTheme.colorScheme.onSurface)
         val couleurInvite = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
         Box(
             modifier

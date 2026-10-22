@@ -60,11 +60,11 @@ suspend fun ServicesGeoNature.ajouterMonitoringEssai() {
             parentObjectType = "site",
             parentIdServeur = 501,
             parentIdField = "id_base_site",
-            nomsChampsSchema = listOf("visit_date_min", "heure_debut", "meteo", "vent", "comments"),
-            valeursJson = """{"visit_date_min":"2026-10-19","heure_debut":"07:05","meteo":"Beau","vent":"Nul"}""",
+            nomsChampsSchema = listOf("visit_date_min", "heure_debut", "heure_fin", "temperature_fin", "meteo", "vent", "comments"),
+            valeursJson = """{"visit_date_min":"2026-10-19","heure_debut":"07:05","temperature_fin":9,"meteo":"Beau","vent":"Nul"}""",
             dateLocale = maintenantMillis() - 3_600_000L,
-            // Enregistrée sans sa température de fin : « à compléter ».
-            champsManquants = listOf("Température de fin (°C)"),
+            // Enregistrée sans son heure de fin, information de fin qui peut attendre : « à compléter ».
+            champsManquants = listOf("Heure de fin"),
             // Une photo sans titre : le formulaire média du web l'exige.
             mediaPathsLocal = listOf(PHOTO_ESSAI),
             mediaSchemaDotTable = "gn_monitoring.t_base_visits",
@@ -141,9 +141,10 @@ private val SCHEMA_STOM = """
     },
     "specific":{
       "heure_debut":{"type_widget":"time","attribut_label":"Heure de début"},
+      "heure_fin":{"type_widget":"time","attribut_label":"Heure de fin","required":true},
       "temperature_fin":{"type_widget":"number","attribut_label":"Température de fin (°C)","required":true,
         "definition":"Relevée à la fin des dix minutes d'écoute."},
-      "meteo":{"type_widget":"select","attribut_label":"Météo","values":["Beau","Nuageux","Pluie"]},
+      "meteo":{"type_widget":"select","attribut_label":"Météo","values":["Beau","Nuageux","Pluie"],"required":true},
       "vent":{"type_widget":"radio","attribut_label":"Vent","values":["Nul","Faible","Fort"]},
       "medias":{"type_widget":"medias","attribut_label":"Photos","schema_dot_table":"gn_monitoring.t_base_visits"}
     }

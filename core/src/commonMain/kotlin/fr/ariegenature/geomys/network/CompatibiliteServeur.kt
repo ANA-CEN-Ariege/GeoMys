@@ -16,8 +16,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// Porté de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/network/CompatibiliteServeur.kt),
-// sans modification : Kotlin pur.
+// Porté de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/network/CompatibiliteServeur.kt) :
+// Kotlin pur. Ajouts du 21 octobre 2026 : les messages d'une version non lue, et le « v » de tête.
 
 package fr.ariegenature.geomys.network
 
@@ -26,24 +26,31 @@ package fr.ariegenature.geomys.network
  *  Justification : l'app appelle TaxHub via [GeoNatureConfig.urlTaxhub] — celui du web,
  *  `<URL_GEONATURE>/api/taxhub` (TaxHub INTÉGRÉ, 2.15+), sinon l'URL publiée par le serveur
  *  (`t_mobile_apps` → `settings.sync.taxhub_url`). L'endpoint `/api/gn_commons/config` qui permet de
- *  détecter la version existe lui depuis la 2.12 : en dessous, la version n'est pas détectable et le
- *  test de connexion refuse le serveur (21 octobre ; il le laissait passer, au bénéfice du doute).
+ *  détecter la version existe lui depuis la 2.12.
  *
- *  Quand une version détectée est inférieure à ce minimum, le test de connexion échoue et
- *  [fr.ariegenature.geomys.store.GeoNatureConfig.serveurCompatible] invalide la config
- *  (toutes les opérations réseau sont gelées) jusqu'à un nouveau test réussi. */
+ *  Seule une version LUE et inférieure à ce minimum fait échouer le test de connexion :
+ *  [fr.ariegenature.geomys.store.GeoNatureConfig.serveurCompatible] invalide alors la config
+ *  (toutes les opérations réseau sont gelées) jusqu'à un nouveau test réussi. Une version qui ne se
+ *  lit pas (réseau faible, proxy, portail captif, serveur d'avant la 2.12) ne refuse rien : refusée
+ *  le matin du 21 octobre, elle gelait toute l'appli sur un simple raté réseau ; l'utilisateur a
+ *  choisi ensuite « version lue trop ancienne » seulement. */
 const val VERSION_GEONATURE_MINIMALE = "2.15"
 
-/** Le test de connexion d'un serveur dont la version ne se lit pas. */
-const val VERSION_INTROUVABLE =
-    "Version de GeoNature introuvable : serveur trop ancien (v$VERSION_GEONATURE_MINIMALE au moins) ou adresse incorrecte."
+/** Le test de connexion réussi d'un serveur dont la version ne s'est pas lue. */
+const val CONNEXION_SANS_VERSION = "Connexion réussie (version de GeoNature non lue)"
+
+/** Le test d'un serveur dont la version ne s'est pas lue, alors que la dernière lue était trop
+ *  ancienne : le refus tient jusqu'à une version lue à jour. */
+const val VERSION_NON_LUE_REFUS_MAINTENU =
+    "Version de GeoNature non lue ; la dernière lue était trop ancienne (v$VERSION_GEONATURE_MINIMALE au moins). Réessayez."
 
 /** Compare deux versions pointées numériquement : "2.9" < "2.15" < "2.15.1" (comparaison
  *  par segment, PAS lexicographique). Un suffixe non numérique de segment est ignoré
  *  ("0-rc1" → 0) ; les segments manquants valent 0 ("2.15" == "2.15.0").
  *  Retourne <0, 0 ou >0 comme un Comparator. */
 fun comparerVersions(a: String, b: String): Int {
-    fun segments(v: String) = v.trim().split('.').map { seg ->
+    // « v2.17 » se lit 2.17, et non 0.17.
+    fun segments(v: String) = v.trim().removePrefix("v").removePrefix("V").split('.').map { seg ->
         seg.takeWhile { it.isDigit() }.toIntOrNull() ?: 0
     }
     val sa = segments(a)

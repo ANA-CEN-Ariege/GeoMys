@@ -65,7 +65,9 @@ class PropositionsTaxon internal constructor(
          * listes comprises — étant exigé avant d'entrer dans les saisies.
          */
         fun construire(taxRef: TaxRefCache, idListe: Int?): PropositionsTaxon {
-            val typees = if (idListe != null) taxRef.propositionsListe(idListe) else emptyList()
+            // Sans liste, tout le cache, porteur des cd_nom comme une liste : les clés du cache seules
+            // (« peziza sublaricina », en minuscules) ne disaient ni le taxon ni sa graphie.
+            val typees = if (idListe != null) taxRef.propositionsListe(idListe) else taxRef.propositionsToutes()
             val restreint = when {
                 typees.isNotEmpty() -> typees.map { it.nom }
                 idListe != null -> taxRef.nomsProposablesListe(idListe)

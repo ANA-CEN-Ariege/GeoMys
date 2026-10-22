@@ -23,6 +23,7 @@ import fr.ariegenature.geomys.model.OccHabStation
 import fr.ariegenature.geomys.util.GeoJsonCoords
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /** La fusion d'une station renvoyée en mise à jour avec sa version relue sur le serveur : ce que
@@ -49,6 +50,34 @@ class FusionStationTest {
         comment = "Commentaire du web",
         habitats = origine.habitats + habitat(92, 631, "Ajouté sur le web"),
     )
+
+    @Test
+    fun un_habitat_cree_par_un_envoi_sans_reponse_n_est_pas_renvoye_en_double() {
+        // Audit du 21 octobre, C5 : le POST de mise à jour a créé H2 (id 101) sur le serveur, mais sa
+        // réponse s'est perdue. Au renvoi, la relecture le contient : c'est celui de l'appli, reconnu à
+        // son identifiant SINP, qui prend l'id du serveur au lieu de repartir sans id.
+        val h2 = habitat(null, 640, "Ajouté dans l'appli").copy(uuidHabitat = "AAAA-1111", recouvrement = 20.0)
+        val locale = origine.copy(habitats = origine.habitats + h2)
+        val surLeServeur = origine.copy(habitats = origine.habitats + habitat(101, 640, "Ajouté dans l'appli").copy(uuidHabitat = "aaaa-1111"))
+
+        val fusion = FusionStation.fusionner(origine, locale, surLeServeur)
+
+        assertEquals(listOf(91, 101), fusion.habitats.map { it.idHabitatServeur })
+        assertEquals(20.0, fusion.habitats.last().recouvrement, "le contenu de l'appli")
+        assertEquals(h2.id, fusion.habitats.last().id)
+    }
+
+    @Test
+    fun la_geometrie_se_compare_au_centimetre_pres() {
+        val arrondie = origine.copy(geometryCoordsJson = "[[1.40000000004,42.9],[1.5,42.90000000003],[1.5,43.0]]")
+        assertTrue(FusionStation.memeGeometrie(origine, arrondie))
+        val deplacee = origine.copy(geometryCoordsJson = "[[1.4,42.9],[1.5,42.9],[1.5001,43.0]]")
+        assertFalse(FusionStation.memeGeometrie(origine, deplacee))
+        assertFalse(FusionStation.memeGeometrie(origine, origine.copy(geometryCoordsJson = "[[1.4,42.9],[1.5,42.9]]")))
+        val point = OccHabStation(geometryType = "Point", latitude = 42.9, longitude = 1.4)
+        assertTrue(FusionStation.memeGeometrie(point, point.copy(latitude = 42.90000000001)))
+        assertFalse(FusionStation.memeGeometrie(point, origine))
+    }
 
     @Test
     fun une_voisine_deplacee_ne_renvoie_que_sa_geometrie() {

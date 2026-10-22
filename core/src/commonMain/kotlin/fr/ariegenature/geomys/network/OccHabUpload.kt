@@ -88,6 +88,13 @@ class OccHabUpload(private val auth: GeoNatureAuth, private val clients: Clients
         val station = if (estMiseAJour && origine != null) {
             val serveur = lireStation(base, token, cookies, locale.idStationServeur!!)
                 ?: throw GNErreur.EnvoiEchoue(404, "Station supprimée sur GeoNature depuis son import : elle n'est pas recréée.")
+            // La géométrie ne se fusionne pas (audit du 21 octobre, C6) : mise en plusieurs parties sur
+            // le web (l'appli n'en lit que la première), ou changée des deux côtés depuis l'origine,
+            // l'envoi effacerait ce que le web a fait.
+            if (serveur.geometryPartielle) throw GNErreur.EnvoiEchoue(0, GEOMETRIE_EN_PLUSIEURS_PARTIES)
+            if (!FusionStation.memeGeometrie(locale, origine) && !FusionStation.memeGeometrie(serveur, origine)) {
+                throw GNErreur.EnvoiEchoue(0, GEOMETRIE_MODIFIEE_SUR_LE_WEB)
+            }
             FusionStation.fusionner(origine, locale, serveur)
         } else {
             locale
@@ -115,11 +122,24 @@ class OccHabUpload(private val auth: GeoNatureAuth, private val clients: Clients
         // ré-envoi re-POSTe donc directement.
         if (station.envoiIncertain && !estMiseAJour) {
             verifierStationExistante(base, token, cookies, station.uuidStation, datasetId)?.let { idExistant ->
-                return@withContext OccHabEnvoiResult(
+                // Créée par la tentative d'alors : la copie locale, peut-être modifiée depuis, part en
+                // mise à jour. Elle était marquée envoyée telle quelle, et ses modifications se perdaient
+                // (audit du 21 octobre, C3). Ses habitats prennent l'id de ceux que le serveur a créés,
+                // reconnus à leur identifiant SINP : sans lui, ils seraient recréés en double.
+                val surLeServeur = lireStation(base, token, cookies, idExistant)
+                    ?: throw GNErreur.EnvoiIncertain("Station retrouvée sur GeoNature mais illisible : sa mise à jour sera retentée.")
+                val idsParUuid = surLeServeur.habitats.mapNotNull { h ->
+                    val uuid = h.uuidHabitat?.lowercase()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                    h.idHabitatServeur?.takeIf { it > 0 }?.let { uuid to it }
+                }.toMap()
+                val aMettreAJour = locale.copy(
                     idStationServeur = idExistant,
-                    nbHabitats = habitatsValides.size,
-                    dejaPresente = true,
+                    envoiIncertain = false,
+                    habitats = locale.habitats.map { h ->
+                        h.uuidHabitat?.lowercase()?.let(idsParUuid::get)?.let { h.copy(idHabitatServeur = it) } ?: h
+                    },
                 )
+                return@withContext envoyer(aMettreAJour, config).copy(dejaPresente = true)
             }
         }
 
@@ -159,8 +179,12 @@ class OccHabUpload(private val auth: GeoNatureAuth, private val clients: Clients
                 // (ids et UUID SINP préservés). Jamais en CRÉATION : le serveur rejetterait un
                 // id_habitat appartenant à une autre station (validate_habitats), et un habitat neuf
                 // n'en porte pas.
-                if (estMiseAJour) {
-                    h.idHabitatServeur?.takeIf { it > 0 }?.let { put("id_habitat", it) }
+                if (estMiseAJour) h.idHabitatServeur?.takeIf { it > 0 }?.let { put("id_habitat", it) }
+                // L'identifiant SINP, création comprise pour un habitat né dans l'appli : il porte celui
+                // qu'elle lui a donné, que le serveur garde. Un renvoi après une réponse perdue le
+                // reconnaît ainsi au lieu de le créer en double (audit du 21 octobre, C5). Jamais, en
+                // création, celui d'un habitat du serveur : deux habitats auraient le même.
+                if (estMiseAJour || (h.idHabitatServeur ?: 0) <= 0) {
                     h.uuidHabitat?.takeIf { it.isNotBlank() }?.let { put("unique_id_sinp_hab", it) }
                 }
                 put("cd_hab", h.cdHab)
@@ -323,6 +347,14 @@ class OccHabUpload(private val auth: GeoNatureAuth, private val clients: Clients
     }
 
     companion object {
+        /** Une station mise en plusieurs parties sur le web : l'appli n'en lit que la première. */
+        const val GEOMETRIE_EN_PLUSIEURS_PARTIES =
+            "Station mise en plusieurs parties sur GeoNature : l'application n'en lit que la première et effacerait les autres. Modifiez-la sur le web."
+
+        /** Une géométrie changée à la fois dans l'appli et sur le web depuis l'import. */
+        const val GEOMETRIE_MODIFIEE_SUR_LE_WEB =
+            "Contour de la station modifié aussi sur GeoNature depuis son import : l'envoi effacerait cette modification. Réimportez la station ou modifiez-la sur le web."
+
         private const val TAG = "OccHabUpload"
 
         /** [station] dont les habitats envoyés reçoivent les ids que le serveur leur a donnés, lus

@@ -140,23 +140,44 @@ class CompatibiliteServeurTest {
     }
 
     @Test
-    fun vieux_serveur_sans_endpoint_config_est_refuse() = runTest {
-        // 404 : endpoint absent avant la 2.12 (21 octobre : plus de bénéfice du doute).
+    fun une_version_non_lue_ne_refuse_pas_le_serveur() = runTest {
+        // 404 : endpoint absent avant la 2.12, ou raté du réseau. Décision du 21 octobre, après
+        // l'audit : seule une version LUE trop ancienne refuse le serveur.
         router(configServeur = null)
         val (ok, msg) = auth.testerConnexion(config)
-        assertFalse(ok, "une version illisible fait échouer le test")
-        assertEquals(VERSION_INTROUVABLE, msg)
+        assertTrue(ok, "une version non lue ne fait pas échouer le test")
+        assertEquals(CONNEXION_SANS_VERSION, msg)
         assertEquals("", config.versionGeoNatureServeur)
-        assertFalse(config.serveurCompatible)
-        assertFalse(config.connexionConfiguree)
+        assertTrue(config.serveurCompatible)
+        assertTrue(config.connexionConfiguree)
     }
 
     @Test
-    fun config_sans_version_est_refusee_sans_planter() = runTest {
+    fun config_sans_version_reussit_sans_planter() = runTest {
         router(configServeur = """{"autre_cle":"valeur"}""")
         val (ok, msg) = auth.testerConnexion(config)
+        assertTrue(ok)
+        assertEquals(CONNEXION_SANS_VERSION, msg)
+    }
+
+    @Test
+    fun une_version_non_lue_garde_le_refus_et_la_version_d_avant() = runTest {
+        // Version lue trop ancienne : refusé. Au test suivant, version non lue : le refus tient,
+        // et la dernière version lue reste affichée.
+        router(configServeur = """{"GEONATURE_VERSION":"2.10.5"}""")
+        assertFalse(auth.testerConnexion(config).first)
+        router(configServeur = null)
+        val (ok, msg) = auth.testerConnexion(config)
         assertFalse(ok)
-        assertEquals(VERSION_INTROUVABLE, msg)
+        assertEquals(VERSION_NON_LUE_REFUS_MAINTENU, msg)
+        assertFalse(config.serveurCompatible)
+        assertEquals("2.10.5", config.versionGeoNatureServeur)
+        // Et une version lue à jour garde la sienne quand la suivante ne se lit pas.
+        router(configServeur = """{"GEONATURE_VERSION":"2.17.5"}""")
+        assertTrue(auth.testerConnexion(config).first)
+        router(configServeur = null)
+        assertEquals(Pair(true, CONNEXION_SANS_VERSION), auth.testerConnexion(config))
+        assertEquals("2.17.5", config.versionGeoNatureServeur)
     }
 
     // Version minimale supportée
@@ -188,6 +209,13 @@ class CompatibiliteServeurTest {
         assertTrue(ok)
         assertTrue(config.serveurCompatible)
         assertTrue(config.connexionConfiguree)
+    }
+
+    @Test
+    fun une_version_ecrite_avec_un_v_se_lit_sans_lui() {
+        assertTrue(versionGeoNatureSupportee("v2.17.5"))
+        assertTrue(versionGeoNatureSupportee("V2.15"))
+        assertFalse(versionGeoNatureSupportee("v2.14.2"))
     }
 
     @Test

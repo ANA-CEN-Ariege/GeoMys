@@ -320,6 +320,16 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
         // Le menu se repeuple depuis les caches neufs.
         ListeTaxons.oublier()
         restaurerCaches()
+        listeEnAttente?.let { (choisie, precedente) ->
+            listeEnAttente = null
+            if (precedente != null && listeChoisie?.id == choisie.id && choisie.id !in taxRef.listesSynchronisees) {
+                config.taxaListeId = precedente.id.toString()
+                listeChoisie = precedente
+                _evenements.trySend(
+                    EvenementParametres.Toast("Liste « ${choisie.nom} » non chargée (pas de réseau ?) : la liste « ${precedente.nom} » reste choisie.", longue = true),
+                )
+            }
+        }
         synchroEnCours = false
         texteSynchro = MessageColore(
             texte.trim().ifBlank { "Chargement terminé" },
@@ -401,13 +411,20 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
         }
     }
 
+    /** La liste choisie qui attend son chargement, et la précédente, chargée : si le chargement échoue
+     *  (hors réseau), la précédente revient. Sans elle, la configuration restait incomplète et
+     *  Paramètres ne se quittait plus (audit du 21 octobre, M30). */
+    private var listeEnAttente: Pair<GeoNatureListe, GeoNatureListe?>? = null
+
     /** La liste de taxons par défaut, obligatoire ; null la retire (croix de la pastille sous iOS). */
     fun choisirListe(liste: GeoNatureListe?) {
+        val precedente = listeChoisie
         config.taxaListeId = liste?.id?.toString() ?: ""
         listeChoisie = liste
         // La synchro ne charge que les listes utiles (21 octobre) : une liste choisie qui n'est pas
         // sur le téléphone se télécharge aussitôt, avec le reste des données.
         if (liste != null && !synchroEnCours && liste.id !in taxRef.listesSynchronisees) {
+            listeEnAttente = liste to precedente?.takeIf { it.id in taxRef.listesSynchronisees }
             _evenements.trySend(EvenementParametres.Toast("Chargement de la liste « ${liste.nom} »…", longue = false))
             charger()
             return

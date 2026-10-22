@@ -145,6 +145,24 @@ class MonitoringApiParsingTest {
     }
 
     @Test
+    fun le_champ_taxonomy_ne_prend_que_son_id_list_comme_le_web() {
+        // PAPALTB à l'ANA : une api vers la liste 102, sans id_list : le web cherche dans tout TaxRef.
+        val papaltb = MonitoringSchemas.parserUnePropriete(
+            "cd_nom", JSONObject("""{"type_widget":"taxonomy","api":"taxref/allnamebylist/102","application":"TaxHub"}"""),
+        )!!
+        assertNull(papaltb.idListTaxonomie)
+        val avecIdList = MonitoringSchemas.parserUnePropriete(
+            "cd_nom", JSONObject("""{"type_widget":"taxonomy","id_list":103,"api":"taxref/allnamebylist/103"}"""),
+        )!!
+        assertEquals(103, avecIdList.idListTaxonomie)
+        // Une datalist de taxons garde la liste de son api.
+        val datalist = MonitoringSchemas.parserUnePropriete(
+            "espece", JSONObject("""{"type_widget":"datalist","api":"taxref/allnamebylist/100","application":"TaxHub"}"""),
+        )!!
+        assertEquals(100, datalist.idListTaxonomie)
+    }
+
+    @Test
     fun extrait_id_liste_taxonomique_depuis_api() {
         assertEquals(100, MonitoringSchemas.extraireIdListeAllnamebylist("taxref/allnamebylist/100"))
         assertNull(MonitoringSchemas.extraireIdListeAllnamebylist("taxref/autre/100"))

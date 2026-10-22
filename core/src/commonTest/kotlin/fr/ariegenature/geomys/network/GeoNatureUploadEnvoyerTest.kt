@@ -180,7 +180,7 @@ class GeoNatureUploadEnvoyerTest {
         val crees = mutableListOf<String>()
         val aTenter = mutableListOf<String>()
         val marqueur = object : MarqueurEnvoiOcctax {
-            override suspend fun occurrenceCreee(obsId: String) { crees.add(obsId) }
+            override suspend fun occurrenceCreee(obsId: String, empreinte: String?, empreinteReleve: String?) { crees.add(obsId) }
             override suspend fun occurrenceIncertaine(obsId: String, idReleve: Int) {}
             override suspend fun occurrencesATenter(obsIds: List<String>, idReleve: Int) { aTenter.addAll(obsIds) }
             override suspend fun occurrenceEchecNet(obsId: String) {}

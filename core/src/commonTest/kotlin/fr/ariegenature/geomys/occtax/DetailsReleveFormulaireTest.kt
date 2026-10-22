@@ -141,7 +141,11 @@ class DetailsReleveFormulaireTest {
         assertEquals("Choisissez une date de début", refus(debut = null))
         // Le motif du web : « h:mm » ou « hh:mm », secondes permises.
         assertNull(refus(hd = "8:30", hf = "09:15:30"))
-        assertEquals("Heure attendue au format hh:mm", refus(hd = "8h30", hf = "9:00"))
+        // Sans deux-points (le pavé numérique d'Android n'en a pas, audit du 21 octobre, M37) : lue sans
+        // ambiguïté, l'heure passe ; sinon, refusée.
+        assertNull(refus(hd = "8h30", hf = "0915"))
+        assertEquals("Heure attendue au format hh:mm", refus(hd = "8h3", hf = "9:00"))
+        assertEquals("Heure attendue au format hh:mm", refus(hd = "2560", hf = "2600"))
         assertEquals("Heure attendue au format hh:mm", refus(hd = "24:00", hf = "24:00"))
         assertEquals("La date de début ne peut pas être postérieure à la date de fin", refus(debut = jour, fin = veille))
         // Une heure de début sans heure de fin, ou après elle le même jour (invalidHour).
@@ -154,6 +158,21 @@ class DetailsReleveFormulaireTest {
         assertNull(refus(simples = mapOf("altitude_min" to "1200", "altitude_max" to "0")))
         assertNull(refus(simples = mapOf("altitude_min" to "-20", "altitude_max" to "-5")))
         assertEquals("La profondeur max ne peut être inférieure à la profondeur min", refus(simples = mapOf("depth_min" to "5", "depth_max" to "2")))
+    }
+
+    @Test
+    fun une_heure_sans_deux_points_se_lit_hh_mm() {
+        assertEquals("14:30", DetailsReleveFormulaire.normaliserHeure("1430"))
+        assertEquals("09:30", DetailsReleveFormulaire.normaliserHeure(" 930 "))
+        assertEquals("14:30", DetailsReleveFormulaire.normaliserHeure("14h30"))
+        assertEquals("09:00", DetailsReleveFormulaire.normaliserHeure("9h"))
+        assertEquals("14:30", DetailsReleveFormulaire.normaliserHeure("14.30"))
+        // Déjà au format du web, ou illisible : telle quelle.
+        assertEquals("8:30", DetailsReleveFormulaire.normaliserHeure("8:30"))
+        assertEquals("2560", DetailsReleveFormulaire.normaliserHeure("2560"))
+        assertEquals("14", DetailsReleveFormulaire.normaliserHeure("14"))
+        assertFalse(DetailsReleveFormulaire.heureMalFormee("1430"), "pas de barre rouge")
+        assertTrue(DetailsReleveFormulaire.heureMalFormee("14"))
     }
 
     @Test

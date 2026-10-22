@@ -259,8 +259,8 @@ internal fun <T> filtreArrayAdapter(elements: List<T>, libelle: (T) -> String, s
  *  ignorée), dans l'ordre, 20 au plus ; rien tant que la saisie est vide. */
 internal fun <T> filtreAutocompleteIos(elements: List<T>, libelle: (T) -> String, saisie: String): List<T> {
     val q = saisie.trim()
-    if (q.isEmpty()) return emptyList()
-    return elements.filter { libelle(it).contains(q, ignoreCase = true) }.take(20)
+    if (q.isEmpty()) return elements
+    return elements.filter { libelle(it).contains(q, ignoreCase = true) }
 }
 
 /** Choix d'un élément parmi [elements] (jeu de données, liste, observateur), avec son titre de
@@ -475,7 +475,10 @@ private class PositionListeDeroulante(private val decalage: Int, private val hau
 /** `AutocompleteRow` de GeoMys-IOS (ConfigGeoNatureView.swift) : la sélection en pastille avec sa
  *  croix, sinon un champ de recherche. La liste s'affiche AU-DESSUS du champ (demande du 21 octobre :
  *  en bas de l'écran, le clavier cachait celle du dessous). Moins de [SEUIL_RECHERCHE_LISTE]
- *  éléments : pas de champ de recherche ni de clavier, toucher la ligne déroule toute la liste. */
+ *  éléments : pas de champ de recherche ni de clavier, toucher la ligne déroule toute la liste.
+ *  Au-delà, comme sous Android, toucher le champ de recherche déroule aussi toute la liste, que la
+ *  frappe filtre, et toucher la pastille permet de changer de choix (demande du 21 octobre : rien ne
+ *  s'ouvrait avant la première lettre). */
 @Composable
 private fun <T> SelectionIos(
     titre: String,
@@ -489,16 +492,19 @@ private fun <T> SelectionIos(
 ) {
     val sansClavier = elements.size < SEUIL_RECHERCHE_LISTE
     var requete by remember { mutableStateOf("") }
-    // Sans clavier : la liste entière est déroulée. Avec : les suggestions, masquées par un toucher
-    // ailleurs jusqu'à la frappe suivante.
+    // Toucher la pastille, ou l'invite sans clavier : la liste entière. Le champ de recherche : ses
+    // suggestions tant qu'il a le focus, toute la liste avant la première lettre ; un toucher ailleurs
+    // les masque jusqu'à la frappe suivante.
     var ouvert by remember { mutableStateOf(false) }
+    var focalise by remember { mutableStateOf(false) }
     var suggestionsMasquees by remember { mutableStateOf(false) }
     var largeur by remember { mutableStateOf(0) }
     var haut by remember { mutableStateOf(0f) }
     val focus = LocalFocusManager.current
     val liste = when {
-        sansClavier -> if (ouvert) elements else emptyList()
-        selection == null && !suggestionsMasquees -> filtreAutocompleteIos(elements, libelle, requete)
+        ouvert -> elements
+        sansClavier -> emptyList()
+        selection == null && focalise && !suggestionsMasquees -> filtreAutocompleteIos(elements, libelle, requete)
         else -> emptyList()
     }
     val choisir: (T) -> Unit = { element ->
@@ -528,7 +534,7 @@ private fun <T> SelectionIos(
                     .fillMaxWidth()
                     .then(mesure)
                     .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-                    .then(if (sansClavier) Modifier.clickable(remember { MutableInteractionSource() }, indication = null) { ouvert = true } else Modifier)
+                    .clickable(remember { MutableInteractionSource() }, indication = null) { ouvert = true }
                     .padding(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -586,7 +592,10 @@ private fun <T> SelectionIos(
                     textStyle = styleSaisieIos,
                     cursorBrush = SolidColor(CouleursGeoMys.jauneClair),
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrectEnabled = false),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().onFocusChanged {
+                        if (it.isFocused && !focalise) suggestionsMasquees = false
+                        focalise = it.isFocused
+                    },
                 )
                 listeDessus()
             }

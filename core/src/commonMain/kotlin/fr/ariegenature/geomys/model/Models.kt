@@ -198,6 +198,13 @@ data class Observation(
      *  (audit 2026-09-14, R1-M1). Reste posé après un envoi partiel, ce qui permet de rattacher les
      *  observations restantes au relevé déjà créé au lieu d'en ouvrir un second. */
     var releveTente: Boolean = false,
+    /** Empreinte de l'occurrence telle que transmise (GeoNatureUpload.empreinteOccurrence), posée à
+     *  sa création côté serveur. Une espèce modifiée depuis (« Continuer la saisie » après un envoi
+     *  partiel) ne la porte plus : le prochain envoi transmet la modification en mise à jour (audit
+     *  du 21 octobre 2026, C3). Null : transmise avant le suivi des empreintes, jamais mise à jour. */
+    var empreinteEnvoi: String? = null,
+    /** Empreinte du relevé tel que transmis (GeoNatureUpload.empreinteReleve), de même. */
+    var empreinteReleveEnvoi: String? = null,
 ) {
     /** Le total d'individus : la somme des count_min de TOUS les dénombrements (n° 0 et suivants),
      *  partout le même. Sous GeoMys-Android, les listes ne comptaient que le n° 0 alors que le

@@ -190,13 +190,19 @@ class TaxRefSyncPaginationTest {
             type = nom, label = nom, labelList = null, nameField = null, parentType = null, childrenTypes = emptyList(),
             properties = props.associateBy { it.nom }, idListTaxonomy = liste,
         )
-        // STOM : la liste du protocole ; un champ à sa propre liste.
-        val stom = 101 to mapOf("observation" to type("observation", null, prop("cd_nom", "taxonomy")))
+        // STOM : la liste du protocole, que le serveur pose aussi sur son champ espèce (`id_list` du
+        // générique, `__MODULE.ID_LIST_TAXONOMY`) ; un autre champ a sa propre liste.
+        val stom = 101 to mapOf("observation" to type("observation", null, prop("cd_nom", "taxonomy", liste = 101)))
         val propre = null to mapOf("observation" to type("observation", null, prop("cd_nom", "taxonomy", liste = 205)))
         assertEquals(ListesDesSuivis(setOf(101, 205), champSansListe = false), listesDesSuivis(listOf(stom, propre)))
-        // La liste d'un autre type du schéma suffit (NouvelleVisite.preparer).
-        val autreType = null to mapOf("module" to type("module", 103), "observation" to type("observation", null, prop("cd_nom", "taxonomy")))
-        assertFalse(listesDesSuivis(listOf(autreType)).champSansListe)
+        // Comme le web (21 octobre) : un champ espèce sans `id_list` cherche dans tout TaxRef, même si
+        // le protocole ou un autre type déclare une liste (PAPALTB, pelouses_seches à l'ANA).
+        val autreType = 103 to mapOf("module" to type("module", 103), "observation" to type("observation", null, prop("cd_nom", "taxonomy")))
+        assertTrue(listesDesSuivis(listOf(autreType)).champSansListe)
+        // Le `cd_nom` masqué du type « module » ne compte pas.
+        val masque = prop("cd_nom", "taxonomy").copy(hiddenBool = true)
+        val moduleMasque = 101 to mapOf("module" to type("module", 101, masque), "observation" to type("observation", null, prop("cd_nom", "taxonomy", liste = 101)))
+        assertFalse(listesDesSuivis(listOf(moduleMasque)).champSansListe)
         // RHOMEOOrthoptere sur le serveur de l'ANA : aucune liste nulle part.
         val sansListe = null to mapOf("observation" to type("observation", null, prop("cd_nom", "taxonomy"), prop("nb", "number")))
         assertTrue(listesDesSuivis(listOf(stom, sansListe)).champSansListe)

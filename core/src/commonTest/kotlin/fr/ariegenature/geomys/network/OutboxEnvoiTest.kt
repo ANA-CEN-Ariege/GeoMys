@@ -24,6 +24,7 @@
 package fr.ariegenature.geomys.network
 
 import fr.ariegenature.geomys.ServicesDeTest
+import fr.ariegenature.geomys.json.JSONObject
 import fr.ariegenature.geomys.model.SaisieEnAttente
 import fr.ariegenature.geomys.network.ServeurSimule.Companion.champMultipart
 import fr.ariegenature.geomys.network.ServeurSimule.Companion.json
@@ -69,8 +70,15 @@ class OutboxEnvoiTest {
     private val codesMedia = mutableListOf<Int>()
     private val postsMedia = atomic(0)
 
-    /** Réponse du GET parent?depth=1 (vérification anti-doublon). Null = enfants vides. */
-    private var reponseParentDepth1: ServeurSimule.Reponse? = null
+    /** Réponse de la recherche par uuid `GET /monitorings/list/…` (vérification anti-doublon). Null =
+     *  liste vide : l'objet n'existe pas. */
+    private var reponseRechercheUuid: ServeurSimule.Reponse? = null
+
+    /** Adresses des recherches par uuid reçues. */
+    private val recherchesUuid = mutableListOf<String>()
+
+    /** Les PATCH reçus : adresse et corps. */
+    private val patchs = mutableListOf<Pair<String, String>>()
 
     /** Corps multipart du dernier POST média reçu. */
     private var dernierCorpsMedia: String = ""
@@ -88,9 +96,14 @@ class OutboxEnvoiTest {
             val chemin = requete.url.encodedPathAndQuery
             when {
                 chemin.startsWith("/api/auth/login") -> json("""{"access_token":"t","user":{"id_role":1}}""")
-                requete.method == HttpMethod.Get && chemin.startsWith("/api/monitorings/object/") &&
-                    chemin.contains("depth=1") ->
-                    reponseParentDepth1 ?: json("""{"children":{}}""")
+                requete.method == HttpMethod.Get && chemin.startsWith("/api/monitorings/list/") -> {
+                    synchronized(verrou) { recherchesUuid.add(chemin) }
+                    reponseRechercheUuid ?: json("[]")
+                }
+                requete.method == HttpMethod.Patch && chemin.startsWith("/api/monitorings/object/") -> {
+                    synchronized(verrou) { patchs.add(chemin to requete.texte) }
+                    json("""{"id":41}""")
+                }
                 requete.method == HttpMethod.Post && chemin.startsWith("/api/monitorings/object/") -> {
                     val code = synchronized(verrou) {
                         postsVisite.add(requete.texte)
@@ -325,8 +338,8 @@ class OutboxEnvoiTest {
 
     // ── Anti-doublon : re-POST après réponse perdue ────────────────────────────────
 
-    /** Saisie déjà tentée (réponse perdue en pleine coupure) : porte un uuid client et connaît son
-     *  parent serveur → la vérification anti-doublon est possible. */
+    /** Saisie déjà tentée (réponse perdue en pleine coupure) : porte un uuid client → la vérification
+     *  anti-doublon est possible. */
     private fun saisieAmbigue() = saisie(
         "obs", etat = SaisieEnAttente.Etat.ERROR, dejaTentee = true,
         parentObjectType = "site", parentIdServeur = 12,
@@ -335,21 +348,24 @@ class OutboxEnvoiTest {
 
     @Test
     fun re_envoi_ne_duplique_pas_une_saisie_deja_creee_dont_la_reponse_s_est_perdue() = runTest {
-        // Le serveur a déjà l'objet (uuid retrouvé chez les enfants du parent) : le nouvel envoi doit
-        // le DÉTECTER au lieu de re-POSTer — c'est le doublon observé sur le terrain.
-        reponseParentDepth1 = json("""{"children":{"visite":[
-                {"id":77,"properties":{"uuid_observation":"UUID-OBS","comments":"x"}}
-            ]}}""")
+        // Le serveur a déjà l'objet : le nouvel envoi doit le DÉTECTER au lieu de re-POSTer — c'est
+        // le doublon observé sur le terrain. La recherche passe par la liste filtrée sur l'uuid : la
+        // fiche du parent ne donne pas l'uuid de ses enfants (gn_module_monitoring 1.3.2, C4).
+        reponseRechercheUuid = json("""[{"id_observation":77,"uuid_observation":"UUID-OBS"}]""")
         outbox.ajouter(saisieAmbigue())
         val res = envoyerTout()
         assertEquals(1, res.succes)
         assertEquals(0, postsVisite.size, "AUCUN re-POST : l'objet existe déjà")
         assertTrue(outbox.tout().isEmpty(), "réconciliée et purgée")
+        assertEquals(
+            "/api/monitorings/list/STOC/visite?uuid_observation=uuid-obs&fields=id_observation&fields=uuid_observation",
+            recherchesUuid.single(),
+        )
     }
 
     @Test
     fun re_envoi_poste_normalement_si_l_objet_est_absent_du_serveur() = runTest {
-        // children vides (reponseParentDepth1 par défaut) → l'objet n'a jamais été créé.
+        // Liste vide (par défaut) → l'objet n'a jamais été créé.
         outbox.ajouter(saisieAmbigue())
         val res = envoyerTout()
         assertEquals(1, res.succes)
@@ -376,14 +392,83 @@ class OutboxEnvoiTest {
     }
 
     @Test
+    fun une_reponse_illisible_de_la_verification_bloque_aussi_le_re_envoi() = runTest {
+        // Portail captif : du HTML au lieu de la liste. Pas de re-POST à l'aveugle.
+        reponseRechercheUuid = statut(200, "<html>portail</html>", "Content-Type" to "text/html")
+        outbox.ajouter(saisieAmbigue())
+        val res = envoyerTout()
+        assertEquals(1, res.echecs)
+        assertEquals(0, postsVisite.size)
+    }
+
+    @Test
+    fun un_objet_cree_dont_l_id_s_est_perdu_le_retrouve_par_son_uuid() = runTest {
+        // Avant le 21 octobre, cette saisie restait bloquée : « id inconnu — réessayez » à chaque
+        // essai, et ses enfants ne partaient jamais.
+        reponseRechercheUuid = json("""[{"id_observation":88,"uuid_observation":"uuid-obs"}]""")
+        outbox.ajouter(saisieAmbigue().copy(objetCree = true, idServeur = null))
+        val res = envoyerTout()
+        assertEquals(1, res.succes)
+        assertEquals(0, postsVisite.size, "pas de nouveau POST")
+    }
+
+    @Test
     fun verification_anti_doublon_inaccessible_bloque_le_re_envoi() = runTest {
         // Vérification impossible (réseau ou serveur en panne) : ne PAS re-POSTer à l'aveugle.
-        reponseParentDepth1 = statut(500)
+        reponseRechercheUuid = statut(500)
         outbox.ajouter(saisieAmbigue())
         val res = envoyerTout()
         assertEquals(1, res.echecs)
         assertEquals(0, postsVisite.size, "pas de re-POST aveugle")
         assertEquals(SaisieEnAttente.Etat.ERROR, outbox.tout().single().etat)
+    }
+
+    // ── Mise à jour d'un objet déjà créé (audit du 21 octobre, C3) ──
+
+    @Test
+    fun une_saisie_corrigee_apres_un_envoi_partiel_part_en_mise_a_jour() = runTest {
+        // La visite est créée (#41) mais sa photo a échoué ; l'utilisateur corrige un champ par
+        // « Éditer ». Avant le 21 octobre, seule la photo repartait : la correction se perdait.
+        outbox.ajouter(
+            saisie("u1", etat = SaisieEnAttente.Etat.ERROR, objetCree = true, idServeur = 41, uuidPayload = "uuid-u1", uuidFieldName = "uuid_base_visit")
+                .copy(valeursJson = """{"comments":"corrigé","date_ponte":""}""", modifieeApresCreation = true, champsDate = listOf("date_ponte")),
+        )
+        val res = envoyerTout()
+        assertEquals(1, res.succes)
+        assertEquals(0, postsVisite.size, "pas de nouvelle création")
+        val (chemin, corps) = patchs.single()
+        assertEquals("/api/monitorings/object/STOC/visite/41", chemin)
+        val props = JSONObject(corps).getJSONObject("properties")
+        assertEquals("corrigé", props.getString("comments"))
+        assertTrue(props.isNull("date_ponte"), "une date vidée part à null : absente, le serveur garderait l'ancienne")
+        assertFalse(props.has("medias"), "medias: [] détacherait les photos")
+        assertFalse(props.has("id_digitiser"), "le numérisateur reste celui de la création")
+        assertEquals("uuid-u1", props.getString("uuid_base_visit"))
+    }
+
+    @Test
+    fun une_saisie_creee_et_non_modifiee_ne_part_pas_en_mise_a_jour() = runTest {
+        outbox.ajouter(saisie("u1", etat = SaisieEnAttente.Etat.ERROR, objetCree = true, idServeur = 41))
+        assertEquals(1, envoyerTout().succes)
+        assertTrue(patchs.isEmpty())
+    }
+
+    @Test
+    fun une_mise_a_jour_refusee_laisse_la_saisie_en_erreur() = runTest {
+        serveur.routerRequetes { requete ->
+            val chemin = requete.url.encodedPathAndQuery
+            when {
+                chemin.startsWith("/api/auth/login") -> json("""{"access_token":"t","user":{"id_role":1}}""")
+                requete.method == HttpMethod.Patch -> json("""{"description":"boom"}""", 500)
+                else -> json("""{"data":[]}""")
+            }
+        }
+        outbox.ajouter(saisie("u1", etat = SaisieEnAttente.Etat.ERROR, objetCree = true, idServeur = 41).copy(modifieeApresCreation = true))
+        val res = envoyerTout()
+        assertEquals(1, res.echecs)
+        val s = outbox.tout().single()
+        assertEquals(SaisieEnAttente.Etat.ERROR, s.etat)
+        assertTrue(s.modifieeApresCreation, "la correction repartira")
     }
 
     // ── Médias (objet créé, photo en échec — ex. mode avion pendant le transfert) ──

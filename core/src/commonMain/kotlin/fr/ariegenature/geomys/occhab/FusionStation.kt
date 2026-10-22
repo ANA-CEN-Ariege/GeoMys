@@ -18,9 +18,11 @@
 
 package fr.ariegenature.geomys.occhab
 
+import fr.ariegenature.geomys.json.JSONArray
 import fr.ariegenature.geomys.model.OccHabHabitat
 import fr.ariegenature.geomys.model.OccHabStation
 import fr.ariegenature.geomys.store.io.JSON_STOCKAGE
+import kotlin.math.abs
 
 /** [OccHabStation.origineJson] de cette station : son contenu à cet instant. */
 fun OccHabStation.versOrigineJson(): String =
@@ -82,6 +84,9 @@ object FusionStation {
     }
 
     /** Les habitats, par leur id serveur :
+     *  - créé par un envoi précédent resté sans réponse : le serveur l'a sous l'identifiant SINP
+     *    (`unique_id_sinp_hab`) que l'appli lui avait donné ; c'est celui de l'appli, qui prend son id
+     *    au lieu de repartir en double (audit du 21 octobre, C5) ;
      *  - ajouté sur le serveur depuis l'origine : gardé ;
      *  - supprimé dans l'appli : omis, donc supprimé par le serveur ;
      *  - supprimé sur le serveur : pas recréé ;
@@ -98,19 +103,61 @@ object FusionStation {
         if (origine.any { (it.idHabitatServeur ?: 0) <= 0 }) return locale
         val parIdOrigine = origine.parIdServeur()
         val parIdLocale = locale.parIdServeur()
+        val nouveaux = locale.filter { (it.idHabitatServeur ?: 0) <= 0 }
+        val nouveauxParUuid = nouveaux.mapNotNull { h -> h.uuidHabitat?.lowercase()?.takeIf { it.isNotBlank() }?.let { it to h } }.toMap()
+        val repris = mutableSetOf<String>()
         val fusion = serveur.mapNotNull { s ->
             val id = s.idHabitatServeur?.takeIf { it > 0 }
             val o = id?.let(parIdOrigine::get)
             val l = id?.let(parIdLocale::get)
+            val cree = if (o == null && l == null) s.uuidHabitat?.lowercase()?.let(nouveauxParUuid::get) else null
             when {
+                cree != null -> {
+                    repris += cree.id
+                    cree.copy(idHabitatServeur = id)
+                }
                 o == null -> l ?: s
                 l == null -> null
                 contenu(l) == contenu(o) -> s
                 else -> l
             }
         }
-        return fusion + locale.filter { (it.idHabitatServeur ?: 0) <= 0 }
+        return fusion + nouveaux.filter { it.id !in repris }
     }
+
+    /** [a] et [b] ont-elles la même géométrie (type, sommets, trous), au centimètre près : le serveur
+     *  peut renvoyer des coordonnées moins précises que celles qu'il a reçues. */
+    fun memeGeometrie(a: OccHabStation, b: OccHabStation): Boolean {
+        if (a.geometryType != b.geometryType) return false
+        if (a.geometryType != "Polygon" || a.geometryCoordsJson.isNullOrEmpty() || b.geometryCoordsJson.isNullOrEmpty()) {
+            return proches(a.latitude, b.latitude) && proches(a.longitude, b.longitude)
+        }
+        return memesSommets(anneau(a.geometryCoordsJson), anneau(b.geometryCoordsJson)) &&
+            anneaux(a.geometryTrousJson).let { ta ->
+                val tb = anneaux(b.geometryTrousJson)
+                ta.size == tb.size && ta.indices.all { memesSommets(ta[it], tb[it]) }
+            }
+    }
+
+    /** Environ 1 cm en latitude. */
+    private const val TOLERANCE_DEGRES = 1e-7
+
+    private fun proches(x: Double, y: Double) = abs(x - y) <= TOLERANCE_DEGRES
+
+    private fun memesSommets(a: List<Pair<Double, Double>>?, b: List<Pair<Double, Double>>?): Boolean =
+        a != null && b != null && a.size == b.size && a.indices.all { proches(a[it].first, b[it].first) && proches(a[it].second, b[it].second) }
+
+    /** `[[lon, lat], …]`, ou null s'il ne se lit pas. */
+    private fun anneau(json: String?): List<Pair<Double, Double>>? = runCatching {
+        val tableau = JSONArray(json!!)
+        (0 until tableau.length()).map { tableau.getJSONArray(it).let { c -> c.getDouble(0) to c.getDouble(1) } }
+    }.getOrNull()
+
+    /** `[[[lon, lat], …], …]` : les trous d'un polygone ; aucun si vide ou illisible. */
+    private fun anneaux(json: String?): List<List<Pair<Double, Double>>?> = runCatching {
+        val tableau = JSONArray(json!!)
+        (0 until tableau.length()).map { anneau(tableau.getJSONArray(it).toString()) }
+    }.getOrNull().orEmpty()
 
     private fun List<OccHabHabitat>.parIdServeur(): Map<Int, OccHabHabitat> =
         mapNotNull { h -> h.idHabitatServeur?.takeIf { it > 0 }?.let { it to h } }.toMap()

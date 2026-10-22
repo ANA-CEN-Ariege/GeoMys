@@ -29,6 +29,7 @@ import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.prepareGet
 import io.ktor.client.request.preparePost
@@ -61,6 +62,21 @@ suspend fun ClientsGeoNature.postJson(
     timeoutMs: Long = 10_000,
     readTimeoutMs: Long = timeoutMs,
 ): HttpResponse = ecriture.post(urlAbsolue(url)) {
+    configurer(token, cookies, timeoutMs, readTimeoutMs)
+    contentType(ContentType.Application.Json)
+    setBody(corps)
+}
+
+/** PATCH avec corps JSON, par le client des écritures, comme [postJson] : la modification d'un objet
+ *  des Suivis (`/monitorings/object/<module>/<type>/<id>`). */
+suspend fun ClientsGeoNature.patchJson(
+    url: String,
+    corps: String,
+    token: String? = null,
+    cookies: String = "",
+    timeoutMs: Long = 10_000,
+    readTimeoutMs: Long = timeoutMs,
+): HttpResponse = ecriture.patch(urlAbsolue(url)) {
     configurer(token, cookies, timeoutMs, readTimeoutMs)
     contentType(ContentType.Application.Json)
     setBody(corps)

@@ -73,6 +73,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
@@ -422,6 +424,8 @@ private fun ChampNombreAndroid(f: EditableField, etat: FormulaireEtat) {
 private fun ChampTaxonAndroid(f: EditableField, etat: FormulaireEtat) {
     val code = f.code
     val couleurs = MaterialTheme.colorScheme
+    val focus = LocalFocusManager.current
+    val clavier = LocalSoftwareKeyboardController.current
     var ancre by remember { mutableStateOf<Rect?>(null) }
     // Liste fermée (choix fait, toucher dehors, retour) jusqu'à la frappe suivante.
     var fermee by remember { mutableStateOf(false) }
@@ -486,6 +490,9 @@ private fun ChampTaxonAndroid(f: EditableField, etat: FormulaireEtat) {
             LignePropositionAndroid(p) {
                 etat.choisirPropositionTaxon(code, p)
                 fermee = true
+                // L'espèce choisie, le clavier se ferme (demande du 22 octobre).
+                clavier?.hide()
+                focus.clearFocus()
             }
         }
     }
@@ -597,7 +604,7 @@ private fun ChampIos(f: EditableField, etat: FormulaireEtat, onAjouterPhotos: (S
             etat.erreurValidation(code)?.let { Text(it, fontSize = 11.sp, color = CouleursGeoMys.rougePastille) }
         }
         ViewType.TAXON -> ChampTaxonIos(f, etat)
-        // Picker en menu d'une ligne de Form : la valeur et les chevrons à droite, en secondaire.
+        // Picker en menu d'une ligne de Form.
         ViewType.SELECT -> etat.valeurHorsListe(code)?.let { horsListe ->
             // Une valeur hors des options d'un `select` : grisée, comme sur le web.
             Text(horsListe, fontSize = 17.sp, color = SECONDAIRE_IOS.copy(alpha = 0.4f))
@@ -605,11 +612,7 @@ private fun ChampIos(f: EditableField, etat: FormulaireEtat, onAjouterPhotos: (S
             val (libelles, position) = entreesListe(f, etat)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
-                    Row(Modifier.align(Alignment.CenterEnd).padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(libelles.getOrNull(position).orEmpty(), fontSize = 17.sp, color = SECONDAIRE_IOS, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Spacer(Modifier.width(4.dp))
-                        SymboleSf("chevron.up.chevron.down", 13f, listOf(SECONDAIRE_IOS))
-                    }
+                    ValeurListeIos(libelles.getOrNull(position).orEmpty())
                     MenuSysteme(libelles, position, { etat.choisirOption(code, optionDe(f, it)) }, Modifier.matchParentSize())
                 }
                 // La croix d'une nomenclature, des observateurs, d'un jeu de données.
@@ -721,12 +724,33 @@ private fun ChampIos(f: EditableField, etat: FormulaireEtat, onAjouterPhotos: (S
     }
 }
 
+/** Ce que montre une liste sous iOS, sous son menu : la valeur et ses chevrons en secondaire, calés
+ *  à gauche comme tous les champs (demande du 22 octobre ; ils étaient à droite, comme le Picker de
+ *  GeoMys-IOS). Une valeur trop longue finit en « … », les chevrons restent visibles. */
+@Composable
+internal fun ValeurListeIos(valeur: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            valeur,
+            fontSize = 17.sp,
+            color = SECONDAIRE_IOS,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        Spacer(Modifier.width(4.dp))
+        SymboleSf("chevron.up.chevron.down", 13f, listOf(SECONDAIRE_IOS))
+    }
+}
+
 /** Champ TAXON : `AutocompleteField` de GeoMys-IOS (fond blanc 10 % aux coins de 6 pt, propositions
  *  en liste sous le champ), puis la ligne du taxon retenu, son symbole en tête. */
 @NonSkippableComposable
 @Composable
 private fun ChampTaxonIos(f: EditableField, etat: FormulaireEtat) {
     val code = f.code
+    val focus = LocalFocusManager.current
+    val clavier = LocalSoftwareKeyboardController.current
     var focalise by remember { mutableStateOf(false) }
     var fermee by remember { mutableStateOf(false) }
     val texte = etat.texte(code)
@@ -760,6 +784,9 @@ private fun ChampTaxonIos(f: EditableField, etat: FormulaireEtat) {
                             .clickable {
                                 etat.choisirPropositionTaxon(code, p)
                                 fermee = true
+                                // L'espèce choisie, le clavier se ferme (demande du 22 octobre).
+                                clavier?.hide()
+                                focus.clearFocus()
                             }
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(1.dp),

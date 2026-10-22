@@ -32,8 +32,17 @@ class InvalidationCaches(
     private val stationsServeur: StationsServeurCache,
 ) {
 
+    /** Le mot de passe a changé, sur le même serveur et le même compte : seuls les caches MÉMOIRE de
+     *  la session tombent (jeton, résolveurs) ; ceux de l'instance, sur disque, restent valides. */
+    fun invaliderSession() {
+        auth.invaliderCache()
+        monitoring.invaliderCaches()
+        upload.invaliderCaches()
+    }
+
     /** Vide en cascade tous les caches mémoire process-wide qui dépendent de l'identité du
-     *  serveur GeoNature (URL / login / mot de passe). À appeler par l'écran de configuration
+     *  serveur GeoNature (URL / login), et ceux de l'instance sur disque (nomenclatures, stations
+     *  du serveur). À appeler par l'écran de configuration
      *  dès qu'un de ces 3 champs change — sans ça, un changement de serveur continue à servir
      *  des id_nomenclature, id_table_location, id_role, modules et LabelResolver issus de
      *  l'instance précédente, et les envois partent avec des FK invalides.
@@ -42,14 +51,13 @@ class InvalidationCaches(
      *  ne sont pas vidés ici : ils restent valides tant que l'utilisateur ne change pas de
      *  serveur, et un changement de serveur impose de toute façon un nouveau sync explicite. */
     fun invaliderCachesSession() {
-        auth.invaliderCache()
-        monitoring.invaliderCaches()
-        upload.invaliderCaches()
+        invaliderSession()
         // Cache DISQUE des nomenclatures : contrairement aux caches ci-dessus il survit au
         // process, et GeoNatureUpload.envoyer() le préfère au réseau (`fromCache.isNotEmpty()`).
         // Sans cette purge, les id_nomenclature de l'ancienne instance partaient dans les
-        // occurrences → FK invalide → 500 opaque. Purge volontairement large (aussi sur simple
-        // changement de login/mdp) : un cache vide se resynchronise tout seul à l'envoi.
+        // occurrences → FK invalide → 500 opaque. Plus sur un simple changement de mot de passe
+        // ([invaliderSession] seule) : le cache est celui de la même instance, et les formulaires,
+        // qui ne lisent que lui, restaient sans listes hors réseau (audit du 21 octobre, M29).
         nomenclatures.vider()
         // Stations serveur OccHab : propres à l'instance (id_station/id_dataset) ET au compte
         // (filtre numérisateur/observateur appliqué avant écriture) — un changement d'URL comme de

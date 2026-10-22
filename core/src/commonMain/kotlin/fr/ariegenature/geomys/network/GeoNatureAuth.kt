@@ -137,18 +137,18 @@ class GeoNatureAuth(
                         // GeoNature n'étant pas versionnée par endpoint, c'est le seul indice
                         // pour diagnostiquer un comportement propre à une version serveur.
                         val version = versionGeoNature(base)
-                        config.versionGeoNatureServeur = version ?: ""
                         // Garde version minimale : une instance trop ancienne n'expose pas les
                         // routes requises (TaxHub intégré sous /api/taxhub…). On invalide la
                         // config (serveurCompatible → connexionConfiguree) plutôt que de laisser
-                        // l'app échouer de façon opaque à la première synchro. Une version illisible
-                        // (`gn_commons/config` absent, d'avant la 2.12) est refusée de même : le
-                        // bénéfice du doute laissait passer un serveur dont les taxons ne se
-                        // chargeaient pas (demande de l'utilisateur du 21 octobre).
+                        // l'app échouer de façon opaque à la première synchro. Seule une version LUE
+                        // trop ancienne est refusée (décision de l'utilisateur du 21 octobre, après
+                        // l'audit) : une version non lue — délai, 5xx, page HTML, serveur d'avant la
+                        // 2.12 — laisse l'état et la version d'avant, sans geler l'appli.
                         if (version == null) {
-                            config.serveurCompatible = false
-                            return@withContext Pair(false, VERSION_INTROUVABLE)
+                            return@withContext if (config.serveurCompatible) Pair(true, CONNEXION_SANS_VERSION)
+                            else Pair(false, VERSION_NON_LUE_REFUS_MAINTENU)
                         }
+                        config.versionGeoNatureServeur = version
                         if (!versionGeoNatureSupportee(version)) {
                             config.serveurCompatible = false
                             return@withContext Pair(
@@ -181,7 +181,7 @@ class GeoNatureAuth(
         val reponse = clients.standard.get(urlAbsolue("$base/api/gn_commons/config")) {
             header(HttpHeaders.Accept, "application/json")
             timeout {
-                // Une version illisible refuse le serveur : un réseau lent ne doit pas y suffire.
+                // Un réseau lent ne doit pas faire perdre la version : 10 s, contre 5 avant le 21 octobre.
                 connectTimeoutMillis = 10_000
                 socketTimeoutMillis = 10_000
             }

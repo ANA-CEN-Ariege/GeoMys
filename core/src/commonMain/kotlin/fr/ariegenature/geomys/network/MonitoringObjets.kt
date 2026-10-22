@@ -27,6 +27,7 @@ import fr.ariegenature.geomys.network.MonitoringApi.MonitoringEnfant
 import fr.ariegenature.geomys.network.MonitoringApi.MonitoringObjet
 import fr.ariegenature.geomys.json.JSONArray
 import fr.ariegenature.geomys.json.JSONObject
+import fr.ariegenature.geomys.monitoring.AffichageSuivis
 import fr.ariegenature.geomys.network.http.ClientsGeoNature
 import fr.ariegenature.geomys.network.http.get
 import fr.ariegenature.geomys.store.GeoNatureConfig
@@ -443,25 +444,30 @@ class MonitoringObjets(
             }
         }
 
-        /** Trie une liste d'enfants selon les critères déclarés par le schéma (champ `sorts`).
-         *  Tente une comparaison numérique d'abord, fallback comparaison de strings (les dates ISO
-         *  YYYY-MM-DD se trient correctement en string). Sans critères : tri alpha par nom. */
+        /** Trie une liste d'enfants selon les critères déclarés par le schéma (champ `sorts`), chacun
+         *  en nombre ou en texte pour toute la liste ([AffichageSuivis.comparateurValeurs] : un ordre
+         *  total — mêler les deux selon la paire comparée pouvait faire planter le tri, audit du
+         *  21 octobre, M36). Les dates ISO YYYY-MM-DD se trient en texte. Sans critères : par nom. */
         fun trierEnfants(enfants: List<MonitoringEnfant>, sorts: List<Pair<String, String>>): List<MonitoringEnfant> {
             if (sorts.isEmpty()) return enfants.sortedBy { it.nom.lowercase() }
+            val comparateurs = sorts.map { (prop, _) ->
+                AffichageSuivis.comparateurValeurs(enfants.map { it.proprietes[prop] ?: "" }, null)
+            }
             val comp = Comparator<MonitoringEnfant> { a, b ->
                 var r = 0
-                for ((prop, dir) in sorts) {
-                    val va = a.proprietes[prop] ?: ""
-                    val vb = b.proprietes[prop] ?: ""
-                    val da = va.toDoubleOrNull()
-                    val db = vb.toDoubleOrNull()
-                    r = if (da != null && db != null) da.compareTo(db) else va.compareTo(vb)
+                for ((i, critere) in sorts.withIndex()) {
+                    val (prop, dir) = critere
+                    r = comparateurs[i].compare(a.proprietes[prop] ?: "", b.proprietes[prop] ?: "")
                     if (dir == "desc") r = -r
                     if (r != 0) break
                 }
                 r
             }
-            return enfants.sortedWith(comp)
+            return try {
+                enfants.sortedWith(comp)
+            } catch (_: IllegalArgumentException) {
+                enfants.sortedBy { it.nom.lowercase() }
+            }
         }
     }
 }

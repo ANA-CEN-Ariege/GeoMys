@@ -131,7 +131,8 @@ object AffichageSuivis {
     ): Map<String, List<MonitoringEnfant>> =
         enfants.mapValues { (type, liste) ->
             val schemaType = schema?.get(type)
-            trierCommeLeServeur(renommer(liste, schemaType, resolver), schemaType?.sorts?.firstOrNull())
+            val critere = schemaType?.sorts?.firstOrNull()
+            trierCommeLeServeur(renommer(liste, schemaType, resolver), critere, critere?.let { estNumerique(schemaType, it.first) })
         }
 
     /** [liste] triée sur [critere] (propriété, `asc` ou `desc`) comme le serveur trie les listes du
@@ -140,12 +141,12 @@ object AffichageSuivis {
      *  comme sous PostgreSQL (un site jamais visité en tête d'un tri sur `last_visit desc`). Sans
      *  critère, ou quand aucune ligne ne porte la propriété (le serveur n'envoie d'un enfant que les
      *  champs de sa `display_list`), le tri par nom. */
-    fun trierCommeLeServeur(liste: List<MonitoringEnfant>, critere: Pair<String, String>?): List<MonitoringEnfant> {
+    fun trierCommeLeServeur(liste: List<MonitoringEnfant>, critere: Pair<String, String>?, numerique: Boolean? = null): List<MonitoringEnfant> {
         val parNom = compareBy(comparateurFrancais()) { e: MonitoringEnfant -> e.nom }
         val (prop, sens) = critere ?: return liste.sortedWith(parNom)
         if (liste.none { it.proprietes.containsKey(prop) }) return liste.sortedWith(parNom)
         val decroissant = sens == "desc"
-        val francais = comparateurFrancais()
+        val valeurs = comparateurValeurs(liste.mapNotNull { it.proprietes[prop] }, numerique)
         val parCritere = Comparator<MonitoringEnfant> { a, b ->
             val va = a.proprietes[prop]
             val vb = b.proprietes[prop]
@@ -153,16 +154,44 @@ object AffichageSuivis {
                 va == null && vb == null -> 0
                 va == null -> if (decroissant) -1 else 1
                 vb == null -> if (decroissant) 1 else -1
-                else -> {
-                    val na = va.toDoubleOrNull()
-                    val nb = vb.toDoubleOrNull()
-                    val r = if (na != null && nb != null) na.compareTo(nb) else francais.compare(va, vb)
-                    if (decroissant) -r else r
-                }
+                else -> valeurs.compare(va, vb).let { if (decroissant) -it else it }
             }
         }
-        return liste.sortedWith(parCritere.then(parNom))
+        // Filet : un ordre incohérent ne doit jamais fermer l'appli.
+        return try {
+            liste.sortedWith(parCritere.then(parNom))
+        } catch (_: IllegalArgumentException) {
+            liste.sortedWith(parNom)
+        }
     }
+
+    /** Un ordre TOTAL sur les [valeurs] d'une propriété, comme PostgreSQL trie sa colonne : en nombre
+     *  si elle est numérique ([numerique], du schéma ; inconnu, si toutes ses valeurs sont des
+     *  nombres), en texte sinon. Mêler les deux selon la paire comparée donnait un ordre non
+     *  transitif (« 2 » < « 10 » en nombre, « 10 » < « 1a » < « 2 » en texte) : le tri d'Android pouvait
+     *  lever « Comparison method violates its general contract! » et fermer l'appli à l'ouverture d'un
+     *  protocole (audit du 21 octobre, M36). Une valeur illisible d'une propriété numérique vient
+     *  après les nombres. */
+    fun comparateurValeurs(valeurs: Collection<String>, numerique: Boolean?): Comparator<String> {
+        val enNombre = numerique ?: valeurs.filter { it.isNotEmpty() }.let { v -> v.isNotEmpty() && v.all { it.toDoubleOrNull() != null } }
+        val francais = comparateurFrancais()
+        if (!enNombre) return francais
+        return Comparator { a, b ->
+            val na = a.toDoubleOrNull()
+            val nb = b.toDoubleOrNull()
+            when {
+                na != null && nb != null -> na.compareTo(nb)
+                na != null -> -1
+                nb != null -> 1
+                else -> francais.compare(a, b)
+            }
+        }
+    }
+
+    /** La propriété [nom] de [schemaType] est-elle numérique (widget `number` ou `integer`) ? Null si
+     *  le schéma ne la décrit pas (`last_visit`, `nb_visits`… calculés par le serveur). */
+    fun estNumerique(schemaType: MonitoringSchemaObjet?, nom: String): Boolean? =
+        schemaType?.properties?.get(nom)?.typeWidget?.lowercase()?.let { it == "number" || it == "integer" }
 
     /** Construit le sous-titre d'une ligne enfant depuis `schema.display_list` (sans le
      *  nameField, déjà en titre), chaque valeur telle que le web l'affiche ([valeurAffichee] ; une

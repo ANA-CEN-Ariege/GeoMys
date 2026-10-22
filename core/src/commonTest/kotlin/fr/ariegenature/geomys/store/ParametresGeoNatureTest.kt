@@ -76,10 +76,22 @@ class ParametresGeoNatureTest {
         assertEquals("1", config.idDataset)
         assertTrue(config.listesCacheJson.isNotEmpty())
         assertTrue(config.observateursCacheJson.isNotEmpty())
-        // Caches de session et version de l'instance : à re-relever au prochain test.
-        assertEquals(0, services.stationsServeur.count)
-        assertEquals("", config.versionGeoNatureServeur)
-        assertTrue(config.serveurCompatible)
+        // Même instance : ses caches et sa version restent (audit du 21 octobre, M29). Les vider
+        // laissait les formulaires sans listes hors réseau.
+        assertEquals(1, services.stationsServeur.count)
+        assertEquals("2.17.5", config.versionGeoNatureServeur)
+        assertFalse(config.serveurCompatible)
+    }
+
+    @Test
+    fun un_nouveau_mot_de_passe_garde_les_nomenclatures() {
+        connexionEtSelections()
+        services.nomenclatures.setAll(mapOf("SEXE" to listOf(NomValeur(123, "mâle"))))
+        services.enregistrerConnexion("https://exemple.test", "u", "p2")
+        assertTrue(services.nomenclatures.estDisponible)
+        // Un autre compte, lui, les vide.
+        services.enregistrerConnexion("https://exemple.test", "v", "p2")
+        assertFalse(services.nomenclatures.estDisponible)
     }
 
     @Test

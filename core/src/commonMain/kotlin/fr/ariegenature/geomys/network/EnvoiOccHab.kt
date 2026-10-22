@@ -30,6 +30,7 @@ import fr.ariegenature.geomys.plateforme.proteger
 import fr.ariegenature.geomys.store.GeoNatureConfig
 import fr.ariegenature.geomys.store.OccHabStore
 import fr.ariegenature.geomys.store.StationsServeurCache
+import fr.ariegenature.geomys.util.uuidAleatoire
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.atomicfu.locks.SynchronizedObject
 import kotlinx.atomicfu.locks.synchronized
@@ -127,6 +128,17 @@ class EnvoiOccHab(
         return completee
     }
 
+    /** Un identifiant SINP à chaque habitat qui n'en a pas (créé avant le 21 octobre), enregistré
+     *  AVANT l'envoi : un renvoi après une réponse perdue transmet le même, et la fusion reconnaît
+     *  l'habitat déjà créé au lieu de le recréer (audit du 21 octobre, C5). */
+    private suspend fun avecUuidsHabitats(saisieId: String, station: OccHabStation): OccHabStation {
+        if (station.habitats.none { it.cdHab > 0 && it.uuidHabitat.isNullOrBlank() }) return station
+        val completee = station.copy(
+            habitats = station.habitats.map { h -> if (h.cdHab > 0 && h.uuidHabitat.isNullOrBlank()) h.copy(uuidHabitat = uuidAleatoire()) else h },
+        )
+        return if (store.upsertStation(saisieId, completee)) completee else station
+    }
+
     private suspend fun envoyerSousVerrou(
         saisie: OccHabSaisie,
         config: GeoNatureConfig,
@@ -149,7 +161,7 @@ class EnvoiOccHab(
 
         var nbCrees = 0
         var derniereErreur: String? = null
-        for (station in aEnvoyer.map { avecAltitudes(saisie.id, it) }) {
+        for (station in aEnvoyer.map { avecUuidsHabitats(saisie.id, avecAltitudes(saisie.id, it)) }) {
             // CRÉATION (pas d'id serveur) : « tentée » (statut INCERTAIN) persisté AVANT le POST — si
             // le processus meurt ou si la coroutine est annulée pendant l'appel, le prochain envoi
             // vérifiera l'existence par UUID au lieu de re-POSTer (audit 2026-08-27, modèle

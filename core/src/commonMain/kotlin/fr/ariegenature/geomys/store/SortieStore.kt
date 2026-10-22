@@ -22,6 +22,7 @@
 
 package fr.ariegenature.geomys.store
 
+import fr.ariegenature.geomys.model.Observation
 import fr.ariegenature.geomys.model.Sortie
 import fr.ariegenature.geomys.store.io.FichierAtomique
 import fr.ariegenature.geomys.store.io.StoreFichierJson
@@ -111,16 +112,37 @@ class SortieStore(fichier: FichierAtomique) : StoreFichierJson<Sortie>(Sortie.se
      *  AU FIL DE L'EAU pendant l'envoi et après un envoi PARTIEL : au prochain envoi de la sortie,
      *  elles ne seront pas re-postées (anti-doublon). Efface l'éventuelle incertitude. À appeler
      *  AVANT tout marquage global de la sortie. Renvoie le succès de la persistance. */
-    suspend fun marquerObservationsEnvoyees(id: String, obsIds: Collection<String>): Boolean {
+    suspend fun marquerObservationsEnvoyees(
+        id: String,
+        obsIds: Collection<String>,
+        /** Par observation : les empreintes de l'occurrence et du relevé transmis (cf. [enregistrerEmpreintes]). */
+        empreintes: Map<String, Pair<String?, String?>> = emptyMap(),
+    ): Boolean {
         if (obsIds.isEmpty()) return true
         val ids = obsIds.toSet()
         return muter { liste ->
             val idx = liste.indexOfFirst { it.id == id }
             if (idx >= 0) liste[idx] = liste[idx].copy(observations = liste[idx].observations.map { o ->
-                if (o.id in ids) o.copy(envoyeeServeur = true, idReleveIncertain = null) else o
+                if (o.id in ids) o.copy(envoyeeServeur = true, idReleveIncertain = null).avecEmpreintes(empreintes[o.id]) else o
             })
         }
     }
+
+    /** Les empreintes de ce qui vient d'être transmis en mise à jour (occurrence, relevé) : elles
+     *  deviennent celles de l'envoi. Une composante nulle laisse l'empreinte en place. */
+    suspend fun enregistrerEmpreintes(id: String, empreintes: Map<String, Pair<String?, String?>>): Boolean {
+        if (empreintes.isEmpty()) return true
+        return muter { liste ->
+            val idx = liste.indexOfFirst { it.id == id }
+            if (idx >= 0) liste[idx] = liste[idx].copy(observations = liste[idx].observations.map { o ->
+                o.avecEmpreintes(empreintes[o.id])
+            })
+        }
+    }
+
+    private fun Observation.avecEmpreintes(empreintes: Pair<String?, String?>?): Observation =
+        if (empreintes == null) this
+        else copy(empreinteEnvoi = empreintes.first ?: empreinteEnvoi, empreinteReleveEnvoi = empreintes.second ?: empreinteReleveEnvoi)
 
     /** POST de l'occurrence [obsId] émis sans réponse dans le relevé serveur [idReleve] : elle y a
      *  peut-être été créée. Le prochain envoi vérifiera par son uuid client avant de re-POSTer

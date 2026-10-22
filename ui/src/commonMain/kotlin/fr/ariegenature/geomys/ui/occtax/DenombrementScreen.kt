@@ -61,7 +61,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -211,9 +210,10 @@ private fun CarteVue(vm: DenombrementViewModel, carte: CarteDenombrement, index:
 
 /** Un effectif.
  *  - Android : libellé de 12 sp gris, MaterialButton contour de 44 dp aux coins de 8 dp (« − » en
- *    20 sp, « ＋ » en 18 sp) de part et d'autre d'un EditText numérique centré ;
- *  - iOS : `CompteurEffectif` de GeoMys-IOS (boutons de 44 × 40 pt au contour blanc 35 %, champ
- *    centré sur blanc 8 %).
+ *    20 sp, « ＋ » en 18 sp) de part et d'autre d'un EditText numérique ;
+ *  - iOS : `CompteurEffectif` de GeoMys-IOS (boutons de 44 × 40 pt au contour blanc 35 %, champ sur
+ *    blanc 8 %).
+ *  Le nombre est justifié à gauche, comme tous les champs (demande du 22 octobre ; il était centré).
  *  Un effectif est obligatoire, comme sur le web : vide, il porte la barre rouge. */
 @Composable
 private fun Compteur(libelle: String, valeur: String, onValeur: (String) -> Unit, onAjuster: (Int) -> Unit, modifier: Modifier) {
@@ -227,14 +227,14 @@ private fun Compteur(libelle: String, valeur: String, onValeur: (String) -> Unit
                     value = valeur,
                     onValueChange = chiffres,
                     singleLine = true,
-                    textStyle = styleSaisieIos.copy(textAlign = TextAlign.Center),
+                    textStyle = styleSaisieIos,
                     cursorBrush = SolidColor(CouleursGeoMys.jauneClair),
                     keyboardOptions = clavier,
                     modifier = Modifier
                         .weight(1f)
                         .defaultMinSize(minWidth = 56.dp)
                         .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(8.dp))
-                        .padding(vertical = 8.dp),
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
                 )
                 BoutonEffectifIos("plus", "Augmenter $libelle") { onAjuster(+1) }
             }
@@ -244,7 +244,7 @@ private fun Compteur(libelle: String, valeur: String, onValeur: (String) -> Unit
             Text(libelle, fontSize = 12.sp, color = GRIS_TITRE_CHAMP)
             Row(Modifier.barreChampObligatoire(valeur.isBlank()), verticalAlignment = Alignment.CenterVertically) {
                 BoutonEffectifAndroid("−", 20) { onAjuster(-1) }
-                ChampTexteFormulaire(valeur, chiffres, Modifier.weight(1f), clavier = clavier, centre = true)
+                ChampTexteFormulaire(valeur, chiffres, Modifier.weight(1f), clavier = clavier)
                 BoutonEffectifAndroid("＋", 18) { onAjuster(+1) }
             }
         }

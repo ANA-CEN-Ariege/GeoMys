@@ -410,8 +410,9 @@ data class ListesDesSuivis(val ids: Set<Int>, val champSansListe: Boolean)
 
 /** Les listes de taxons dont les protocoles ([protocoles] : la liste de chaque protocole, et son
  *  schéma) peuvent avoir besoin : celle du protocole, de chaque type d'objet et de chaque champ
- *  espèce. Un champ espèce sans liste propre prend celle de son type, sinon d'un autre type du
- *  schéma (NouvelleVisite.preparer) ; sans aucune, le web y propose tout TaxRef : [ListesDesSuivis.champSansListe]. */
+ *  espèce. Un champ espèce sans liste propre (`id_list`) cherche dans tout TaxRef, comme le web, même
+ *  si son protocole en déclare une (21 octobre) : [ListesDesSuivis.champSansListe]. Un champ masqué
+ *  (le `cd_nom` du type « module ») ne compte pas. */
 fun listesDesSuivis(protocoles: List<Pair<Int?, Map<String, MonitoringApi.MonitoringSchemaObjet>?>>): ListesDesSuivis {
     val ids = mutableSetOf<Int>()
     var sansListe = false
@@ -419,15 +420,12 @@ fun listesDesSuivis(protocoles: List<Pair<Int?, Map<String, MonitoringApi.Monito
         val listeProtocole = listeDeclaree?.takeIf { it > 0 }
         listeProtocole?.let(ids::add)
         val objets = schema?.values.orEmpty()
-        val listeDuSchema = objets.firstNotNullOfOrNull { it.idListTaxonomy }
         for (objet in objets) {
             objet.idListTaxonomy?.let(ids::add)
             for (p in objet.properties.values) {
                 p.idListTaxonomie?.let(ids::add)
                 val espece = p.typeWidget.equals("taxonomy", ignoreCase = true)
-                if (espece && p.idListTaxonomie == null && objet.idListTaxonomy == null && listeDuSchema == null && listeProtocole == null) {
-                    sansListe = true
-                }
+                if (espece && !p.hiddenBool && p.idListTaxonomie == null) sansListe = true
             }
         }
     }

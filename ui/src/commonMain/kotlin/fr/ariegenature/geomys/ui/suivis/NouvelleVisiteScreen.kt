@@ -64,7 +64,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import fr.ariegenature.geomys.monitoring.ActionValider
 import fr.ariegenature.geomys.monitoring.FilSegment
 import fr.ariegenature.geomys.monitoring.NouvelleVisite
 import fr.ariegenature.geomys.ui.composants.BalayageRetourIosDesactive
@@ -185,17 +184,15 @@ private fun PageAndroid(
                         .background(MaterialTheme.colorScheme.surface)
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
-                    // Les boutons du web : « Valider et saisir des … », puis « Annuler » et « Valider ».
-                    vm.libelleSaisirEnfants?.let { libelle ->
-                        BoutonPlein(
-                            libelle,
-                            { vm.enregistrer(action = ActionValider.SAISIR_ENFANTS) },
-                            Modifier.fillMaxWidth().alpha(if (vm.saisirEnfantsPermis) 1f else 0.5f),
-                            actif = vm.boutonActif,
-                        )
-                    }
+                    // « Annuler » et « Valider », qui enchaîne sur la saisie des observations ; dans une
+                    // chaîne de saisies, « Terminer » et « Enregistrer + suivante », sur la même ligne
+                    // (demande du 22 octobre ; GeoMys-Android mettait « Terminer » dessous).
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        BoutonTexte(NouvelleVisite.ANNULER, CouleursGeoMys.jauneClair, vm::retour, Modifier.padding(end = 8.dp))
+                        if (vm.modeChaine) {
+                            BoutonTexte(NouvelleVisite.TERMINER, CouleursGeoMys.jauneClair, vm::terminer, Modifier.padding(end = 8.dp))
+                        } else {
+                            BoutonTexte(NouvelleVisite.ANNULER, CouleursGeoMys.jauneClair, vm::retour, Modifier.padding(end = 8.dp))
+                        }
                         BoutonPlein(vm.libelleBouton, { vm.enregistrer() }, Modifier.weight(1f), actif = vm.boutonActif)
                     }
                 }
@@ -245,9 +242,9 @@ private fun PageIos(
     }
 }
 
-/** BarreBoutonsVisiteView, aux boutons du web : « Valider et saisir des … » vert sur toute la
- *  largeur s'il y a lieu, puis « Annuler » (style `.bordered` teinté blanc 70 %) et le bouton vert
- *  (`GeoMysBoutonVertStyle`, demi-gras), côte à côte ; désactivé, le vert est estompé et grisé. */
+/** BarreBoutonsVisiteView : « Annuler » (style `.bordered` teinté blanc 70 %) et le bouton vert
+ *  (`GeoMysBoutonVertStyle`, demi-gras), côte à côte ; désactivé, le vert est estompé et grisé.
+ *  Dans une chaîne de saisies, « Terminer » à la place d'« Annuler », comme dans GeoMys-IOS. */
 @Composable
 private fun BarreBoutonsIos(vm: NouvelleVisiteViewModel) {
     Column(
@@ -259,22 +256,18 @@ private fun BarreBoutonsIos(vm: NouvelleVisiteViewModel) {
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         val actif = vm.boutonActif
-        vm.libelleSaisirEnfants?.let { libelle ->
-            BoutonVertIos(libelle, actif, Modifier.fillMaxWidth().alpha(if (vm.saisirEnfantsPermis) 1f else 0.5f)) {
-                vm.enregistrer(action = ActionValider.SAISIR_ENFANTS)
-            }
-        }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            BoutonIos(vm::retour, Modifier.weight(1f), opaciteAppui = 0.6f) {
+            BoutonIos(if (vm.modeChaine) vm::terminer else vm::retour, Modifier.weight(1f), opaciteAppui = 0.6f) {
                 Text(
-                    NouvelleVisite.ANNULER,
+                    if (vm.modeChaine) NouvelleVisite.TERMINER else NouvelleVisite.ANNULER,
                     fontSize = 17.sp,
                     color = CouleursGeoMys.blanc70,
                     textAlign = TextAlign.Center,
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(Color.White.copy(alpha = 0.12f), PILULE)
-                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                        // « Terminer » de GeoMys-IOS : 12 pt de marge plus celle du style `.bordered`.
+                        .padding(horizontal = 12.dp, vertical = if (vm.modeChaine) 19.dp else 12.dp),
                 )
             }
             BoutonVertIos(vm.libelleBouton, actif, Modifier.weight(1f)) { vm.enregistrer() }
@@ -335,6 +328,13 @@ private fun Dialogues(vm: NouvelleVisiteViewModel) {
                 BoutonAlerte("Quitter sans enregistrer", destructif = true, action = vm::quitter),
                 if (d.enregistrable) BoutonAlerte("Enregistrer et quitter") { vm.enregistrer(puisTerminer = true) } else null,
             ),
+            vm::fermerDialogue,
+        )
+        is DialogueNouvelleVisite.TerminerBloque -> DialogueAlerte(
+            visible,
+            d.titre,
+            d.message,
+            listOf(BoutonAlerte(d.continuer, annulation = true), BoutonAlerte("Quitter", destructif = true, action = vm::quitter)),
             vm::fermerDialogue,
         )
         is DialogueNouvelleVisite.Completer -> DialogueAlerte(

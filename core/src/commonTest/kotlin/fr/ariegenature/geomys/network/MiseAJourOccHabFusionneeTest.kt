@@ -106,6 +106,36 @@ class MiseAJourOccHabFusionneeTest {
     }
 
     @Test
+    fun une_station_mise_en_plusieurs_parties_sur_le_web_n_est_pas_renvoyee() = runTest {
+        // Audit du 21 octobre, C6 : l'appli n'en lit que la première partie, et l'envoi aurait
+        // supprimé les autres.
+        lecture = json(feature(comment = "Commentaire du web", habitats = HABITAT_91).replace(
+            """"geometry":{"type":"Polygon","coordinates":[[[1.4,42.9],[1.5,42.9],[1.5,43.0],[1.4,42.9]]]}""",
+            """"geometry":{"type":"MultiPolygon","coordinates":[[[[1.4,42.9],[1.5,42.9],[1.5,43.0],[1.4,42.9]]],[[[2.0,43.0],[2.1,43.0],[2.1,43.1],[2.0,43.0]]]]}""",
+        ))
+        store.upsertStation("sa", voisineDeplacee())
+
+        val res = t.services.envoiOccHab.envoyerSaisieOccHabVersGeoNature(store.charger().first { it.id == "sa" }, config)
+
+        assertFalse(res.succes)
+        assertTrue(synchronized(verrou) { corpsPostes.isEmpty() }, "aucun POST")
+        assertTrue(OccHabUpload.GEOMETRIE_EN_PLUSIEURS_PARTIES in res.message, res.message)
+    }
+
+    @Test
+    fun un_contour_retouche_sur_le_web_n_est_pas_ecrase_par_la_topologie() = runTest {
+        // La voisine a été déplacée dans l'appli, et son contour retouché sur le web depuis la synchro.
+        lecture = json(feature(comment = "Commentaire du web", habitats = HABITAT_91).replace("[1.5,43.0]", "[1.52,43.02]"))
+        store.upsertStation("sa", voisineDeplacee())
+
+        val res = t.services.envoiOccHab.envoyerSaisieOccHabVersGeoNature(store.charger().first { it.id == "sa" }, config)
+
+        assertFalse(res.succes)
+        assertTrue(synchronized(verrou) { corpsPostes.isEmpty() }, "aucun POST")
+        assertTrue(OccHabUpload.GEOMETRIE_MODIFIEE_SUR_LE_WEB in res.message, res.message)
+    }
+
+    @Test
     fun une_station_supprimee_sur_le_web_n_est_pas_recreee() = runTest {
         lecture = statut(404)
         store.upsertStation("sa", voisineDeplacee())

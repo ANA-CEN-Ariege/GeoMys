@@ -392,3 +392,101 @@ Question posée après l'essai sur la démonstration : « dans l'Explorer, je ga
 - Sur la démonstration : 255 observations affichées au lieu de 84, dont 171 sans groupe.
 
 Tests : `GeoNatureBrowseTest` (groupe de la Synthèse, du cache ou absent : sept cas), `ExplorerTest` (filtre et couleur du marqueur) ; quatre mutations détectées. 1 123 tests sur la JVM et 1 118 sur le simulateur iOS pour le module commun, 96 tests d'écran sur la JVM et 6 sur le simulateur ; `outils/verifier.sh` sans erreur.
+
+## 24. Corrections après l'audit complet du 21 octobre
+
+Audit complet refait après la 0.2.0 (`AUDIT-2026-10-21-complet.md`, fichier local). Réponses de l'utilisateur aux questions : « 1 envoyer de vraies mises à jour après un envoi partiel. 2 version lue trop ancienne. 3 la demander sans jeton. 4 recopier la date de début comme la 0.1.0. 5 comme le web. 6 embarquer les certificats Let's Encrypt. 7 non », plus un défaut constaté sous iOS. Corrigé le même jour :
+
+- **Paramètres sous iOS** (constat de l'utilisateur) : au-delà de 20 jeux de données, le champ ne proposait rien avant la première lettre. Toucher le champ de recherche déroule maintenant toute la liste, que la frappe filtre ; toucher la pastille d'une sélection la rouvre aussi.
+- **Corrections après un envoi partiel transmises** (C3, réponse 1) :
+  - Suivis : une saisie dont l'objet est déjà créé, corrigée par « Éditer », part en `PATCH /monitorings/object/<module>/<type>/<id>` avec toutes ses valeurs, avant ses médias. Ni compléments null ni `medias: []`, qui détacherait les photos ; un champ vidé part à null.
+  - OccTax : chaque occurrence créée garde l'empreinte de ce qui est parti. Une espèce modifiée depuis part en mise à jour (`POST /occtax/OCCTAX/occurrence/<id>`, l'occurrence retrouvée par son identifiant, ses dénombrements gardant leur ligne), un relevé modifié aussi (`POST /occtax/OCCTAX/only/releve/<id>`, sans ses occurrences, que le serveur supprimerait). La saisie n'est close qu'une fois tout transmis. Limite : une photo ajoutée après l'envoi à une espèce déjà transmise ne part pas.
+  - OccTax : une espèce ajoutée à un relevé déjà créé le rejoint, au lieu d'en ouvrir un second (M33).
+  - OccHab : une station retrouvée après une création incertaine part en mise à jour avec sa copie locale, ses habitats appariés par leur identifiant SINP. Elle était marquée envoyée telle quelle.
+- **Anti-doublon des Suivis** (C4) : la recherche par uuid passe par `GET /monitorings/list/<module>/<type>?<champ uuid>=…`. La fiche du parent ne donne pas l'uuid de ses enfants (gn_module_monitoring 1.3.2) : l'objet passait toujours pour absent, et un renvoi le recréait. L'envoi d'une saisie est aussi protégé de l'annulation.
+- **Habitats OccHab** (C5) : chaque habitat reçoit son identifiant SINP dès sa création (les plus anciens, juste avant l'envoi), transmis aussi en création ; la fusion reconnaît celui qu'un envoi sans réponse a déjà créé.
+- **Géométrie OccHab** (C6) : une station mise en plusieurs parties sur le web, ou dont le contour a changé des deux côtés depuis l'import, n'est plus renvoyée ; un message le dit.
+- **Version du serveur** (M28, réponse 2) : seule une version lue et trop ancienne refuse le serveur. Une version non lue (réseau faible, proxy, portail captif) laisse l'état d'avant ; « v2.17 » se lit 2.17.
+- **Jeton** (M27, réponse 3) : le jeton et les cookies ne partent que vers le serveur configuré, redirections comprises ; une liste d'une API sur un autre serveur est demandée sans eux.
+- **Date de fin d'une visite** (réponse 4) : masquée ou vidée, elle reprend la date de début, comme dans la 0.1.0.
+- **Champ espèce des Suivis** (réponse 5) : seule sa propre liste (`id_list`) le restreint, comme le web ; ni celle de son `api`, ni celle du protocole. PAPALTB et pelouses_seches proposent tout TaxRef chargé, et un tel champ fait charger toutes les listes publiques (le `cd_nom` masqué du type « module » ne compte pas).
+- **Android 7.0** (M42, réponse 6) : les racines ISRG Root X1 et X2 de Let's Encrypt sont embarquées (`res/raw`, empreintes vérifiées) ; sans elles, aucun serveur sous Let's Encrypt n'était joignable.
+- **Mot de passe ressaisi** (M29) : il ne vide plus les nomenclatures, les stations du serveur ni la version ; seul un changement d'adresse ou de compte le fait.
+- **Liste choisie hors réseau** (M30) : si elle ne se charge pas, la liste précédente revient, avec un message.
+- **« Continuer la saisie » pendant son envoi** (M35) : refusé, avec un message.
+- **Tri des listes des Suivis** (M36) : un ordre total, en nombre ou en texte pour toute la colonne, sous un filet ; il pouvait fermer l'appli sous Android.
+- **Heures sous Android** (M37) : « 1430 », « 930 », « 14h30 », « 14.30 » se lisent hh:mm (le pavé numérique n'a pas de « : »).
+- **Barre rouge** (réponse 7) : inchangée.
+
+## 25. Libellé des propositions d'espèce des Suivis (21 octobre)
+
+Constat de l'utilisateur : dans « pelouses sèches », « blar » donne 2 propositions dans l'appli et 15 sur le web. Cause : le champ espèce de ce protocole n'a pas de `id_list` (seulement une `api` vers la liste 100, que le web ignore) ; le web cherche alors dans tout TaxRef du serveur (15 noms, dont des diatomées, des foraminifères et des lichens), l'appli dans les listes chargées (les 2 de la liste 100). Réponse : « On garde comme ça pour l'instant ».
+
+- **Sans liste**, les propositions viennent de tout le cache avec leur taxon : c'étaient ses clés internes, en minuscules et sans cd_nom (« peziza sublaricina »). Elles portent maintenant leur graphie, leur cd_nom et, dessous en italique, le nom scientifique (ou le nom français sous un nom scientifique).
+- Les noms valides sont lus au démarrage, hors du fil de l'interface (M40, en partie).
+- Le libellé du web (`search_name` de TaxHub, « nom = *nom valide* - [rang - cd_nom] »), essayé le 21 et le 22 octobre avec la lecture du rang des taxons, est abandonné (§ 26) : TaxRef reste au format 1, rien à recharger.
+
+## 26. Retour à l'affichage et à la chaîne de saisies de GeoMys-Android (22 octobre)
+
+Constat de l'utilisateur : « dans les suivis tu as dégradé la saisie des obs. Quand je sélectionne une espèce, il n'y a rien affiché en dessous du champ à part la petite coche verte. » Et : « l'enchaînement des obs a disparu, on ne peut en saisir qu'une ». Demandes : « dans le sélecteur, mets le nom et en dessous en italique le nom latin. Une fois l'espèce sélectionnée, affiche le nom latin sous le champ (comme dans geomys android) », et pour l'enchaînement, « reprends le même mécanisme » que GeoMys-Android.
+
+- **Champ espèce des Suivis**, comme GeoMys-Android : chaque proposition montre le nom, et dessous en italique le nom latin (le nom français sous un nom latin). Une fois l'espèce choisie, le champ montre le nom choisi, et la ligne verte dessous « ✓ nom latin  •  cd_nom ». Le libellé « nom = nom valide - [rang] » dans le champ et la coche seule dessous (essayés le matin) sont retirés, comme la lecture du rang : TaxRef reste au format 1 et la version des données requise à 4.
+- **Chaîne de saisies** de GeoMys-Android : une nouvelle saisie dont le parent est lui-même une saisie (une observation sous une visite) s'enregistre par « Enregistrer + suivante », qui ouvre aussitôt le formulaire de l'observation suivante, sous la même visite. Les champs `keep` du protocole y sont repris, comme sur le web. « Terminer » sort de la chaîne :
+  - formulaire intact, on sort ;
+  - modifié et enregistrable, l'observation est enregistrée, puis on sort ;
+  - modifié mais bloqué, l'appli demande avant de la perdre.
+
+  En sortant, si la visite a été enregistrée « à compléter », son formulaire est proposé.
+- « Terminer » et « Enregistrer + suivante » sont sur la même ligne, à la place d'« Annuler » et « Valider ». C'est le cas sous Android aussi, à la demande de l'utilisateur, alors que GeoMys-Android mettait « Terminer » dessous ; sous iOS, comme dans GeoMys-IOS. Le mode chaîne ne s'applique jamais en modification.
+- Ailleurs, « Annuler » et « Valider » ; pour une visite, « Valider » enchaîne désormais sur ses observations (§ 28).
+- Tests : `NouvelleVisiteTest.chaine_de_saisies_de_geomys_android`, `LigneContexteNouvelleVisiteTest` (enchaînement, et « Terminer » qui enregistre puis propose la visite à compléter) ; cinq mutations détectées.
+
+## 27. Clavier et alignement des champs (22 octobre)
+
+Demandes : « dans suivis, quand je sélectionne une espèce dans la liste, fermer le clavier. Tous les champs de formulaires doivent être justifiés à gauche ».
+
+- **Suivis** : choisir une espèce dans la liste ferme le clavier et quitte le champ, sous Android et iOS.
+- **Champs justifiés à gauche**, sur les deux plateformes. Deux champs ne l'étaient pas :
+  - la liste déroulante des Suivis sous iOS : sa valeur et ses chevrons étaient calés à droite, comme le Picker de GeoMys-IOS ; ils sont à gauche, comme les autres listes ;
+  - les effectifs d'OccTax (dénombrement) : le nombre était centré entre « − » et « + » ; il est à gauche. L'option `centre` de `ChampTexteFormulaire`, qui ne servait qu'à eux, disparaît.
+- Test : `MiseEnPageFormulaireTest.la_valeur_d_une_liste_est_calee_a_gauche_sous_ios` (simulateur iOS).
+
+## 28. « Valider » enchaîne sur les observations (22 octobre)
+
+Demande : « dans nouvelle visite, ne garder que 2 boutons "Annuler" et "Valider". Ce bouton Valider remplace "Valider et saisir des observations", pour systématiquement enchaîner sur la saisie des obs. De même quand on édite une visite, le bouton Valider doit enchaîner sur d'éventuelles nouvelles obs ».
+
+- Le formulaire d'une visite n'a plus que « Annuler » et « Valider ». « Valider et saisir des Observations » disparaît, comme l'interrupteur « Enchaîner les saisies » de ce formulaire.
+- « Valider » enregistre la visite, puis ouvre aussitôt la saisie de ses observations (« Enregistrer + suivante », « Terminer »), comme GeoMys-Android. La règle vaut pour tout type qui a une saisie enfant.
+- Une visite modifiée depuis « Mes visites » fait de même : « Valider » enregistre, puis ouvre la saisie de nouvelles observations sous elle. Il n'enchaîne pas dans deux cas :
+  - le formulaire a été ouvert pour compléter les champs manquants ;
+  - on quitte par la garde de sortie (« Enregistrer et quitter »).
+- Sans le droit de créer des observations, « Valider » enregistre la visite et revient à la page du site, comme le « + » grisé du web.
+- L'interrupteur du web reste pour un type `chained` sans saisie enfant.
+- Tests : `NouvelleVisiteTest` (suites d'une création et d'une modification), `LigneContexteNouvelleVisiteTest` (nouvelle visite et visite modifiée, jusqu'à l'ouverture de la saisie des observations) ; six mutations détectées.
+
+## 29. Seules les informations de fin d'une visite peuvent attendre (22 octobre)
+
+Demandes :
+- « dans monitoring, quand on démarre une visite, passage, etc, seule l'heure de fin, si elle est demandée, n'est pas obligatoire dans les champs obligatoires au début. Si elle n'est pas renseignée, c'est au moment de l'envoi que le formulaire permet de compléter cette information. Les autres champs obligatoires doivent être renseignés dès le début » ;
+- « si l'heure de fin n'est pas obligatoire, ne pas enregistrer la visite à compléter » ;
+- pour les autres informations de fin (température de fin, durée de la visite, durée du parcours, date de relevé du piège) : « oui, mais seulement si elles sont obligatoires ».
+
+Avant, une visite pouvait s'enregistrer sans aucun de ses champs obligatoires, et partait « à compléter », comme dans GeoMys-Android.
+
+- **Ce qui bloque** : tout champ obligatoire vide bloque « Valider », sauf les informations de fin de la visite.
+- **« À compléter »** : une visite enregistrée sans une information de fin obligatoire part « à compléter ». L'envoi rouvre son formulaire pour la saisir, comme « Terminer » à la fin des observations. Une information de fin facultative, vide, ne met jamais la visite « à compléter ».
+- **Les informations de fin** (`NouvelleVisite.estInfoDeFin`) se reconnaissent au code ou au libellé du champ. Dans les protocoles de l'ANA :
+  - heure de fin : `heure_fin_prospection` (PAPALTB), `Heure_fin` (POPAmphibien et POPReptile, requise seulement si le site est accessible), `time_end` (chronoventaire, facultative), `end_hour` (STERF-EBMS) ;
+  - température de fin : `end_temperature` (chronoventaire) ;
+  - durée : `visit_time` (« Durée de la visite », RHOMEO Flore et Odonate), `duration` (« Durée de parcours du transect », STERF ; « Durée de la détermination », chronoventaire, facultative) ;
+  - date de fin montrée : `visit_date_max` (« Date de relevé du piège », piégeages passifs ; « Date de la détermination des restes osseux », micromam, requise seulement s'il y a des pelotes). Ailleurs, elle est masquée et recopiée de la date de début.
+- **Barre rouge** : une information de fin vide n'en a pas au début de la visite. Elle en a une quand on rouvre la visite pour la compléter. Les autres obligatoires vides gardent la leur.
+- Une observation (saisie d'espèce) doit toujours être complète.
+- **Données d'essai** : la visite du STOM d'essai a une « Heure de fin » obligatoire, et sa « Météo » devient obligatoire. La visite en attente n'attend plus que son heure de fin.
+- **Tests** :
+  - `NouvelleVisiteTest.seules_les_informations_de_fin_d_une_visite_peuvent_attendre` ;
+  - `ContratValeursTest.seule_une_information_de_fin_obligatoire_met_la_visite_a_completer` ;
+  - `LigneContexteNouvelleVisiteTest.seules_les_informations_de_fin_d_une_visite_peuvent_attendre` ;
+  - les tests de visite, adaptés.
+
+  Neuf mutations détectées.

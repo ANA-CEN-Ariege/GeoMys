@@ -25,6 +25,7 @@ package fr.ariegenature.geomys.occhab
 import fr.ariegenature.geomys.model.OccHabHabitat
 import fr.ariegenature.geomys.store.GeoNatureConfig
 import fr.ariegenature.geomys.store.NomValeur
+import fr.ariegenature.geomys.util.uuidAleatoire
 
 /** Une nomenclature du formulaire d'un habitat : sa clé dans `OCCHAB.formConfig`, son type de
  *  nomenclature et son libellé. */
@@ -124,6 +125,9 @@ object HabitatOccHab {
         val libelle = s.libelle.trim()
         val rechoisi = s.choisiDansLaListe || existant == null
         return (existant ?: OccHabHabitat()).copy(
+            // Son identifiant SINP dès sa création : l'envoi le transmet, le serveur le garde, et un
+            // renvoi le reconnaît (audit du 21 octobre, C5).
+            uuidHabitat = existant?.uuidHabitat ?: uuidAleatoire(),
             cdHab = cd,
             habitatLabel = if (rechoisi) libelle else existant.habitatLabel,
             nomCite = if (rechoisi) libelle else existant.nomCite.ifBlank { libelle },

@@ -576,7 +576,8 @@ private fun ChampHeureAndroid(valeur: String, onChange: (String) -> Unit) {
     Box(Modifier.fillMaxWidth().barreChampObligatoire(DetailsReleveFormulaire.heureMalFormee(valeur))) {
         ChampTexteFormulaire(
             valeur,
-            { onChange(it.filter { c -> c.isDigit() || c == ':' }) },
+            // Le pavé numérique n'a pas de « : » : « 1430 » ou « 14.30 » se lisent 14:30 (normaliserHeure).
+            { onChange(it.filter { c -> c.isDigit() || c == ':' || c == '.' || c == 'h' || c == 'H' }) },
             clavier = KeyboardOptions(keyboardType = KeyboardType.Number),
             compactAndroid = true,
             indication = DetailsReleveFormulaire.INVITE_HEURE,

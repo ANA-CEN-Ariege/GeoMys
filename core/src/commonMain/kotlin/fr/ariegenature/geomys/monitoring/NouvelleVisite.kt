@@ -62,13 +62,9 @@ data class FormulairePrepare(
     val champsDirtyInitiaux: Set<String>,
     /** Le champ qui désigne le parent (id_base_site…), masqué : le parent est déjà choisi. */
     val parentIdField: String?,
-    /** Le type de saisie enfant du type créé (visite → observation). */
+    /** Le type de saisie enfant du type créé (visite → observation) : « Valider » enchaîne sur sa
+     *  saisie. */
     val typeSaisieEnfant: String?,
-    /** L'enfant UNIQUE du type créé (`children_types` d'un seul type), quand c'est une saisie : le
-     *  bouton « Valider et saisir des … » du web. */
-    val enfantUnique: String? = null,
-    /** Son `label_list` (« Observations »), pour ce bouton. */
-    val libelleEnfants: String? = null,
     /** Les propriétés du schéma qui ont un `type_widget`, champs techniques compris : celles que
      *  porte le corps du web (`postData`). */
     val nomsChamps: List<String>,
@@ -124,15 +120,6 @@ fun ServicesGeoNature.sourcesFormulaire(): SourcesFormulaire = object : SourcesF
     override suspend fun options(prop: MonitoringPropertySchema) = monitoring.lireOptionsDatalist(config, prop)
 }
 
-/** Les boutons de validation du formulaire web (monitoring-form.component.html). */
-enum class ActionValider {
-    /** « Valider », ou « Valider et enchaîner les saisies » quand l'enchaînement est activé. */
-    VALIDER,
-
-    /** « Valider et saisir des … » : l'enfant unique du type, sous l'objet enregistré. */
-    SAISIR_ENFANTS,
-}
-
 /** Ce qui suit l'enregistrement d'une saisie. */
 sealed interface SuiteEnregistrement {
     /** Le formulaire de la saisie enfant (visite → observation), sous la saisie locale qu'on vient
@@ -175,13 +162,20 @@ object NouvelleVisite {
      *  à une visite) ? Une saisie dont le PARENT est lui-même un type de saisie est un enfant ; une
      *  saisie rattachée à un site (ou sans parent connu) est l'objet de niveau visite. Deux usages
      *  qui doivent rester cohérents : l'enregistrement INCOMPLET n'est autorisé que sur ces objets
-     *  (eux seuls portent des infos connues à la FIN : heure de fin, température de fin), et le
-     *  COMPTEUR de « Mes visites » ne totalise qu'eux. */
+     *  (eux seuls portent des informations connues en partant, cf. [estInfoDeFin]), et le COMPTEUR
+     *  de « Mes visites » ne totalise qu'eux. */
     fun estObjetDeNiveauVisite(parentObjectType: String?): Boolean {
         val parent = parentObjectType?.trim().orEmpty()
         if (parent.isEmpty()) return true
         return !MonitoringSync.estTypeSaisie(parent)
     }
+
+    /** Mode « chaîne de saisies » de GeoMys-Android : le parent est lui-même une saisie (une visite) —
+     *  on enchaîne plusieurs observations sur la même visite (« Enregistrer + suivante »), et
+     *  « Terminer » sort de la chaîne. Jamais en édition. Repris le 22 octobre à la demande de
+     *  l'utilisateur : le formulaire du web n'enchaîne que sur un type `chained`, interrupteur mis. */
+    fun estModeChaine(parentObjectType: String?, edition: Boolean): Boolean =
+        !edition && !parentObjectType.isNullOrEmpty() && MonitoringSync.estTypeSaisie(parentObjectType)
 
     // ─── Textes ───
 
@@ -233,14 +227,18 @@ object NouvelleVisite {
     fun contexteAvecDiagnostic(contexte: String, diagnostic: List<String>): String =
         (listOf(contexte).filter { it.isNotEmpty() } + diagnostic).joinToString("\n\n")
 
-    /** Le bouton d'enregistrement du web : « Valider », ou « Valider et enchaîner les saisies »
-     *  quand l'enchaînement est activé sur un nouvel objet. */
-    fun libelleBouton(edition: Boolean, enchainer: Boolean): String =
-        if (enchainer && !edition) "Valider et enchaîner les saisies" else "Valider"
+    /** Le bouton d'enregistrement : « Enregistrer + suivante » dans une chaîne de saisies
+     *  ([chaine], GeoMys-Android) ; ailleurs celui du web, « Valider », ou « Valider et enchaîner
+     *  les saisies » quand l'enchaînement est activé sur un nouvel objet. */
+    fun libelleBouton(edition: Boolean, enchainer: Boolean, chaine: Boolean = false): String = when {
+        edition -> "Valider"
+        chaine -> "Enregistrer + suivante"
+        enchainer -> "Valider et enchaîner les saisies"
+        else -> "Valider"
+    }
 
-    /** Le bouton qui valide puis ouvre la saisie de l'enfant unique : « Valider et saisir des
-     *  Observations ». */
-    fun libelleSaisirEnfants(libelleEnfants: String): String = "Valider et saisir des $libelleEnfants"
+    /** Le bouton qui sort d'une chaîne de saisies (GeoMys-Android). */
+    const val TERMINER = "Terminer"
 
     /** L'interrupteur du web qui enchaîne les saisies d'un nouvel objet. */
     const val ENCHAINER_LES_SAISIES = "Enchaîner les saisies"
@@ -285,6 +283,10 @@ object NouvelleVisite {
                 "${if (masculin) "incomplet" else "incomplète"} (champ obligatoire manquant ou valeur hors " +
                 "limites) et ne peut pas être enregistré$e."
 
+        /** « Terminer » sur une saisie bloquée. */
+        val messageQuitterIncomplet: String
+            get() = "$messageIncomplet Quitter et ${if (masculin) "le" else "la"} perdre ?"
+
         /** Après une création. */
         fun messageEnregistre(manquants: List<String>): String =
             if (manquants.isEmpty()) "$labelCap enregistré$e localement — envoi à la demande depuis « Mes visites »"
@@ -308,6 +310,50 @@ object NouvelleVisite {
         return "${manquants.size} champ${if (manquants.size > 1) "s" else ""} à compléter avant " +
             "l'envoi : $cites" + if (reste > 0) "… (+$reste)" else ""
     }
+
+    /** Une information de fin de visite, qu'on ne connaît qu'en partant ou plus tard :
+     *  - son heure de fin (`heure_fin_prospection`, `Heure_fin`, `time_end`, `end_hour`) ;
+     *  - une température de fin (`end_temperature`) ;
+     *  - une durée (« Durée de la visite (min) », « Durée de parcours du transect ») ;
+     *  - sa date de fin quand le protocole la montre (`visit_date_max` : « Date de relevé du
+     *    piège », « Date de la détermination des restes osseux »).
+     *
+     *  Le code ou le libellé le dit. OBLIGATOIRE, c'est le seul champ qu'une visite peut laisser vide
+     *  à son début : elle part « à compléter », et le formulaire la redemande avant l'envoi ;
+     *  facultative, elle ne la met jamais « à compléter ». Tous les autres obligatoires sont exigés
+     *  dès le début (demandes du 22 octobre ; ils pouvaient tous attendre, comme dans GeoMys-Android). */
+    fun estInfoDeFin(champ: EditableField): Boolean {
+        if (champ.code == "visit_date_max") return true
+        val mots = champ.code.split(SEPARATEURS_CODE).map { it.lowercase() }
+        if (mots.any { it in MOTS_DE_FIN }) return true
+        return MOT_FIN.containsMatchIn(champ.label) || DUREE.containsMatchIn(champ.label)
+    }
+
+    /** Les champs obligatoires vides [manquants] qui empêchent d'enregistrer : tous pour une saisie
+     *  d'espèce ; pour une visite ([incompletAutorise]), tous sauf ses informations de fin. */
+    fun manquantsBloquants(manquants: List<String>, champs: List<EditableField>, incompletAutorise: Boolean): List<String> {
+        if (!incompletAutorise) return manquants
+        val infosDeFin = champs.filter(::estInfoDeFin).map { it.code }.toSet()
+        return manquants.filterNot { it in infosDeFin }
+    }
+
+    /** Ceux qui font partir une visite « à compléter » : ses informations de fin obligatoires, vides. */
+    fun manquantsACompleter(manquants: List<String>, champs: List<EditableField>): List<String> {
+        val infosDeFin = champs.filter(::estInfoDeFin).map { it.code }.toSet()
+        return manquants.filter { it in infosDeFin }
+    }
+
+    /** Les mots d'un code : `heure_fin`, `time-end`, `heureFin`. */
+    private val SEPARATEURS_CODE = Regex("[^A-Za-z]+|(?<=[a-z])(?=[A-Z])")
+
+    /** Les mots d'un code qui disent la fin, ou une durée. */
+    private val MOTS_DE_FIN = setOf("fin", "end", "duree", "duration")
+
+    /** « Heure de fin », « Température à la fin du relevé ». */
+    private val MOT_FIN = Regex("""\bfin\b""", RegexOption.IGNORE_CASE)
+
+    /** « Durée de la visite (min) » (pas de `\b` après un « é », hors des lettres de `\w`). */
+    private val DUREE = Regex("""\bdur[ée]e""", RegexOption.IGNORE_CASE)
 
     /** Les LIBELLÉS des champs obligatoires vides [codes] (l'état raisonne en codes, l'utilisateur en
      *  intitulés), le code à défaut de libellé. */
@@ -393,14 +439,10 @@ object NouvelleVisite {
         val avertissements = mutableListOf<String>()
         val (enrichis, echecs) = enrichirAvecOptions(champs, visitSchema, valeursPreremplies, sources.idRoleUtilisateur, sources.nomUtilisateur, sources::options)
         if (echecs.isNotEmpty()) avertissements += "⚠ Datalists non chargées : ${echecs.joinToString(", ")}"
-        // La liste du protocole seulement : le web ne restreint pas un champ espèce à celle d'un jeu
-        // de données.
-        val idListe = visitSchema.idListTaxonomy ?: schema.values.firstNotNullOfOrNull { it.idListTaxonomy }
         if (construction.ignores.isNotEmpty()) {
             val recap = construction.ignores.joinToString(", ") { "${it.first} (${it.second})" }
             avertissements += "⚠ ${construction.ignores.size} champ(s) non supporté(s) : $recap"
         }
-        val avecTaxon = avecListeTaxonomique(enrichis, idListe)
         val fixes = valeursFixes(visitSchema, parentIdField, valeursPreremplies, sources::options)
         val masqueesManquantes = proprietesMasqueesManquantes(visitSchema, parentIdField, fixes)
         if (masqueesManquantes.isNotEmpty()) {
@@ -412,12 +454,10 @@ object NouvelleVisite {
                 schemaObjet = visitSchema,
                 labelType = visitSchema.label ?: visitSchema.type.replaceFirstChar { it.uppercase() },
                 genre = visitSchema.genre,
-                champs = ValeursFormulaire.champsPreremplis(avecTaxon, valeursPreremplies, medias),
+                champs = ValeursFormulaire.champsPreremplis(enrichis, valeursPreremplies, medias),
                 champsDirtyInitiaux = ValeursFormulaire.champsDirtyInitiaux(valeursPreremplies),
                 parentIdField = parentIdField,
                 typeSaisieEnfant = visitSchema.childrenTypes.firstOrNull { MonitoringSync.estTypeSaisie(it) },
-                enfantUnique = visitSchema.childrenTypes.singleOrNull()?.takeIf { MonitoringSync.estTypeSaisie(it) },
-                libelleEnfants = visitSchema.childrenTypes.singleOrNull()?.let { AffichageSuivis.libelleListe(it, schema) },
                 // Un widget `html` n'a pas de contrôle sur le web : il n'est pas dans le corps.
                 nomsChamps = visitSchema.properties.values
                     .filter { it.typeWidget.isNotEmpty() && !it.typeWidget.equals("html", ignoreCase = true) }
@@ -431,8 +471,15 @@ object NouvelleVisite {
     }
 
     /** Les dates que le formulaire web met au jour courant quand elles sont vides
-     *  (setDefaultFormValue) ; aucun autre champ date ou heure n'est pré-rempli. */
-    private val DATES_DU_JOUR = setOf("visit_date_min", "visit_date_max", "first_use_date")
+     *  (setDefaultFormValue) ; aucun autre champ date ou heure n'est pré-rempli. Sauf `visit_date_max`
+     *  masquée ([DATE_FIN_VISITE]), qui reprend la date de début comme dans la 0.1.0. */
+    private val DATES_DU_JOUR = setOf("visit_date_min", "first_use_date")
+
+    /** La date de fin d'une visite. Masquée, le web la met au jour de la saisie : une visite saisie
+     *  après coup s'étendait alors jusqu'à ce jour dans les synthèses (`COALESCE(visit_date_max,
+     *  visit_date_min)`). Décision de l'utilisateur du 21 octobre : elle reprend la date de début,
+     *  posée à l'envoi ([fr.ariegenature.geomys.network.MonitoringEnvoi.envoyerVisite]). */
+    const val DATE_FIN_VISITE = "visit_date_max"
 
     /** Les widgets dont le composant web choisit d'office l'option unique d'un champ requis. */
     private val WIDGETS_A_CHOIX_D_OFFICE = setOf("datalist", "dataset")
@@ -567,7 +614,8 @@ object NouvelleVisite {
      * - leur `value` : le cd_nom fixe d'un protocole mono-espèce, un texte, un nombre ; un objet
      *   nomenclature, résolu par les options en cache ;
      * - l'option unique d'une liste ou d'un jeu de données requis, choisie d'office ;
-     * - la date du jour dans les dates de visite (`setDefaultFormValue`), visit_date_max comprise.
+     * - la date du jour dans la date de début d'une visite (`setDefaultFormValue`) ; la date de fin
+     *   masquée n'en reçoit aucune, ni rouverte : l'envoi lui donne la date de début ([DATE_FIN_VISITE]).
      * Le champ du parent ([parentIdField]) est posé par l'envoi. Une option part avec le type JSON de
      * sa valeur, comme sur le web.
      */
@@ -581,6 +629,7 @@ object NouvelleVisite {
         fun identifiant(valeur: String): Any = valeur.toIntOrNull() ?: valeur
         for ((nom, prop) in schemaObjet.properties) {
             if (!prop.hiddenBool || nom == parentIdField || prop.typeWidget.isEmpty()) continue
+            if (nom == DATE_FIN_VISITE) continue
             valeursPreremplies?.get(nom)?.let { fixes[nom] = it; continue }
             prop.valeurTypee?.let { fixes[nom] = it; continue }
             if (nom in DATES_DU_JOUR && prop.typeWidget.equals("date", ignoreCase = true)) {
@@ -601,18 +650,13 @@ object NouvelleVisite {
     }
 
     /** Les propriétés masquées (`hidden: true`) requises de [schemaObjet] que rien ne remplit ([fixes]),
-     *  par libellé. Le parent ([parentIdField]) et `id_digitiser` (l'utilisateur connecté) sont posés
-     *  par l'envoi, comme le web les pose. */
+     *  par libellé. Le parent ([parentIdField]), `id_digitiser` (l'utilisateur connecté) et la date de
+     *  fin d'une visite ([DATE_FIN_VISITE]) sont posés par l'envoi. */
     fun proprietesMasqueesManquantes(schemaObjet: MonitoringSchemaObjet, parentIdField: String?, fixes: Map<String, Any>): List<String> =
         schemaObjet.properties.values
             .filter { it.hiddenBool && it.obligatoire && it.typeWidget.isNotEmpty() }
-            .filter { it.nom != parentIdField && it.nom != "id_digitiser" && it.nom != schemaObjet.uuidFieldName && it.nom !in fixes }
+            .filter { it.nom != parentIdField && it.nom != "id_digitiser" && it.nom != DATE_FIN_VISITE && it.nom != schemaObjet.uuidFieldName && it.nom !in fixes }
             .map { it.label.ifEmpty { it.nom } }
-
-    /** Les champs TAXON sans liste propre reçoivent [idListe]. */
-    fun avecListeTaxonomique(champs: List<EditableField>, idListe: Int?): List<EditableField> =
-        if (idListe == null) champs
-        else champs.map { f -> if (f.viewType == ViewType.TAXON && f.idListeTaxonomieRestreinte == null) f.copy(idListeTaxonomieRestreinte = idListe) else f }
 
     /** Les valeurs d'une saisie rouverte en modification ; vide si son `valeursJson` est illisible. */
     fun valeursPourEdition(saisie: SaisieEnAttente): Map<String, Any?> = try {
@@ -657,7 +701,8 @@ object NouvelleVisite {
     )
 
     /** La saisie modifiée : nouvelles valeurs, remise EN ATTENTE (l'erreur précédente effacée). Une
-     *  saisie ancienne sans uuid en reçoit un s'il y a un média à envoyer. */
+     *  saisie ancienne sans uuid en reçoit un s'il y a un média à envoyer. Son objet déjà créé côté
+     *  serveur : la modification partira en mise à jour ([SaisieEnAttente.modifieeApresCreation]). */
     fun saisieModifiee(
         ancien: SaisieEnAttente,
         formulaire: FormulairePrepare,
@@ -665,6 +710,7 @@ object NouvelleVisite {
         manquants: List<String>,
     ): SaisieEnAttente = ancien.copy(
         valeursJson = enregistrement.valeursJson,
+        modifieeApresCreation = ancien.modifieeApresCreation || (ancien.objetCree && enregistrement.valeursJson != ancien.valeursJson),
         etat = SaisieEnAttente.Etat.PENDING,
         messageErreur = null,
         mediaPathLocal = null,
@@ -680,46 +726,64 @@ object NouvelleVisite {
         champsManquants = manquants.takeIf { it.isNotEmpty() },
     )
 
-    /** Après la création de [saisie], comme le web (onSubmit) :
-     *  - sortie par la garde de sortie ([puisTerminer]) : la visite parente « à compléter » est
-     *    proposée ;
-     *  - « Valider et saisir des … » ([action]) : le formulaire de l'enfant unique, sous la saisie ;
-     *  - « Valider et enchaîner les saisies » ([enchainer]) : un nouveau formulaire du même type,
-     *    les champs `keep` repris de [valeurs] ;
-     *  - « Valider » : la page que montre le web, celle de l'objet ou de son parent
-     *    (`redirect_to_parent`). Une saisie locale n'a pas de page : celle de son parent serveur, où
-     *    elle est listée ; sous une saisie locale, la fin de ses saisies (visite à compléter). */
+    /** Après la création de [saisie] :
+     *  - sortie par « Terminer » ou par la garde de sortie ([puisTerminer]) : la visite parente « à
+     *    compléter » est proposée ;
+     *  - le type a une saisie enfant (visite → observation) que l'on peut créer ([enfantsPermis]) :
+     *    son formulaire, sous la saisie, comme GeoMys-Android (demande du 22 octobre : « Valider »
+     *    remplace « Valider et saisir des observations », pour toujours enchaîner) ;
+     *  - « Enregistrer + suivante » d'une chaîne de saisies ([chaine], GeoMys-Android) ou « Valider
+     *    et enchaîner les saisies » du web ([enchainer]) : un nouveau formulaire du même type, les
+     *    champs `keep` repris de [valeurs] ;
+     *  - sinon la page que montre le web, celle de l'objet ou de son parent (`redirect_to_parent`).
+     *    Une saisie locale n'a pas de page : celle de son parent serveur, où elle est listée ; sous
+     *    une saisie locale, la fin de ses saisies (visite à compléter). */
     fun suiteApresCreation(
         saisie: SaisieEnAttente,
         formulaire: FormulairePrepare,
-        action: ActionValider,
         enchainer: Boolean,
         puisTerminer: Boolean,
         valeurs: Map<String, Any?> = emptyMap(),
+        chaine: Boolean = false,
+        enfantsPermis: Boolean = true,
     ): SuiteEnregistrement = when {
         puisTerminer -> SuiteEnregistrement.TerminerOuCompleter
-        action == ActionValider.SAISIR_ENFANTS && formulaire.enfantUnique != null -> SuiteEnregistrement.Enchainer(
+        formulaire.typeSaisieEnfant != null && enfantsPermis -> SuiteEnregistrement.Enchainer(
             parentObjectType = saisie.objectType,
             parentUuidLocal = saisie.uuid,
-            childObjectType = formulaire.enfantUnique,
+            childObjectType = formulaire.typeSaisieEnfant,
             titreSite = "${Accords(formulaire.labelType, formulaire.genre).labelCap} (local)",
         )
-        enchainer -> SuiteEnregistrement.Reinitialiser(formulaire.schemaObjet.gardes.filter { it in valeurs }.associateWith { valeurs[it] })
+        chaine || enchainer -> SuiteEnregistrement.Reinitialiser(formulaire.schemaObjet.gardes.filter { it in valeurs }.associateWith { valeurs[it] })
         !saisie.parentUuidLocal.isNullOrEmpty() -> SuiteEnregistrement.TerminerOuCompleter
         (saisie.parentIdServeur ?: 0) > 0 && !saisie.parentObjectType.isNullOrEmpty() ->
             SuiteEnregistrement.Fiche(saisie.parentObjectType, saisie.parentIdServeur ?: 0)
         else -> SuiteEnregistrement.Retour
     }
 
-    /** Après la modification de la saisie [uuid] (« Valider » du web) :
-     *  - complétion (on venait finir des champs manquants) : retour à l'écran d'où l'on vient ;
+    /** Après la modification de la saisie [uuid] :
+     *  - complétion (on venait finir des champs manquants) : retour à l'écran d'où l'on vient, sans
+     *    enchaîner — seules les infos de la visite étaient à finir ;
+     *  - le type a une saisie enfant que l'on peut créer ([enfantsPermis]), hors sortie par la garde
+     *    ([puisTerminer]) : son formulaire, pour d'éventuelles nouvelles observations, comme après
+     *    une création (GeoMys-Android ; demande du 22 octobre) ;
      *  - sinon la fiche du parent serveur, à défaut le retour. */
     fun suiteApresEdition(
+        uuid: String,
+        formulaire: FormulairePrepare,
         modeCompletion: Boolean,
+        puisTerminer: Boolean,
         parentObjectType: String?,
         parentIdServeur: Int?,
+        enfantsPermis: Boolean = true,
     ): SuiteEnregistrement = when {
         modeCompletion -> SuiteEnregistrement.Retour
+        !puisTerminer && formulaire.typeSaisieEnfant != null && enfantsPermis -> SuiteEnregistrement.Enchainer(
+            parentObjectType = formulaire.schemaObjet.type,
+            parentUuidLocal = uuid,
+            childObjectType = formulaire.typeSaisieEnfant,
+            titreSite = "${Accords(formulaire.labelType, formulaire.genre).labelCap} (local)",
+        )
         parentIdServeur != null && parentIdServeur > 0 && !parentObjectType.isNullOrEmpty() ->
             SuiteEnregistrement.Fiche(parentObjectType, parentIdServeur)
         else -> SuiteEnregistrement.Retour

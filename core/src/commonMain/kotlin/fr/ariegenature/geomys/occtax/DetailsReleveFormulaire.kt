@@ -120,8 +120,26 @@ object DetailsReleveFormulaire {
     /** L'heure saisie du web (`hour_min`, `hour_max`) : « h:mm » ou « hh:mm », secondes permises. */
     private val HEURE = Regex("^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$")
 
-    /** Une heure saisie mais mal formée : le web borde son champ de rouge. */
-    fun heureMalFormee(texte: String): Boolean = texte.isNotBlank() && !HEURE.matches(texte.trim())
+    /** Une heure saisie mais mal formée, même une fois [normalisée][normaliserHeure] : le web borde son
+     *  champ de rouge. */
+    fun heureMalFormee(texte: String): Boolean = texte.isNotBlank() && !HEURE.matches(normaliserHeure(texte))
+
+    /** Trois ou quatre chiffres (« 1430 », « 930 ») ; deux chiffres, un « h » ou un point, puis
+     *  éventuellement deux chiffres (« 14h30 », « 9h », « 14.30 »). */
+    private val HEURE_SANS_DEUX_POINTS = Regex("^(\\d{1,2})(\\d{2})$|^(\\d{1,2})\\s*[hH.]\\s*(\\d{2})?$")
+
+    /** L'heure ramenée à « hh:mm » quand elle se lit sans ambiguïté sans ses deux-points : « 1430 »,
+     *  « 930 », « 14h30 », « 9h », « 14.30 ». Le pavé numérique d'Android n'a pas de « : » (audit du
+     *  21 octobre, M37). Toute autre saisie revient telle quelle, et le contrôle la refuse. */
+    fun normaliserHeure(texte: String): String {
+        val t = texte.trim()
+        if (t.isEmpty() || HEURE.matches(t)) return t
+        val m = HEURE_SANS_DEUX_POINTS.find(t) ?: return t
+        val heures = (m.groups[1] ?: m.groups[3])!!.value.toInt()
+        val minutes = (m.groups[2] ?: m.groups[4])?.value?.toInt() ?: 0
+        if (heures > 23 || minutes > 59) return t
+        return "${heures.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}"
+    }
 
     /** Le premier refus des contrôles du formulaire du relevé du web (releve.service.ts) : jeu de
      *  données, observateurs et date de début requis, heure mal formée, heure de début sans heure de
@@ -140,8 +158,8 @@ object DetailsReleveFormulaire {
         if (!datasetChoisi) return CHOISIR_JDD
         if (!observateursPresents) return if (observateursEnTexte) "Saisissez les observateurs" else "Choisissez un observateur"
         if (debut == null) return CHOISIR_DATE_DEBUT
-        val hd = heureDebut.trim()
-        val hf = heureFin.trim()
+        val hd = normaliserHeure(heureDebut)
+        val hf = normaliserHeure(heureFin)
         if ((hd.isNotEmpty() && !HEURE.matches(hd)) || (hf.isNotEmpty() && !HEURE.matches(hf))) return "Heure attendue au format hh:mm"
         val f = fin ?: debut
         val jourDebut = Instant.fromEpochMilliseconds(debut).toLocalDateTime(TimeZone.currentSystemDefault()).date
@@ -359,8 +377,8 @@ object DetailsReleveFormulaire {
             dateFin = dates.second,
             champsExtra = extra,
             dateModifiee = dateModifiee,
-            heureDebut = heures.first?.trim()?.takeIf { it.isNotEmpty() },
-            heureFin = heures.second?.trim()?.takeIf { it.isNotEmpty() },
+            heureDebut = heures.first?.let(::normaliserHeure)?.takeIf { it.isNotEmpty() },
+            heureFin = heures.second?.let(::normaliserHeure)?.takeIf { it.isNotEmpty() },
             observateursTexte = observateursTexte?.trim(),
         )
     }

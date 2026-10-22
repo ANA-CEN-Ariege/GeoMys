@@ -72,6 +72,11 @@ data class SaisieEnAttente(
      *  (doublon sinon) : il ne renvoie que les médias. Permet aussi de débloquer les enfants
      *  d'un parent dont seuls les médias ont échoué. */
     val objetCree: Boolean = false,
+    /** true quand la saisie a été modifiée (« Éditer ») alors que son objet était déjà créé côté
+     *  serveur (envoi partiel : objet créé, médias en échec). Le prochain envoi transmet alors la
+     *  modification (`PATCH`) avant les médias ; elle se perdait jusqu'au 21 octobre 2026 (audit, C3 ;
+     *  décision de l'utilisateur : « envoyer de vraies mises à jour »). */
+    val modifieeApresCreation: Boolean = false,
     /** true dès qu'un POST a été TENTÉ (passage en SENDING), même sans confirmation. Si la
      *  réponse s'est perdue (coupure pendant le transfert), l'objet peut exister côté serveur
      *  sans que [objetCree] le sache : avant un re-POST, l'envoi vérifie alors par

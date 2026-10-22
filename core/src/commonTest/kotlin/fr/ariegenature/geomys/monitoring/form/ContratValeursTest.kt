@@ -23,6 +23,7 @@
 package fr.ariegenature.geomys.monitoring.form
 
 import fr.ariegenature.geomys.ServicesDeTest
+import fr.ariegenature.geomys.monitoring.NouvelleVisite
 import fr.ariegenature.geomys.store.TaxRefCache
 import fr.ariegenature.geomys.store.TaxRefEntry
 import kotlin.test.AfterTest
@@ -292,6 +293,24 @@ class ContratValeursTest {
         assertEquals(641941, etat.lireValeurs()["esp"], "texte inchangé : le choix tient")
         etat.saisirTexteTaxon("esp", "Souci ")
         assertEquals(190178, etat.lireValeurs()["esp"], "texte changé : résolution du nom")
+    }
+
+    @Test
+    fun seule_une_information_de_fin_obligatoire_met_la_visite_a_completer() = runTest {
+        // 22 octobre : « si l'heure de fin n'est pas obligatoire, ne pas enregistrer la visite à
+        // compléter », et de même pour les autres informations de fin. L'heure de fin et la durée
+        // facultatives de chronoventaire, et l'heure de fin des POP, requise seulement quand le site
+        // est accessible.
+        val etat = formulaire(
+            EditableField("time_end", ViewType.TIME, "Heure de fin du relevé"),
+            EditableField("duration", ViewType.TIME, "Durée de la détermination"),
+            EditableField("accessibility", ViewType.RADIO, "Accessibilité", value = "Non", values = options("Oui", "Non")),
+            EditableField("Heure_fin", ViewType.TIME, "Heure de fin", obligatoireExpr = "({value}) => value.accessibility === 'Oui'"),
+        )
+        assertEquals(emptyList(), NouvelleVisite.manquantsACompleter(etat.champsObligatoiresManquants(), etat.champs), "aucune information de fin requise : pas « à compléter »")
+        etat.choisirRadio("accessibility", 0)
+        runCurrent()
+        assertEquals(listOf("Heure_fin"), NouvelleVisite.manquantsACompleter(etat.champsObligatoiresManquants(), etat.champs))
     }
 
     @Test

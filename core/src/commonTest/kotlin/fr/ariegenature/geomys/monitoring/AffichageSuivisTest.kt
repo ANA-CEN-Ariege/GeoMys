@@ -28,9 +28,11 @@ import fr.ariegenature.geomys.network.MonitoringApi.MonitoringObjet
 import fr.ariegenature.geomys.network.MonitoringApi.MonitoringPropertySchema
 import fr.ariegenature.geomys.network.MonitoringApi.MonitoringSchemaObjet
 import fr.ariegenature.geomys.network.MonitoringObjets
+import fr.ariegenature.geomys.plateforme.comparateurFrancais
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /** [AffichageSuivis] : libellés, types montrés, sous-titres, tris et propriétés d'une fiche. */
 class AffichageSuivisTest {
@@ -162,6 +164,26 @@ class AffichageSuivisTest {
         assertEquals(listOf(2, 1), AffichageSuivis.trierCommeLeServeur(codes, "code" to "asc").map { it.id })
         // Propriété absente des lignes (hors display_list) : par nom.
         assertEquals(listOf(1, 2, 3), ordre(site.copy(sorts = listOf("nb_visits" to "desc"))))
+    }
+
+    @Test
+    fun des_codes_mi_nombres_mi_textes_se_trient_sans_planter_et_comme_du_texte() {
+        // Audit du 21 octobre, M36 : « 2 », « 10 » et « 1a » formaient un cycle (2 < 10 en nombre,
+        // « 10 » < « 1a » < « 2 » en texte), et au-delà de 31 lignes le tri d'Android pouvait lever
+        // « Comparison method violates its general contract! ».
+        val codes = (1..60).map { i -> enfant(i, "#$i", "code" to listOf("2", "10", "1a", "${i}b", "$i")[i % 5]) }
+        val tries = AffichageSuivis.trierCommeLeServeur(codes, "code" to "asc")
+        val valeurs = tries.map { it.proprietes.getValue("code") }
+        val francais = comparateurFrancais()
+        // Un texte dans la colonne : tout se compare en texte, comme PostgreSQL une colonne texte.
+        assertEquals(valeurs.sortedWith(francais), valeurs)
+        // Une colonne déclarée numérique par le schéma : les nombres, puis le reste.
+        val numerique = AffichageSuivis.trierCommeLeServeur(codes, "code" to "asc", numerique = true).map { it.proprietes.getValue("code") }
+        val nombres = numerique.takeWhile { it.toDoubleOrNull() != null }
+        assertEquals(nombres.sortedBy { it.toDouble() }, nombres)
+        assertTrue(numerique.drop(nombres.size).none { it.toDoubleOrNull() != null })
+        // Les sous-listes des fiches aussi.
+        assertEquals(60, MonitoringObjets.trierEnfants(codes, listOf("code" to "desc")).size)
     }
 
     @Test

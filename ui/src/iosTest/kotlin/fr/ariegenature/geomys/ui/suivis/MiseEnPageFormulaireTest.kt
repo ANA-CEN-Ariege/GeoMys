@@ -24,11 +24,15 @@
 
 package fr.ariegenature.geomys.ui.suivis
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
@@ -96,6 +100,15 @@ class MiseEnPageFormulaireTest {
         waitForIdle()
         val sansBarre = onNode(hasSetTextAction()).getBoundsInRoot().left - onNodeWithTag(etiquetteChamp("vide")).getBoundsInRoot().left
         assertEquals(3.dp, avecBarre - sansBarre)
+    }
+
+    @Test
+    fun la_valeur_d_une_liste_est_calee_a_gauche_sous_ios() = runComposeUiTest {
+        // 22 octobre : « Tous les champs de formulaires doivent être justifiés à gauche ». La valeur
+        // d'une liste était calée à droite, comme le Picker de GeoMys-IOS. Le menu du système, posé
+        // par-dessus, ne s'affiche pas sans fenêtre : on regarde ce qu'il recouvre.
+        setContent { Box(Modifier.width(361.dp).testTag("ligne")) { ValeurListeIos("Beau temps") } }
+        assertEquals(onNodeWithTag("ligne").getBoundsInRoot().left, onNodeWithText("Beau temps").getBoundsInRoot().left)
     }
 
     @Test

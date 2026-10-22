@@ -146,7 +146,7 @@ class PertesEtDoublonsEnvoiTest {
     private class MarqueurEspion : MarqueurEnvoiOcctax {
         val incertitudesLevees = mutableListOf<String>()
         val preMarquees = mutableListOf<String>()
-        override suspend fun occurrenceCreee(obsId: String) {}
+        override suspend fun occurrenceCreee(obsId: String, empreinte: String?, empreinteReleve: String?) {}
         override suspend fun occurrenceIncertaine(obsId: String, idReleve: Int) {}
         override suspend fun occurrencesATenter(obsIds: List<String>, idReleve: Int) { preMarquees += obsIds }
         override suspend fun occurrenceEchecNet(obsId: String) { incertitudesLevees += obsId }

@@ -78,6 +78,11 @@ class ServicesGeoNature(val socle: Socle) {
 
     val config = GeoNatureConfig(socle.reglages.reglages("gn_config"), socle.coffre)
     val preferences = PreferencesGeoMys(socle.reglages.reglages("GeoMys_prefs"))
+
+    init {
+        // Le jeton et les cookies ne partent que vers ce serveur.
+        clients.origineInstance = { config.urlServeur.takeIf { it.isNotBlank() } }
+    }
     val auth = GeoNatureAuth(clients)
     val verificationConnexion = VerificationConnexion(auth, clients)
 
@@ -223,6 +228,9 @@ class ServicesGeoNature(val socle: Socle) {
                 taxRef.tousLesGroupes()
                 taxRef.tousLesGroupes1()
                 taxRef.tousLesRegnes()
+                // Lus au premier taxon reconnu (« TAXREF - Nom valide ») : décodés ici plutôt que sur
+                // le fil de l'interface (audit du 21 octobre, M40).
+                taxRef.nomValideParCdNom(0)
             }
             runCatching { mediasOrphelins.purger() }
         }

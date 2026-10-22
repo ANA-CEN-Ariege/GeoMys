@@ -158,11 +158,14 @@ class EnvoiSortie(
         }
         var marquageEchoue = false
         val marqueur = object : MarqueurEnvoiOcctax {
-            override suspend fun occurrenceCreee(obsId: String) {
-                if (!sortieStore.marquerObservationsEnvoyees(sortie.id, listOf(obsId))) {
+            override suspend fun occurrenceCreee(obsId: String, empreinte: String?, empreinteReleve: String?) {
+                if (!sortieStore.marquerObservationsEnvoyees(sortie.id, listOf(obsId), mapOf(obsId to (empreinte to empreinteReleve)))) {
                     marquageEchoue = true
                     envoisNonPersistes.ajouter(listOf(obsId))
                 }
+            }
+            override suspend fun empreintesTransmises(empreintes: Map<String, Pair<String?, String?>>) {
+                if (!sortieStore.enregistrerEmpreintes(sortie.id, empreintes)) marquageEchoue = true
             }
             override suspend fun occurrenceIncertaine(obsId: String, idReleve: Int) {
                 sortieStore.marquerObservationIncertaine(sortie.id, obsId, idReleve)
@@ -197,7 +200,7 @@ class EnvoiSortie(
                 marquageEchoue = true
                 envoisNonPersistes.ajouter(res.obsCreesIds)
             }
-            if (res.nbCrees == res.nbTotal) {
+            if (res.nbCrees == res.nbTotal && res.nbMisesAJourEnEchec == 0) {
                 // Envoi COMPLET (nbTotal == 0 : tout avait déjà été transmis lors d'un envoi
                 // partiel précédent — on clôture simplement).
                 //
@@ -216,7 +219,9 @@ class EnvoiSortie(
                     if (!sortieStore.marquerEnvoyee(sortie.id)) marquageEchoue = true
                 }
                 val msg = buildString {
-                    if (res.nbTotal == 0) {
+                    if (res.nbTotal == 0 && res.nbMisesAJour > 0) {
+                        append("${res.nbMisesAJour} modification(s) transmise(s) sur GeoNature — saisie marquée envoyée.")
+                    } else if (res.nbTotal == 0) {
                         append("Toutes les observations avaient déjà été transmises — saisie marquée envoyée.")
                     } else {
                         append("${res.nbCrees}/${res.nbTotal} relevé")
@@ -227,6 +232,7 @@ class EnvoiSortie(
                         if (res.nbDejaEnvoyees > 0) {
                             append(" (+ ${res.nbDejaEnvoyees} déjà transmis précédemment)")
                         }
+                        if (res.nbMisesAJour > 0) append(", ${res.nbMisesAJour} modification(s) transmise(s)")
                     }
                     if (ajouteesPendantEnvoi.isNotEmpty()) {
                         append("\n⚠ ${ajouteesPendantEnvoi.size} observation(s) ajoutée(s) pendant l'envoi : ")
@@ -260,6 +266,8 @@ class EnvoiSortie(
                 val transmises = res.nbCrees + res.nbDejaEnvoyees
                 val msg = buildString {
                     append("Envoi partiel : $transmises/$total observation(s) transmise(s)")
+                    if (res.nbMisesAJour > 0) append(", ${res.nbMisesAJour} modification(s) transmise(s)")
+                    if (res.nbMisesAJourEnEchec > 0) append("\n${res.nbMisesAJourEnEchec} modification(s) non transmise(s)")
                     res.messageDerniereErreur?.let { append("\nDernière erreur : $it") }
                     if (res.obsIncertaines.isNotEmpty()) {
                         append("\n${res.obsIncertaines.size} observation(s) au statut incertain (réponse perdue) : " +

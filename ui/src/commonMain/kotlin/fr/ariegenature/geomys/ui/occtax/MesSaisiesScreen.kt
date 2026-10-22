@@ -180,7 +180,7 @@ fun MesSaisiesScreen(
                             onDetail = { onDetail(sortie.id) },
                             onListe = { vm.listerEspeces(sortie) },
                             onEnvoyer = { vm.envoyer(sortie) },
-                            onContinuer = { onContinuer(sortie) },
+                            onContinuer = { if (vm.peutContinuer()) onContinuer(sortie) },
                             onSupprimer = { vm.demanderSuppression(sortie) },
                         )
                     }
