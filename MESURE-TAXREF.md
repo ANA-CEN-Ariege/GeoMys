@@ -35,7 +35,7 @@ Une mesure correspond à un démarrage à froid suivi d'une session de saisie su
 Ce que mesure chaque colonne :
 - **Pic** et **retenu** sont comptés au-dessus de l'occupation de départ de l'appli. Le pic est relevé toutes les 5 ms pendant le chargement ; le retenu l'est après deux passages du ramasse-miettes, index construits.
 - **Limite** :
-  - Android : le tas Java maximal (`maxMemory`). GeoMys Common ne déclare pas encore `largeHeap`, d'où 256 Mo sur l'A12 ; avec `largeHeap`, ce serait 512 Mo (`dalvik.vm.heapsize`).
+  - Android : le tas Java maximal (`maxMemory`). GeoMys ne déclare pas encore `largeHeap`, d'où 256 Mo sur l'A12 ; avec `largeHeap`, ce serait 512 Mo (`dalvik.vm.heapsize`).
   - iOS : l'empreinte au-delà de laquelle le système ferme l'appli, c'est-à-dire l'occupation plus `os_proc_available_memory`.
 - **Préparation** (la synchronisation simulée, qui écrit les huit fichiers) : 6,0 s pour 100 000 taxons et 11,5 s pour 200 000 sur l'A12 ; 0,4 s et 0,8 s sur l'iPhone.
 
@@ -46,7 +46,7 @@ Ce que mesure chaque colonne :
 **Android.**
 - Le retenu double avec le référentiel : 119,5 Mo pour 100 000 taxons, 224 Mo pour 200 000.
 - Sans `largeHeap`, 100 000 taxons tiennent mais prennent déjà la moitié ou les deux tiers du tas, avant le reste de l'appli. À 200 000, on frôle le dépassement mémoire (OOM).
-- GeoMys Common devra donc déclarer `largeHeap`, comme GeoMys-Android, au plus tard au portage de TaxRef (lot 2).
+- GeoMys devra donc déclarer `largeHeap`, comme GeoMys-Android, au plus tard au portage de TaxRef (lot 2).
 
 **Durées.**
 - L'A12 est 13 à 23 fois plus lent que l'iPhone 16 pour le même travail. C'est de l'ordre de l'écart de puissance entre un processeur d'entrée de gamme de 2020 et celui d'un iPhone récent.
@@ -137,7 +137,7 @@ adb shell am start -n fr.ariegenature.geomys.common/.MainActivity --es ecran mes
 ```
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project iosApp/iosApp.xcodeproj \
   -scheme iosApp -configuration Release -destination 'id=<UDID>' -allowProvisioningUpdates build
-xcrun devicectl device install app --device <UDID> <DerivedData>/Build/Products/Release-iphoneos/GeoMysCommon.app
+xcrun devicectl device install app --device <UDID> <DerivedData>/Build/Products/Release-iphoneos/GeoMys.app
 xcrun devicectl device process launch --console --terminate-existing --device <UDID> \
   fr.ariegenature.geomys.common -- -ecran mesure-taxref -action mesurer -lecture chaine
 ```

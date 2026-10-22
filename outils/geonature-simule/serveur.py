@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# GeoMys-Common — application de saisie naturaliste pour GeoNature, Android et iOS.
+# GeoMys — application de saisie naturaliste pour GeoNature, Android et iOS.
 # Copyright (C) 2026 ANA - CEN Ariège
 #
 # This program is free software: you can redistribute it and/or modify

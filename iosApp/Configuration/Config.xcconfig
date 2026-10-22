@@ -1,11 +1,11 @@
-// Identité de l'application iOS. GeoMys Common est indépendante de GeoMys-IOS : son propre
+// Identité de l'application iOS. GeoMys est indépendante de GeoMys-IOS : son propre
 // bundle id lui permet de cohabiter avec elle sur un même iPhone.
 TEAM_ID=5J5PGRYHS5
 BUNDLE_ID=fr.ariegenature.geomys.common
 // Nom du produit (fichier .app), sans espace.
-APP_NAME=GeoMysCommon
+APP_NAME=GeoMys
 // Nom affiché sous l'icône.
-APP_DISPLAY_NAME=GeoMys Common
+APP_DISPLAY_NAME=GeoMys
 MARKETING_VERSION=2.0.0
 CURRENT_PROJECT_VERSION=200
 // Le code Kotlin n'est compilé que pour les simulateurs Apple Silicon (iosSimulatorArm64) : sans

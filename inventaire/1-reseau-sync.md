@@ -1,12 +1,12 @@
 # 1. Réseau et synchronisation (`network/`, `sync/`)
 
-> Détail de l'inventaire GeoMys-Common. La synthèse, les chiffres globaux et les décisions à prendre sont dans [`../INVENTAIRE.md`](../INVENTAIRE.md).
+> Détail de l'inventaire GeoMys. La synthèse, les chiffres globaux et les décisions à prendre sont dans [`../INVENTAIRE.md`](../INVENTAIRE.md).
 > Source analysée en lecture seule : GeoMys-Android `cdd5196` (v1.4.7, 18 octobre 2026). Les équivalents iOS ont été cherchés dans GeoMys-IOS `64d303b`.
-> La colonne « Cible » donne une destination indicative ; la structure proposée pour GeoMys-Common est décrite au § 9 de la synthèse.
+> La colonne « Cible » donne une destination indicative ; la structure proposée pour GeoMys est décrite au § 9 de la synthèse.
 
 
 Base : GeoMys-Android `cdd5196`, GeoMys-IOS `64d303b`. Chemins relatifs à `app/src/main/java/fr/ariegenature/geomys/`. « Lignes » = lignes physiques, commentaires compris (le code est commenté à environ 37 % ; les lignes de code seules sont en §6).
-Cibles proposées (GeoMys-Common est vide) : `cM:` = `shared/src/commonMain/kotlin/fr/ariegenature/geomys/`, `aM:` = androidMain, `iM:` = iosMain.
+Cibles proposées (GeoMys est vide) : `cM:` = `shared/src/commonMain/kotlin/fr/ariegenature/geomys/`, `aM:` = androidMain, `iM:` = iosMain.
 
 Règles valables pour toutes les lignes du tableau, non répétées ensuite :
 - `HttpURLConnection` est remplacé par Ktor (moteur OkHttp en aM, Darwin en iM), et `org.json` par `JsonElement` de kotlinx.serialization.
@@ -17,7 +17,7 @@ Règles valables pour toutes les lignes du tableau, non répétées ensuite :
 
 ## 1. Tableau par fichier
 
-| Fichier | Lignes | Rôle (1 phrase) | Catégorie | À remplacer / dépendances plateforme (précis) | Cible dans GeoMys-Common | Remarques |
+| Fichier | Lignes | Rôle (1 phrase) | Catégorie | À remplacer / dépendances plateforme (précis) | Cible dans GeoMys | Remarques |
 |---|---|---|---|---|---|---|
 | `network/HttpClient.kt` | 101 | Prépare les `HttpURLConnection` (timeouts, `Accept`, `Bearer`, `Cookie`). Les POST portent `Connection: close`. `lireCode()` vide la session sur un 401. | COMMUN-ADAPTÉ | **Connexion** : `HttpURLConnection` et `URL.openConnection` → `io.ktor.client.HttpClient`.<br>**Timeouts** (posés appel par appel) → plugin `HttpTimeout` par requête. `socketTimeoutMillis` équivaut au readTimeout. Ne pas poser de `requestTimeoutMillis`.<br>**En-têtes** → `bearerAuth()` et `header(HttpHeaders.Cookie, …)`.<br>**Anti-rejeu des POST** : garder `Connection: close`, régler OkHttp avec `retryOnConnectionFailure(false)`, et ne jamais appliquer `HttpRequestRetry` à un POST.<br>**`lireCode`** → intercepteur `HttpSend` : sur un 401, il appelle `GeoNatureAuth.invaliderCache()`.<br>**Divers** : `expectSuccess = false`. | `cM:network/http/GnHttp.kt`, plus en aM/iM une fabrique de moteur (environ 20 l.) | Aucun nouvel essai sur 401 aujourd'hui : le cache est invalidé, c'est tout. Équivalent iOS : `Network/HttpClient.swift`. |
 | `network/JsonResponse.kt` | 37 | `String.parserTableauJson(clés…)` lit un tableau, qu'il soit direct ou enveloppé (`data`, `items`, `features`…). | COMMUN-ADAPTÉ | `JSONArray(String)` et `JSONObject(String)` → `Json.parseToJsonElement`, `JsonArray`, `JsonObject`. Le `JSONTokener` d'Android est plus tolérant que kotlinx en mode strict. | `cM:network/json/JsonCompat.kt` | Bon point d'ancrage pour la couche « opt* » compatible org.json (§4.7-1). Équivalent iOS : `JsonHelpers.swift`. |
@@ -279,7 +279,7 @@ En Ktor 3, `kotlinx.io.IOException` peut servir de type commun. Il faut vérifie
 - **`SyncForegroundService`** : Context de service (notification, `PendingIntent`, `R.drawable`, `NotificationManager`).
 - **Dépendances indirectes** : tout le paquet utilise des singletons du store initialisés ailleurs avec un Context (`filesDir` ou SharedPreferences) : `MonitoringCache` (`filesDir/monitoring`), `RelevesOrphelins` (prefs `releves_orphelins`), `TaxRefCache`, `NomenclatureCache`, `HabitatCache` et `HabitatCacheOccHab`, `StationsServeurCache`, `PictoCache`, `OutboxMonitoring`, `SortieStore` et `OccHabStore`.
 
-Dans GeoMys-Common, la plateforme fournira une racine de fichiers et un objet `Settings`.
+Dans GeoMys, la plateforme fournira une racine de fichiers et un objet `Settings`.
 
 ### 4.6 SyncForegroundService et iOS
 
@@ -361,7 +361,7 @@ Le code commun remplacera les deux applications ; ces écarts doivent donc être
 
 ## 5. Compatibilité des données
 
-Ce que GeoMys-Common doit relire, sur Android avec le même applicationId, pour succéder à l'appli actuelle.
+Ce que GeoMys doit relire, sur Android avec le même applicationId, pour succéder à l'appli actuelle.
 
 ### 5.1 Identité d'installation
 

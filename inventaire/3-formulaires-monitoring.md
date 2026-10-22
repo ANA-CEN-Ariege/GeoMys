@@ -1,14 +1,14 @@
 # 3. Moteur de formulaires, champs de saisie et écrans Monitoring (`monitoring/form/`, `ui/saisie/`)
 
-> Détail de l'inventaire GeoMys-Common. La synthèse, les chiffres globaux et les décisions à prendre sont dans [`../INVENTAIRE.md`](../INVENTAIRE.md).
+> Détail de l'inventaire GeoMys. La synthèse, les chiffres globaux et les décisions à prendre sont dans [`../INVENTAIRE.md`](../INVENTAIRE.md).
 > Source analysée en lecture seule : GeoMys-Android `cdd5196` (v1.4.7, 18 octobre 2026). Les équivalents iOS ont été cherchés dans GeoMys-IOS `64d303b`.
-> La colonne « Cible » donne une destination indicative ; la structure proposée pour GeoMys-Common est décrite au § 9 de la synthèse.
+> La colonne « Cible » donne une destination indicative ; la structure proposée pour GeoMys est décrite au § 9 de la synthèse.
 
 ## 1. Inventaire fichier par fichier
 
 Chemins relatifs à `app/src/main/java/fr/ariegenature/geomys/` (GeoMys-Android `cdd5196`). « Lignes » = colonne `loc` de `releve-automatique.tsv` ; « l. » = numéros de ligne ; iOS = GeoMys-IOS `64d303b`.
 
-| Fichier | Lignes | Rôle (1 phrase) | Catégorie | À remplacer / dépendances plateforme (précis) | Cible dans GeoMys-Common | Remarques |
+| Fichier | Lignes | Rôle (1 phrase) | Catégorie | À remplacer / dépendances plateforme (précis) | Cible dans GeoMys | Remarques |
 |---|---|---|---|---|---|---|
 | `monitoring/form/ChangeRules.kt` | 254 | Parse le script JS `change` du schéma (`const`, `if`, ternaires, `patchValue`) en instructions ordonnées, puis les évalue en patchs de valeurs. | COMMUN | `RegexOption.DOT_MATCHES_ALL` (l.69) n'existe pas dans l'expect commun (seuls IGNORE_CASE et MULTILINE) → préfixe inline `(?s)` ou `[\s\S]`. Le reste (Regex, String, collections) est de la stdlib commune. | commonMain › `monitoring/form` | ChangeRulesTest (227 l., JUnit pur) → commonTest. iOS : `UI/Monitoring/ChangeRules.swift` (399 l.), redondant une fois le commun en place. |
 | `monitoring/form/EditableField.kt` | 123 | Modèle du formulaire dynamique : `enum ViewType` (13 types), `PropertyValue` (value, label, cdNomenclature), `EditableField` (métadonnées de schéma et valeur). | COMMUN | Aucune (seuls les KDoc citent des widgets Android). | commonMain › `monitoring/form` | `var value: Any?` dans une data class : une mutation n'est pas observée par Compose. Ne garder `value` que comme valeur initiale ; la valeur courante vit dans l'état du formulaire. |
@@ -271,9 +271,9 @@ Précisions sur la grille de correspondances :
 
 ## 5. Compatibilité des données
 
-Cas étudié : GeoMys-Common, avec le même applicationId, relit les données de l'appli Android existante.
+Cas étudié : GeoMys, avec le même applicationId, relit les données de l'appli Android existante.
 
-| Donnée | Lue ou écrite dans le périmètre | Format actuel | Pour GeoMys-Common |
+| Donnée | Lue ou écrite dans le périmètre | Format actuel | Pour GeoMys |
 |---|---|---|---|
 | Préférences de saisie : SharedPreferences `GeoMys_prefs`, clés `saisie_dernier_taxon` (String) et `saisie_nom_sci` (Boolean) | PreferencesSaisie.kt:28-50 (lecture et écriture) | XML SharedPreferences. Le taxon est stocké par son nom d'enum (`OISEAU`, `MAMMIFERE`, `REPTILE`, `BATRACIEN`, `POISSON`, `INSECTE`, `FONGE`, `MOLLUSQUE`, `INVERTEBRES`, `PLANTE`) et relu par `Taxon.valueOf` | multiplatform-settings branché sur le même fichier : relecture directe. Ne pas renommer les constantes de l'enum. L'app iOS actuelle utilise les mêmes clés dans `UserDefaults.standard` (@AppStorage, SaisieRapideView.swift:63-64, SaisieObservationView.swift:61-62), avec des rawValues identiques (Model/Models.swift:13-22) : compatible avec `NSUserDefaultsSettings(standardUserDefaults)`. |
 | Outbox `filesDir/monitoring_outbox.json` (liste de `SaisieEnAttente`, Gson) : saisies non envoyées, y compris celles « à compléter » | écrite par NouvelleVisiteFragment.kt:927-946 (`mettreAJour`) et 1017-1036 (`ajouter`) ; lue par NouvelleVisiteFragment.kt:227-229, 431-434 et FicheObjetFragment.kt:102-110, 564-585 | Gson par réflexion : clés = noms des propriétés Kotlin (aucun `@SerializedName`), nulls omis, `etat` = nom d'enum (PENDING, SENDING, SENT, ERROR), `dateLocale` en millisecondes epoch, `uuid` = UUID v4 textuel. Gson échappe `< > & = '` en `\uXXXX`. | **Données irremplaçables, à relire impérativement.** `@Serializable SaisieEnAttente` avec les mêmes noms, des valeurs par défaut partout, `ignoreUnknownKeys = true` et `coerceInputValues = true` (Gson pouvait laisser `null` dans des champs non-null, cf. la normalisation de store/OutboxMonitoring.kt:201). Champs écrits ici : uuid, moduleCode, objectType, parentObjectType, parentIdServeur, parentUuidLocal, parentIdField, nomsChampsSchema, champsTexteLibre, valeursJson, uuidPayload, uuidFieldName, mediaPathsLocal, mediaPathLocal (legacy, remis à null en édition, l.938), mediaSchemaDotTable, champsManquants, etat, messageErreur. `Uuid.random().toString()` produit le même format. L'écriture atomique (tmp + rename) est à conserver (OutboxMonitoring.kt:129-171, hors périmètre). |

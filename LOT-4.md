@@ -15,7 +15,7 @@ Le lot 4 porte la logique des formulaires (`INVENTAIRE.md` § 10) :
 
 ## 1. Ce qui est porté
 
-| GeoMys-Android (`cdd5196`) | GeoMys Common | Remarque |
+| GeoMys-Android (`cdd5196`) | GeoMys | Remarque |
 |---|---|---|
 | `monitoring/form/ExpressionScanner.kt` | `monitoring/form/ExpressionScanner.kt` | Tel quel |
 | `monitoring/form/EditableField.kt` | `monitoring/form/EditableField.kt` | Tel quel ; les commentaires qui décrivaient des vues parlent de l'état |

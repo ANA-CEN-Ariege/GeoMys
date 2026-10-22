@@ -18,7 +18,7 @@ Les écrans suivent la décision 15 ([`LOT-5.md`](LOT-5.md) § 2) : l'allure de 
 
 ## 1. Ce qui est porté
 
-| GeoMys-Android | GeoMys-IOS (`5fda84c`) | GeoMys Common |
+| GeoMys-Android | GeoMys-IOS (`5fda84c`) | GeoMys |
 |---|---|---|
 | `SuivisFragment.kt`, `fragment_suivis.xml`, `item_suivi_module.xml`, `PictoMonitoring.kt` | `SuivisView` (`UI/Monitoring/MonitoringViews.swift`) | `ui/…/suivis/SuivisScreen.kt` et `SuivisViewModel.kt` ; `core/…/monitoring/ListeProtocoles.kt`, `PictoMonitoring.kt` ; `ServicesGeoNature.cheminPicto` |
 | `SuiviDetailFragment.kt`, `fragment_suivi_detail.xml` | `SuiviDetailView` (`MonitoringViews.swift`) | `ui/…/suivis/SuiviDetailScreen.kt` et `SuiviDetailViewModel.kt` ; `core/…/monitoring/AffichageSuivis.kt` |

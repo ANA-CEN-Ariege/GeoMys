@@ -4,7 +4,7 @@
 
 L'inventaire (`INVENTAIRE.md` § 5) faisait de la carte le point critique du portage. GeoMys-Android repose sur osmdroid, archivé depuis novembre 2024, et l'édition des géométries OccTax et OccHab demande des sommets déplaçables, que maplibre-compose ne fournit pas. Ce prototype vérifie, sur les deux plateformes, les cinq capacités jugées à risque.
 
-**Verdict : MapLibre via maplibre-compose est retenu pour GeoMys Common.**
+**Verdict : MapLibre via maplibre-compose est retenu pour GeoMys.**
 - Quatre points sur cinq fonctionnent, dont le plus risqué, le glisser des sommets.
 - Le cinquième, le User-Agent, ne se réglait pas comme prévu : le contournement prévu a été mis en place au lot 1 (§ 2).
 - Le glisser des sommets est confirmé au doigt sur les deux téléphones, et la rotation selon le cap est fluide sur téléphone après correction (§ 3).
@@ -77,12 +77,12 @@ Le fichier de test (135 tuiles, zooms 10 à 16, autour de Foix) est produit par 
 
 ## 2. Constat : les en-têtes de l'intercepteur ne partent pas
 
-`DefaultMapRuntime.configure { requestInterceptor = MapRequestInterceptor(headers = …) }` devait poser le User-Agent `GeoMysCommon/<version> (<système>)`. Le serveur de test, qui journalise tous les en-têtes reçus, montre :
+`DefaultMapRuntime.configure { requestInterceptor = MapRequestInterceptor(headers = …) }` devait poser le User-Agent `GeoMys/<version> (<système>)`. Le serveur de test, qui journalise tous les en-têtes reçus, montre :
 
 | | En-têtes reçus | User-Agent |
 |---|---|---|
 | Android | `accept-encoding`, `accept`, `host`, `user-agent` | `MapLibreNative/1.0` |
-| iOS | `Host`, `Accept`, `Accept-Language`, `Connection`, `Accept-Encoding`, `User-Agent` | `GeoMysCommon/0.1.0 MapLibreNative/0.0.0 (00000000) iOS Simulator/26.5.0 (arm64)` |
+| iOS | `Host`, `Accept`, `Accept-Language`, `Connection`, `Accept-Encoding`, `User-Agent` | `GeoMys/0.1.0 MapLibreNative/0.0.0 (00000000) iOS Simulator/26.5.0 (arm64)` |
 
 Un en-tête témoin (`X-GeoMys`), ajouté pour l'essai, n'arrive pas non plus. **Aucun en-tête de l'intercepteur n'est donc appliqué**, sur aucune des deux plateformes. Aucun avertissement n'est journalisé, alors que le fournisseur de ressources, configuré au même endroit, fonctionne.
 
@@ -104,8 +104,8 @@ Vérifié le 18 octobre sur l'émulateur Android et le simulateur iOS :
 
 | | User-Agent reçu par le serveur de test |
 |---|---|
-| Android | `GeoMysCommon/0.1.0 (Android 17)`, au lieu de `MapLibreNative/1.0` |
-| iOS | `GeoMysCommon/0.1.0 (iOS 26.5)` |
+| Android | `GeoMys/0.1.0 (Android 17)`, au lieu de `MapLibreNative/1.0` |
+| iOS | `GeoMys/0.1.0 (iOS 26.5)` |
 
 - Les tuiles s'affichent normalement.
 - Le téléchargement d'une zone hors-ligne passe par le même chemin : 149 tuiles, statut `Complete`, toutes les requêtes avec ce User-Agent.

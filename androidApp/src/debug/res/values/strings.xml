@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- La version de test se distingue de GeoMys, installée à côté sur un même téléphone. -->
-    <string name="app_name">GeoMys Common</string>
-</resources>

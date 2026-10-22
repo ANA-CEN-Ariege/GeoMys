@@ -1,5 +1,5 @@
 /*
- * GeoMys-Common — application de saisie naturaliste pour GeoNature, Android et iOS.
+ * GeoMys — application de saisie naturaliste pour GeoNature, Android et iOS.
  * Copyright (C) 2026 ANA - CEN Ariège
  *
  * This program is free software: you can redistribute it and/or modify
@@ -19,7 +19,8 @@
 // Porté de GeoMys-Android @ cdd5196 (app/src/main/java/fr/ariegenature/geomys/store/GeoNatureConfig.kt) :
 // SharedPreferences remplacées par multiplatform-settings (mêmes clés, mêmes défauts), MdpChiffre
 // par CoffreMotDePasse, org.json par son portage. Retirés : le nettoyage des anciens coffres
-// Android (sans objet, GeoMys Common ne reprend pas les données).
+// Android : GeoMys-Android le faisait lui-même (1.4.4 et plus), et un téléphone resté plus ancien
+// redemandera seulement le mot de passe.
 
 package fr.ariegenature.geomys.store
 
@@ -503,7 +504,7 @@ class GeoNatureConfig(private val prefs: Settings, private val coffre: CoffreMot
          *  servent, un bandeau de Paramètres suggère « Recharger les données », et la synchro
          *  suivante réécrit les caches. TaxRef n'est retéléchargé que si sa version a changé sur le
          *  serveur, ou si le format de son cache a changé ([TaxRefCache.VERSION_FORMAT]).
-         *  Historique (GeoMys Common) :
+         *  Historique (GeoMys) :
          *  1 = première version ;
          *  2 = vérification des champs du 20 octobre : groupe 3 des taxons, lignes taxonomiques des
          *      nomenclatures, réglages OccTax (médias, preuves, filtres taxonomiques) et OccHab

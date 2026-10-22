@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# GeoMys-Common — application de saisie naturaliste pour GeoNature, Android et iOS.
+# GeoMys — application de saisie naturaliste pour GeoNature, Android et iOS.
 # Copyright (C) 2026 ANA - CEN Ariège
 #
 # This program is free software: you can redistribute it and/or modify
@@ -15,11 +15,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Vérifie qu'un serveur GeoNature expose ce qu'utilise GeoMys Common, et donne pour chaque route :
+"""Vérifie qu'un serveur GeoNature expose ce qu'utilise GeoMys, et donne pour chaque route :
 OK (conforme), ATTENTION (repli ou dégradation, non bloquant) ou ÉCHEC (à examiner).
 
 Repris de GeoMys-Android @ cdd5196 (tools/verifier_serveur_geonature.py) et étendu le 21 octobre 2026
-à ce qu'appelle GeoMys Common : Suivis, OccHab, Explorer, et les lectures de l'envoi.
+à ce qu'appelle GeoMys : Suivis, OccHab, Explorer, et les lectures de l'envoi.
 
 Usage :
     outils/verifier_serveur_geonature.py <url_geonature>            # identifiant et mot de passe demandés
@@ -89,7 +89,7 @@ def main():
 
     jar = http.cookiejar.CookieJar()
     ouvreur = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
-    ouvreur.addheaders = [("User-Agent", "geomys-common-verif"), ("Accept", "application/json")]
+    ouvreur.addheaders = [("User-Agent", "geomys-verif"), ("Accept", "application/json")]
     jeton = {"valeur": None}
 
     def appel(chemin, corps=None, delai=25):
@@ -123,7 +123,7 @@ def main():
                     return d[cle]
         return d if isinstance(d, list) else []
 
-    print(f"== Vérification GeoNature pour GeoMys Common : {base} ==")
+    print(f"== Vérification GeoNature pour GeoMys : {base} ==")
 
     # ── 1. Connexion ──
     connecte = False

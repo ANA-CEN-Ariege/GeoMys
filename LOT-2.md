@@ -15,7 +15,7 @@ Le lot 2 porte tout ce que télécharge « Recharger les données » (`INVENTAIR
 
 ## 1. Ce qui est porté
 
-| Android (`cdd5196`) | GeoMys Common | Remarque |
+| Android (`cdd5196`) | GeoMys | Remarque |
 |---|---|---|
 | `store/TaxRefCache.kt`, `NomenclatureCache.kt` | `store/` | Fichiers lus et écrits en flux, verrous atomicfu |
 | `store/HabitatCache.kt` (deux objets) | `store/HabitatCache.kt` | Deux instances de `HabitatCacheStore` |
@@ -46,7 +46,7 @@ Les tests portés gardent donc leurs appels.
 
 ## 3. Lecture en flux des longues réponses
 
-GeoMys-Android lit les jeux de données (jusqu'à 2 500 avec leurs modules) et HABREF (29 425 habitats) avec le `JsonReader` de Gson, sans jamais matérialiser toute la réponse. GeoMys Common fait de même :
+GeoMys-Android lit les jeux de données (jusqu'à 2 500 avec leurs modules) et HABREF (29 425 habitats) avec le `JsonReader` de Gson, sans jamais matérialiser toute la réponse. GeoMys fait de même :
 - la réponse est reçue morceau par morceau dans un tampon okio (`getEnFlux`, `corpsEnTampon`), sans la copie complète que garde Ktor pour une réponse ordinaire ;
 - `lireTableauEnFlux` la décode élément par élément avec kotlinx-serialization, que le tableau soit à la racine ou enveloppé sous `data`, `items` ou `results`.
 
@@ -54,7 +54,7 @@ GeoMys-Android lit les jeux de données (jusqu'à 2 500 avec leurs modules) et H
 
 ## 4. Équivalences de plateforme
 
-| Android | GeoMys Common |
+| Android | GeoMys |
 |---|---|
 | `Collator` (FRANCE, PRIMARY) | `comparateurFrancais()` : `Collator` sous Android, `compare(_:options:locale:)` sous iOS |
 | `"%.5f".format` (virgule sur un appareil français) | `formaterDecimal` |
@@ -78,7 +78,7 @@ Les caches JSON des réglages ne dépendent plus des noms de champs de `kotlin.P
 - service au premier plan de type `dataSync` ;
 - canal `GeoMys_sync` « Synchronisation », créé au démarrage de l'activité ;
 - icône `ic_settings` ;
-- titre « GeoMys Common — synchronisation », texte qui suit l'avancement.
+- titre « GeoMys — synchronisation », texte qui suit l'avancement.
 
 **iOS.** C'est ce que fait GeoMys-IOS :
 - tâche d'arrière-plan « Synchronisation GeoNature » ;

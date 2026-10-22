@@ -1,6 +1,5 @@
 <resources>
-    <!-- Nom sous l'icône, repris dans l'appli (InfosApp.nom) : celui de GeoMys, que l'appli remplace sur
-         Google Play ; « GeoMys Common » en debug (src/debug). Sous iOS : APP_DISPLAY_NAME de
+    <!-- Nom sous l'icône, repris dans l'appli (InfosApp.nom). Sous iOS : APP_DISPLAY_NAME de
          iosApp/Configuration/Config.xcconfig. -->
     <string name="app_name">GeoMys</string>
 </resources>

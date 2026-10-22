@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# GeoMys-Common — application de saisie naturaliste pour GeoNature, Android et iOS.
+# GeoMys — application de saisie naturaliste pour GeoNature, Android et iOS.
 # Copyright (C) 2026 ANA - CEN Ariège
 #
 # This program is free software: you can redistribute it and/or modify
@@ -15,11 +15,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Les routes GeoNature et TaxHub qu'appelle GeoMys Common, relatives à la racine du serveur
+"""Les routes GeoNature et TaxHub qu'appelle GeoMys, relatives à la racine du serveur
 GeoNature (`/api/...`).
 
 Repris de GeoMys-Android @ cdd5196 (tools/lister_endpoints_geonature.py) et mis à jour le 21 octobre
-2026 d'après le code de GeoMys Common (OccTax, OccHab, Suivis, Explorer). Aucune requête réseau : la
+2026 d'après le code de GeoMys (OccTax, OccHab, Suivis, Explorer). Aucune requête réseau : la
 liste sert à documenter la surface d'API ou à régler un pare-feu, un reverse-proxy, une liste
 d'autorisations. Le détail (authentification, délais, fichiers) est dans
 inventaire/1-reseau-sync.md, § 3.

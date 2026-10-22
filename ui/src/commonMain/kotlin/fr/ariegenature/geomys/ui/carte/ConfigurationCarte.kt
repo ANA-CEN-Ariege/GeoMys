@@ -1,5 +1,5 @@
 /*
- * GeoMys-Common — application de saisie naturaliste pour GeoNature, Android et iOS.
+ * GeoMys — application de saisie naturaliste pour GeoNature, Android et iOS.
  * Copyright (C) 2026 ANA - CEN Ariège
  *
  * This program is free software: you can redistribute it and/or modify
@@ -64,7 +64,7 @@ object ConfigurationCarte {
         // (PROTOTYPE-CARTE.md § 2) : l'appli télécharge donc elle-même les tuiles de ces serveurs
         // (TuilesHttp), avec son User-Agent. Celles du serveur de test passent par le même chemin,
         // ce qui permet de vérifier les en-têtes reçus.
-        val userAgent = "GeoMysCommon/${infos.version} (${infos.plateforme})"
+        val userAgent = "GeoMys/${infos.version} (${infos.plateforme})"
         val tuiles = TuilesHttp(
             client = HttpClient(moteurHttpPlateforme()) {
                 expectSuccess = false

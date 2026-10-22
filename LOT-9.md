@@ -16,7 +16,7 @@ Les écrans suivent la décision 15 ([`LOT-5.md`](LOT-5.md) § 2) : l'allure de 
 
 ## 1. Ce qui est porté
 
-| GeoMys-Android | GeoMys-IOS (`5fda84c`) | GeoMys Common |
+| GeoMys-Android | GeoMys-IOS (`5fda84c`) | GeoMys |
 |---|---|---|
 | `ExplorerFragment.kt`, `fragment_explorer.xml`, `bottom_sheet_obs_explorer.xml`, `item_obs_explorer.xml` | `ExplorerView.swift`, `TaxonMarker` (`Map/MapView.swift`) | `ui/…/explorer/ExplorerScreen.kt` et `ExplorerViewModel.kt` ; `core/…/explorer/Explorer.kt` |
 | `CacheManagerFragment.kt`, `fragment_cache_manager.xml` | `CacheManagerView.swift`, `CartesMbtilesView.swift` | `ui/…/cartes/MapsManagerScreen.kt` et `MapsManagerViewModel.kt` ; `core/…/carte/ZoneHorsLigne.kt`, `CiblageProtocole.kt`, `core/…/geo/TuileMath.kt` |
@@ -139,7 +139,7 @@ GeoMys-Android n'a aucun test de ces deux écrans. Les tests des écrans ont ét
 
 Prises par l'utilisateur après le commit du lot, sur les divergences du § 8.3 de l'inventaire :
 - **Liste des protocoles : le cache d'abord**, comme GeoMys-IOS. L'écran des Suivis et « Cibler un protocole » du Maps Manager lisent la liste que la dernière synchro a mise en cache, sans requête. GeoMys-Android l'interrogeait à chaque ouverture ; « Charger les données » la rafraîchit (`MonitoringModules.chargerModulesDepuisCache`, un cas de plus dans `ChargerModulesTest`). Le repli sur le serveur avant toute synchro a disparu avec la décision suivante.
-- **Jeu de données et `id_digitiser` des formulaires des Suivis : GeoMys-Android fait référence**, ce que GeoMys Common faisait déjà : un jeu de données seul est choisi d'office, sinon l'utilisateur choisit ; `id_digitiser`, le compte connecté, est posé à l'envoi.
+- **Jeu de données et `id_digitiser` des formulaires des Suivis : GeoMys-Android fait référence**, ce que GeoMys faisait déjà : un jeu de données seul est choisi d'office, sinon l'utilisateur choisit ; `id_digitiser`, le compte connecté, est posé à l'envoi.
 - **Boussole : le nord magnétique**, comme GeoMys-Android. Sous Android, le cap de maplibre-compose l'était déjà (capteur de rotation, sans déclinaison). Sous iOS, il passait au nord géographique dès que la position était connue (`CLHeading.trueHeading`), contrairement à ce qu'annonçait le lot 6 : la boussole et la carte qui suit le cap lisent maintenant `CLHeading.magneticHeading` (`rememberFournisseurCap`). L'écart, la déclinaison, est d'environ 1 à 2° en Ariège ; il reste à constater sur l'iPhone 16, puisque le simulateur n'a pas de compas.
 
 - **Rien n'est téléchargé hors synchro** (« le cache d'abord. De façon générale, rien ne doit être téléchargé du serveur geonature et tout doit être pris dans le cache. Si des modifs ont été faites sur le serveur, ce sera pris en compte à la prochaine synchro. Si des modifs sont faites dans l'appli, elles doivent être répercutées dans le cache. ») — prise sur la lenteur d'ouverture d'un protocole, qui redemandait au serveur tous ses sites, son schéma et les listes de libellés. Les écrans lisent le cache que remplit la synchro, et rien d'autre ; cache vide, un message invite à « Recharger les données ».
@@ -297,7 +297,7 @@ Tests : 1 097 sur la JVM pour le module commun, 87 pour l'interface (dont les ga
 
 ## 17. Réinstaller sans rien avoir à faire (21 octobre)
 
-Demande de l'utilisateur : « avec geomys android, qd je réinstallais, tous les parametres etaient preservés […] et je n'avais rien à faire. De plus, recharger les données ne doit recharger taxref que si sa version a changé sur le serveur ». GeoMys-Android n'a jamais relevé sa version des données (restée à 1) ; GeoMys Common l'a relevée trois fois le 20 octobre (2, 3, 4), et chaque relèvement imposait un rechargement complet, TaxRef compris.
+Demande de l'utilisateur : « avec geomys android, qd je réinstallais, tous les parametres etaient preservés […] et je n'avais rien à faire. De plus, recharger les données ne doit recharger taxref que si sa version a changé sur le serveur ». GeoMys-Android n'a jamais relevé sa version des données (restée à 1) ; GeoMys l'a relevée trois fois le 20 octobre (2, 3, 4), et chaque relèvement imposait un rechargement complet, TaxRef compris.
 - **Plus de rechargement forcé après une mise à jour** : `armerRechargementSiRequis`, le drapeau `rechargementRequisApresMaj` et la purge de SyncRunner sont retirés. Une installation en retard n'est ni bloquée ni purgée ; ses données servent. Paramètres suggère seulement, sans rien bloquer, de recharger les données (« L'application reste utilisable d'ici là ») ; la synchro suivante efface ce bandeau.
 - **TaxRef n'est retéléchargé que si nécessaire** : sa version a changé sur le serveur, son cache est vide, une liste à charger y manque ou y est restée incomplète, ou le format de son cache a changé (`TaxRefCache.VERSION_FORMAT`, 1 : groupes 3 et noms valides). Ce format remplace, pour TaxRef, le relèvement de la version des données ; un TaxRef chargé par une version qui lisait déjà les groupes 3 et les noms valides (données en version 3 ou plus) est tenu pour à jour. L'appui long sur « Recharger les données » force toujours le rechargement complet.
 - **Les réglages sont gardés** : le vidage unique des sélections par défaut (`viderSelectionsParDefautUneFois`) est retiré.
@@ -349,8 +349,8 @@ Tests : 1 110 sur la JVM pour le module commun (listes du module, valeurs multip
 
 ## 20. Outils du serveur repris de GeoMys-Android (21 octobre)
 
-Question de l'utilisateur : « as tu bien repris toutes les infos utiles de geomys-android, en particulier les infos sur les endpoints geonature etc ». Toutes les routes de GeoMys-Android existent dans GeoMys Common (comparaison des sources) et la table de l'inventaire (`inventaire/1-reseau-sync.md` § 3) les décrit ; manquaient les deux scripts de `tools/` et les notes de travail sur le serveur. Avec l'accord de l'utilisateur :
-- `outils/lister_endpoints_geonature.py` : la liste statique des routes qu'appelle GeoMys Common (OccTax, OccHab, Suivis, Explorer, envoi), avec leur accès (public, connecté, écriture), mise à jour d'après le code.
+Question de l'utilisateur : « as tu bien repris toutes les infos utiles de geomys-android, en particulier les infos sur les endpoints geonature etc ». Toutes les routes de GeoMys-Android existent dans GeoMys (comparaison des sources) et la table de l'inventaire (`inventaire/1-reseau-sync.md` § 3) les décrit ; manquaient les deux scripts de `tools/` et les notes de travail sur le serveur. Avec l'accord de l'utilisateur :
+- `outils/lister_endpoints_geonature.py` : la liste statique des routes qu'appelle GeoMys (OccTax, OccHab, Suivis, Explorer, envoi), avec leur accès (public, connecté, écriture), mise à jour d'après le code.
 - `outils/verifier_serveur_geonature.py <url> [--public]` : un verdict OK / ATTENTION / ÉCHEC route par route, en lecture seulement, étendu aux Suivis, à OccHab, à l'Explorer et aux lectures de l'envoi. L'identifiant et le mot de passe se tapent au clavier, jamais en argument. Essayé sur un faux serveur local seulement.
 - Les notes de travail (filtres lus dans le corps JSON ou dans l'adresse, sources de référence, portabilité, inspection des caches du téléphone, HABREF) sont reprises dans la mémoire de travail, hors du dépôt.
 
@@ -495,7 +495,7 @@ Avant, une visite pouvait s'enregistrer sans aucun de ses champs obligatoires, e
 
 Décision de l'utilisateur : « cette appli remplacera geomys-android, elle doit être vue comme une nouvelle release ». Réponses aux questions : reprendre les saisies non envoyées, nom « GeoMys », version 2.0.0 (code 200). La décision du 18 octobre (appli indépendante, sans reprise de données) est remplacée.
 
-- **Identité de la release** : l'identifiant Play de GeoMys-Android, `fr.ariegenature.public.geomys`, et le nom « GeoMys ». La clé est la même que celle de GeoMys-Android (certificat 849e4dd3…), et le versionCode passera à 200 à la publication (Play exige plus que 196). Les versions de test (debug, mesure) gardent `fr.ariegenature.geomys.common` et le nom « GeoMys Common » : elles cohabitent avec GeoMys sur un même téléphone. Le nom affiché sur l'accueil est celui de l'icône (`InfosApp.nom`). L'iOS n'est pas touché.
+- **Identité de la release** : l'identifiant Play de GeoMys-Android, `fr.ariegenature.public.geomys`, et le nom « GeoMys ». La clé est la même que celle de GeoMys-Android (certificat 849e4dd3…), et le versionCode passera à 200 à la publication (Play exige plus que 196). Les versions de test (debug, mesure) gardent `fr.ariegenature.geomys.common`, sous le nom « GeoMys Common » jusqu'au renommage du projet (§ 31) : elles cohabitent avec la version de Google Play sur un même téléphone. Le nom affiché sur l'accueil est celui de l'icône (`InfosApp.nom`). L'iOS n'est pas touché.
 - **Données de GeoMys-Android à la mise à jour** :
   - relues sur place, aux mêmes noms : réglages (`gn_config`, `GeoMys_prefs`…), mot de passe chiffré (`gn_secure_v2`, clé `geomys_mdp` du coffre Android), visites des Suivis en attente (`monitoring_outbox.json`), photos des saisies (`medias/`), cartes MBTiles (`mbtiles/`) ;
   - reprises au premier lancement (`RepriseGeoMysAndroid`) : relevés OccTax et stations OccHab non envoyés, que GeoMys-Android gardait dans ses préférences (`sorties_store` / `sorties_sauvegardees`, `occhab_store` / `saisies_sauvegardees`). Ce sont des tableaux JSON au format que GeoMys lit déjà, recopiés dans ses fichiers tant que ceux-ci n'existent pas. L'original reste en place ; une saisie effacée depuis ne revient pas. Tous les champs des modèles de GeoMys-Android existent dans GeoMys, sous le même nom et le même type ;
@@ -508,3 +508,20 @@ Décision de l'utilisateur : « cette appli remplacera geomys-android, elle doit
 - **Version 2.0.0** (code 200) construite le 22 octobre et déposée sur la piste de test interne de GeoMys.
   - La production Play était alors en 1.4.4 (code 193). D'après l'historique de GeoMys-Android, la 1.4.4 range ses saisies comme la 1.4.7 : mêmes clés, mêmes modèles.
   - Avertissements de la Play Console : 8 appareils perdus, des processeurs Intel, car MapLibre n'est livré ici que pour ARM ; pas de symboles de débogage pour le code natif de MapLibre, livré sans.
+
+## 31. Le projet devient GeoMys (22 octobre)
+
+Demande : « remplace toutes les références à GeoMys-Common par GeoMys. Le nom de l'appli doit être GeoMys. Renomme le dépôt GitHub en GeoMys ».
+
+- **Dans le code et la documentation**, « GeoMys-Common », « GeoMys Common » et « GeoMysCommon » deviennent « GeoMys » :
+  - en-têtes de licence, commentaires et documentation (570 fichiers) ;
+  - nom du projet Gradle (`rootProject.name`), thème Android (`Theme.GeoMys`), produit iOS (`GeoMys.app`) ;
+  - en-tête User-Agent des tuiles (`GeoMys/<version>`) et outils.
+- Les phrases qui disaient l'appli indépendante de GeoMys, sans reprise de données, sont réécrites : la décision du 18 octobre a été revue le 22 (§ 30).
+- **Le nom de l'appli** est « GeoMys » partout, versions de test comprises, sous Android et sous iOS.
+- **Les identifiants ne changent pas** : `fr.ariegenature.public.geomys` pour la release Android ; `fr.ariegenature.geomys.common` pour les versions de test, pour l'iOS et pour le paquet du code Android.
+- **Le dépôt GitHub** s'appelle `ANA-CEN-Ariege/GeoMys` ; l'ancienne adresse redirige. Sa description et les titres des releases 0.1.0 à 0.3.0 disent « GeoMys ».
+- **Ce qui garde l'ancien nom** :
+  - les fichiers déjà publiés (`GeoMysCommon-0.x.0.apk`), pour ne pas casser les liens de téléchargement ;
+  - la carte MBTiles de test, dans ses métadonnées (fichier binaire d'essai) ;
+  - le dossier local du projet.

@@ -20,8 +20,8 @@ android {
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        // Les versions de test (debug, mesure) : une identité propre, qui cohabite avec GeoMys sur un
-        // même téléphone. La release prend celle de GeoMys sur Google Play (plus bas).
+        // Les versions de test (debug, mesure) : une identité propre, qui cohabite avec la version de
+        // Google Play sur un même téléphone. La release prend celle de GeoMys sur Google Play (plus bas).
         applicationId = "fr.ariegenature.geomys.common"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()

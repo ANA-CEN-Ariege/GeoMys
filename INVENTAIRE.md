@@ -1,15 +1,15 @@
-# GeoMys-Common — ce qui est partageable dans GeoMys-Android
+# GeoMys — ce qui est partageable dans GeoMys-Android
 
 *Inventaire établi le 18 octobre 2026 à partir de GeoMys-Android `cdd5196` (v1.4.7, versionCode 196), en lecture seule. GeoMys-IOS `64d303b` (v0.11) a été consulté pour repérer les équivalents iOS déjà écrits. Aucun fichier de ces deux applications n'a été modifié.*
 
 > **Décisions du 18 octobre 2026**
-> - **Application indépendante.** GeoMys Common a sa propre identité : identifiant `fr.ariegenature.geomys.common`, nom « GeoMys Common », même logo que GeoMys.
+> - **Identité.** Décidée le 18 octobre : une application indépendante, avec son propre identifiant (`fr.ariegenature.geomys.common`), un autre nom et le même logo. Revue le 22 octobre : sous Android, GeoMys remplace GeoMys-Android sur Google Play (identifiant `fr.ariegenature.public.geomys`, nom « GeoMys », reprise des saisies non envoyées, `LOT-9.md` § 30) ; les versions de test et l'iOS gardent `fr.ariegenature.geomys.common`.
 > - **Aucune donnée reprise.** Les données des applications existantes sont des données de test. Le § 6 ne s'applique donc plus, hormis les contrats côté serveur.
 > - **Plan de rattrapage iOS hors sujet.**
 >
 > Le socle (lot 0) est en place : voir le [README](README.md).
 
-**Objectif.** GeoMys-Common sera une nouvelle application. Elle aura une seule base de code, en Kotlin Multiplatform (KMP) et Compose Multiplatform, et produira GeoMys pour Android et pour iOS. Cet inventaire indique, fichier par fichier :
+**Objectif.** GeoMys sera reconstruite en une nouvelle application, avec une seule base de code en Kotlin Multiplatform (KMP) et Compose Multiplatform, pour Android et pour iOS. Cet inventaire indique, fichier par fichier :
 - ce qui peut être repris de GeoMys-Android ;
 - à quel prix ;
 - ce qu'il faudra écrire pour chaque plateforme.
@@ -36,7 +36,7 @@
 | MIXTE | Mêle logique métier et UI ou plateforme. La logique part dans le code commun ; le reste est réécrit. |
 | PLATEFORME | Dépend d'une API système. Il faut une interface commune, une implémentation Android et une implémentation iOS. |
 | UI | Écran ou composant à réécrire en Compose. Le résultat est lui aussi commun aux deux plateformes. |
-| ABANDON | Sans objet dans GeoMys-Common. |
+| ABANDON | Sans objet dans GeoMys. |
 
 ---
 
@@ -46,7 +46,7 @@
 - **L'interface est entièrement à refaire en Compose.** Elle représente environ **6 750 lignes (27 %)**, et aucun des 40 layouts XML n'est réutilisable. Les nouveaux écrans seront communs aux deux plateformes. Mais les Fragments, les « renderers » de formulaires et les overlays de carte contiennent aujourd'hui **près de 6 000 lignes de logique métier**. Il faut d'abord les extraire dans des ViewModels communs : c'est là que se concentrent l'effort et le risque.
 - **Le code propre à chaque plateforme est réduit.** Il compte environ **1 450 lignes (6 %)**, réparties en une vingtaine de services : position et suivi GPS en arrière-plan, boussole, dictée, photos, fichiers, coffre à mot de passe, tâches longues… GeoMys-IOS contient déjà la logique iOS de presque chacun d'eux : elle servira de modèle.
 - **La carte est le point critique.** osmdroid, archivé depuis novembre 2024, sera remplacé par MapLibre. Mais maplibre-compose, encore en 0.x, n'offre pas de marqueur déplaçable prêt à l'emploi, alors que l'édition des géométries OccTax et OccHab en dépend. Il faut donc un **prototype préalable** avant tout écran carte (§ 5).
-- **Aucune donnée à reprendre** (décision du 18 octobre). GeoMys Common est une application indépendante : ses formats de stockage peuvent être choisis librement. Seuls comptent les contrats avec le serveur : endpoints, anti-doublon, format ANA-EVAL lu par le plugin QGIS.
+- **Aucune donnée à reprendre** (décision du 18 octobre, revue le 22 : la release Android reprend les saisies de GeoMys-Android, `LOT-9.md` § 30). GeoMys est une application indépendante : ses formats de stockage peuvent être choisis librement. Seuls comptent les contrats avec le serveur : endpoints, anti-doublon, format ANA-EVAL lu par le plugin QGIS.
 - **Les tests suivent.** 86 fichiers de test sur 99 (651 tests sur 718) passent dans `commonTest` après adaptation. 19 tests vérifient le texte du code des Fragments au lieu d'un comportement : ils sont à réécrire en vrais tests (§ 7).
 - **L'inventaire a relevé des défauts dans le code Android actuel** (§ 8.2). Deux ont été vérifiés à la main :
   - en saisie mono-taxon, la naturalité et les champs « preuves, floutage, statut source » saisis dans Caractérisation sont perdus ;
@@ -208,7 +208,7 @@ Le détail, avec les références dans le code, est dans [`inventaire/5-occhab-c
 4. fixer l'en-tête User-Agent ;
 5. suivre le cap et faire tourner la carte.
 
-Isoler ensuite maplibre-compose derrière une façade `carte/` propre à GeoMys-Common, puisque son API peut encore changer. Cette couche carte commune est estimée à 400 à 600 lignes.
+Isoler ensuite maplibre-compose derrière une façade `carte/` propre à GeoMys, puisque son API peut encore changer. Cette couche carte commune est estimée à 400 à 600 lignes.
 
 > **Résultat du prototype, le 18 octobre** ([`PROTOTYPE-CARTE.md`](PROTOTYPE-CARTE.md)). **MapLibre est retenu.**
 >
@@ -226,17 +226,17 @@ Isoler ensuite maplibre-compose derrière une façade `carte/` propre à GeoMys-
 
 **Conséquences à prévoir**
 - Le cache osmdroid (`cache/MapTiles/cache.db`) est illisible par MapLibre. Les zones déjà téléchargées seront perdues, sauf à les convertir en MBTiles (conversion à évaluer).
-- L'application actuelle autorise le téléchargement en masse de tuiles openstreetmap.org, ce que la politique d'usage d'OSM interdit. À régler dans GeoMys-Common : exclure OSM du téléchargement de zones, ou changer de fournisseur. **Tranché le 19 octobre** par l'utilisateur : tous les fonds se téléchargent, OSM compris, comme sous Android (décision 13 écartée) ; un téléchargement s'annule.
-- L'attribution des fonds ne semble jamais affichée aujourd'hui (§ 8.2, n° 8) ; MapLibre sait l'afficher nativement. **Réglé au lot 9** : maplibre-compose 0.20.0 n'affichant pas d'attribution sans son module Material 3, GeoMys Common l'écrit lui-même au bas de chaque carte.
+- L'application actuelle autorise le téléchargement en masse de tuiles openstreetmap.org, ce que la politique d'usage d'OSM interdit. À régler dans GeoMys : exclure OSM du téléchargement de zones, ou changer de fournisseur. **Tranché le 19 octobre** par l'utilisateur : tous les fonds se téléchargent, OSM compris, comme sous Android (décision 13 écartée) ; un téléchargement s'annule.
+- L'attribution des fonds ne semble jamais affichée aujourd'hui (§ 8.2, n° 8) ; MapLibre sait l'afficher nativement. **Réglé au lot 9** : maplibre-compose 0.20.0 n'affichant pas d'attribution sans son module Material 3, GeoMys l'écrit lui-même au bas de chaque carte.
 
 ---
 
-## 6. Données à reprendre si GeoMys-Common remplace l'application Android
+## 6. Données à reprendre si GeoMys remplace l'application Android
 
-> **Sans objet depuis la décision du 18 octobre** : GeoMys Common est indépendante et ne reprend aucune donnée. Cette section reste comme référence des formats de GeoMys-Android.
+> **Sans objet depuis la décision du 18 octobre** : GeoMys est indépendante et ne reprend aucune donnée. Cette section reste comme référence des formats de GeoMys-Android.
 >
 > Deux règles continuent de s'appliquer :
-> - les identités envoyées au serveur restent déterministes **au sein de GeoMys Common**, pour l'anti-doublon : UUID des relevés, titres des médias ;
+> - les identités envoyées au serveur restent déterministes **au sein de GeoMys**, pour l'anti-doublon : UUID des relevés, titres des médias ;
 > - le bloc ANA-EVAL garde le format lu par le plugin QGIS.
 
 **Conditions**
@@ -272,7 +272,7 @@ Isoler ensuite maplibre-compose derrière une façade `carte/` propre à GeoMys-
 - **Cache `gn_cache_add_fields_occtax`** : il contient des `Pair` dont R8 a renommé les champs (`f`, `g`). L'ignorer et le reconstruire à la première synchro.
 - **Vecteurs de test** : avant la première publication, rejouer des fichiers réels produits par la version 1.4.7.
 
-**Côté iOS.** GeoMys-Common pourrait aussi devoir reprendre les données de GeoMys-IOS, en gardant son bundle id `fr.ariegenature.GeoMys-IOS`. Les formats et les clés y diffèrent :
+**Côté iOS.** GeoMys pourrait aussi devoir reprendre les données de GeoMys-IOS, en gardant son bundle id `fr.ariegenature.GeoMys-IOS`. Les formats et les clés y diffèrent :
 - 18 des 34 clés de configuration sont renommées ;
 - certains champs sont typés au lieu d'être rangés dans des maps ;
 - les dossiers ne sont pas les mêmes.
@@ -293,9 +293,9 @@ Le détail est dans [`inventaire/7-tests.md`](inventaire/7-tests.md). Les 99 fic
 | T4 | réseau simulé par MockWebServer | 19 | 4 404 | 151 | `commonTest`, avec le `MockEngine` de Ktor (mêmes scénarios) |
 | T5 | code propre à Android (vues, `LocationTracker`, `MediaImport`) | 6 | 1 059 | 35 | `androidUnitTest` ou réécriture |
 | T6 | surtout des gardes textuelles | 6 | 735 | 29 | réécriture en tests de comportement |
-| T7 | contrat Gson | 1 | 227 | 3 | remplacé par un test d'aller-retour kotlinx des formats de GeoMys Common |
+| T7 | contrat Gson | 1 | 227 | 3 | remplacé par un test d'aller-retour kotlinx des formats de GeoMys |
 
-- **Gardes textuelles.** 19 tests, répartis dans 12 fichiers, lisent le code source des Fragments (`File("src/main/java/…").readText()`). Ils protègent des règles impossibles à tester tant qu'elles vivent dans les écrans. Dans GeoMys-Common, chacune devient un vrai test sur le ViewModel qui la porte (liste : `7-tests.md` § 7.3).
+- **Gardes textuelles.** 19 tests, répartis dans 12 fichiers, lisent le code source des Fragments (`File("src/main/java/…").readText()`). Ils protègent des règles impossibles à tester tant qu'elles vivent dans les écrans. Dans GeoMys, chacune devient un vrai test sur le ViewModel qui la porte (liste : `7-tests.md` § 7.3).
 - **Référence des tests JSON.** Les tests actuels tournent sur JSON-java (`org.json:json:20240303`), qui ne se comporte pas comme l'org.json d'Android : par exemple, `optString` sur un null. Les tests de caractérisation de `JsonCompat` devront prendre le comportement **réel** d'Android comme référence.
 
 ---
@@ -339,35 +339,35 @@ Le détail est dans [`inventaire/7-tests.md`](inventaire/7-tests.md). Les 99 fic
 
 ### 8.2 Défauts constatés dans le code Android actuel
 
-Ils sont signalés pour décision : les corriger dans GeoMys-Android, qui reste en production, et ne pas les reproduire dans GeoMys-Common. **Tranché le 19 octobre** (décision 5, § 11) : GeoMys Common corrige ceux qu'il reproduisait (lot 8) ; ce projet ne modifie jamais GeoMys-Android. « Vérifié » signifie relu à la main pendant la synthèse ; les autres viennent de la lecture du code, avec leurs références.
+Ils sont signalés pour décision : les corriger dans GeoMys-Android, qui reste en production, et ne pas les reproduire dans GeoMys. **Tranché le 19 octobre** (décision 5, § 11) : GeoMys corrige ceux qu'il reproduisait (lot 8) ; ce projet ne modifie jamais GeoMys-Android. « Vérifié » signifie relu à la main pendant la synthèse ; les autres viennent de la lecture du code, avec leurs références.
 
 | # | Constat | Références | Statut |
 |---|---|---|---|
-| 1 | En saisie mono-taxon, la naturalité et les champs `occExtraJson` (statut source, floutage, preuves) renvoyés par Caractérisation ne sont jamais lus ni posés sur l'observation : ils sont perdus. | `CaracterisationFragment.kt:228-251` ; aucune lecture dans `SaisieRapideFragment.kt` | vérifié ; **corrigé dans GeoMys-Android le 19 octobre** (`cad466b`), correction suivie par GeoMys Common (lot 6) |
-| 2 | R8 renomme les champs de `kotlin.Pair` (`a`/`b` jusqu'en 1.4.2, `f`/`g` depuis la 1.4.3). Le cache Gson `gn_cache_add_fields_occtax` devient donc illisible après chaque changement de mapping, jusqu'à la synchro suivante. | `mappings/mapping-1.4.7.txt` (`kotlin.Pair -> mf0`) ; `AdditionalFieldDef.nomenclatureOptions` | vérifié ; disparaît dans GeoMys Common (lot 2 : kotlinx-serialization, sans réflexion) ; **corrigé dans GeoMys-Android le 19 octobre** (`d72b8da` : `OptionNomenclature`), porté au lot 6 |
-| 3 | `HabitatCache.kt` contient un caractère NUL littéral : grep et d'autres outils prennent le fichier pour un binaire. | `store/HabitatCache.kt:100` | vérifié ; **non reproduit** : aucun fichier source de GeoMys Common n'en contient (vérifié au lot 8) |
-| 4 | La date des « Détails communs » vaut toujours l'heure d'ouverture du dialogue, et elle écrase une date a posteriori armée ensuite. iOS ne pose la date que si elle a été modifiée. | `DetailsReleveDialog.kt:373-375, 481-490` ; `SaisieObservationFragment.kt:285-306` | confirmé au portage et reproduit (lot 6, [`LOT-6.md`](LOT-6.md) § 6) ; **corrigé dans GeoMys Common** (lot 8, [`LOT-8.md`](LOT-8.md) § 5) : la date n'est retenue que modifiée, comme sous iOS |
-| 5 | Le total d'individus diffère selon l'écran : tous les dénombrements dans le relevé, le seul dénombrement n° 0 dans les listes. | `SaisieObservationFragment.kt:405` contre `ObservationsFragment.kt:50`, `SortiesFragment.kt:292`, `SortieDetailFragment.kt:127` | confirmé au portage et reproduit (lot 6) ; **corrigé dans GeoMys Common** (lot 8) : tous les dénombrements, partout |
-| 6 | Hors-ligne, une `IOException` levée par la synchro des settings OccTax (appel lancé hors de tout try) annule toute la phase A de « Recharger les données ». | `SyncRunner.kt:140-143` ; `GeoNatureSync.kt:557` | **confirmé le 18 octobre** : reproduit fidèlement par GeoMys Common sur l'A12 et l'iPhone (lot 2, `LOT-2.md` § 7) ; seulement quand aucune session n'est en cache ; **corrigé dans GeoMys Common** (lot 8) : chaque étape échoue à son tour, sans rien effacer |
-| 7 | « Continuer la saisie » ouvre toujours la carte multi-taxons, même pour une sortie saisie en mono. | `SortiesFragment.kt:111-117` | confirmé au portage et reproduit (lot 6) ; **corrigé dans GeoMys Common** (lot 8) : une saisie faite en mono se continue en mono |
-| 8 | Le téléchargement de zones contourne la politique d'osmdroid et télécharge en masse des tuiles openstreetmap.org, contrairement à la politique d'usage d'OSM. L'attribution des fonds n'est jamais affichée. | `ui/MapUtils.kt:106-110, 132, 187, 196` | confirmé au portage (ni GeoMys-Android ni GeoMys-IOS n'affichent d'attribution) ; **attribution corrigée dans GeoMys Common** (lot 9, [`LOT-9.md`](LOT-9.md) § 5) : affichée au bas de chaque carte ; le téléchargement d'OSM est **maintenu**, comme sous Android (décision 13 écartée par l'utilisateur le 19 octobre) |
+| 1 | En saisie mono-taxon, la naturalité et les champs `occExtraJson` (statut source, floutage, preuves) renvoyés par Caractérisation ne sont jamais lus ni posés sur l'observation : ils sont perdus. | `CaracterisationFragment.kt:228-251` ; aucune lecture dans `SaisieRapideFragment.kt` | vérifié ; **corrigé dans GeoMys-Android le 19 octobre** (`cad466b`), correction suivie par GeoMys (lot 6) |
+| 2 | R8 renomme les champs de `kotlin.Pair` (`a`/`b` jusqu'en 1.4.2, `f`/`g` depuis la 1.4.3). Le cache Gson `gn_cache_add_fields_occtax` devient donc illisible après chaque changement de mapping, jusqu'à la synchro suivante. | `mappings/mapping-1.4.7.txt` (`kotlin.Pair -> mf0`) ; `AdditionalFieldDef.nomenclatureOptions` | vérifié ; disparaît dans GeoMys (lot 2 : kotlinx-serialization, sans réflexion) ; **corrigé dans GeoMys-Android le 19 octobre** (`d72b8da` : `OptionNomenclature`), porté au lot 6 |
+| 3 | `HabitatCache.kt` contient un caractère NUL littéral : grep et d'autres outils prennent le fichier pour un binaire. | `store/HabitatCache.kt:100` | vérifié ; **non reproduit** : aucun fichier source de GeoMys n'en contient (vérifié au lot 8) |
+| 4 | La date des « Détails communs » vaut toujours l'heure d'ouverture du dialogue, et elle écrase une date a posteriori armée ensuite. iOS ne pose la date que si elle a été modifiée. | `DetailsReleveDialog.kt:373-375, 481-490` ; `SaisieObservationFragment.kt:285-306` | confirmé au portage et reproduit (lot 6, [`LOT-6.md`](LOT-6.md) § 6) ; **corrigé dans GeoMys** (lot 8, [`LOT-8.md`](LOT-8.md) § 5) : la date n'est retenue que modifiée, comme sous iOS |
+| 5 | Le total d'individus diffère selon l'écran : tous les dénombrements dans le relevé, le seul dénombrement n° 0 dans les listes. | `SaisieObservationFragment.kt:405` contre `ObservationsFragment.kt:50`, `SortiesFragment.kt:292`, `SortieDetailFragment.kt:127` | confirmé au portage et reproduit (lot 6) ; **corrigé dans GeoMys** (lot 8) : tous les dénombrements, partout |
+| 6 | Hors-ligne, une `IOException` levée par la synchro des settings OccTax (appel lancé hors de tout try) annule toute la phase A de « Recharger les données ». | `SyncRunner.kt:140-143` ; `GeoNatureSync.kt:557` | **confirmé le 18 octobre** : reproduit fidèlement par GeoMys sur l'A12 et l'iPhone (lot 2, `LOT-2.md` § 7) ; seulement quand aucune session n'est en cache ; **corrigé dans GeoMys** (lot 8) : chaque étape échoue à son tour, sans rien effacer |
+| 7 | « Continuer la saisie » ouvre toujours la carte multi-taxons, même pour une sortie saisie en mono. | `SortiesFragment.kt:111-117` | confirmé au portage et reproduit (lot 6) ; **corrigé dans GeoMys** (lot 8) : une saisie faite en mono se continue en mono |
+| 8 | Le téléchargement de zones contourne la politique d'osmdroid et télécharge en masse des tuiles openstreetmap.org, contrairement à la politique d'usage d'OSM. L'attribution des fonds n'est jamais affichée. | `ui/MapUtils.kt:106-110, 132, 187, 196` | confirmé au portage (ni GeoMys-Android ni GeoMys-IOS n'affichent d'attribution) ; **attribution corrigée dans GeoMys** (lot 9, [`LOT-9.md`](LOT-9.md) § 5) : affichée au bas de chaque carte ; le téléchargement d'OSM est **maintenu**, comme sous Android (décision 13 écartée par l'utilisateur le 19 octobre) |
 | 9 | La carte Monitoring dessine les trous des polygones comme des polygones pleins superposés. | `CarteGeometrieFragment.kt:312-317` | confirmé au portage ; **non reproduit** (lot 7 : trous rendus en creux, comme GeoMys-IOS, [`LOT-7.md`](LOT-7.md) § 5) |
-| 10 | L'Explorer affiche « 12 mois » en dur, alors que la profondeur d'historique vient du serveur. | `ExplorerFragment.kt:392, 490` | confirmé au portage ; **corrigé dans GeoMys Common** (lot 9) : la durée du serveur, « 12 mois » pour les 365 jours par défaut |
-| 11 | Deux écritures simultanées de la même clé du cache Monitoring partagent le même fichier `.tmp`. | `store/MonitoringCache.kt` | confirmé au portage : reproduit par le cache porté au lot 7, un test le montre ; **corrigé dans GeoMys Common** (lot 8) : les écritures se suivent |
-| 12 | La permission `WRITE_EXTERNAL_STORAGE` n'est utilisée nulle part. | `AndroidManifest.xml` | **non reproduit** : le manifeste de GeoMys Common ne la déclare pas (vérifié au lot 8) |
-| 13 | Les tests JVM ne tournent pas sur l'org.json d'Android mais sur JSON-java, dont le comportement diffère. | `app/build.gradle.kts` (`org.json:json:20240303`) | à confirmer ; **sans objet dans GeoMys Common** : son org.json, porté en Kotlin commun, est vérifié contre les sources du SDK Android ([`LOT-1.md`](LOT-1.md)) |
-| 14 | Après « Enregistrer + suivante », la ligne « Sur : … — Protocole : … » disparaît : le rechargement du formulaire la vide sans la reposer. | `NouvelleVisiteFragment.kt:281-287, 1211` | relevé au portage et reproduit (lot 7, [`LOT-7.md`](LOT-7.md) § 5) ; **corrigé dans GeoMys-Android le 19 octobre** (`5b981f3`), correction suivie par GeoMys Common (lot 8) |
-| 15 | Un ajout de photos seul ne compte pas comme une modification : la référence du formulaire intact garde la liste des photos, que l'ajout modifie en place. « Terminer » et Retour quittent alors sans proposer d'enregistrer, et les photos ajoutées sont perdues. | `FormulaireRenderer.kt:607, 1285-1286, 1350` ; `NouvelleVisiteFragment.kt:302-303, 403, 650` | relevé au portage et reproduit (lot 7) ; **corrigé dans GeoMys-Android le 19 octobre** (`e69543d`), correction suivie par GeoMys Common (lot 8) |
-| 16 | L'écran d'une station OccHab s'intitule toujours « Modifier la station » : la carte enregistre la station avant d'ouvrir son écran, qui la trouve donc déjà dans le store. « Nouvelle station » n'apparaît jamais. | `OccHabCarteFragment.kt:808-820` ; `OccHabStationFragment.kt:118-123` | relevé au portage ; **corrigé dans GeoMys Common** (lot 8, [`LOT-8.md`](LOT-8.md) § 5) : « Nouvelle station » pour une géométrie dessinée |
+| 10 | L'Explorer affiche « 12 mois » en dur, alors que la profondeur d'historique vient du serveur. | `ExplorerFragment.kt:392, 490` | confirmé au portage ; **corrigé dans GeoMys** (lot 9) : la durée du serveur, « 12 mois » pour les 365 jours par défaut |
+| 11 | Deux écritures simultanées de la même clé du cache Monitoring partagent le même fichier `.tmp`. | `store/MonitoringCache.kt` | confirmé au portage : reproduit par le cache porté au lot 7, un test le montre ; **corrigé dans GeoMys** (lot 8) : les écritures se suivent |
+| 12 | La permission `WRITE_EXTERNAL_STORAGE` n'est utilisée nulle part. | `AndroidManifest.xml` | **non reproduit** : le manifeste de GeoMys ne la déclare pas (vérifié au lot 8) |
+| 13 | Les tests JVM ne tournent pas sur l'org.json d'Android mais sur JSON-java, dont le comportement diffère. | `app/build.gradle.kts` (`org.json:json:20240303`) | à confirmer ; **sans objet dans GeoMys** : son org.json, porté en Kotlin commun, est vérifié contre les sources du SDK Android ([`LOT-1.md`](LOT-1.md)) |
+| 14 | Après « Enregistrer + suivante », la ligne « Sur : … — Protocole : … » disparaît : le rechargement du formulaire la vide sans la reposer. | `NouvelleVisiteFragment.kt:281-287, 1211` | relevé au portage et reproduit (lot 7, [`LOT-7.md`](LOT-7.md) § 5) ; **corrigé dans GeoMys-Android le 19 octobre** (`5b981f3`), correction suivie par GeoMys (lot 8) |
+| 15 | Un ajout de photos seul ne compte pas comme une modification : la référence du formulaire intact garde la liste des photos, que l'ajout modifie en place. « Terminer » et Retour quittent alors sans proposer d'enregistrer, et les photos ajoutées sont perdues. | `FormulaireRenderer.kt:607, 1285-1286, 1350` ; `NouvelleVisiteFragment.kt:302-303, 403, 650` | relevé au portage et reproduit (lot 7) ; **corrigé dans GeoMys-Android le 19 octobre** (`e69543d`), correction suivie par GeoMys (lot 8) |
+| 16 | L'écran d'une station OccHab s'intitule toujours « Modifier la station » : la carte enregistre la station avant d'ouvrir son écran, qui la trouve donc déjà dans le store. « Nouvelle station » n'apparaît jamais. | `OccHabCarteFragment.kt:808-820` ; `OccHabStationFragment.kt:118-123` | relevé au portage ; **corrigé dans GeoMys** (lot 8, [`LOT-8.md`](LOT-8.md) § 5) : « Nouvelle station » pour une géométrie dessinée |
 | 17 | Le bandeau de la carte OccHab parle encore de stations « orange = déjà reprise dans une autre saisie », que plus rien ne dessine en orange depuis le 18 octobre (elles sont dessinées en rouge). | `OccHabCarteFragment.kt:609-612` ; `StationsServeurOverlay.kt:47, 219-221` | relevé au portage ; **non reproduit** (lot 8) |
-| 18 | « Annuler » qui quitte une saisie OccHab réaffiche toutes les stations du serveur, même quand « Afficher mes stations déjà sur GeoNature » est décoché : le correctif C2 de l'audit du 18 octobre ne couvre que l'ouverture de la carte. | `OccHabCarteFragment.kt:236-241, 678-686` | relevé au portage ; **sans objet dans GeoMys Common** : l'interrupteur est supprimé, les stations du serveur s'affichent toujours (décision du 19 octobre, lot 8) |
-| 19 | Une station OccHab à éditer qui s'avère déjà envoyée (la copie locale d'une autre saisie, envoyée entre-temps) passe la carte en saisie avant la question « Modifier cette station déjà envoyée ? » (ou le refus d'une station sans id serveur). La question refusée, la carte reste en saisie sans géométrie : un tap commence une nouvelle station sans passer par ses informations obligatoires. Si la saisie rouverte n'a que cette station, la session la tient, et le tracé validé remplace sa géométrie. | `OccHabCarteFragment.kt:437-470` | relevé au portage ; **corrigé dans GeoMys Common** (lot 8) : la carte ne passe en saisie qu'une fois la station prise en édition |
+| 18 | « Annuler » qui quitte une saisie OccHab réaffiche toutes les stations du serveur, même quand « Afficher mes stations déjà sur GeoNature » est décoché : le correctif C2 de l'audit du 18 octobre ne couvre que l'ouverture de la carte. | `OccHabCarteFragment.kt:236-241, 678-686` | relevé au portage ; **sans objet dans GeoMys** : l'interrupteur est supprimé, les stations du serveur s'affichent toujours (décision du 19 octobre, lot 8) |
+| 19 | Une station OccHab à éditer qui s'avère déjà envoyée (la copie locale d'une autre saisie, envoyée entre-temps) passe la carte en saisie avant la question « Modifier cette station déjà envoyée ? » (ou le refus d'une station sans id serveur). La question refusée, la carte reste en saisie sans géométrie : un tap commence une nouvelle station sans passer par ses informations obligatoires. Si la saisie rouverte n'a que cette station, la session la tient, et le tracé validé remplace sa géométrie. | `OccHabCarteFragment.kt:437-470` | relevé au portage ; **corrigé dans GeoMys** (lot 8) : la carte ne passe en saisie qu'une fois la station prise en édition |
 
 S'y ajoutent du code mort et quelques commentaires ou documents périmés. Par exemple, le README décrit encore la « topologie partagée » entre polygones, retirée le 18 octobre. Ils sont listés dans les fichiers de zone.
 
 ### 8.3 Divergences entre Android et iOS à trancher
 
-GeoMys-Common remplacera les deux applications : il faut une seule règle par sujet.
+GeoMys remplacera les deux applications : il faut une seule règle par sujet.
 
 **Proposition par défaut** : suivre Android, qui est la référence fonctionnelle, sauf si iOS a corrigé un vrai défaut.
 
@@ -399,10 +399,10 @@ GeoMys-Common remplacera les deux applications : il faut une seule règle par su
 
 ---
 
-## 9. Structure proposée pour GeoMys-Common
+## 9. Structure proposée pour GeoMys
 
 ```
-GeoMys-Common/
+GeoMys/
 ├── core/          KMP (Android + iOS), sans Compose : modèles, réseau, stockage, synchro,
 │                  envois, TaxRef, moteur de formulaires, géométrie, GPX, ViewModels,
 │                  interfaces des services plateforme
@@ -453,11 +453,11 @@ Chaque lot suit le même cycle : il porte son code depuis le commit Android not�
 
 ## 11. Décisions à prendre
 
-1. ~~Remplacer l'application Android en place~~. **Tranché le 18 octobre** : application indépendante, sans reprise de données.
-2. ~~Sort de GeoMys-IOS~~. **Tranché le 18 octobre** : GeoMys Common a son propre bundle id et ne reprend pas les données de GeoMys-IOS.
+1. ~~Remplacer l'application Android en place~~. **Tranché le 18 octobre** : application indépendante, sans reprise de données. **Revu le 22 octobre** : GeoMys remplace GeoMys-Android sur Google Play et reprend ses saisies non envoyées (`LOT-9.md` § 30).
+2. ~~Sort de GeoMys-IOS~~. **Tranché le 18 octobre** : GeoMys a son propre bundle id et ne reprend pas les données de GeoMys-IOS.
 3. ~~Le plan de rattrapage iOS~~. **Hors sujet** (décision du 18 octobre).
 4. **Référence fonctionnelle.** Android, recommandé ; puis trancher chaque divergence du § 8.3.
-5. ~~Défauts Android~~ (§ 8.2). **Tranché le 19 octobre** : GeoMys Common corrige ceux qu'il reproduisait, sans toucher à GeoMys-Android ([`LOT-8.md`](LOT-8.md) § 5).
+5. ~~Défauts Android~~ (§ 8.2). **Tranché le 19 octobre** : GeoMys corrige ceux qu'il reproduisait, sans toucher à GeoMys-Android ([`LOT-8.md`](LOT-8.md) § 5).
 6. **Carte.** MapLibre via maplibre-compose, derrière une façade, après le prototype : recommandé.
 7. **Concurrence.** API `suspend` protégées par `Mutex` pour les stores, puisque tous leurs appelants seront réécrits (ViewModels) ; atomicfu seulement pour les caches en mémoire. Recommandé. **Appliqué au lot 1** (`JsonCollectionStore`, `GeoNatureAuth`) ; atomicfu n'a pas été nécessaire.
 8. **Stockage.** Garder des fichiers JSON pour un portage fidèle, en sortant les saisies des SharedPreferences. Pour TaxRef, rester en JSON au départ, et passer à SQLite seulement si la mesure mémoire sur iPhone l'impose.
@@ -475,7 +475,7 @@ Chaque lot suit le même cycle : il porte son code depuis le commit Android not�
 
 ## 12. Suivre les évolutions de GeoMys-Android pendant le portage
 
-GeoMys-Android continue d'évoluer : dix commits le 18 octobre, quatre le 19 (`cad466b`, `d72b8da`, reportés au lot 6 ; `e69543d`, `5b981f3`, qui corrigent les défauts n° 15 et 14, reportés au lot 8). GeoMys-Common ne la modifie jamais ; elle la lit seulement.
+GeoMys-Android continue d'évoluer : dix commits le 18 octobre, quatre le 19 (`cad466b`, `d72b8da`, reportés au lot 6 ; `e69543d`, `5b981f3`, qui corrigent les défauts n° 15 et 14, reportés au lot 8). GeoMys ne la modifie jamais ; elle la lit seulement.
 
 - Chaque fichier porté garde dans [`inventaire/index-fichiers.tsv`](inventaire/index-fichiers.tsv) le commit Android dont il provient (`commit_reference`) : `cdd5196`, ou le dernier commit du 19 octobre qui le touche (`d72b8da`, `e69543d`, `5b981f3`).
 - Avant de clore un lot, on liste ce qui a changé depuis, en lecture seule :

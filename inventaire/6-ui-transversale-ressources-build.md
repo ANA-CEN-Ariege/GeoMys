@@ -1,14 +1,14 @@
 # 6. Interface transversale, variantes de distribution, ressources et build
 
-> Détail de l'inventaire GeoMys-Common. La synthèse, les chiffres globaux et les décisions à prendre sont dans [`../INVENTAIRE.md`](../INVENTAIRE.md).
+> Détail de l'inventaire GeoMys. La synthèse, les chiffres globaux et les décisions à prendre sont dans [`../INVENTAIRE.md`](../INVENTAIRE.md).
 > Source analysée en lecture seule : GeoMys-Android `cdd5196` (v1.4.7, 18 octobre 2026). Les équivalents iOS ont été cherchés dans GeoMys-IOS `64d303b`.
-> La colonne « Cible » donne une destination indicative ; la structure proposée pour GeoMys-Common est décrite au § 9 de la synthèse.
+> La colonne « Cible » donne une destination indicative ; la structure proposée pour GeoMys est décrite au § 9 de la synthèse.
 
 ## 1. Fichiers de code (GeoMys-Android @ cdd5196)
 
 Conventions : « Lignes » = lignes physiques (lignes de code hors blancs/commentaires entre parenthèses, valeurs du relevé `releve-automatique.tsv`, recomptées). Les numéros `Lxx` renvoient au fichier source. Modules cibles proposés : `shared` (KMP + Compose MP : commonMain / androidMain / iosMain), `androidApp` (module application, porte les flavors), `iosApp` (Xcode). Chemins relatifs à `app/src/`.
 
-| Fichier | Lignes | Rôle (1 phrase) | Catégorie | À remplacer / dépendances plateforme (précis) | Cible dans GeoMys-Common | Remarques |
+| Fichier | Lignes | Rôle (1 phrase) | Catégorie | À remplacer / dépendances plateforme (précis) | Cible dans GeoMys | Remarques |
 |---|---|---|---|---|---|---|
 | `main/…/ui/MainActivity.kt` | 140 (80) | Activité unique : héberge le NavHostFragment, crée les 2 canaux de notification, coupe le GPS quand on quitte le flux de saisie, ouvre d'office Paramètres au 1er lancement. | MIXTE | `AppCompatActivity` + `setContentView(activity_main)` + `NavHostFragment` → `ComponentActivity.setContent { GeoMysApp() }` ; `enableEdgeToEdge` (garder, Android) ; osmdroid `Configuration.load/userAgentValue` + `MapTileCache.configurer` (L46-48, **doublon** de `GeoMysApplication` L59-61) → supprimé (MapLibre) ; `NotificationChannel` ×2 (`GeoMys_location` « Suivi GPS », `GeoMys_sync` « Synchronisation », L102-122) → androidApp ; `addOnDestinationChangedListener` + `DESTINATIONS_SAISIE` (7 `R.id`, L130-138) → `navController.currentBackStackEntryFlow` + `destination.hasRoute<…>()` sur routes typées ; `ViewModelProvider(this)[TraceViewModel]` → VM partagé à la racine (lifecycle-viewmodel MP) ; `locationTracker.arreterParcours()` + `LocationForegroundService.stop()` → interface commune `SuiviGps` (Android : FGS ; iOS : CLLocationManager) ; `savedInstanceState == null` + `armerRechargementSiRequis(ctx)` + `configurationComplete()` (L86-95) → logique de démarrage commune ; `onSupportNavigateUp` → supprimé. | `androidApp/…/MainActivity.kt` (≈25 l. : edge-to-edge, canaux, setContent) + `shared/commonMain/…/ui/GeoMysApp.kt` (NavHost, redirection initiale, règle « flux de saisie ») | iOS : `ContentView.swift` L64-69 (redirection) et L73-79 (clôture GPS, mais uniquement quand `.trace` quitte la pile — règle plus étroite qu'Android, qui inclut la saisie mono). Ne couper le GPS que sur une vraie transition saisie → hors-saisie (pas sur recréation, cf. `dansFluxSaisie`). |
 | `main/…/ui/Navigation.kt` | 42 (15) | Extension `NavController.naviguerSur` : n'appelle `navigate(actionId)` que si l'action existe depuis la destination courante (anti double-tap → `IllegalArgumentException`). | ABANDON | `NavController`, ids d'action, `Bundle`, `NavOptions` ; `android.util.Log.d` | — (dans chaque écran : `dropUnlessResumed { nav.navigate(Route) }` de lifecycle-runtime-compose MP, ou `launchSingleTop`) | Navigation Compose n'a plus d'« actions » : le crash disparaît, mais le double empilement reste possible → besoin à couvrir autrement. 49 appels dans 18 fichiers. |
@@ -191,7 +191,7 @@ Le test `DefautsPariteLot2Test.aucune_passerelle_entre_saisie_mono_et_multi` lit
 
 **Mise à jour intégrée** : **à garder pour Android/github uniquement, hors commonMain.**
 - C'est l'unique voie de MAJ du parc github : l'appli 1.4.7 installée interroge `releases/latest` (non pre-release) de `ANA-CEN-Ariege/GeoMys-android` et prend le premier asset `.apk`.
-- Pour faire passer ces utilisateurs à GeoMys-Common, il faut, dans ce même dépôt : un tag > 1.4.7, le même applicationId, le même keystore et `versionCode ≥ 197`.
+- Pour faire passer ces utilisateurs à GeoMys, il faut, dans ce même dépôt : un tag > 1.4.7, le même applicationId, le même keystore et `versionCode ≥ 197`.
 - Côté Play : même applicationId, même clé d'upload, `versionCode > 196`.
 - iOS : rien (App Store / TestFlight) ; supprimer la route placeholder.
 

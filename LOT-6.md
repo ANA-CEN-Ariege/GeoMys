@@ -19,7 +19,7 @@ Les écrans suivent la décision 15 ([`LOT-5.md`](LOT-5.md) § 2) : l'allure de 
 
 ## 1. Ce qui est porté
 
-| GeoMys-Android | GeoMys-IOS (`64d303b`) | GeoMys Common |
+| GeoMys-Android | GeoMys-IOS (`64d303b`) | GeoMys |
 |---|---|---|
 | `TraceFragment.kt`, `fragment_trace.xml` | `UI/TraceView.swift` | `ui/…/occtax/SaisieMultiScreen.kt` et `SaisieMultiViewModel.kt` ; calculs dans `core/…/occtax/CarteSaisie.kt`, fin de saisie dans `FinSaisie.kt` |
 | `TraceViewModel.kt` | — | `core/…/occtax/SessionSaisieOcctax.kt`, tenue par `ui/…/occtax/SessionSaisieViewModel.kt` |
@@ -164,7 +164,7 @@ GeoMys-Android fait de même pour la carte multi, mais restaurait le relevé, le
 
 **Gardes textuelles réécrites en vrais tests** (inventaire des tests, § 7.3). Elles lisaient le texte des Fragments ; les règles, sorties des écrans, se vérifient en actionnant l'état et les ViewModels :
 
-| Garde de GeoMys-Android | Règle | GeoMys Common |
+| Garde de GeoMys-Android | Règle | GeoMys |
 |---|---|---|
 | `DefautsPortageIosTest.le_bouton_de_trace_ne_redemarre_de_zero_que_sur_une_trace_vide` | ▶ continue une trace non vide | `BasculerParcoursTest` (socle) |
 | `CaracterisationPariteMonoMultiTest` (`cad466b`) | chaque champ de caractérisation arrive sur l'observation, en mono comme en multi | `SaisieMonoTest` (socle) |

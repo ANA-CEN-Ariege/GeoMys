@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# GeoMys-Common — application de saisie naturaliste pour GeoNature, Android et iOS.
+# GeoMys — application de saisie naturaliste pour GeoNature, Android et iOS.
 # Copyright (C) 2026 ANA - CEN Ariège
 #
 # This program is free software: you can redistribute it and/or modify
@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Outils d'essai du prototype carte (lot 0) de GeoMys Common.
+"""Outils d'essai du prototype carte (lot 0) de GeoMys.
 
     python3 carte_test.py mbtiles <fichier.mbtiles>
         Génère un MBTiles de tuiles colorées (une couleur par zoom, damier de 32 px) autour de
@@ -103,7 +103,7 @@ def generer_mbtiles(chemin):
         """
     )
     metadonnees = {
-        "name": "GeoMys Common — MBTiles de test",
+        "name": "GeoMys — MBTiles de test",
         "type": "baselayer",
         "version": "1",
         "description": "Tuiles colorées générées par outils/prototype-carte/carte_test.py",

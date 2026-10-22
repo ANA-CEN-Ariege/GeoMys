@@ -1,5 +1,5 @@
 /*
- * GeoMys-Common — application de saisie naturaliste pour GeoNature, Android et iOS.
+ * GeoMys — application de saisie naturaliste pour GeoNature, Android et iOS.
  * Copyright (C) 2026 ANA - CEN Ariège
  *
  * This program is free software: you can redistribute it and/or modify
@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
         createNotificationChannel()
         ConfigurationCarte.initialiser(infos)
         // Paramètres d'essai : adb shell am start … --es ecran prototype-carte --es fond serveur-test. Ignorés
-        // dans une release : une autre appli du téléphone pourrait sinon lancer GeoMys Common avec, et y
+        // dans une release : une autre appli du téléphone pourrait sinon lancer GeoMys avec, et y
         // écrire des données d'essai (action=…-essai).
         val lancement = if (!BuildConfig.ESSAIS) {
             emptyMap()

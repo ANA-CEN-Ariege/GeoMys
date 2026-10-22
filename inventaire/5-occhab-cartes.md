@@ -1,16 +1,16 @@
 # 5. OccHab, édition géométrique et cartes
 
-> Détail de l'inventaire GeoMys-Common. La synthèse, les chiffres globaux et les décisions à prendre sont dans [`../INVENTAIRE.md`](../INVENTAIRE.md).
+> Détail de l'inventaire GeoMys. La synthèse, les chiffres globaux et les décisions à prendre sont dans [`../INVENTAIRE.md`](../INVENTAIRE.md).
 > Source analysée en lecture seule : GeoMys-Android `cdd5196` (v1.4.7, 18 octobre 2026). Les équivalents iOS ont été cherchés dans GeoMys-IOS `64d303b`.
-> La colonne « Cible » donne une destination indicative ; la structure proposée pour GeoMys-Common est décrite au § 9 de la synthèse.
+> La colonne « Cible » donne une destination indicative ; la structure proposée pour GeoMys est décrite au § 9 de la synthèse.
 
 ## 1. Inventaire fichier par fichier
 
 Périmètre : `GeoMys-Android/app/src/main/java/fr/ariegenature/geomys/ui/`, commit cdd5196. Le préfixe `ui/` est omis dans les références « fichier:ligne ».
 - **Lignes** = lignes brutes, puis entre parenthèses les lignes de code, sans commentaires ni lignes vides. Les commentaires (≈ 31 %) documentent des décisions terrain datées : il faut les garder avec la logique.
-- **Cibles** = proposition, puisque GeoMys-Common est vide pour l'instant. Les chemins sont relatifs à `shared/src/commonMain/kotlin/fr/ariegenature/geomys/`, sauf mention androidMain ou iosMain.
+- **Cibles** = proposition, puisque GeoMys est vide pour l'instant. Les chemins sont relatifs à `shared/src/commonMain/kotlin/fr/ariegenature/geomys/`, sauf mention androidMain ou iosMain.
 
-| Fichier | Lignes | Rôle (1 phrase) | Catégorie | À remplacer / dépendances plateforme (précis) | Cible dans GeoMys-Common | Remarques |
+| Fichier | Lignes | Rôle (1 phrase) | Catégorie | À remplacer / dépendances plateforme (précis) | Cible dans GeoMys | Remarques |
 |---|---|---|---|---|---|---|
 | OccHabCarteFragment.kt | 965 (601) | Écran carte OccHab : vue d'ensemble des stations (locales en rouge, serveur en violet), création ou réédition d'une géométrie Point/Polygone (avec trous), aimantage, annulation, validation avec persistance au fil de l'eau, altitudes MNT, « Terminer » (+ envoi). | UI (XL) | **osmdroid** : `MapView`, `MapEventsOverlay` (277), `MyLocationNewOverlay` (284-297), `Projection.toPixels` (515-521), `controller.setZoom/setCenter/animateTo/zoomIn/zoomOut`, `setMapOrientation` (270), `Configuration.userAgentValue` (151), `mapCenter`/`zoomLevelDouble` (947-948). **Android** : Fragment, ViewBinding, Navigation, `activityViewModels`, `AlertDialog` ×4 (459, 883, 917, 924), `Toast` ×4, `alerterEchecEcritureStore` ×3, `ProgressBar` construit en code (906-916). **Context** sert à trois choses : stockage (`OccHabStore` 95, 848 ; `GeoNatureConfig` 199, 395, 838, 870), ressources (`displayMetrics.density` 517 et 906, `R.color` 633), UI (Toast et dialogues). `Math.hypot` et `Math.round` (522, 665, 797) → `kotlin.math`. `lifecycleScope`, `viewModelScope` + `Dispatchers.IO` (837-853). | `occhab/carte/OccHabCarteViewModel` (état consultation/création, règles des gestes, valider, annuler, persister, altitudes) + `occhab/ui/OccHabCarteScreen` (Compose) ; aimantage dans `geo/Aimantage` | ≈ 290 l. de code de logique extractible (§2.1). Équivalent iOS : `UI/OccHab/OccHabCarteView.swift` (718) + `OccHabMapView.swift` (686). KDoc 717-719 obsolète (parle encore de « propagation topologique »). |
 | OccHabDetailsDialog.kt | 587 (424) | Dialogue « Informations obligatoires » (démarrage) / « Détails de la station », plus deux fabriques partagées : `construireSpinnerNomenclature` (410-428) et `construireSectionAnaEval` (445-587). | UI (L) | **Widgets** : `AlertDialog`, `EditText`, `Spinner` + `ArrayAdapter`, `MaterialAutoCompleteTextView`/`TextInputLayout`, `SwitchCompat`, `DatePickerDialog` (117-122). **Dates** : `SimpleDateFormat("dd/MM/yyyy", FRANCE)` (67) et `Calendar` (116-123, 219-220) → kotlinx-datetime `LocalDate` + format maison. **Tri** : `java.text.Collator(FRENCH, PRIMARY)` (413-416) → clé de tri maison (minuscules + désaccentuation) ou expect/actual. **Gson** (395) → kotlinx.serialization. `Toast` (315). Context = UI uniquement (+ `theme.resolveAttribute`). | `occhab/ui/DetailsStationDialog` (Compose) + `occhab/DetailsStationFormulaire` (brouillon, validation, application atomique) ; composants `ui/ChampNomenclature` et `occhab/ui/SectionAnaEval` ; fusion ANA dans `util/AnaEval` (commun) | ≈ 150 l. de logique (§2.2). Dépend de helpers hors périmètre (`DetailsReleveDialog.kt` : `datasetsPourOccHab`, `observateursPourDetailsReleve`, `construireSelecteurMultiObservateurs`, `AdaptateurAutocomplete`). Équivalent iOS : `OccHabInfosStationSheet.swift` (463) + `AnaEvalSectionView.swift` (192). |
@@ -383,7 +383,7 @@ Les tests iOS (`OccHabEditeurTests`, `HitTestGeometrieTests`, `MapTileCacheTests
 
 Les deux applicationId Android sont `fr.ariegenature.geomys` et `fr.ariegenature.public.geomys`, une par flavor (app/build.gradle.kts:46, 50). La compatibilité vaut flavor par flavor.
 
-| Donnée | Emplacement Android | Format | Lu / écrit dans le périmètre | Relecture par GeoMys-Common |
+| Donnée | Emplacement Android | Format | Lu / écrit dans le périmètre | Relecture par GeoMys |
 |---|---|---|---|---|
 | Fond de carte choisi | SharedPreferences `GeoMys_prefs`, clé `fond_carte` | Chaîne : `OSM`, `OPENTOPO`, `TOPO`, `SCAN25`, `ORTHO`, `ESRI` ou `mbtiles:<nom de fichier>`. Absente ou inconnue → OSM. | MapUtils:50-72 (tous les écrans carte) | Directe : multiplatform-settings sur le même fichier (`SharedPreferencesSettings(getSharedPreferences("GeoMys_prefs", …))`). iOS utilise la même clé et les mêmes valeurs (`@AppStorage("fond_carte")`, `MapTileSource.swift`:99-125). |
 | Date de dernière purge des tuiles | `GeoMys_prefs`, `derniere_purge_tuiles` (Long, ms) | — | MapTileCache (hors périmètre) | Sans objet avec MapLibre (abandon). |

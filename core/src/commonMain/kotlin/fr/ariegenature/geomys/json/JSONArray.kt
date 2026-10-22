@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Modifié pour GeoMys-Common (ANA - CEN Ariège, 2026) : traduit de Java en Kotlin multiplateforme
+ * Modifié pour GeoMys (ANA - CEN Ariège, 2026) : traduit de Java en Kotlin multiplateforme
  * depuis les sources du SDK Android (android-36.1, org/json/JSONArray.java). Texte de la licence :
  * licences/Apache-2.0.txt.
  */

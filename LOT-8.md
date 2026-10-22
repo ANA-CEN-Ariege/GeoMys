@@ -11,13 +11,13 @@ Le lot 8 porte les écrans d'OccHab (`INVENTAIRE.md` § 10) :
 
 Les écrans suivent la décision 15 ([`LOT-5.md`](LOT-5.md) § 2) : l'allure de GeoMys-Android sous Android, celle de GeoMys-IOS sous iOS ; les éléments, les textes et les comportements de GeoMys-Android sur les deux.
 
-**État.** Tout le contenu du lot est porté, ainsi que les deux corrections des Suivis arrivées entre-temps dans GeoMys-Android. Les défauts d'Android que GeoMys Common reproduisait sont corrigés, y compris ceux des lots 2, 6 et 7, et l'interrupteur « Afficher mes stations déjà sur GeoNature » est supprimé (§ 5). Les tests du socle passent de 941 à 987 sur la JVM, et de 931 à 977 sur le simulateur iOS ; ceux des écrans de 8 à 29 sur la JVM, et de 1 à 3 sur le simulateur iOS (§ 7).
+**État.** Tout le contenu du lot est porté, ainsi que les deux corrections des Suivis arrivées entre-temps dans GeoMys-Android. Les défauts d'Android que GeoMys reproduisait sont corrigés, y compris ceux des lots 2, 6 et 7, et l'interrupteur « Afficher mes stations déjà sur GeoNature » est supprimé (§ 5). Les tests du socle passent de 941 à 987 sur la JVM, et de 931 à 977 sur le simulateur iOS ; ceux des écrans de 8 à 29 sur la JVM, et de 1 à 3 sur le simulateur iOS (§ 7).
 
 **Critère de sortie** (recette terrain OccHab) : **à faire**. Les écrans ont été essayés sur l'émulateur (Pixel 10) et sur le simulateur (iPhone 17 Pro), avec des données d'essai. L'appli est installée sur le Galaxy A12 et l'iPhone 16 (§ 8).
 
 ## 1. Ce qui est porté
 
-| GeoMys-Android | GeoMys-IOS (`5fda84c`) | GeoMys Common |
+| GeoMys-Android | GeoMys-IOS (`5fda84c`) | GeoMys |
 |---|---|---|
 | `OccHabCarteFragment.kt`, `fragment_occhab_carte.xml`, `StationsSessionOverlay.kt`, `StationsServeurOverlay.kt`, `IconesEditionCarte.kt` | `OccHabCarteView.swift`, `OccHabMapView.swift` | `ui/…/occhab/CarteOccHabScreen.kt` et `CarteOccHabViewModel.kt` ; `core/…/occhab/CarteOccHab.kt` |
 | `EditeurGeometrie.kt`, `PileAnnulationGeometrie.kt`, `util/TopologiePolygone.kt`, `airePolygoneM2` (`MapUtils.kt`) | `OccHabEditeurGeometrie.swift` | `core/…/occhab/GeometrieEdition.kt`, `TopologiePolygone.kt` ; `core/…/geo/AireGeodesique.kt`, `Emprise.kt` |
@@ -72,7 +72,7 @@ L'automate de la carte (consultation, saisie, sélection, annulation) reste dans
 
 **Divergence du § 8.3 de l'inventaire** : pendant le dessin d'une nouvelle géométrie, un toucher à moins de 44 dp d'un sommet voisin s'y aimante, même sur une station voisine, comme le propose l'inventaire (GeoMys-IOS). Sous Android, la sélection de la voisine l'emportait et le tracé était abandonné.
 
-**Défauts d'Android corrigés** (inventaire, § 8.2). La décision 5 est tranchée le 19 octobre : GeoMys Common corrige les défauts de GeoMys-Android qu'il reproduisait. Pour OccHab :
+**Défauts d'Android corrigés** (inventaire, § 8.2). La décision 5 est tranchée le 19 octobre : GeoMys corrige les défauts de GeoMys-Android qu'il reproduisait. Pour OccHab :
 - l'écran d'une station s'intitule « Nouvelle station » quand sa géométrie vient d'être dessinée, « Modifier la station » quand elle est reprise de la saisie, d'une autre saisie ou du serveur. Sous Android, la carte enregistrait la station avant d'ouvrir son écran, qui s'intitulait donc toujours « Modifier la station » (n° 16) ;
 - l'interrupteur « Afficher mes stations déjà sur GeoNature (ce jeu de données) » est supprimé des informations obligatoires et des détails (décision du 19 octobre) : les stations du serveur s'affichent toujours. Sous Android, « Annuler » qui quittait une saisie les réaffichait toutes, même interrupteur décoché (n° 18) ;
 - une station à éditer qui s'avère déjà envoyée (la copie locale d'une autre saisie, envoyée entre-temps) ne fait plus passer la carte en saisie avant la question « Modifier cette station déjà envoyée ? » : refusée, la carte reste en consultation. Sous Android, la carte restait en saisie sans géométrie : un tap commençait une station sans ses informations obligatoires, et si la saisie rouverte n'avait que cette station, le tracé validé remplaçait sa géométrie (n° 19).

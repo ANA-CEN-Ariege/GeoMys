@@ -14,7 +14,7 @@ Le lot 3 porte ce qui transmet les saisies à GeoNature (`INVENTAIRE.md` § 10) 
 
 ## 1. Ce qui est porté
 
-| GeoMys-Android (`cdd5196`) | GeoMys Common | Remarque |
+| GeoMys-Android (`cdd5196`) | GeoMys | Remarque |
 |---|---|---|
 | `network/GeoNatureUpload.kt` | `network/GeoNatureUpload.kt` | Classe ; fonctions pures dans son compagnon |
 | `network/EnvoiSortie.kt` | `network/EnvoiSortie.kt` | Classe `EnvoiSortie` ; verrous et filet mémoire deviennent ses membres |

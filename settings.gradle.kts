@@ -1,4 +1,4 @@
-rootProject.name = "GeoMys-Common"
+rootProject.name = "GeoMys"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {

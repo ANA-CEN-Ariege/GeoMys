@@ -15,7 +15,7 @@ Le lot 5 pose le socle de l'interface (`INVENTAIRE.md` § 10) :
 
 ## 1. Ce qui est porté
 
-| GeoMys-Android (`cdd5196`) | GeoMys-IOS (`64d303b`) | GeoMys Common |
+| GeoMys-Android (`cdd5196`) | GeoMys-IOS (`64d303b`) | GeoMys |
 |---|---|---|
 | `AccueilFragment.kt`, `fragment_accueil.xml`, `menu_accueil.xml` | `UI/AccueilView.swift` | `ui/…/accueil/AccueilScreen.kt` |
 | `ConfigGeoNatureFragment.kt`, `fragment_config_geonature.xml` | `UI/ConfigGeoNatureView.swift` | `ui/…/parametres/ParametresScreen.kt` et `ParametresViewModel.kt` ; règles dans `core/…/store/ReglesSelectionOcctax.kt` et `ParametresGeoNature.kt` |

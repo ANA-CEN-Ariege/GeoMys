@@ -1,5 +1,5 @@
 #!/bin/bash
-# GeoMys-Common — application de saisie naturaliste pour GeoNature, Android et iOS.
+# GeoMys — application de saisie naturaliste pour GeoNature, Android et iOS.
 # Copyright (C) 2026 ANA - CEN Ariège
 #
 # This program is free software: you can redistribute it and/or modify
@@ -86,7 +86,7 @@ def kotlin(s):
 donnees = "\n".join("    %s to %s," % (kotlin(c), kotlin(a)) for c, a in zip(cas, attendus))
 
 modele = r'''/*
- * GeoMys-Common — application de saisie naturaliste pour GeoNature, Android et iOS.
+ * GeoMys — application de saisie naturaliste pour GeoNature, Android et iOS.
  * Copyright (C) 2026 ANA - CEN Ariège
  *
  * This program is free software: you can redistribute it and/or modify

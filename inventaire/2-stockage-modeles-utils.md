@@ -1,14 +1,14 @@
 # 2. Stockage, modèles, utilitaires et localisation (`store/`, `model/`, `util/`, `gpx/`, `location/`, racine)
 
-> Détail de l'inventaire GeoMys-Common. La synthèse, les chiffres globaux et les décisions à prendre sont dans [`../INVENTAIRE.md`](../INVENTAIRE.md).
+> Détail de l'inventaire GeoMys. La synthèse, les chiffres globaux et les décisions à prendre sont dans [`../INVENTAIRE.md`](../INVENTAIRE.md).
 > Source analysée en lecture seule : GeoMys-Android `cdd5196` (v1.4.7, 18 octobre 2026). Les équivalents iOS ont été cherchés dans GeoMys-IOS `64d303b`.
-> La colonne « Cible » donne une destination indicative ; la structure proposée pour GeoMys-Common est décrite au § 9 de la synthèse.
+> La colonne « Cible » donne une destination indicative ; la structure proposée pour GeoMys est décrite au § 9 de la synthèse.
 
 ## 1. Inventaire fichier par fichier
 
 Racine : `/Users/claude/Developpements/GeoMys-Android/app/src/main/java/fr/ariegenature/geomys/` (commit cdd5196). « Lignes » = `wc -l`, en-tête GPL de 18 lignes compris. Cible proposée : module `shared/src/{commonMain,androidMain,iosMain}/kotlin/fr/ariegenature/geomys/…`. Numéros entre parenthèses = lignes du fichier source.
 
-| Fichier | Lignes | Rôle (1 phrase) | Catégorie | À remplacer / dépendances plateforme (précis) | Cible dans GeoMys-Common | Remarques |
+| Fichier | Lignes | Rôle (1 phrase) | Catégorie | À remplacer / dépendances plateforme (précis) | Cible dans GeoMys | Remarques |
 |---|---|---|---|---|---|---|
 | `store/CachesSynchronises.kt` | 91 | Purge les caches synchronisés (« Vider le cache », rechargement après mise à jour) et arme au lancement le drapeau « rechargement requis ». | COMMUN-ADAPTÉ | `Context` (84-85), utilisé seulement pour construire `GeoNatureConfig(context)` → injecter l'instance. Appelle `network.MonitoringApi.invaliderCaches()` (hors périmètre). | commonMain `store/` | Aucune I/O propre. Garder l'asymétrie phase A / phase B (41-55). iOS : pas de fichier dédié (UI/ConfigGeoNatureView.swift:658-666, Network/SyncRunner.swift:88-90). |
 | `store/GeoNatureConfig.kt` | 449 | Paramètres de connexion et sélections, caches JSON de config serveur, règles de validité (`saisiePossible`, `saisieOcctaxValide`…). | COMMUN-ADAPTÉ (+ ≈35 l. androidMain) | `SharedPreferences "gn_config"` (37 ; 34 clés en `apply()`) → multiplatform-settings ; `org.json.JSONObject/JSONArray` (32, 179, 193, 328, 348, 365) → `Json.parseToJsonElement` ; `MdpChiffre` (45, 63-69) → interface `CoffreMotDePasse` ; `@Volatile` (415, 420) → `kotlin.concurrent.Volatile` ; `synchronized(this)` (427) → atomicfu ; nettoyage legacy `File(dataDir, "shared_prefs/gn_secure.xml")`, `deleteSharedPreferences`, `KeyStore.deleteEntry("_androidx_security_master_key_")`, `Log` (425-448) → androidMain ou abandon. | commonMain `store/` ; androidMain `plateforme/` (nettoyage legacy) | 40 `GeoNatureConfig(context)` dans 28 autres fichiers → singleton injecté. `champFormVisible` de niveau fichier (30-33) sert aussi à l'UI. iOS : Store/GeoNatureConfig.swift (622 l.) ; 18 des 34 clés Android y portent un autre nom. |
@@ -116,7 +116,7 @@ Aucun fichier MIXTE ou UI de ce périmètre ne dépasse 300 lignes : les trois M
 4. **R8 et `kotlin.Pair`.**
    - Les classes persistées gardent leurs noms de champs (proguard-rules.pro:43-69 ; vérifié : aucun champ renommé dans mappings/mapping-1.4.7.txt).
    - Exception : `kotlin.Pair`, dont les champs sont obfusqués : `a` / `b` jusqu'en 1.4.2, puis `f` / `g` de 1.4.3 à 1.4.7. `AdditionalFieldDef.nomenclatureOptions` (`List<Pair>`) est donc écrit `{"f":…,"g":…}` dans `gn_cache_add_fields_occtax` en release, et devient illisible à chaque changement de mapping, jusqu'à la synchro suivante. Ce défaut existe déjà dans l'appli actuelle.
-   - Pour GeoMys-Common : accepter ces clés, ou ignorer ce cache, qui est réécrit à chaque synchro (network/SyncRunner.kt:133).
+   - Pour GeoMys : accepter ces clés, ou ignorer ce cache, qui est réécrit à chaque synchro (network/SyncRunner.kt:133).
 5. **TaxRefCache : volume et performances.**
    - 8 fichiers sont chargés en entier dans des HashMap, avec 15 mémos. La lecture et l'écriture se font en flux avec Gson (TaxRefCache.kt:935-975, 997-1028).
    - `kotlinx-serialization-json-okio` évite la String géante, mais construit la map en entier, comme aujourd'hui.
@@ -182,9 +182,9 @@ Aucun fichier MIXTE ou UI de ce périmètre ne dépasse 300 lignes : les trois M
 
 ## 4. Compatibilité des données
 
-`<appId>` = `fr.ariegenature.geomys` (flavor github) ou `fr.ariegenature.public.geomys` (flavor play). GeoMys-Common doit reprendre les deux flavors et les mêmes clés de signature. Chemins : `files/` = `/data/data/<appId>/files`, `shared_prefs/` = `/data/data/<appId>/shared_prefs`, `cache/` = `/data/data/<appId>/cache`.
+`<appId>` = `fr.ariegenature.geomys` (flavor github) ou `fr.ariegenature.public.geomys` (flavor play). GeoMys doit reprendre les deux flavors et les mêmes clés de signature. Chemins : `files/` = `/data/data/<appId>/files`, `shared_prefs/` = `/data/data/<appId>/shared_prefs`, `cache/` = `/data/data/<appId>/cache`.
 
-| Donnée | Emplacement | Nom / clés | Format et classes | Concurrence / corruption | Relecture par GeoMys-Common |
+| Donnée | Emplacement | Nom / clés | Format et classes | Concurrence / corruption | Relecture par GeoMys |
 |---|---|---|---|---|---|
 | Config GeoNature | `shared_prefs/gn_config.xml` | 34 clés, détaillées sous ce tableau ; l'ancienne `gn_mdp` (en clair) est purgée | SharedPreferences typées : String (dont du JSON Gson, du JSON serveur brut et des CSV), Int, Boolean | `apply()`, sans verrou ; JSON lus sous try/catch avec repli permissif | OBLIGATOIRE (sinon toute la configuration est à refaire) |
 | Mot de passe | `shared_prefs/gn_secure_v2.xml` + Android Keystore | clé `gn_mdp_chiffre` ; alias Keystore `geomys_mdp` | Base64 NO_WRAP de IV (12 o) ‖ chiffré ‖ tag GCM (16 o), AES-256-GCM | `@Synchronized` ; erreurs avalées → repli mémoire ; exclu des sauvegardes | OBLIGATOIRE pour éviter une re-saisie : code androidMain identique, même certificat. Legacy : `gn_secure.xml` + alias `_androidx_security_master_key_`, supprimés au démarrage |
@@ -237,9 +237,9 @@ Aucun fichier MIXTE ou UI de ce périmètre ne dépasse 300 lignes : les trois M
 
 **Conventions de Gson à reproduire en lecture.** Gson omet les champs null, échappe le HTML (`<`, `=`…) sans gêner la relecture, sérialise les enums par leur nom et `Pair` par ses champs. La configuration kotlinx conseillée : `Json { ignoreUnknownKeys = true; explicitNulls = false; coerceInputValues = true }`, avec un décodage élément par élément pour les listes de saisies.
 
-**Sauvegarde Android.** backup_rules.xml et data_extraction_rules.xml excluent `gn_secure.xml`, `gn_secure_v2.xml`, `files/taxref`, `files/monitoring`, `files/mbtiles` et `files/medias`. Les autres données sont sauvegardées, y compris les stores de saisies. GeoMys-Common doit reprendre ces règles, en les adaptant si les blobs passent des prefs à des fichiers.
+**Sauvegarde Android.** backup_rules.xml et data_extraction_rules.xml excluent `gn_secure.xml`, `gn_secure_v2.xml`, `files/taxref`, `files/monitoring`, `files/mbtiles` et `files/medias`. Les autres données sont sauvegardées, y compris les stores de saisies. GeoMys doit reprendre ces règles, en les adaptant si les blobs passent des prefs à des fichiers.
 
-**Si GeoMys-Common doit aussi remplacer GeoMys-IOS** (constat rapide, à approfondir côté iOS) :
+**Si GeoMys doit aussi remplacer GeoMys-IOS** (constat rapide, à approfondir côté iOS) :
 - Les emplacements diffèrent :
   - `Documents/` : `habitats_*.json`, `monitoring/`, `monitoring/pictos/`, `medias/` ;
   - `Application Support/` : `taxref/`, `mbtiles/`, `monitoring_outbox.json`, `occhab_store.json`, `stations_serveur_occhab_v1.json`, `sorties_sauvegardees.json` ;

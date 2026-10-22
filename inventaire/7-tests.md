@@ -1,15 +1,15 @@
 # 7. Tests unitaires
 
-> Détail de l'inventaire GeoMys-Common. La synthèse, les chiffres globaux et les décisions à prendre sont dans [`../INVENTAIRE.md`](../INVENTAIRE.md).
+> Détail de l'inventaire GeoMys. La synthèse, les chiffres globaux et les décisions à prendre sont dans [`../INVENTAIRE.md`](../INVENTAIRE.md).
 > Source analysée en lecture seule : GeoMys-Android `cdd5196` (v1.4.7, 18 octobre 2026). Les équivalents iOS ont été cherchés dans GeoMys-IOS `64d303b`.
-> La colonne « Cible » donne une destination indicative ; la structure proposée pour GeoMys-Common est décrite au § 9 de la synthèse.
+> La colonne « Cible » donne une destination indicative ; la structure proposée pour GeoMys est décrite au § 9 de la synthèse.
 
 
 *Source : GeoMys-Android `cdd5196`, dossier `app/src/test/java/fr/ariegenature/geomys/` (99 fichiers, 15 189 lignes, 718 `@Test`). Classement établi par analyse automatique des imports et du corps des tests, puis vérifié à la main sur les cas ambigus.*
 
 ## 7.1 Synthèse
 
-Tous les tests sont des tests JVM (JUnit 4). Il n'y a aucun test instrumenté (`androidTest`). Dans GeoMys-Common, la cible naturelle est `commonTest` (kotlin.test, kotlinx-coroutines-test) : les tests y tournent sur la JVM et sur le simulateur iOS.
+Tous les tests sont des tests JVM (JUnit 4). Il n'y a aucun test instrumenté (`androidTest`). Dans GeoMys, la cible naturelle est `commonTest` (kotlin.test, kotlinx-coroutines-test) : les tests y tournent sur la JVM et sur le simulateur iOS.
 
 | Cat. | Nature | Fichiers | Lignes | @Test |
 |---|---|---|---|---|
@@ -28,7 +28,7 @@ Lecture :
 - **Attention : un test portable n'implique pas un code testé portable.** Par exemple, `GpxUtilsTest` (T1) teste `GpxUtils`, qui dépend de `javax.xml`. Le test se reprend tel quel, mais seulement une fois le code porté.
 - **T5 (6 fichiers)** porte sur du code propre à Android : `LocationTracker`, `FormulaireRenderer` (vues), `MediaImport`. Ces tests restent en `androidUnitTest` ou sont réécrits contre les nouvelles interfaces.
 - **T6 (6 fichiers)** et une partie de T3 et T5 contiennent des **gardes textuelles** : des tests qui lisent le code source Android (`File("src/main/java/…").readText()`) et vérifient la présence ou l'absence d'un motif. Ils protègent des comportements logés dans des Fragments, impossibles à tester autrement. Ils ne se portent pas tels quels. Une fois la logique sortie dans des ViewModels communs, chacun devient un vrai test de comportement (liste au § 7.3).
-- **T7 (`GsonRoundTripTest`)** verrouille le contrat Gson et les règles R8. Il disparaît avec Gson. Il doit être remplacé par un test d'aller-retour kotlinx.serialization et, si GeoMys-Common doit relire les données de l'appli existante, par des tests de lecture de fichiers produits par la version Android actuelle (voir la compatibilité des données dans la synthèse).
+- **T7 (`GsonRoundTripTest`)** verrouille le contrat Gson et les règles R8. Il disparaît avec Gson. Il doit être remplacé par un test d'aller-retour kotlinx.serialization et, si GeoMys doit relire les données de l'appli existante, par des tests de lecture de fichiers produits par la version Android actuelle (voir la compatibilité des données dans la synthèse).
 
 Légende de la colonne « Ce qui le lie à Android » : `robolectric` = lancé par RobolectricTestRunner ; `context` = `Context`/`ApplicationProvider` ; `prefs` = SharedPreferences ; `fichiers` = `java.io.File`/dossiers temporaires ; `mockwebserver` = serveur HTTP simulé OkHttp ; `gson`/`orgjson` = fixtures JSON ; `osmdroid` = `GeoPoint` ; `coroutines` = `runBlocking`/`runTest` (portable) ; `concurrence` = `java.util.concurrent` (latch, pools) ; `vues` = widgets ou Fragments Android ; `livedata` ; `location` = `android.location` ; `jvm_misc` = API JVM diverses (`String.format`, `::class.java`, `java.util.UUID`, `java.time`…).
 
@@ -170,7 +170,7 @@ Légende de la colonne « Ce qui le lie à Android » : `robolectric` = lancé p
 
 ## 7.3 Gardes textuelles à réécrire en tests de comportement
 
-Chacun de ces tests lit un fichier source Android et vérifie un motif de texte. Dans GeoMys-Common, le comportement protégé doit devenir un test sur le ViewModel ou le service commun qui le porte.
+Chacun de ces tests lit un fichier source Android et vérifie un motif de texte. Dans GeoMys, le comportement protégé doit devenir un test sur le ViewModel ou le service commun qui le porte.
 
 | Test | Fichier(s) Android inspecté(s) | Comportement protégé (d'après le nom du test) |
 |---|---|---|

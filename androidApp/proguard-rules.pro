@@ -1,4 +1,4 @@
-# Règles R8 de la release de GeoMys Common (androidApp/build.gradle.kts).
+# Règles R8 de la release de GeoMys (androidApp/build.gradle.kts).
 #
 # R8 retire le code inutilisé et l'optimise, mais ne renomme rien : des messages montrés à l'utilisateur
 # citent le nom de classe d'une exception (« Chargement interrompu : … », erreurs réseau), et les traces

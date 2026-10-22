@@ -1,10 +1,10 @@
-# GeoMys Common
+# GeoMys
 
 Application de saisie naturaliste pour GeoNature, pour Android **et** iOS, construite sur une seule base de code : Kotlin Multiplatform et Compose Multiplatform.
 
-GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IOS. Elle a sa propre identité, et peut donc cohabiter avec elles sur un même téléphone. Elle n'en reprend pas les données.
+Sous Android, GeoMys **remplace GeoMys-Android** sur Google Play depuis la version 2.0.0 : même identifiant Play, et reprise de ses saisies non envoyées ([`LOT-9.md`](LOT-9.md) § 30). Les versions de test ont leur propre identifiant et cohabitent avec elle sur un même téléphone. Sous iOS, GeoMys reste indépendante de GeoMys-IOS : son propre identifiant, sans reprise des données.
 
-**État : lots 0 à 9.** Le socle, les fondations (lot 1), la synchro des référentiels (lot 2), les envois (lot 3), le moteur de formulaires (lot 4), le socle des écrans (lot 5), les écrans OccTax (lot 6), ceux des Suivis (lot 7), ceux d'OccHab (lot 8), l'Explorer et le Maps Manager (lot 9) sont portés : tous les écrans de GeoMys-Android le sont. Les recettes terrain d'OccTax, d'OccHab et du lot 9 restent à faire, celle des Suivis est commencée. Les écrans reprennent GeoMys-Android ; sous iOS, ils prennent les styles de GeoMys-IOS. Les défauts de GeoMys-Android que le portage reproduisait sont corrigés ([`LOT-8.md`](LOT-8.md) § 5, [`LOT-9.md`](LOT-9.md) § 5). Reste le lot 10, la distribution. Le portage suit l'inventaire [`INVENTAIRE.md`](INVENTAIRE.md) (§ 10, ordre de portage).
+**État : lots 0 à 9.** Le socle, les fondations (lot 1), la synchro des référentiels (lot 2), les envois (lot 3), le moteur de formulaires (lot 4), le socle des écrans (lot 5), les écrans OccTax (lot 6), ceux des Suivis (lot 7), ceux d'OccHab (lot 8), l'Explorer et le Maps Manager (lot 9) sont portés : tous les écrans de GeoMys-Android le sont. Les recettes terrain d'OccTax, d'OccHab et du lot 9 restent à faire, celle des Suivis est commencée. Les écrans reprennent GeoMys-Android ; sous iOS, ils prennent les styles de GeoMys-IOS. Les défauts de GeoMys-Android que le portage reproduisait sont corrigés ([`LOT-8.md`](LOT-8.md) § 5, [`LOT-9.md`](LOT-9.md) § 5). La version 2.0.0 est déposée sur Google Play, sur la piste de test interne. Le portage suit l'inventaire [`INVENTAIRE.md`](INVENTAIRE.md) (§ 10, ordre de portage).
 
 **Écrans.** L'Accueil et les Paramètres (connexion, « Charger les données », sélections par défaut) sont ceux du lot 5. Une configuration incomplète ouvre les Paramètres au lancement, comme dans GeoMys-Android. Le bilan du lot, dont les deux allures des composants, est dans [`LOT-5.md`](LOT-5.md).
 
@@ -45,11 +45,11 @@ GeoMys Common est **indépendante** des applications GeoMys-Android et GeoMys-IO
 
 | | Android | iOS |
 |---|---|---|
-| Identifiant | `fr.ariegenature.geomys.common` | `fr.ariegenature.geomys.common` |
+| Identifiant | `fr.ariegenature.public.geomys` (release, celui de GeoMys-Android sur Google Play) ; `fr.ariegenature.geomys.common` (versions de test) | `fr.ariegenature.geomys.common` |
 | Nom sous l'icône | `androidApp/src/main/res/values/strings.xml` | `APP_DISPLAY_NAME` dans `iosApp/Configuration/Config.xcconfig` |
 | Version | `versionName` / `versionCode` dans `androidApp/build.gradle.kts` | `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` dans `Config.xcconfig` |
 
-- **Nom affiché** : « GeoMys Common ». Dans l'application, le titre vient de `ui/src/commonMain/composeResources/values/strings.xml`.
+- **Nom affiché** : « GeoMys », sous l'icône comme dans l'application, où l'accueil reprend le nom de l'icône (`InfosApp.nom`).
 - **Logo** : celui de GeoMys. Les icônes sont reprises de GeoMys-Android et de GeoMys-IOS.
 
 ## Prérequis

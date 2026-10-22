@@ -1,5 +1,5 @@
 /*
- * GeoMys-Common — application de saisie naturaliste pour GeoNature, Android et iOS.
+ * GeoMys — application de saisie naturaliste pour GeoNature, Android et iOS.
  * Copyright (C) 2026 ANA - CEN Ariège
  *
  * This program is free software: you can redistribute it and/or modify
@@ -20,8 +20,7 @@ package fr.ariegenature.geomys
 
 /** Nom, version de l'application et système d'exploitation, fournis par le point d'entrée de chaque
  *  plateforme (MainActivity sur Android, MainViewController sur iOS) : le code commun n'a ainsi
- *  besoin ni de `Context` ni de `NSBundle`. [nom] : celui de l'icône, « GeoMys » pour la version
- *  publiée sur Google Play, « GeoMys Common » pour celle de test. */
+ *  besoin ni de `Context` ni de `NSBundle`. [nom] : celui de l'icône, « GeoMys ». */
 data class InfosApp(
     val nom: String,
     val version: String,

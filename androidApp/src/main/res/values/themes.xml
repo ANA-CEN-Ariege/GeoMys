@@ -1,7 +1,7 @@
 <resources>
     <!-- Fond de fenêtre affiché au lancement, avant le premier rendu Compose : même dégradé que
          l'écran d'accueil, pour éviter un flash blanc. -->
-    <style name="Theme.GeoMysCommon" parent="android:Theme.Material.NoActionBar">
+    <style name="Theme.GeoMys" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@drawable/bg_accueil</item>
         <!-- Ce que les dialogues du système (DatePickerDialog et TimePickerDialog des détails du relevé,
              AlertDialog du Maps Manager) lisent du thème de GeoMys-Android : colorPrimary et

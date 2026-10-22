@@ -14,7 +14,7 @@ Le lot 1 pose ce dont tous les lots suivants ont besoin (`INVENTAIRE.md` § 10) 
 
 ## 1. Ce qui est porté
 
-| Android (`cdd5196`) | GeoMys Common | Remarque |
+| Android (`cdd5196`) | GeoMys | Remarque |
 |---|---|---|
 | `org.json` (bibliothèque d'Android) | `core/…/json/` | Portage des 5 classes depuis les sources du SDK (Apache 2.0) : § 2 |
 | `network/JsonResponse.kt` | `network/JsonResponse.kt` | Tel quel |
@@ -85,7 +85,7 @@ Les cas de `CacheCorruptionTest` (partie file d'envoi) et de `StoreConcurrenceTe
 ## 5. Réglages et coffre
 
 - **`GeoNatureConfig`** passe sur multiplatform-settings, avec les mêmes clés et les mêmes défauts : SharedPreferences `gn_config` sur Android, suite NSUserDefaults `gn_config` sur iOS. Ses 11 tests sont portés.
-  - Retiré : le nettoyage des anciens coffres d'Android, sans objet puisque GeoMys Common ne reprend pas les données.
+  - Retiré : le nettoyage des anciens coffres d'Android, sans objet puisque GeoMys ne reprenait pas les données (décision du 18 octobre, revue le 22 : `LOT-9.md` § 30).
   - Reporté : `additionalFieldsOcctaxJsonActif`, qui attend `OcctaxFieldsConfig`.
 - **Le coffre du mot de passe.**
   - **Android** : `MdpChiffre`, quasi inchangé (clé AES-256-GCM de l'Android Keystore). Le fichier `gn_secure_v2` est exclu des sauvegardes, comme dans GeoMys-Android : règles reprises dans `androidApp/src/main/res/xml/`.
@@ -159,7 +159,7 @@ L'écran provisoire « Connexion GeoNature » (bouton de l'accueil) appelle `Ver
 
 **Fait après le commit du lot :** le User-Agent des tuiles OSM, prévu « au lot 1, quand Ktor sera en place » (`PROTOTYPE-CARTE.md` § 2).
 - L'appli télécharge elle-même les tuiles OSM avec Ktor (`ui/…/carte/TuilesHttp.kt`), en gardant le cache de MapLibre.
-- Elles partent avec `GeoMysCommon/<version> (<système>)` sur Android comme sur iOS, téléchargement hors-ligne compris.
+- Elles partent avec `GeoMys/<version> (<système>)` sur Android comme sur iOS, téléchargement hors-ligne compris.
 
 ## 10. Outils ajoutés
 
