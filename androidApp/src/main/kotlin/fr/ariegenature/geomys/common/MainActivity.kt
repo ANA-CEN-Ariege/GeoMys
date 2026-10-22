@@ -45,6 +45,7 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
         val infos = InfosApp(
+            nom = getString(R.string.app_name),
             version = packageManager.getPackageInfo(packageName, 0).versionName ?: "?",
             plateforme = "Android ${Build.VERSION.RELEASE}",
         )

@@ -20,8 +20,8 @@ android {
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        // Identité propre : GeoMys Common est une application indépendante de GeoMys, et les
-        // deux peuvent cohabiter sur un même téléphone.
+        // Les versions de test (debug, mesure) : une identité propre, qui cohabite avec GeoMys sur un
+        // même téléphone. La release prend celle de GeoMys sur Google Play (plus bas).
         applicationId = "fr.ariegenature.geomys.common"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
@@ -81,6 +81,15 @@ android {
         // kotlinx-datetime s'appuie sur java.time, absent avant Android 8 : sans ce désucrage, la
         // première date manipulée plantait sous Android 7 (minSdk 24).
         isCoreLibraryDesugaringEnabled = true
+    }
+}
+
+// La release remplace GeoMys-Android sur Google Play, comme une nouvelle version de la même appli
+// (décision du 22 octobre 2026) : son identifiant Play, sa clé d'envoi (keystore.properties) et un
+// versionCode au-delà de 196. Elle relit ses saisies et ses réglages (RepriseGeoMysAndroid).
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variante ->
+        variante.applicationId.set("fr.ariegenature.public.geomys")
     }
 }
 

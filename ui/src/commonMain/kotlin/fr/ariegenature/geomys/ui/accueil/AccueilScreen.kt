@@ -92,7 +92,6 @@ import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.composants.styleLibelleMaterial
 import fr.ariegenature.geomys.ui.ressources.Res
-import fr.ariegenature.geomys.ui.ressources.app_name
 import fr.ariegenature.geomys.ui.ressources.ic_menu
 import fr.ariegenature.geomys.ui.ressources.ic_settings
 import fr.ariegenature.geomys.ui.ressources.ic_walk
@@ -102,10 +101,11 @@ import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import fr.ariegenature.geomys.ui.theme.FondGeoMys
 import fr.ariegenature.geomys.ui.theme.FormeContinue
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 
 /** Ce que l'accueil affiche, relu à chaque retour sur l'écran (`onResume` sous Android). */
 data class EtatAccueil(
+    /** Le nom de l'appli, celui de l'icône ([fr.ariegenature.geomys.InfosApp.nom]). */
+    val nomAppli: String,
     val version: String,
     /** Saisie OCCTAX réellement réalisable : sinon les boutons de saisie sont grisés. */
     val saisieValide: Boolean,
@@ -163,7 +163,7 @@ private fun texteLicence(version: String, nomAppli: String) =
 fun AccueilScreen(etat: EtatAccueil, actions: ActionsAccueil, onTexteLicence: () -> Unit) {
     var licence by remember { mutableStateOf(false) }
     var menuOuvert by remember { mutableStateOf(false) }
-    val nomAppli = stringResource(Res.string.app_name)
+    val nomAppli = etat.nomAppli
     val ios = estIos
     FondGeoMys {
         if (ios) ContenuIos(etat, actions, nomAppli, onLicence = { licence = true })

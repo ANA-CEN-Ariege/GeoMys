@@ -57,6 +57,7 @@ import fr.ariegenature.geomys.store.OutboxMonitoring
 import fr.ariegenature.geomys.store.PictoCache
 import fr.ariegenature.geomys.store.PreferencesGeoMys
 import fr.ariegenature.geomys.store.RelevesOrphelins
+import fr.ariegenature.geomys.store.RepriseGeoMysAndroid
 import fr.ariegenature.geomys.store.SortieStore
 import fr.ariegenature.geomys.store.StationsServeurCache
 import fr.ariegenature.geomys.store.TaxRefCache
@@ -122,6 +123,12 @@ class ServicesGeoNature(val socle: Socle) {
     }
     val monitoringCache = MonitoringCache(fichiers / "monitoring", socle.systeme)
     val pictos = PictoCache(fichiers / "monitoring" / "pictos", clients, socle.systeme)
+
+    init {
+        // Installée par-dessus GeoMys-Android (la même appli sur Google Play), l'appli reprend ses
+        // relevés et stations non envoyés avant la première lecture des saisies.
+        RepriseGeoMysAndroid.reprendre(socle.reglages, socle.systeme, fichiers)
+    }
 
     // Saisies : fichiers atomiques à écriture durable (les SharedPreferences `sorties_store` et
     // `occhab_store` de GeoMys-Android, et son filesDir/monitoring_outbox.json).

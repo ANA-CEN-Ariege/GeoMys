@@ -490,3 +490,21 @@ Avant, une visite pouvait s'enregistrer sans aucun de ses champs obligatoires, e
   - les tests de visite, adaptés.
 
   Neuf mutations détectées.
+
+## 30. GeoMys remplace GeoMys-Android sur Google Play (22 octobre)
+
+Décision de l'utilisateur : « cette appli remplacera geomys-android, elle doit être vue comme une nouvelle release ». Réponses aux questions : reprendre les saisies non envoyées, nom « GeoMys », version 2.0.0 (code 200). La décision du 18 octobre (appli indépendante, sans reprise de données) est remplacée.
+
+- **Identité de la release** : l'identifiant Play de GeoMys-Android, `fr.ariegenature.public.geomys`, et le nom « GeoMys ». La clé est la même que celle de GeoMys-Android (certificat 849e4dd3…), et le versionCode passera à 200 à la publication (Play exige plus que 196). Les versions de test (debug, mesure) gardent `fr.ariegenature.geomys.common` et le nom « GeoMys Common » : elles cohabitent avec GeoMys sur un même téléphone. Le nom affiché sur l'accueil est celui de l'icône (`InfosApp.nom`). L'iOS n'est pas touché.
+- **Données de GeoMys-Android à la mise à jour** :
+  - relues sur place, aux mêmes noms : réglages (`gn_config`, `GeoMys_prefs`…), mot de passe chiffré (`gn_secure_v2`, clé `geomys_mdp` du coffre Android), visites des Suivis en attente (`monitoring_outbox.json`), photos des saisies (`medias/`), cartes MBTiles (`mbtiles/`) ;
+  - reprises au premier lancement (`RepriseGeoMysAndroid`) : relevés OccTax et stations OccHab non envoyés, que GeoMys-Android gardait dans ses préférences (`sorties_store` / `sorties_sauvegardees`, `occhab_store` / `saisies_sauvegardees`). Ce sont des tableaux JSON au format que GeoMys lit déjà, recopiés dans ses fichiers tant que ceux-ci n'existent pas. L'original reste en place ; une saisie effacée depuis ne revient pas. Tous les champs des modèles de GeoMys-Android existent dans GeoMys, sous le même nom et le même type ;
+  - à refaire : les cartes hors ligne téléchargées (osmdroid), le moteur de carte n'étant plus le même ; les référentiels, si Paramètres le propose.
+- **Avant le dépôt sur Play** : la fiche de GeoMys existe déjà, avec sa politique de confidentialité, sa fiche Sécurité des données, l'accès pour l'examen et les déclarations des services.
+  - GeoMys a les mêmes permissions et services de premier plan (`location`, `dataSync`) que GeoMys-Android, moins `WRITE_EXTERNAL_STORAGE` : rien de nouveau à déclarer.
+  - Restent la version 2.0.0 (code 200), l'AAB (`bundleRelease`) et les notes de version de Play.
+  - Il faut aussi un essai de la vraie mise à jour par la piste de test interne, avant un déploiement progressif en production.
+- **Tests** : `RepriseGeoMysAndroidTest` (reprise des relevés et stations, une seule fois, jamais par-dessus les saisies de GeoMys, visites des Suivis relues sur place) ; deux mutations détectées.
+- **Version 2.0.0** (code 200) construite le 22 octobre et déposée sur la piste de test interne de GeoMys.
+  - La production Play était alors en 1.4.4 (code 193). D'après l'historique de GeoMys-Android, la 1.4.4 range ses saisies comme la 1.4.7 : mêmes clés, mêmes modèles.
+  - Avertissements de la Play Console : 8 appareils perdus, des processeurs Intel, car MapLibre n'est livré ici que pour ARM ; pas de symboles de débogage pour le code natif de MapLibre, livré sans.

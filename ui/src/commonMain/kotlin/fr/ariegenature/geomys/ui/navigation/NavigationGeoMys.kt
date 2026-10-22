@@ -931,6 +931,7 @@ private fun saisieMonoOuverte(
 private fun lireEtatAccueil(infos: InfosApp, services: ServicesGeoNature): EtatAccueil {
     val config = services.config
     return EtatAccueil(
+        nomAppli = infos.nom,
         version = infos.version,
         saisieValide = config.saisieOcctaxValide,
         monitoringDisponible = services.monitoringModules.countModulesEnCache() > 0,

@@ -1,5 +1,0 @@
-<resources>
-    <!-- Nom affiché dans l'appli. Le nom sous l'icône est défini à part : androidApp/src/main/res/values/strings.xml
-         (Android) et iosApp/Configuration/Config.xcconfig, APP_DISPLAY_NAME (iOS). -->
-    <string name="app_name">GeoMys Common</string>
-</resources>

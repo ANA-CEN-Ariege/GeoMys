@@ -52,7 +52,9 @@ private fun parametresLancement(): Map<String, String> {
 private fun infosIos(): InfosApp {
     val version = NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleShortVersionString") as? String
     val appareil = UIDevice.currentDevice
+    val nom = NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleDisplayName") as? String
     return InfosApp(
+        nom = nom ?: "GeoMys Common",
         version = version ?: "?",
         plateforme = "${appareil.systemName} ${appareil.systemVersion}",
     )
