@@ -43,12 +43,14 @@ import fr.ariegenature.geomys.occtax.DetailsReleveResult
 import fr.ariegenature.geomys.occtax.EspeceReleve
 import fr.ariegenature.geomys.occtax.FinSaisie
 import fr.ariegenature.geomys.occtax.SaisieMono
+import fr.ariegenature.geomys.occtax.VerificationProfil
 import fr.ariegenature.geomys.occtax.libelleChampEspeceMono
 import fr.ariegenature.geomys.occtax.nomSingulier
 import fr.ariegenature.geomys.store.SuggestionTaxon
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
@@ -102,6 +104,20 @@ class SaisieMonoViewModel(
     /** Point posé au doigt pour la PROCHAINE observation ; sans lui, la position GPS. */
     var pointManuel by mutableStateOf<LatLon?>(null)
         private set
+
+    /** Les vérifications des profils de taxons, que le panneau suit pour [avertissementDerniere]. */
+    val profils: StateFlow<Map<String, VerificationProfil>> get() = services.profils.resultats
+
+    /** « Donnée exceptionnelle » de la dernière observation enregistrée d'après [resultats] : son
+     *  espèce et ce que le serveur signale ; null s'il n'y a rien. Il reste affiché jusqu'au « + »
+     *  suivant : la vérification arrive après la confirmation. */
+    fun avertissementDerniere(resultats: Map<String, VerificationProfil>): Pair<String, List<String>>? {
+        val observations = session.observations.value
+        val derniere = observations.lastOrNull { !it.releveSansEspece } ?: return null
+        val groupe = observations.filter { (it.releveId ?: it.id) == (derniere.releveId ?: derniere.id) }
+        val messages = services.profils.resultat(derniere, groupe, resultats)?.messages.orEmpty()
+        return if (messages.isEmpty()) null else derniere.espece to messages
+    }
 
     /** La dernière observation enregistrée, confirmée trois secondes sous le résumé. */
     var confirmation by mutableStateOf<Observation?>(null)
@@ -175,13 +191,16 @@ class SaisieMonoViewModel(
     }
 
     /** Fin de la dictée : la première hypothèse dans le champ, puis toutes essayées contre TaxRef ;
-     *  la meilleure remplace le texte, qui est résolu à son tour. Rien n'est enregistré ici : la
-     *  saisie démarre au bouton. */
+     *  reconnue, l'espèce est posée comme si elle avait été choisie dans la liste (son nom dans le
+     *  champ, son taxon sous lui), sinon la liste montre les espèces qui ressemblent à ce qui a été
+     *  entendu ([EtatChampEspece.dicter]). Rien n'est enregistré ici : la saisie démarre au bouton. */
     fun dicter(candidats: List<String>) {
-        champ.saisir(candidats.first())
-        viewModelScope.launch {
-            val (statut, gagnant) = services.taxRefService.rechercherParmiCandidats(candidats, champ.taxon, champ.listeTaxons, champ.nomScientifique)
-            if (statut is TaxRefStatut.Trouve && gagnant != null && gagnant != champ.texte) champ.saisir(gagnant)
+        champ.dicter(candidats) { statut ->
+            // Le nom tel que la liste l'aurait proposé : le nom scientifique en mode « noms
+            // scientifiques », sinon le premier nom français.
+            val nom = if (champ.nomScientifique) statut.nomScientifique else premierNomFrancais(statut) ?: statut.nomScientifique
+            champ.poserChoix(nom)
+            champ.recherche.poser(statut, nom)
         }
     }
 

@@ -51,6 +51,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.test.fail
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -110,6 +111,17 @@ class ChampEspeceReglesTest {
             Snapshot.sendApplyNotifications()
             testScheduler.advanceUntilIdle()
         }
+    }
+
+    /** La résolution d'une dictée passe par Dispatchers.IO, hors de l'horloge du test : celle-ci avance
+     *  jusqu'à ce que [condition] soit remplie. */
+    private fun TestScope.avancerJusqua(condition: () -> Boolean) {
+        repeat(500) {
+            toutAvancer()
+            if (condition()) return
+            Thread.sleep(10)
+        }
+        fail("la dictée n'a pas abouti")
     }
 
     private val machaon = TaxRefStatut.Trouve(54303, "Papilio machaon", "Machaon")
@@ -193,6 +205,71 @@ class ChampEspeceReglesTest {
         releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
         assertEquals(listOf(54303, 54303), releve.releve.especes.value.map { it.cdNom })
         assertEquals("", releve.texte, "le champ est vidé pour l'espèce suivante")
+    }
+
+    @Test
+    fun une_dictee_non_reconnue_montre_les_especes_qui_lui_ressemblent() = runTest {
+        // Demande du 23 octobre 2026 : jamais le texte entendu comme s'il était une espèce.
+        services.ajouterTaxRefEssai()
+        avecChamp(Taxon.OISEAU) { champ ->
+            toutAvancer()
+            champ.dicter(listOf("mésanges")) { fail("« mésanges » ne désigne aucune espèce à lui seul") }
+            avancerJusqua { champ.entendu != null }
+            assertEquals("mésanges", champ.texte, "le champ garde ce qui a été entendu")
+            assertEquals("mésanges", champ.entendu)
+            assertEquals(listOf(534742, 3764), champ.suggestions.map { it.cdNom }, "Mésange bleue, puis Mésange charbonnière")
+
+            // La frappe reprend la main : les espèces proches tombent, la liste filtre de nouveau.
+            champ.saisir("Mésange c")
+            toutAvancer()
+            assertNull(champ.entendu)
+            assertEquals(listOf(3764), champ.suggestions.map { it.cdNom })
+        }
+    }
+
+    @Test
+    fun les_especes_proches_d_une_dictee_tombent_avec_le_groupe() = runTest {
+        services.ajouterTaxRefEssai()
+        avecChamp(Taxon.OISEAU) { champ ->
+            toutAvancer()
+            champ.dicter(listOf("mésanges")) { fail("rien à reconnaître") }
+            avancerJusqua { champ.entendu != null }
+            champ.choisirTaxon(Taxon.MAMMIFERE)
+            assertNull(champ.entendu, "ces oiseaux ne sont pas des mammifères")
+            assertTrue(champ.suggestions.none { it.cdNom == 534742 })
+        }
+    }
+
+    @Test
+    fun le_releve_ajoute_l_espece_choisie_parmi_les_proches_de_la_dictee() = runTest {
+        services.ajouterTaxRefEssai()
+        services.preferences.memoiserTaxon(Taxon.MAMMIFERE)
+        val session = vm { SessionSaisieViewModel(services) }
+        val releve = vm { SaisieReleveViewModel(services, session, OuvertureReleve(geometrie = GeometrieFinale("Point", null, 42.9, 1.6))) }
+        avancerJusqua { releve.vocabulaire().isNotEmpty() }
+        releve.dicter(listOf("écureuils"))
+        avancerJusqua { releve.champ.entendu != null }
+        assertTrue(releve.releve.especes.value.isEmpty(), "rien n'est ajouté sans choix")
+        val ecureuil = releve.suggestions.single()
+        assertEquals(61153, ecureuil.cdNom)
+        releve.choisirSuggestion(ecureuil)
+        assertEquals(listOf(61153), releve.releve.especes.value.map { it.cdNom })
+        assertNull(releve.champ.entendu)
+        assertEquals("", releve.texte, "le champ est vidé pour l'espèce suivante")
+    }
+
+    @Test
+    fun la_saisie_mono_pose_l_espece_reconnue_au_son_sous_son_nom() = runTest {
+        services.ajouterTaxRefEssai()
+        jeuParDefaut()
+        services.preferences.memoiserTaxon(Taxon.OISEAU)
+        val session = vm { SessionSaisieViewModel(services) }
+        val mono = vm { SaisieMonoViewModel(services, session, null) }
+        avancerJusqua { mono.vocabulaire().isNotEmpty() }
+        mono.dicter(listOf("pic et pêche"))
+        avancerJusqua { mono.champ.recherche.statut is TaxRefStatut.Trouve }
+        assertEquals(3611, (mono.champ.recherche.statut as TaxRefStatut.Trouve).cdNom)
+        assertEquals("Pic épeiche", mono.champ.texte, "le nom proposé, pas ce qui a été entendu")
     }
 
     /** Frappe trouvée ou refusée, choix d'une proposition, dictée, au relevé comme en saisie mono : le

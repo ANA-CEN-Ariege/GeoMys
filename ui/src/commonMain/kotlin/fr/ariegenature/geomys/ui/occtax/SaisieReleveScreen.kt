@@ -133,6 +133,7 @@ fun SaisieReleveScreen(
     )
     val especes by vm.releve.especes.collectAsState()
     val ligne by vm.recherche.ligne.collectAsState()
+    val profils by vm.profils.collectAsState()
 
     FondGeoMys {
         if (ios) {
@@ -163,6 +164,7 @@ fun SaisieReleveScreen(
                         ligne = ligne,
                         synchroEnCours = vm.synchroEnCours,
                         nomValide = vm.champ.nomValide,
+                        entendu = vm.champ.entendu,
                         dictee = dictee,
                         onMicro = { dictee.basculer(vm.vocabulaire()) },
                         modifier = Modifier.padding(horizontal = 16.dp),
@@ -174,7 +176,7 @@ fun SaisieReleveScreen(
                         // La DERNIÈRE espèce saisie en tête de liste.
                         val requis = vm.requis()
                         for (index in especes.indices.reversed()) {
-                            LigneEspece(especes[index], vm.nomScientifiqueSous(especes[index]), index, vm, requis)
+                            LigneEspece(especes[index], vm.nomScientifiqueSous(especes[index]), vm.avertissements(especes[index], profils), index, vm, requis)
                         }
                     }
                 }
@@ -212,14 +214,15 @@ fun SaisieReleveScreen(
                         ligne = ligne,
                         synchroEnCours = vm.synchroEnCours,
                         nomValide = vm.champ.nomValide,
+                        entendu = vm.champ.entendu,
                         dictee = dictee,
-                        onMicro = { dictee.basculer(emptyList()) },
+                        onMicro = { dictee.basculer(vm.vocabulaire()) },
                     )
                     Column(Modifier.padding(top = 16.dp)) {
                         // La DERNIÈRE espèce saisie en tête de liste.
                         val requis = vm.requis()
                         for (index in especes.indices.reversed()) {
-                            LigneEspece(especes[index], vm.nomScientifiqueSous(especes[index]), index, vm, requis)
+                            LigneEspece(especes[index], vm.nomScientifiqueSous(especes[index]), vm.avertissements(especes[index], profils), index, vm, requis)
                         }
                     }
                 }
@@ -316,7 +319,7 @@ internal fun BoutonDetailsIos(onClick: () -> Unit) {
  *  Un champ additionnel obligatoire vide ([requis]) : la barre rouge sur la ligne, et le « i » ou le
  *  « × N » qui y mène en rouge (21 octobre). */
 @Composable
-private fun LigneEspece(espece: EspeceReleve, sci: String?, index: Int, vm: SaisieReleveViewModel, requis: RequisEspece) {
+private fun LigneEspece(espece: EspeceReleve, sci: String?, avertissements: List<String>, index: Int, vm: SaisieReleveViewModel, requis: RequisEspece) {
     val caracterisation = requis.caracterisationIncomplete(espece)
     val denombrement = requis.denombrementIncomplet(espece)
     if (estIos) {
@@ -329,6 +332,7 @@ private fun LigneEspece(espece: EspeceReleve, sci: String?, index: Int, vm: Sais
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(espece.espece, fontSize = 15.sp, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (sci != null) Text(sci, fontSize = 13.sp, fontStyle = FontStyle.Italic, color = CouleursGeoMys.blanc70, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                AvertissementProfil(avertissements, Modifier.padding(top = 2.dp))
             }
             PastilleIos("× ${espece.total}", "Dénombrement", alerte = denombrement) { vm.ouvrirDenombrement(index) }
             PastilleIos("i", "Caractérisation", alerte = caracterisation) { vm.ouvrirCaracterisation(index) }
@@ -353,6 +357,7 @@ private fun LigneEspece(espece: EspeceReleve, sci: String?, index: Int, vm: Sais
                 if (sci != null) {
                     Text(sci, fontSize = 13.sp, fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+                AvertissementProfil(avertissements, Modifier.padding(top = 2.dp))
             }
             CompteurAndroid("× ${espece.total}", alerte = denombrement) { vm.ouvrirDenombrement(index) }
             BoutonLigneAndroid(Res.drawable.ic_info, "Détails", if (caracterisation) CouleursGeoMys.holoRougeFonce else Color.White, marge = 4) { vm.ouvrirCaracterisation(index) }

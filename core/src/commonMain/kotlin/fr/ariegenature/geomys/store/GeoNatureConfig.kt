@@ -364,6 +364,19 @@ class GeoNatureConfig(private val prefs: Settings, private val coffre: CoffreMot
         get() = prefs.getBoolean("gn_occtax_date_du_jour", true)
         set(v) = prefs.putBoolean("gn_occtax_date_du_jour", v)
 
+    /** Le serveur (son adresse) sans profils de taxons : le web n'y avertit pas (`FRONTEND.ENABLE_PROFILES`
+     *  à faux), ou aucun profil n'a répondu aux premières vérifications. Vide : à interroger. Cf.
+     *  [fr.ariegenature.geomys.occtax.DisponibiliteProfils]. */
+    var profilsAbsentsServeur: String
+        get() = prefs.getString("gn_profils_absents", "")
+        set(v) = prefs.putString("gn_profils_absents", v)
+
+    /** La recherche de profils sur un serveur : « adresse|trouve » dès qu'un profil a répondu, sinon
+     *  « adresse|cd_ref,cd_ref… », les taxons sans profil vus jusqu'ici. */
+    var profilsSondage: String
+        get() = prefs.getString("gn_profils_sondage", "")
+        set(v) = prefs.putString("gn_profils_sondage", v)
+
     /** Taille de page pour la pagination TaxRef (`settings.sync.page_size` du serveur). Défaut 1000. */
     var taxrefPageSize: Int
         get() = prefs.getInt("gn_taxref_page_size", 1000)

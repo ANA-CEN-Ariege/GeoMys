@@ -17,7 +17,8 @@
  */
 
 // Porté de GeoMys-IOS (UI/Saisie/DicteeVocale.swift, `vocabulaire` et `premiersMots`) : le vocabulaire
-// que la dictée d'iOS reçoit (`contextualStrings` de SFSpeechRecognizer). Android n'a pas d'équivalent.
+// que la dictée d'iOS reçoit (`contextualStrings` de SFSpeechRecognizer). Depuis le 23 octobre 2026, la
+// dictée d'Android le reçoit aussi (`EXTRA_BIASING_STRINGS`, Android 13 et plus).
 
 package fr.ariegenature.geomys.saisie
 

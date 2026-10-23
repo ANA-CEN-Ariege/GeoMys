@@ -31,12 +31,18 @@ import fr.ariegenature.geomys.ServicesGeoNature
 import fr.ariegenature.geomys.envoi.EnvoiGroupe
 import fr.ariegenature.geomys.gpx.TAILLE_MAX_GPX
 import fr.ariegenature.geomys.gpx.importerGPX
+import fr.ariegenature.geomys.model.Observation
 import fr.ariegenature.geomys.model.Sortie
 import fr.ariegenature.geomys.occtax.MesSaisies
 import fr.ariegenature.geomys.occtax.OngletMesSaisies
+import fr.ariegenature.geomys.occtax.TextesProfils
+import fr.ariegenature.geomys.occtax.VerificationProfil
 import fr.ariegenature.geomys.ui.composants.FichierChoisi
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -86,6 +92,36 @@ class MesSaisiesViewModel(private val services: ServicesGeoNature) : ViewModel()
     var echecEcritureImport by mutableStateOf(false)
         private set
 
+    /** Une saisie dont le serveur signale des données exceptionnelles, et ces données : l'envoi attend
+     *  « Envoyer quand même ». */
+    var confirmationExceptionnelles by mutableStateOf<Pair<Sortie, List<Pair<Observation, VerificationProfil>>>?>(null)
+        private set
+
+    /** Ce que la confirmation de « Tout envoyer » ajoute sur les données exceptionnelles. */
+    var complementToutEnvoyer by mutableStateOf("")
+        private set
+
+    // ─── Profils de taxons (« Donnée exceptionnelle ») ───
+
+    /** Les vérifications des profils de taxons, que l'écran suit. */
+    val profils: StateFlow<Map<String, VerificationProfil>> get() = services.profils.resultats
+
+    private var verificationProfils: Job? = null
+
+    /** Les données exceptionnelles de [sortie] d'après [resultats]. */
+    fun exceptionnelles(sortie: Sortie, resultats: Map<String, VerificationProfil>): List<Pair<Observation, VerificationProfil>> =
+        if (sortie.envoyeGeoNature) emptyList() else services.profils.exceptionnelles(sortie.observations, resultats)
+
+    /** À chaque entrée dans l'écran : les saisies à envoyer sont vérifiées en arrière-plan, celles
+     *  qui ne l'ont pas encore été (pas de réseau pendant la saisie, observation modifiée depuis). */
+    private fun verifierProfils(sorties: List<Sortie>) {
+        if (verificationProfils?.isActive == true) return
+        verificationProfils = viewModelScope.launch {
+            services.profils.oublierSauf(sorties.flatMap { s -> s.observations.map { it.id } }.toSet())
+            services.profils.verifier(MesSaisies.filtrer(sorties, OngletMesSaisies.A_ENVOYER).flatMap { it.observations })
+        }
+    }
+
     /** CRUVED C du module OCCTAX (détecté à la synchro, comme OccHab) : sans droit de création, le
      *  POST partirait en 403 — les boutons d'envoi sont masqués. */
     val envoiAutorise: Boolean get() = config.occtaxPeutCreer
@@ -99,6 +135,14 @@ class MesSaisiesViewModel(private val services: ServicesGeoNature) : ViewModel()
 
     fun rafraichir() {
         viewModelScope.launch { toutes = store.charger() }
+    }
+
+    /** L'entrée dans l'écran (et chaque retour) : la liste relue, puis les profils vérifiés. */
+    fun afficher() {
+        viewModelScope.launch {
+            toutes = store.charger()
+            verifierProfils(toutes)
+        }
     }
 
     fun choisirOnglet(choix: OngletMesSaisies) {
@@ -157,7 +201,8 @@ class MesSaisiesViewModel(private val services: ServicesGeoNature) : ViewModel()
     // ─── Envoi ───
 
     /** Envoie une seule sortie vers GeoNature (bouton « Envoyer » de la ligne). Marque la sortie
-     *  envoyée en cas de succès et rafraîchit. */
+     *  envoyée en cas de succès et rafraîchit. Des données exceptionnelles (profils de taxons) font
+     *  d'abord demander « Envoyer quand même ». */
     fun envoyer(sortie: Sortie) {
         if (envoiEnCours) {
             _messages.trySend(MessageBref(EnvoiGroupe.MESSAGE_DEJA_EN_COURS))
@@ -168,17 +213,48 @@ class MesSaisiesViewModel(private val services: ServicesGeoNature) : ViewModel()
             return
         }
         envoiEnCours = true
-        messageEnvoi = "Envoi de la saisie vers GeoNature…"
+        messageEnvoi = MESSAGE_VERIFICATION
         viewModelScope.launch {
-            try {
-                val res = services.envoiSortie.envoyerSortieVersGeoNature(sortie, config)
-                toutes = store.charger()
-                // « Envoi » : même titre de récap que Mes visites / Mes stations.
-                information = Information(if (res.succes) "Envoi" else "Erreur d'envoi", res.message)
-            } finally {
+            val exceptionnelles = try {
+                services.profils.avantEnvoi(sortie.observations)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                emptyList()
+            }
+            if (exceptionnelles.isNotEmpty()) {
                 envoiEnCours = false
                 messageEnvoi = null
+                confirmationExceptionnelles = sortie to exceptionnelles
+            } else {
+                lancerEnvoi(sortie)
             }
+        }
+    }
+
+    /** « Envoyer quand même » : la saisie part malgré les données exceptionnelles. */
+    fun envoyerQuandMeme() {
+        val sortie = confirmationExceptionnelles?.first ?: return
+        confirmationExceptionnelles = null
+        if (envoiEnCours) return
+        envoiEnCours = true
+        viewModelScope.launch { lancerEnvoi(sortie) }
+    }
+
+    fun annulerEnvoiExceptionnelles() {
+        confirmationExceptionnelles = null
+    }
+
+    private suspend fun lancerEnvoi(sortie: Sortie) {
+        messageEnvoi = "Envoi de la saisie vers GeoNature…"
+        try {
+            val res = services.envoiSortie.envoyerSortieVersGeoNature(sortie, config)
+            toutes = store.charger()
+            // « Envoi » : même titre de récap que Mes visites / Mes stations.
+            information = Information(if (res.succes) "Envoi" else "Erreur d'envoi", res.message)
+        } finally {
+            envoiEnCours = false
+            messageEnvoi = null
         }
     }
 
@@ -192,9 +268,19 @@ class MesSaisiesViewModel(private val services: ServicesGeoNature) : ViewModel()
             information = Information(EnvoiGroupe.TITRE_CONFIGURATION_REQUISE, EnvoiGroupe.MESSAGE_CONFIGURATION_REQUISE)
             return
         }
+        envoiEnCours = true
+        messageEnvoi = MESSAGE_VERIFICATION
         viewModelScope.launch {
-            val aEnvoyer = MesSaisies.envoyables(store.charger())
-            if (aEnvoyer.isNotEmpty()) confirmationToutEnvoyer = aEnvoyer
+            try {
+                val aEnvoyer = MesSaisies.envoyables(store.charger())
+                if (aEnvoyer.isEmpty()) return@launch
+                // Les données exceptionnelles s'ajoutent à la confirmation (profils de taxons).
+                complementToutEnvoyer = TextesProfils.complementToutEnvoyer(services.profils.avantEnvoi(aEnvoyer.flatMap { it.observations }))
+                confirmationToutEnvoyer = aEnvoyer
+            } finally {
+                envoiEnCours = false
+                messageEnvoi = null
+            }
         }
     }
 
@@ -251,6 +337,8 @@ class MesSaisiesViewModel(private val services: ServicesGeoNature) : ViewModel()
     }
 
     companion object {
+        /** Avant l'envoi, les profils de taxons des observations pas encore vérifiées. */
+        const val MESSAGE_VERIFICATION = "Vérification des données auprès de GeoNature…"
         const val ERREUR_IMPORT = "Erreur d'import"
         const val ERREUR_IMPORT_GPX =
             "Impossible de lire ce fichier GPX. Vérifiez qu'il contient un parcours ou des waypoints valides."

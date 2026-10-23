@@ -22,6 +22,7 @@ import fr.ariegenature.geomys.carte.CartesMbtiles
 import fr.ariegenature.geomys.carte.LecteurMbtilesSqlite
 import fr.ariegenature.geomys.location.LocationTracker
 import fr.ariegenature.geomys.network.AdditionalFieldsApi
+import fr.ariegenature.geomys.network.ApiProfilsGeoNature
 import fr.ariegenature.geomys.network.EnvoiOccHab
 import fr.ariegenature.geomys.network.EnvoiSortie
 import fr.ariegenature.geomys.network.GeoNatureAuth
@@ -44,6 +45,9 @@ import fr.ariegenature.geomys.network.SyncRunner
 import fr.ariegenature.geomys.network.TaxRefService
 import fr.ariegenature.geomys.network.VerificationConnexion
 import fr.ariegenature.geomys.occhab.altitudesMnt
+import fr.ariegenature.geomys.occtax.DisponibiliteProfils
+import fr.ariegenature.geomys.occtax.ProfilsStore
+import fr.ariegenature.geomys.occtax.ProfilsTaxons
 import fr.ariegenature.geomys.plateforme.exclureDesSauvegardes
 import fr.ariegenature.geomys.plateforme.rendreAuxSauvegardes
 import fr.ariegenature.geomys.store.CachesSynchronises
@@ -136,6 +140,16 @@ class ServicesGeoNature(val socle: Socle) {
     val occHabStore = OccHabStore(FichierAtomique(socle.systeme, fichiers / "occhab_store.json", "OccHabStore"))
     val outbox = OutboxMonitoring(FichierAtomique(socle.systeme, fichiers / "monitoring_outbox.json", "OutboxMonitoring"))
     val relevesOrphelins = RelevesOrphelins(socle.reglages.reglages("releves_orphelins"))
+
+    /** Les vérifications des observations OccTax auprès des profils de taxons du serveur
+     *  (« Donnée exceptionnelle » du web). */
+    val profils = ProfilsTaxons(
+        ProfilsStore(FichierAtomique(socle.systeme, fichiers / "profils_taxons.json", "ProfilsStore")),
+        ApiProfilsGeoNature(clients, config),
+        nomenclatures,
+        DisponibiliteProfils(config),
+    )
+
     /** Les photos et sons importés dans les saisies (`filesDir/medias/` de GeoMys-Android). */
     val dossierMedias = fichiers / "medias"
 

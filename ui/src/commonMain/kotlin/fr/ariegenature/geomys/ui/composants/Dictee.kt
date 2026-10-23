@@ -36,6 +36,10 @@ interface Dictee {
 
     /** Arrête l'écoute : une espèce vient d'être choisie à la main. */
     fun arreter()
+
+    /** Le champ vient d'être modifié à la main (effacé, retouché) : ce qui sera dicté ensuite le
+     *  remplace, sans reprendre ce qui avait été dit avant (constat du 23 octobre). */
+    fun texteModifie()
 }
 
 /** La dictée d'un écran. [onPartiel] reçoit la transcription en cours, [onFinal] les hypothèses

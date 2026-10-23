@@ -94,7 +94,8 @@ private val ORANGE_NON_TROUVE = Color(0xFFFF8800)
 
 /** Le champ espèce : [libelle] rappelle le groupe, les [suggestions] se déroulent dès un caractère,
  *  le micro lance la [dictee] ([onMicro]) ; la [ligne] de statut dit si le nom désigne un taxon, et
- *  donne son nom valide ([nomValide]) quand le serveur le demande, comme le web. */
+ *  donne son nom valide ([nomValide]) quand le serveur le demande, comme le web. Après une dictée non
+ *  reconnue, [entendu] est ce qui a été entendu, et les [suggestions] les espèces qui lui ressemblent. */
 @Composable
 fun ChampEspece(
     texte: String,
@@ -108,13 +109,25 @@ fun ChampEspece(
     onMicro: () -> Unit,
     modifier: Modifier = Modifier,
     nomValide: ((Int) -> String?)? = null,
+    entendu: String? = null,
 ) {
+    // Une frappe (texte effacé, retouché) : la dictée suivante remplace le champ au lieu de s'ajouter
+    // à ce qui avait été dit.
+    val frappe: (String) -> Unit = {
+        dictee.texteModifie()
+        onTexte(it)
+    }
     if (estIos) {
-        ChampEspeceIos(texte, onTexte, libelle, suggestions, onChoisir, ligne, synchroEnCours, dictee, onMicro, modifier, nomValide)
+        ChampEspeceIos(texte, frappe, libelle, suggestions, onChoisir, ligne, synchroEnCours, dictee, onMicro, modifier, nomValide, entendu)
     } else {
-        ChampEspeceAndroid(texte, onTexte, libelle, suggestions, onChoisir, ligne, synchroEnCours, onMicro, modifier, nomValide)
+        ChampEspeceAndroid(texte, frappe, libelle, suggestions, onChoisir, ligne, synchroEnCours, onMicro, modifier, nomValide, entendu)
     }
 }
+
+/** La ligne sous le champ après une dictée non reconnue (GeoMys-IOS) : ce qui est dans le champ n'est
+ *  pas une espèce mais ce qui a été ENTENDU ; les espèces sont dans la liste. */
+private fun texteEntendu(entendu: String, ios: Boolean): String =
+    "Entendu : « $entendu » — choisissez l'espèce " + if (ios) "ci-dessus" else "dans la liste"
 
 /** Texte de la ligne de statut (TaxRefLookupController de GeoMys-Android) ; un taxon trouvé montre
  *  son nom valide sous le libellé du web (« TAXREF - Nom valide ») quand [nomValide] est donné. */
@@ -144,11 +157,12 @@ private fun ChampEspeceAndroid(
     onMicro: () -> Unit,
     modifier: Modifier,
     nomValide: ((Int) -> String?)?,
+    entendu: String?,
 ) {
     var focalise by remember { mutableStateOf(false) }
     var ancre by remember { mutableStateOf<Rect?>(null) }
-    // Liste fermée (toucher dehors, retour) jusqu'à la frappe suivante.
-    var fermee by remember { mutableStateOf(false) }
+    // Liste fermée (toucher dehors, retour) jusqu'à la frappe suivante, ou la dictée suivante.
+    var fermee by remember(entendu) { mutableStateOf(false) }
     val (valeur, onValeur) = rememberValeurChamp(texte) {
         fermee = false
         onTexte(it)
@@ -176,7 +190,8 @@ private fun ChampEspeceAndroid(
             },
         )
         val zone = ancre
-        if (focalise && !fermee && texte.isNotEmpty() && suggestions.isNotEmpty() && zone != null) {
+        // Les espèces proches d'une dictée s'ouvrent d'elles-mêmes : le micro ne donne pas le focus au champ.
+        if ((focalise || entendu != null) && !fermee && texte.isNotEmpty() && suggestions.isNotEmpty() && zone != null) {
             PopupListeAndroid(zone, suggestions, onFermer = { fermee = true }) { suggestion ->
                 // item_suggestion_taxon : le nom, et dessous en italique le nom scientifique (le
                 // nom français en mode « noms scientifiques »).
@@ -203,7 +218,9 @@ private fun ChampEspeceAndroid(
         }
         if (ligne.roue) IndicateurActivite(CouleursGeoMys.orange, Modifier.padding(top = 4.dp), tailleAndroid = 24f)
         val statut = ligne.statut
-        if (ligne.texteVisible && statut != null) {
+        if (entendu != null) {
+            Text(texteEntendu(entendu, ios = false), fontSize = 13.sp, color = ORANGE_NON_TROUVE, modifier = Modifier.padding(top = 4.dp))
+        } else if (ligne.texteVisible && statut != null) {
             Text(
                 texteStatut(statut, synchroEnCours, ios = false, nomValide),
                 fontSize = 13.sp,
@@ -231,6 +248,7 @@ private fun ChampEspeceIos(
     onMicro: () -> Unit,
     modifier: Modifier,
     nomValide: ((Int) -> String?)?,
+    entendu: String?,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Column {
@@ -292,7 +310,17 @@ private fun ChampEspeceIos(
         }
         if (ligne.roue) IndicateurActivite(CouleursGeoMys.blanc70, petitIos = true)
         val statut = ligne.statut
-        if (ligne.texteVisible && statut != null) {
+        if (entendu != null) {
+            // L'oreille de GeoMys-IOS, en orange.
+            Row(
+                Modifier.padding(horizontal = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SymboleSf("ear", 12f, listOf(CouleursGeoMys.orange))
+                Text(texteEntendu(entendu, ios = true), fontSize = 12.sp, color = CouleursGeoMys.orange)
+            }
+        } else if (ligne.texteVisible && statut != null) {
             val (icone, couleur) = when (statut) {
                 is TaxRefStatut.Trouve -> "checkmark.circle.fill" to CouleursGeoMys.vert
                 TaxRefStatut.NonTrouve -> "xmark.circle.fill" to CouleursGeoMys.rougePastille

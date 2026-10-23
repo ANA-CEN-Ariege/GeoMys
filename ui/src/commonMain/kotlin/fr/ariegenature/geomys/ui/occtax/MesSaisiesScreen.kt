@@ -50,6 +50,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +69,7 @@ import fr.ariegenature.geomys.envoi.EnvoiGroupe
 import fr.ariegenature.geomys.model.Sortie
 import fr.ariegenature.geomys.occtax.MesSaisies
 import fr.ariegenature.geomys.occtax.OngletMesSaisies
+import fr.ariegenature.geomys.occtax.TextesProfils
 import fr.ariegenature.geomys.ui.composants.AlerteEchecEcriture
 import fr.ariegenature.geomys.ui.composants.BandeauNavigation
 import fr.ariegenature.geomys.ui.composants.BoutonAlerte
@@ -98,6 +101,9 @@ import org.jetbrains.compose.resources.painterResource
 /** android.R.color.holo_red_light : icône « Supprimer » des lignes. */
 private val HOLO_ROUGE_CLAIR = Color(0xFFFF4444)
 
+/** android.R.color.holo_orange_dark : données exceptionnelles. */
+private val ORANGE_ANDROID = Color(0xFFFF8800)
+
 /** ?attr/colorControlHighlight du thème sombre : filet sous la barre d'import. */
 private val SURBRILLANCE = Color(0x33FFFFFF)
 
@@ -112,9 +118,10 @@ fun MesSaisiesScreen(
     val toasts = LocalToasts.current
     LaunchedEffect(vm) { vm.messages.collect { toasts.afficher(it.texte, it.longue) } }
     LifecycleResumeEffect(vm) {
-        vm.rafraichir()
+        vm.afficher()
         onPauseOrDispose {}
     }
+    val profils by vm.profils.collectAsState()
     val selecteurGpx = rememberSelecteurGpx(TAILLE_MAX_IMPORT_GPX, vm::importer)
     val toutes = vm.toutes
     val sorties = vm.sorties
@@ -175,6 +182,7 @@ fun MesSaisiesScreen(
                     items(sorties, key = { it.id }) { sortie ->
                         LigneSortie(
                             sortie = sortie,
+                            nbExceptionnelles = vm.exceptionnelles(sortie, profils).size,
                             envoiAutorise = vm.envoiAutorise,
                             couleurSecondaire = couleurSecondaire,
                             onDetail = { onDetail(sortie.id) },
@@ -203,18 +211,29 @@ fun MesSaisiesScreen(
         DialogueAlerte(
             visible = aEnvoyer != null,
             titre = EnvoiGroupe.TITRE_CONFIRMATION,
-            message = aEnvoyer?.let { EnvoiGroupe.messageConfirmation(it.size) }.orEmpty(),
+            message = aEnvoyer?.let { EnvoiGroupe.messageConfirmation(it.size) + vm.complementToutEnvoyer }.orEmpty(),
             boutons = listOf(
                 BoutonAlerte(EnvoiGroupe.BOUTON_CONFIRMATION, action = vm::toutEnvoyer),
                 BoutonAlerte("Annuler", annulation = true, action = vm::annulerToutEnvoyer),
             ),
             onFermer = vm::annulerToutEnvoyer,
         )
+        val exceptionnelles = vm.confirmationExceptionnelles
+        DialogueAlerte(
+            visible = exceptionnelles != null,
+            titre = TextesProfils.TITRE_ENVOI,
+            message = exceptionnelles?.let { TextesProfils.messageEnvoi(it.second) }.orEmpty(),
+            boutons = listOf(
+                BoutonAlerte(TextesProfils.BOUTON_ENVOI, action = vm::envoyerQuandMeme),
+                BoutonAlerte("Annuler", annulation = true, action = vm::annulerEnvoiExceptionnelles),
+            ),
+            onFermer = vm::annulerEnvoiExceptionnelles,
+        )
         val especes = vm.especesDe
         DialogueElements(
             visible = especes != null,
             titre = especes?.let { MesSaisies.titreEspeces(MesSaisies.especesAgregees(it).size) }.orEmpty(),
-            lignes = especes?.let(MesSaisies::lignesEspeces).orEmpty(),
+            lignes = especes?.let { MesSaisies.lignesEspeces(it, TextesProfils.especes(vm.exceptionnelles(it, profils))) }.orEmpty(),
             onFermer = vm::fermerEspeces,
         )
         val info = vm.information
@@ -259,6 +278,7 @@ private fun ListeVide(message: String, couleur: Color, modifier: Modifier = Modi
 @Composable
 private fun LigneSortie(
     sortie: Sortie,
+    nbExceptionnelles: Int,
     envoiAutorise: Boolean,
     couleurSecondaire: Color,
     onDetail: () -> Unit,
@@ -309,6 +329,15 @@ private fun LigneSortie(
                     color = couleurErreur,
                     maxLines = if (ios) 1 else Int.MAX_VALUE,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = if (ios) Modifier else Modifier.padding(top = 4.dp),
+                )
+            }
+            if (nbExceptionnelles > 0) {
+                // Les profils de taxons du serveur : le détail est dans la liste des espèces.
+                Text(
+                    TextesProfils.ligneSaisie(nbExceptionnelles),
+                    fontSize = 12.sp,
+                    color = if (ios) CouleursGeoMys.orange else ORANGE_ANDROID,
                     modifier = if (ios) Modifier else Modifier.padding(top = 4.dp),
                 )
             }

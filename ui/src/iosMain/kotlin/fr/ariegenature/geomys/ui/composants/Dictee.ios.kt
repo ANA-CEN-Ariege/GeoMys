@@ -17,7 +17,9 @@
  */
 
 // Porté de GeoMys-IOS (UI/Saisie/DicteeVocale.swift) : SFSpeechRecognizer (fr-FR) et AVAudioEngine, la
-// transcription en direct poussée dans le champ, les hypothèses remises à la fin.
+// transcription en direct poussée dans le champ, les hypothèses remises à la fin. Propre au portage (23 octobre
+// 2026) : la fin de la phrase est décidée au silence, ou quand on recoupe le micro après avoir parlé ; la
+// reconnaissance d'iOS ne la signale pas, et les hypothèses n'arrivaient donc jamais.
 
 @file:OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 
@@ -61,8 +63,11 @@ import platform.Speech.SFSpeechRecognitionTaskHintSearch
 import platform.Speech.SFSpeechRecognizer
 import platform.Speech.SFSpeechRecognizerAuthorizationStatus
 import platform.Speech.SFTranscription
+import platform.darwin.DISPATCH_TIME_NOW
+import platform.darwin.dispatch_after
 import platform.darwin.dispatch_async
 import platform.darwin.dispatch_get_main_queue
+import platform.darwin.dispatch_time
 
 @Composable
 actual fun rememberDictee(
@@ -80,6 +85,14 @@ actual fun rememberDictee(
 
 /** Nombre d'hypothèses exploitées (EXTRA_MAX_RESULTS d'Android). */
 private const val MAX_HYPOTHESES = 5
+
+/** Attente du résultat final après la fermeture du micro (ms) ; au-delà, la transcription en tient lieu. */
+private const val DELAI_RESULTAT_FINAL = 2000L
+
+/** [action] sur la file principale, dans [delai] ms. */
+private fun apres(delai: Long, action: () -> Unit) {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, delai * 1_000_000), dispatch_get_main_queue(), action)
+}
 
 private class DicteeIos(
     private val onPartiel: (String) -> Unit,
@@ -100,6 +113,18 @@ private class DicteeIos(
     private var session = 0
     private var transcription = ""
 
+    /** Micro fermé en fin de phrase : la session attend son résultat final. */
+    private var cloture = false
+
+    /** L'écoute du micro (tap du moteur audio) est posée. */
+    private var tapPose = false
+
+    /** La phrase finie au silence : la reconnaissance d'iOS écoute jusqu'à ce qu'on l'arrête. */
+    private val finDePhrase = FinDePhrase(SILENCE_FIN_DE_PHRASE, ::apres) { terminer() }
+
+    /** Les noms soufflés à l'écoute en cours, pour la relancer à l'identique. */
+    private var vocabulaire: List<String> = emptyList()
+
     /** Réseau disponible, suivi en continu : il décide du modèle vocal. */
     private var reseau = true
     private val moniteur = nw_path_monitor_create().also { m ->
@@ -108,14 +133,30 @@ private class DicteeIos(
         nw_path_monitor_start(m)
     }
 
+    /** Le micro recoupé après avoir parlé finit la phrase (ses hypothèses sont cherchées) ; sans rien
+     *  d'entendu, il arrête l'écoute. */
     override fun basculer(vocabulaire: List<String>) {
-        if (enCours) arreter() else demarrer(vocabulaire, forcerSurLAppareil = null)
+        when {
+            !enCours -> demarrer(vocabulaire, forcerSurLAppareil = null)
+            transcription.isNotEmpty() -> terminer()
+            else -> arreter()
+        }
+    }
+
+    /** La reconnaissance d'iOS accumule la transcription pendant toute la session : le champ effacé
+     *  à la main, la phrase suivante y revenait derrière l'ancienne. La session est relancée, micro
+     *  toujours ouvert, et sa transcription repart de zéro. */
+    override fun texteModifie() {
+        if (!enCours || transcription.isEmpty()) return
+        arreter()
+        demarrer(vocabulaire, forcerSurLAppareil = null)
     }
 
     /** Autorisations de reconnaissance et de micro, puis écoute. [forcerSurLAppareil] n'est posé
      *  que par le repli automatique : une fois replié, on ne rebascule pas. */
     private fun demarrer(vocabulaire: List<String>, forcerSurLAppareil: Boolean?) {
         if (enCours) return
+        this.vocabulaire = vocabulaire
         SFSpeechRecognizer.requestAuthorization { statut ->
             dispatch_async(dispatch_get_main_queue()) {
                 if (statut != SFSpeechRecognizerAuthorizationStatus.SFSpeechRecognizerAuthorizationStatusAuthorized) {
@@ -166,6 +207,7 @@ private class DicteeIos(
         val noeud = moteur.inputNode
         val format = noeud.outputFormatForBus(0uL)
         noeud.installTapOnBus(0uL, 1024u, format) { tampon, _ -> if (tampon != null) req.appendAudioPCMBuffer(tampon) }
+        tapPose = true
         moteur.prepare()
         val erreurMoteur = memScoped {
             val e = alloc<ObjCObjectVar<NSError?>>()
@@ -173,7 +215,7 @@ private class DicteeIos(
         }
         if (erreurMoteur != null) {
             onErreur("Micro : ${erreurMoteur.localizedDescription}")
-            noeud.removeTapOnBus(0uL)
+            couperMicro()
             nettoyer()
             return
         }
@@ -196,6 +238,8 @@ private class DicteeIos(
                 if (texte != null) {
                     transcription = texte
                     if (texte.isNotEmpty()) onPartiel(texte)
+                    // La phrase continue : le silence qui la finira se compte à partir d'ici.
+                    if (texte.isNotEmpty() && !final && !cloture) finDePhrase.entendu()
                 }
                 // Le réseau a lâché sans rien transcrire : on rouvre le micro sur le modèle
                 // embarqué plutôt que d'abandonner (comme Android).
@@ -210,8 +254,28 @@ private class DicteeIos(
                 // Les hypothèses ne valent qu'au résultat FINAL : les partielles changent à chaque
                 // syllabe.
                 if (final && alternatives.isNotEmpty()) onFinal(alternatives)
+                // Phrase finie mais close sur une erreur : ce qui a été transcrit en tient lieu.
+                else if (erreur != null && cloture && transcription.isNotEmpty()) onFinal(listOf(transcription))
                 if (fini) arreter()
             }
+        }
+    }
+
+    /** Fin de la phrase (silence, ou micro recoupé après avoir parlé) : le micro se ferme, et la session
+     *  reste ouverte pour le résultat final et ses hypothèses. S'il ne vient pas, la transcription en
+     *  tient lieu. */
+    private fun terminer() {
+        if (!enCours || cloture) return
+        cloture = true
+        finDePhrase.oublier()
+        couperMicro()
+        requete?.endAudio()
+        val jeton = session
+        apres(DELAI_RESULTAT_FINAL) {
+            if (session != jeton) return@apres
+            val texte = transcription
+            arreter()
+            if (texte.isNotEmpty()) onFinal(listOf(texte))
         }
     }
 
@@ -220,11 +284,17 @@ private class DicteeIos(
         // La session est close AVANT de couper : `endAudio()` et `cancel()` font encore remonter un
         // résultat, qui ne doit plus rien déclencher.
         session += 1
-        moteur.stop()
-        moteur.inputNode.removeTapOnBus(0uL)
+        finDePhrase.oublier()
+        couperMicro()
         requete?.endAudio()
         tache?.cancel()
         nettoyer()
+    }
+
+    private fun couperMicro() {
+        moteur.stop()
+        if (tapPose) moteur.inputNode.removeTapOnBus(0uL)
+        tapPose = false
     }
 
     fun fermer() {
@@ -235,6 +305,7 @@ private class DicteeIos(
     private fun nettoyer() {
         requete = null
         tache = null
+        cloture = false
         enCours = false
         AVAudioSession.sharedInstance().setActive(false, AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation, null)
     }

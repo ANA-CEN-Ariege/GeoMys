@@ -525,3 +525,74 @@ Demande : « remplace toutes les références à GeoMys-Common par GeoMys. Le no
   - les fichiers déjà publiés (`GeoMysCommon-0.x.0.apk`), pour ne pas casser les liens de téléchargement ;
   - la carte MBTiles de test, dans ses métadonnées (fichier binaire d'essai) ;
   - le dossier local du projet.
+
+## 32. Dictée vocale : effacer puis redicter (23 octobre)
+
+Constat de l'utilisateur : « avec la dictée vocale, si j'efface la proposition et que je redicte, la nouvelle proposition est ajoutée à l'ancienne dans le champ ».
+
+- **La cause**, sous iOS : la reconnaissance accumule la transcription pendant toute la session d'écoute, et l'écoute reste ouverte après une phrase. Le champ effacé à la main, la phrase suivante y revenait derrière l'ancienne. GeoMys-IOS arrêtait la session au choix d'une espèce, comme GeoMys, mais pas à l'effacement.
+- **La correction** : toute modification du champ espèce à la main (effacer, retoucher) prévient la dictée (`Dictee.texteModifie`). Sous iOS, une écoute en cours qui a déjà transcrit quelque chose est relancée, micro ouvert, et sa transcription repart de zéro.
+- Sous Android, chaque écoute s'arrête d'elle-même à la fin de la phrase, et la suivante repart de zéro : rien à faire.
+- Test : `DicteeChampEspeceTest` (simulateur iOS, sous les deux allures) ; contre-épreuve faite.
+
+## 33. Dictée vocale : seulement les noms proposés (23 octobre)
+
+Constat de l'utilisateur : la reconnaissance vocale propose parfois des termes absents de TaxRef (« rouge-gorge », « psychorame » à la place de « tichodrome »). Question : « Est-il possible de rechercher uniquement dans la liste de noms dans TaxRef ? » Réponse à la proposition faite : « oui ».
+
+La reconnaissance du téléphone ne peut pas être enfermée dans une liste : elle rend toujours ce qu'elle a cru entendre. C'est donc l'appli qui ne garde, de ce qui a été entendu, que les noms proposés.
+
+- **Résolution par le son** (portée de GeoMys-IOS, `PhonetiqueFr` et `resoudreVocal`) : après le nom exact et les mots, la dictée compare les sons dans les propositions du périmètre (« pic et pêche » → Pic épeiche), puis l'orthographe approchée, puis quelques sons de travers selon la longueur du nom (« fauvettes mélano acéphale » → Fauvette mélanocéphale). Deux taxons aussi proches l'un que l'autre : rien n'est reconnu.
+  - Ajouts : « œ » et « æ » sont lus en deux lettres, et « ç » est lu « s ».
+  - Fichiers : `saisie/PhonetiqueFr.kt` et `saisie/IndexPhonetique.kt`.
+- **Espèces proches** : quand rien n'est reconnu, la liste déroulante montre les cinq espèces du périmètre qui ressemblent le plus à ce qui a été entendu (« psychorame » → Tichodrome échelette, « rouge-gorge » → Rougegorge familier). Le texte entendu n'est jamais pris pour une espèce.
+  - La ligne sous le champ dit « Entendu : « … » — choisissez l'espèce ci-dessus » (iOS, comme GeoMys-IOS) ou « … dans la liste » (Android), à la place de « Nom invalide ».
+  - Sous Android, la liste s'ouvre sans que le champ ait le focus.
+  - Une frappe, une autre dictée, un choix, un autre groupe ou la bascule des noms scientifiques effacent ces espèces.
+  - Le classement compare aussi les sons mot à mot et les mots collés ou séparés, ce que GeoMys-IOS ne faisait pas : « huppe » amène Huppe fasciée, « grand duc » Grand-duc d'Europe.
+- **Saisie mono** : une espèce reconnue à la dictée est posée sous son nom proposé, comme un choix dans la liste. Avant, le texte entendu restait dans le champ et était recherché de nouveau, à l'exact seulement : une espèce reconnue par les mots ou l'approché finissait en « Nom invalide ».
+- **Android** : la reconnaissance reçoit aussi les espèces proposées (`EXTRA_BIASING_STRINGS`, Android 13 et plus), comme iOS depuis le lot 6.
+- La fin de la dictée ne lance plus la recherche de la frappe sur le texte entendu, et annule celle des résultats partiels : son « Nom invalide » pouvait arriver après l'espèce reconnue (vu dans les tests, où l'interface n'a pas de fil à elle). Le statut du texte entendu n'est cherché que s'il n'est pas reconnu. Une recherche annulée arrête aussi sa roue.
+- Tests : `IndexPhonetiqueTest` (≈ 190 noms d'oiseaux) et `DicteeParLeSonTest` (socle), quatre cas dans `ChampEspeceReglesTest`, deux dans `DicteeChampEspeceTest` (simulateur iOS, deux allures). Contre-épreuves faites.
+
+Retour de l'utilisateur, le même jour, sur l'iPhone (micro du champ) : « quand je dis rougegorge, il me propose toujours rouge-gorge » ; le texte entendu restait dans le champ.
+
+- **La cause** : la reconnaissance d'iOS ne signale pas d'elle-même la fin d'une phrase, elle écoute jusqu'à ce qu'on l'arrête. Le résultat final, qui porte les hypothèses, n'arrivait donc jamais, et la recherche parmi les noms proposés ne se lançait pas : le champ gardait le texte provisoire. Recouper le micro arrêtait l'écoute en jetant ce résultat. C'est aussi ce qui faisait s'accumuler les phrases (§ 32). GeoMys-IOS avait le même défaut.
+- Le rejeu de « rouge-gorge », « rouge gorge » et « rougegorge » sur une copie du référentiel de l'A12 (oiseaux, liste 100) donne bien Rougegorge familier (cd_nom 4001) : la recherche n'était pas en cause.
+- **La correction** (`FinDePhrase`, `Dictee.ios.kt`) : 1,5 s sans nouveau mot finit la phrase. Le micro se ferme, et la session attend le résultat final et ses hypothèses (2 s au plus ; sinon la transcription en tient lieu). Recouper le micro après avoir parlé finit la phrase de la même façon ; sans rien d'entendu, il arrête l'écoute.
+- Sous Android, la reconnaissance finit la phrase d'elle-même : rien ne change.
+- Test : `FinDePhraseTest` ; contre-épreuve faite. Le reste se vérifie sur l'iPhone.
+
+## 34. « Donnée exceptionnelle » : les profils de taxons du serveur (23 octobre)
+
+Question de l'utilisateur : le serveur GeoNature avertit quand une espèce est saisie à un endroit ou à une période inhabituels ; est-ce possible sur le téléphone ? Sa proposition, retenue : « faire la vérification s'il y a du réseau, et s'il n'y en a pas au moment de la saisie, le faire à chaque fois qu'on entre dans "Mes saisies" pour avoir l'avertissement avant d'envoyer ».
+
+C'est une exception voulue à la règle « le cache seulement ». Elle ne bloque jamais la saisie : un réseau faible compte comme une absence de réseau.
+
+- **Ce que fait le web** : au choix d'une espèce, OccTax envoie au serveur le `cd_ref`, les dates, les altitudes et la géométrie du relevé, avec les stades de vie (`POST /gn_profiles/check_observation`). Le serveur les compare au profil du taxon, calculé sur les données validées. S'il y a un écart, l'encadré « Donnée exceptionnelle » liste ses phrases.
+- **Essai sur le serveur de l'utilisateur** :
+  - Il calcule des profils pour les espèces essayées. Les routes `gn_profiles`, `geo/altitude` et `taxhub/api/taxref/<cd_nom>` répondent sans connexion.
+  - Hirondelle rustique en janvier : « jamais observé à cette période ». Rougegorge à 3 000 m : altitude. À Paris : zone.
+  - Sans altitude, le serveur répond 400 ; pour un taxon sans profil, 404.
+- **Vérification** (`occtax/ProfilsTaxons.kt`, `network/ApiProfils.kt`) :
+  - Mêmes valeurs qu'à l'envoi : dates du relevé (ou de « Détails »), géométrie, altitudes saisies (une seule vaut pour les deux), sinon celles du MNT (une fois par relevé). Les stades de vie des dénombrements sont résolus comme à l'envoi.
+  - Le `cd_ref` est demandé à TaxHub, une fois par taxon : les profils sont rangés par `cd_ref`, l'appli ne garde que le `cd_nom`. 2 % des taxons du référentiel de l'A12 sont des synonymes, dont des fauvettes (Sylvia → Curruca).
+  - Résultat gardé par observation dans `profils_taxons.json`, avec une clé de ce qui a été vérifié : une observation modifiée (espèce, date, lieu, altitude, stade de vie) est revérifiée. Rien n'est gardé sans réponse : on retentera.
+  - Sans profil (404) ou invérifiable (400) : rien à signaler, comme sur le web. Les observations envoyées, les relevés sans espèce et les espèces non reconnues ne sont pas vérifiés.
+  - Les phrases du serveur ne servent qu'à savoir s'il y a un écart. Partout, l'appli affiche le texte voulu par l'utilisateur (même jour) : « Donnée exceptionnelle. Le taxon n'a jamais été observé dans cette zone et/ou à cette date ». « Donnée » est au singulier, comme le titre du web : l'avertissement porte sur une observation.
+- **Quand** :
+  - Pendant la saisie, 1,5 s après chaque changement des observations (`SessionSaisieViewModel`) ;
+  - à chaque entrée dans « Mes saisies », pour les saisies à envoyer ;
+  - avant chaque envoi (15 s au plus, puis l'envoi n'attend plus), depuis « Mes saisies » comme depuis le détail d'une saisie.
+- **Où** :
+  - Relevé : l'avertissement sous l'espèce.
+  - Saisie mono : sous le résumé, précédé de l'espèce, pour la dernière observation enregistrée, jusqu'au « + » suivant.
+  - « Mes saisies » : « ⚠ N donnée(s) exceptionnelle(s) » sur la saisie ; dans la liste des espèces (ici et dans le détail d'une saisie), l'espèce marquée ⚠ et l'avertissement dessous.
+  - Envoi : dialogue « Données exceptionnelles » (l'avertissement, puis une ligne par observation : espèce et date), « Envoyer quand même » ou « Annuler ». « Tout envoyer » ajoute ces lignes à sa confirmation.
+- OccTax seulement, comme le web : ni Suivis ni OccHab.
+- **Serveur sans profils** (demande du même jour : « ne plus faire de requêtes pour ce serveur tant qu'on n'en a pas changé ou rechargé les données ») : `DisponibiliteProfils`.
+  - Les routes `gn_profiles` existent sur tous les serveurs pris en charge (blueprint toujours enregistré). Un serveur « sans la fonctionnalité » est donc l'un des trois cas suivants :
+    - `FRONTEND.ENABLE_PROFILES` à faux dans `gn_commons/config`, lu à chaque « Recharger les données ». Le web n'interroge pas les profils dans ce cas, l'appli non plus : aucune requête.
+    - La route est introuvable (404 sans « No profile », 405) : reconnu à la première réponse.
+    - Aucun profil n'a été calculé : les 10 premiers taxons différents répondent tous « No profile ». Un seul profil trouvé écarte ce cas pour de bon.
+  - Le serveur est retenu par son adresse : un autre serveur dans les Paramètres est interrogé. « Recharger les données » repart de zéro.
+- Tests : `ProfilsTaxonsTest` (socle, serveur simulé) et `DonneesExceptionnellesTest` (relevé et « Mes saisies »). Contre-épreuves faites.

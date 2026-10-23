@@ -33,6 +33,7 @@ import fr.ariegenature.geomys.model.GeoNatureListe
 import fr.ariegenature.geomys.model.Taxon
 import fr.ariegenature.geomys.network.http.ClientsGeoNature
 import fr.ariegenature.geomys.network.http.get
+import fr.ariegenature.geomys.occtax.DisponibiliteProfils
 import fr.ariegenature.geomys.store.GeoNatureConfig
 import fr.ariegenature.geomys.store.NomenclatureCache
 import fr.ariegenature.geomys.store.NomValeur
@@ -665,10 +666,15 @@ class GeoNatureSync(
      *  filtre taxonomique des nomenclatures ; et les objets de permission des Suivis. Un échec garde le
      *  cache précédent : vidé, il montrait des champs que le serveur masque. */
     private suspend fun synchroniserConfigFormulaires(config: GeoNatureConfig, base: String, token: String?, cookies: String) {
+        // Profils de taxons (« Donnée exceptionnelle ») : chaque rechargement repart de zéro.
+        val profils = DisponibiliteProfils(config)
+        profils.recharger(actifs = true)
         try {
             val c = clients.get("$base/api/gn_commons/config", token, cookies, 10000)
             if (c.status.value != 200) return
             val configServeur = JSONObject(c.bodyAsText())
+            // Le web ne les interroge pas sans `FRONTEND.ENABLE_PROFILES` : l'appli non plus.
+            profils.recharger(actifs = configServeur.optJSONObject("FRONTEND")?.optBoolean("ENABLE_PROFILES", true) ?: true)
             config.nomenclaturesFiltreesParTaxon = configServeur.optBoolean("ENABLE_NOMENCLATURE_TAXONOMIC_FILTERS", true)
             val occtax = configServeur.optJSONObject("OCCTAX")
             config.formFieldsJson = occtax?.optJSONObject("form_fields")?.toString().orEmpty()

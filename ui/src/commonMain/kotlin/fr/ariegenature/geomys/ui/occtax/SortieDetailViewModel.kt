@@ -31,11 +31,16 @@ import fr.ariegenature.geomys.carte.FondChoisi
 import fr.ariegenature.geomys.carte.chargerFondChoisi
 import fr.ariegenature.geomys.carte.enregistrerFondChoisi
 import fr.ariegenature.geomys.gpx.genererGPX
+import fr.ariegenature.geomys.model.Observation
 import fr.ariegenature.geomys.model.Sortie
 import fr.ariegenature.geomys.occtax.AffichageSortie
 import fr.ariegenature.geomys.occtax.CadrageSortie
 import fr.ariegenature.geomys.occtax.ReleveAffiche
+import fr.ariegenature.geomys.occtax.TextesProfils
+import fr.ariegenature.geomys.occtax.VerificationProfil
 import fr.ariegenature.geomys.ui.composants.FichierAPartager
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 /** L'écran « Détail de la saisie » : la sortie sur la carte, la liste de ses espèces, son envoi et
@@ -122,20 +127,65 @@ class SortieDetailViewModel(private val services: ServicesGeoNature, private val
         )
     }
 
+    // ─── Profils de taxons (« Donnée exceptionnelle ») ───
+
+    /** Les vérifications des profils de taxons, que l'écran suit. */
+    val profils: StateFlow<Map<String, VerificationProfil>> get() = services.profils.resultats
+
+    /** Les espèces que le serveur signale, pour la liste des espèces. */
+    fun avertissementsParEspece(resultats: Map<String, VerificationProfil>): Set<String> {
+        val s = sortie ?: return emptySet()
+        if (s.envoyeGeoNature) return emptySet()
+        return TextesProfils.especes(services.profils.exceptionnelles(s.observations, resultats))
+    }
+
+    /** Les données exceptionnelles qui retiennent l'envoi jusqu'à « Envoyer quand même ». */
+    var confirmationExceptionnelles by mutableStateOf<List<Pair<Observation, VerificationProfil>>?>(null)
+        private set
+
     /** Envoi vers GeoNature, sous un voile : le bouton disparaît en cas de succès. Le résultat est
-     *  aussi écrit dans le store (« Mes saisies » le montre à la réouverture). */
+     *  aussi écrit dans le store (« Mes saisies » le montre à la réouverture). Des données
+     *  exceptionnelles font d'abord demander « Envoyer quand même ». */
     fun envoyer() {
         val s = sortie ?: return
         if (envoiEnCours) return
         envoiEnCours = true
         viewModelScope.launch {
-            try {
-                val res = services.envoiSortie.envoyerSortieVersGeoNature(s, services.config)
-                if (res.succes) boutonEnvoiVisible = false
-                information = Information(if (res.succes) "GeoNature" else "Erreur d'envoi", res.message)
-            } finally {
-                envoiEnCours = false
+            val exceptionnelles = try {
+                services.profils.avantEnvoi(s.observations)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                emptyList()
             }
+            if (exceptionnelles.isNotEmpty()) {
+                envoiEnCours = false
+                confirmationExceptionnelles = exceptionnelles
+            } else {
+                lancerEnvoi(s)
+            }
+        }
+    }
+
+    fun envoyerQuandMeme() {
+        val s = sortie ?: return
+        confirmationExceptionnelles = null
+        if (envoiEnCours) return
+        envoiEnCours = true
+        viewModelScope.launch { lancerEnvoi(s) }
+    }
+
+    fun annulerEnvoiExceptionnelles() {
+        confirmationExceptionnelles = null
+    }
+
+    private suspend fun lancerEnvoi(s: Sortie) {
+        try {
+            val res = services.envoiSortie.envoyerSortieVersGeoNature(s, services.config)
+            if (res.succes) boutonEnvoiVisible = false
+            information = Information(if (res.succes) "GeoNature" else "Erreur d'envoi", res.message)
+        } finally {
+            envoiEnCours = false
         }
     }
 }

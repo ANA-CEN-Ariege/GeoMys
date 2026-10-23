@@ -23,7 +23,9 @@ package fr.ariegenature.geomys.network
 
 import fr.ariegenature.geomys.TaxRefLocal
 import fr.ariegenature.geomys.model.Taxon
+import fr.ariegenature.geomys.saisie.IndexPhonetique
 import fr.ariegenature.geomys.store.GeoNatureConfig
+import fr.ariegenature.geomys.store.SuggestionTaxon
 import fr.ariegenature.geomys.store.TaxRefCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -114,19 +116,18 @@ class TaxRefService(private val taxRef: TaxRefCache, private val taxRefLocal: Ta
                     ?: taxRef.indexParTaxon(taxon)?.takeIf { it.isNotEmpty() }?.toHashSet()
             } else null
 
+            /** Une proposition du périmètre, avec le nom scientifique de son taxon. */
+            fun trouve(s: SuggestionTaxon): TaxRefStatut.Trouve {
+                val sci = taxRef.entreesParCdNom()[s.cdNom]?.sciNom.orEmpty()
+                return TaxRefStatut.Trouve(s.cdNom, sci.ifEmpty { s.nom }, if (scientifique) s.secondaire else s.nom)
+            }
+
             // 1. Résolution dans les PROPOSITIONS du périmètre : mêmes groupe, liste et mode
             // d'affichage que la liste déroulante — seuls les noms proposés sont acceptés.
             if (taxon != null) {
                 taxRefLocal
                     .resoudreDansPropositions(nom, taxon, scientifique, idListeFiltre)
-                    ?.let { s ->
-                        val sci = taxRef.entreesParCdNom()[s.cdNom]?.sciNom.orEmpty()
-                        return@withContext TaxRefStatut.Trouve(
-                            s.cdNom,
-                            sci.ifEmpty { s.nom },
-                            if (scientifique) s.secondaire else s.nom,
-                        )
-                    }
+                    ?.let { return@withContext trouve(it) }
             } else {
                 // Pas de groupe (chemin vocal générique, tests) : cache entier.
                 taxRef.get(nom, cdNomsAutorises)?.let { entry ->
@@ -136,8 +137,8 @@ class TaxRefService(private val taxRef: TaxRefCache, private val taxRefLocal: Ta
             }
 
             // 2. Recherche ÉTENDUE (chemin vocal) sur le cache local, en dernier recours.
-            //    Ordre : index par MOTS (déterministe, sans faux positif) AVANT l'APPROCHÉ
-            //    (Levenshtein, seul tier pouvant se tromper). Les deux filtrent par périmètre.
+            //    Ordre : index par MOTS (déterministe, sans faux positif), même SON, APPROCHÉ
+            //    (Levenshtein), puis son APPROCHÉ. Tous filtrent par périmètre.
             if (avecRechercheEtendue) {
                 // Ces deux niveaux balaient les clés du cache : le taxon retenu doit, lui aussi,
                 // faire partie des noms PROPOSÉS — sinon la dictée pourrait enregistrer un taxon
@@ -151,9 +152,22 @@ class TaxRefService(private val taxRef: TaxRefCache, private val taxRefLocal: Ta
                     val nomFr = e.nomFrOriginal ?: taxRef.getVernaculaireParCdNom(e.cdNom)
                     return@withContext TaxRefStatut.Trouve(e.cdNom, e.sciNom, nomFr)
                 }
+                // Le SON avant l'orthographe (GeoMys-IOS, `resoudreVocal`) : la dictée écrit ce
+                // qu'elle entend, et « pic et pêche » est à trois lettres de « pic épeiche » mais au
+                // même son. Dans les propositions du périmètre seulement ; l'ambiguïté rend null.
+                if (taxon != null) {
+                    taxRefLocal.resoudreParLeSon(nom, taxon, scientifique, idListeFiltre, tolerance = 0)
+                        ?.let { return@withContext trouve(it) }
+                }
                 taxRef.chercherApproche(norm, cdNomsAutorises)?.takeIf { accepte(it.cdNom) }?.let { e ->
                     val nomFr = e.nomFrOriginal ?: taxRef.getVernaculaireParCdNom(e.cdNom)
                     return@withContext TaxRefStatut.Trouve(e.cdNom, e.sciNom, nomFr)
+                }
+                // En dernier recours, quelques sons de travers, à la mesure du nom (« pouillot
+                // vélos » pour « Pouillot véloce »).
+                if (taxon != null) {
+                    taxRefLocal.resoudreParLeSon(nom, taxon, scientifique, idListeFiltre, IndexPhonetique.seuilSon(nom))
+                        ?.let { return@withContext trouve(it) }
                 }
             }
 

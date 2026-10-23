@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,6 +55,7 @@ import fr.ariegenature.geomys.geo.LatLon
 import fr.ariegenature.geomys.occtax.FormeReleve
 import fr.ariegenature.geomys.occtax.MesSaisies
 import fr.ariegenature.geomys.occtax.ReleveAffiche
+import fr.ariegenature.geomys.occtax.TextesProfils
 import fr.ariegenature.geomys.ui.carte.AttributionFond
 import fr.ariegenature.geomys.ui.carte.BoutonCarte
 import fr.ariegenature.geomys.ui.carte.BulleCarte
@@ -184,11 +186,23 @@ fun SortieDetailScreen(vm: SortieDetailViewModel, onAccueil: () -> Unit, onRetou
         }
 
         val sortie = vm.sortie
+        val profils by vm.profils.collectAsState()
         DialogueElements(
             visible = vm.especesVisibles,
             titre = sortie?.let { MesSaisies.titreEspeces(MesSaisies.especesAgregees(it).size) }.orEmpty(),
-            lignes = sortie?.let(MesSaisies::lignesEspeces).orEmpty(),
+            lignes = sortie?.let { MesSaisies.lignesEspeces(it, vm.avertissementsParEspece(profils)) }.orEmpty(),
             onFermer = vm::fermerEspeces,
+        )
+        val exceptionnelles = vm.confirmationExceptionnelles
+        DialogueAlerte(
+            visible = exceptionnelles != null,
+            titre = TextesProfils.TITRE_ENVOI,
+            message = exceptionnelles?.let(TextesProfils::messageEnvoi).orEmpty(),
+            boutons = listOf(
+                BoutonAlerte(TextesProfils.BOUTON_ENVOI, action = vm::envoyerQuandMeme),
+                BoutonAlerte("Annuler", annulation = true, action = vm::annulerEnvoiExceptionnelles),
+            ),
+            onFermer = vm::annulerEnvoiExceptionnelles,
         )
         DialogueChoixFond(vm.choixFondVisible, vm.fond, vm::choisirFond, vm::fermerChoixFond)
         val info = vm.information

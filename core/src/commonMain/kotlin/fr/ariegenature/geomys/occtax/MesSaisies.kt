@@ -106,6 +106,11 @@ object MesSaisies {
     /** « 3 espèces ». */
     fun titreEspeces(nombre: Int): String = "$nombre espèce${if (nombre > 1) "s" else ""}"
 
-    /** Lignes du récapitulatif des espèces : « Merle noir — 2 ind. ». */
-    fun lignesEspeces(sortie: Sortie): List<String> = especesAgregees(sortie).map { (espece, nombre) -> "$espece — $nombre ind." }
+    /** Lignes du récapitulatif des espèces : « Merle noir — 2 ind. ». Une espèce que le serveur
+     *  signale ([exceptionnelles], noms d'espèce) est marquée « ⚠ », l'avertissement en dessous. */
+    fun lignesEspeces(sortie: Sortie, exceptionnelles: Set<String> = emptySet()): List<String> =
+        especesAgregees(sortie).flatMap { (espece, nombre) ->
+            if (espece !in exceptionnelles) listOf("$espece — $nombre ind.")
+            else listOf("⚠ $espece — $nombre ind.", "      ${TextesProfils.MESSAGE}")
+        }
 }

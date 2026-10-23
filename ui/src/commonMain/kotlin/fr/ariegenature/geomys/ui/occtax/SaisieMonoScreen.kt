@@ -247,8 +247,9 @@ private fun EcranReglages(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
             ligne = ligne,
             synchroEnCours = champ.synchroEnCours,
             nomValide = champ.nomValide,
+            entendu = champ.entendu,
             dictee = dictee,
-            onMicro = { dictee.basculer(if (ios) vm.vocabulaire() else emptyList()) },
+            onMicro = { dictee.basculer(vm.vocabulaire()) },
             modifier = modifier,
         )
     }
@@ -510,6 +511,8 @@ private fun PanneauMono(vm: SaisieMonoViewModel, onEnregistrer: () -> Unit, modi
     val resume = remember(modele) { vm.saisie.resume() }
     val details = remember(modele) { vm.saisie.resumeDetails() }
     val confirmation = vm.confirmation
+    val profils by vm.profils.collectAsState()
+    val avertissement = vm.avertissementDerniere(profils)
     val gris = if (ios) CouleursGeoMys.blanc70 else MaterialTheme.colorScheme.onSurfaceVariant
     Column(
         modifier
@@ -577,6 +580,9 @@ private fun PanneauMono(vm: SaisieMonoViewModel, onEnregistrer: () -> Unit, modi
                     ) { Text("Modifier", style = styleLibelleMaterial(CouleursGeoMys.jauneClair, 12f)) }
                 }
             }
+        }
+        avertissement?.let { (espece, messages) ->
+            AvertissementProfil(messages, Modifier.padding(top = if (ios) 0.dp else 8.dp), espece = espece)
         }
         Row(Modifier.fillMaxWidth().padding(top = if (ios) 4.dp else 10.dp), verticalAlignment = Alignment.CenterVertically) {
             if (vm.compteur > 0) Text(SaisieMono.compteur(vm.compteur), fontSize = 13.sp, color = gris)

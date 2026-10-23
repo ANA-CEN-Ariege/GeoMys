@@ -24,6 +24,7 @@
 package fr.ariegenature.geomys
 
 import fr.ariegenature.geomys.model.Taxon
+import fr.ariegenature.geomys.saisie.IndexPhonetique
 import fr.ariegenature.geomys.store.NomenclatureCache
 import fr.ariegenature.geomys.store.SuggestionTaxon
 import fr.ariegenature.geomys.store.TaxRefCache
@@ -52,6 +53,10 @@ class TaxRefLocal(private val taxRef: TaxRefCache, private val nomenclatures: No
             // donc taper un nom partagé par deux taxons désigne le même que la 1ʳᵉ ligne.
             for ((cle, s) in normalisees) if (cle !in this) put(cle, s)
         }
+
+        /** Les mêmes, réduites à leurs sons, pour la dictée : calculé à la première dictée du
+         *  périmètre seulement. */
+        val phonetique: IndexPhonetique by lazy { IndexPhonetique(liste) }
     }
 
     /** (groupe, mode, liste, version du cache) → propositions. Les DERNIÈRES configurations sont
@@ -97,6 +102,25 @@ class TaxRefLocal(private val taxRef: TaxRefCache, private val nomenclatures: No
         for (cle in taxRef.variantesCle(nom)) index[cle]?.let { return it }
         return null
     }
+
+    /** Résolution par le SON dans les propositions du périmètre (chemin vocal), à [tolerance] sons
+     *  près ; deux taxons aussi proches l'un que l'autre : rien. */
+    fun resoudreParLeSon(
+        nom: String,
+        taxon: Taxon?,
+        scientifique: Boolean,
+        idListeFiltre: Int?,
+        tolerance: Int,
+    ): SuggestionTaxon? = propositions(taxon, scientifique, idListeFiltre).phonetique.memeSon(nom, tolerance)
+
+    /** Les propositions du périmètre qui ressemblent le plus à une dictée que la résolution n'a pas
+     *  reconnue ([hypotheses] de la reconnaissance), à montrer à la place du texte entendu. */
+    fun candidatsVocaux(
+        hypotheses: List<String>,
+        taxon: Taxon?,
+        scientifique: Boolean,
+        idListeFiltre: Int?,
+    ): List<SuggestionTaxon> = propositions(taxon, scientifique, idListeFiltre).phonetique.candidats(hypotheses)
 
     /** Propositions d'un périmètre AVEC leurs clés de recherche déjà normalisées — à donner tel
      *  quel à l'adapter d'autocomplétion, qui n'a donc plus rien à recalculer. */

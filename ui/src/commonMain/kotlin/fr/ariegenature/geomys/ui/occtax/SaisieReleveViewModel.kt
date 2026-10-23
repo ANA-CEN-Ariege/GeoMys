@@ -37,12 +37,14 @@ import fr.ariegenature.geomys.occtax.EspeceReleve
 import fr.ariegenature.geomys.occtax.OuvertureReleve
 import fr.ariegenature.geomys.occtax.ReleveEnCours
 import fr.ariegenature.geomys.occtax.RequisEspece
+import fr.ariegenature.geomys.occtax.VerificationProfil
 import fr.ariegenature.geomys.occtax.libelleChampEspece
 import fr.ariegenature.geomys.store.NidificationOiseaux
 import fr.ariegenature.geomys.store.SuggestionTaxon
 import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.util.moisCourant
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
@@ -90,6 +92,17 @@ class SaisieReleveViewModel(
     val libelleChamp: String get() = champ.libelleChamp
     val synchroEnCours: Boolean get() = champ.synchroEnCours
 
+    /** Les vérifications des profils de taxons, que l'écran suit pour [avertissements]. */
+    val profils: StateFlow<Map<String, VerificationProfil>> get() = services.profils.resultats
+
+    /** « Donnée exceptionnelle » : ce que le serveur signale pour [espece] d'après [resultats], vide
+     *  s'il n'y a rien (ou pas encore de vérification). */
+    fun avertissements(espece: EspeceReleve, resultats: Map<String, VerificationProfil>): List<String> {
+        val groupe = session.observations.value.filter { it.releveId == releve.releveId }
+        val obs = groupe.firstOrNull { it.id == (espece.existingId ?: espece.vmId) } ?: return emptyList()
+        return services.profils.resultat(obs, groupe, resultats)?.messages.orEmpty()
+    }
+
     /** Nom scientifique à montrer sous l'espèce : seulement s'il diffère du nom affiché (un nom
      *  français a été choisi). */
     fun nomScientifiqueSous(espece: EspeceReleve): String? =
@@ -121,18 +134,12 @@ class SaisieReleveViewModel(
     }
 
     /** Fin de la dictée : la première hypothèse dans le champ, puis TOUTES essayées contre TaxRef
-     *  (recherche étendue) ; reconnue, l'espèce est ajoutée, sinon le champ dit « Nom invalide ». */
+     *  (recherche étendue) ; reconnue, l'espèce est ajoutée, sinon la liste montre les espèces qui
+     *  ressemblent à ce qui a été entendu ([EtatChampEspece.dicter]). */
     fun dicter(candidats: List<String>) {
-        saisir(candidats.first())
-        viewModelScope.launch {
-            val (statut, _) = services.taxRefService.rechercherParmiCandidats(candidats, taxon, champ.listeTaxons, nomScientifique)
-            if (statut is TaxRefStatut.Trouve) {
-                // Le premier nom français du taxon, sinon son nom scientifique.
-                val nomFrancais = statut.nomFrancais?.split(",")?.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() }
-                ajouter(nomFrancais ?: statut.nomScientifique, statut.cdNom)
-            } else {
-                recherche.rechercher(texte)
-            }
+        champ.dicter(candidats) { statut ->
+            // Le premier nom français du taxon, sinon son nom scientifique.
+            ajouter(premierNomFrancais(statut) ?: statut.nomScientifique, statut.cdNom)
         }
     }
 
@@ -224,7 +231,7 @@ class SaisieReleveViewModel(
         _evenements.trySend(EvenementReleve.Termine)
     }
 
-    /** Les noms soufflés à la dictée d'iOS : les espèces proposées ici. */
+    /** Les noms soufflés à la dictée : les espèces proposées ici. */
     fun vocabulaire(): List<String> = champ.vocabulaire()
 
     override fun onCleared() {

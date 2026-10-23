@@ -125,8 +125,10 @@ class RechercheTaxRef(
         afficher(if (pasDeDonnees) _ligne.value.statut else null)
     }
 
+    /** Annule la recherche en cours ; sa roue, si elle tournait, s'arrête avec elle. */
     fun annuler() {
         job?.cancel()
+        _ligne.update { it.copy(roue = false) }
     }
 
     /** updateUI d'Android : un statut montre sa ligne (la roue reste comme elle est) ; aucun

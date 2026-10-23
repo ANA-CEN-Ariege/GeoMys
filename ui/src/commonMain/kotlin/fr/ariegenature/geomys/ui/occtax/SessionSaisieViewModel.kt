@@ -25,11 +25,25 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import fr.ariegenature.geomys.ServicesGeoNature
 import fr.ariegenature.geomys.occtax.SessionSaisieOcctax
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.launch
 
 /** La session de saisie OccTax ([SessionSaisieOcctax]), partagée par la carte, les relevés, les
  *  dénombrements, la caractérisation et la liste des observations. */
+@OptIn(FlowPreview::class)
 class SessionSaisieViewModel(private val services: ServicesGeoNature) : ViewModel() {
     val session = SessionSaisieOcctax(services.sortieStore, services.locationTracker, viewModelScope)
+
+    init {
+        // « Donnée exceptionnelle » (demande du 23 octobre 2026) : les observations de la saisie sont
+        // vérifiées auprès des profils de taxons du serveur dès qu'elles changent, en arrière-plan ;
+        // sans réseau, « Mes saisies » et l'envoi s'en chargeront.
+        viewModelScope.launch {
+            session.observations.debounce(DELAI_VERIFICATION_PROFILS).collectLatest { services.profils.verifier(it) }
+        }
+    }
 
     /** Un relevé multi-taxons vient d'être enregistré avec au moins une espèce : au retour, la
      *  carte enchaîne sur le positionnement du relevé suivant (`demarrerSaisieSuivante`). */
@@ -46,5 +60,10 @@ class SessionSaisieViewModel(private val services: ServicesGeoNature) : ViewMode
 
     override fun onCleared() {
         session.fermer()
+    }
+
+    private companion object {
+        /** La saisie se pose (espèce choisie, dénombrement fait) avant d'être vérifiée (ms). */
+        const val DELAI_VERIFICATION_PROFILS = 1500L
     }
 }

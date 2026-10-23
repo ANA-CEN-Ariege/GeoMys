@@ -26,6 +26,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.os.Build
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -77,8 +78,12 @@ private class DicteeAndroid(
     var demanderMicro: () -> Unit = {}
     private var reconnaissance: SpeechRecognizer? = null
 
+    /** Les espèces proposées, soufflées à la reconnaissance (gardées le temps de demander le micro). */
+    private var vocabulaire: List<String> = emptyList()
+
     /** Le micro relance toujours une écoute (rien ne l'arrête à la main). */
     override fun basculer(vocabulaire: List<String>) {
+        this.vocabulaire = vocabulaire
         if (!SpeechRecognizer.isRecognitionAvailable(contexte)) {
             onErreur("Reconnaissance vocale non disponible", false)
             return
@@ -92,6 +97,10 @@ private class DicteeAndroid(
 
     /** Choisir une espèce n'arrête pas la reconnaissance, qui s'arrête d'elle-même. */
     override fun arreter() {}
+
+    /** Rien à faire : chaque écoute s'arrête d'elle-même à la fin de la phrase, et la suivante,
+     *  relancée par le micro, repart de zéro. */
+    override fun texteModifie() {}
 
     /** Hors couverture (zone blanche), la reconnaissance EMBARQUÉE (modèle vocal hors ligne du
      *  téléphone) ; en couverture, en ligne (plus précise sur les noms d'espèces). [forcerHorsLigne]
@@ -162,6 +171,11 @@ private class DicteeAndroid(
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, horsLigne)
+                // Android 13 et plus : la reconnaissance penche vers les espèces proposées, comme les
+                // `contextualStrings` d'iOS. Une reconnaissance qui l'ignore n'en est pas gênée.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && vocabulaire.isNotEmpty()) {
+                    putStringArrayListExtra(RecognizerIntent.EXTRA_BIASING_STRINGS, ArrayList(vocabulaire))
+                }
             })
         }
     }
