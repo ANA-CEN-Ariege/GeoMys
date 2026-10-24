@@ -88,11 +88,21 @@ class OutboxMonitoringTest {
     }
 
     @Test
-    fun purger_sent_ne_garde_que_les_non_envoyees() = runTest {
+    fun retirer_une_envoyee_emporte_ses_descendants_envoyes() = runTest {
         outbox.ajouter(saisie("a", etat = SaisieEnAttente.Etat.SENT))
-        outbox.ajouter(saisie("b", etat = SaisieEnAttente.Etat.PENDING))
-        outbox.purgerSent()
-        assertEquals(listOf("b"), outbox.tout().map { it.uuid })
+        outbox.ajouter(saisie("b", parent = "a", etat = SaisieEnAttente.Etat.SENT))
+        outbox.ajouter(saisie("c", parent = "b", etat = SaisieEnAttente.Etat.SENT))
+        outbox.ajouter(saisie("autre", etat = SaisieEnAttente.Etat.SENT))
+        assertEquals(3, outbox.retirerEnvoyee("a"))
+        assertEquals(listOf("autre"), outbox.tout().map { it.uuid })
+    }
+
+    @Test
+    fun retirer_une_envoyee_dont_un_descendant_reste_a_envoyer_ne_retire_rien() = runTest {
+        outbox.ajouter(saisie("a", etat = SaisieEnAttente.Etat.SENT))
+        outbox.ajouter(saisie("b", parent = "a", etat = SaisieEnAttente.Etat.ERROR))
+        assertEquals(0, outbox.retirerEnvoyee("a"))
+        assertEquals(listOf("a", "b"), outbox.tout().map { it.uuid })
     }
 
     @Test

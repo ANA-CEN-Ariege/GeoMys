@@ -36,8 +36,8 @@ import kotlin.test.assertTrue
  * données ont été envoyées » alors qu'une observation naturaliste n'était jamais partie, et
  * l'onglet annonçait « À envoyer (0) » au-dessus d'une liste non vide.
  *
- * Cet état n'a rien d'hypothétique : `OutboxMonitoring.purgerSent` conserve délibérément un parent
- * SENT tant qu'un enfant non envoyé le référence, et l'écran sait d'ailleurs l'afficher sous
+ * Cet état n'a rien d'hypothétique : une visite envoyée garde dans la file ses observations restées
+ * en échec, et l'écran sait d'ailleurs l'afficher sous
  * « Visite déjà envoyée ». Croyant tout transmis, l'utilisateur pouvait vider le cache, changer de
  * compte ou réinstaller : donnée perdue.
  */

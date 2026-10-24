@@ -613,3 +613,13 @@ L'interface est dessinée par Compose, et les effets d'iOS ne s'appliquent d'eux
 - Rien ne change sous Android (allure de GeoMys-Android, sans transparence).
 - Test : `FlouArrierePlanTest` (simulateur iOS). Une frontière rouge/bleu sous le menu doit y paraître mélangée, et à sa place. Contre-épreuves faites, sans flou et sans recalage. Le matériau natif de la boussole se vérifie sur l'iPhone.
 
+## 36. Les visites envoyées restent sous « Envoyées » (24 octobre)
+
+Remarque de l'utilisateur : « dans mes visites, quand j'envoie une visite etc, elle ne se retrouve pas dans "Envoyées" ».
+
+- Cause : à la fin de chaque envoi, `OutboxEnvoi` purgeait les saisies envoyées de la file (`purgerSent`, porté de GeoMys-Android ; GeoMys-IOS fait de même). L'onglet « Envoyées » de « Mes visites » ne montrait donc jamais rien. Un groupe dont une observation restait à envoyer était gardé, mais il restait sous « À envoyer ».
+- Correctif : la purge est retirée. Une visite envoyée reste dans la file, avec ses observations, et passe sous « Envoyées » quand tout son groupe est parti, comme dans « Mes saisies » (OccTax) et « Mes stations » (OccHab). Le compteur de l'accueil ne compte toujours que ce qui reste à envoyer.
+- « Retirer de la liste » emporte maintenant la saisie envoyée **et ses descendants** (`OutboxMonitoring.retirerEnvoyee`). L'action n'est proposée, et n'agit, que si tout le groupe est parti : une observation à envoyer a besoin de sa visite locale, qui porte sa clé et son groupe.
+- Les photos d'une visite envoyée restent sur le téléphone jusqu'à ce qu'elle soit retirée de la liste, comme pour OccTax.
+- Les visites déjà envoyées avant ce correctif ont été purgées : elles n'apparaîtront pas.
+- Tests : `OutboxEnvoiTest` (une visite et son observation envoyées apparaissent sous « Envoyées », l'une sous l'autre ; les autres tests vérifient désormais l'état envoyé au lieu d'une file vide), `OutboxMonitoringTest` et `MesVisitesTest` (le retrait et sa garde). Contre-épreuves faites : purge remise, retrait sans garde, retrait sans les descendants, option proposée sans garde.

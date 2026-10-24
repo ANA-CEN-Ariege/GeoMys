@@ -190,7 +190,7 @@ class OutboxEnvoi(
                         val parent = outbox.tout().firstOrNull { it.uuid == saisie.parentUuidLocal }
                         // NB : parentUuidLocal est CONSERVÉ après résolution de la clé étrangère —
                         // c'est lui qui groupe visuellement les obs sous leur visite dans « Mes
-                        // visites » et qui protège le parent SENT de la purge tant qu'il reste des
+                        // visites » et qui empêche de retirer le parent SENT tant qu'il reste des
                         // obs à envoyer.
                         when {
                             // Clé déjà résolue (envoi précédent) : l'enfant est envoyable tel quel.
@@ -283,8 +283,8 @@ class OutboxEnvoi(
                         reporterDansLeCache(saisieAJour, envoi.idServeur)
                         // Résout la clé de TOUS les enfants pointant ce parent local — y compris ceux
                         // qui ne sont pas traités dans cet envoi (ex. en erreur d'un envoi précédent).
-                        // parentUuidLocal est conservé : il porte le groupement visuel et protège le
-                        // parent de la purge tant qu'un enfant reste.
+                        // parentUuidLocal est conservé : il porte le groupement visuel et empêche de
+                        // retirer le parent tant qu'un enfant reste.
                         if (envoi.idServeur > 0) {
                             outbox.tout()
                                 .filter { it.parentUuidLocal == saisie.uuid }
@@ -340,10 +340,9 @@ class OutboxEnvoi(
                     progression(envoyees, total, "")
                 }
             }
-            // Nettoyage final : purge les saisies SENT pour libérer la liste. Les enfants qui
-            // pointaient vers ces parents locaux ont déjà résolu leur parentIdServeur au tour
-            // précédent, donc plus besoin de garder l'entrée parent.
-            outbox.purgerSent()
+            // Les saisies SENT restent dans la file : « Mes visites » les montre sous « Envoyées »
+            // jusqu'à ce que l'utilisateur les retire (demande terrain du 24 octobre 2026 ; la
+            // purge de GeoMys-Android laissait cet onglet toujours vide).
             // Les « à compléter » écartées comptent comme des échecs : le récapitulatif doit dire que
             // tout n'est pas parti (leurs libellés sont déjà dans `messages`).
             Resultat(succes, echecs + aCompleter.size, messages)

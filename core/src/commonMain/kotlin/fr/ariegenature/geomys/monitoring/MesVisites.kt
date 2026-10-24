@@ -43,8 +43,8 @@ data class ResumeOutbox(val texte: String, val nbAEnvoyer: Int, val nbEnvoyees: 
  *    2026-09-03).
  * 2. Mais les COMPTEURS et la phrase « tout a été envoyé » doivent porter sur TOUT ce qui reste.
  *    Ils ne portaient que sur les visites : une observation PENDING ou ERROR sous une visite déjà
- *    SENT — un état qui existe bel et bien (`OutboxMonitoring.purgerSent` conserve un parent SENT
- *    référencé par un enfant non envoyé, et cet écran l'affiche sous « Visite déjà envoyée ») —
+ *    SENT — un état qui existe bel et bien (une visite envoyée garde dans la file ses
+ *    observations restées en échec, et cet écran l'affiche sous « Visite déjà envoyée ») —
  *    n'était comptée nulle part. L'écran affirmait « Toutes les données ont été envoyées » alors
  *    qu'une observation naturaliste n'était jamais partie, et l'onglet annonçait « À envoyer (0) »
  *    au-dessus d'une liste non vide. L'utilisateur pouvait alors vider le cache, changer de compte
@@ -343,14 +343,15 @@ object MesVisites {
     /** Une visite déjà envoyée garde sa flèche tant qu'une de ses observations reste à envoyer. */
     fun aDescendantsAEnvoyer(s: SaisieEnAttente, toutes: List<SaisieEnAttente>): Boolean = descendants(s, toutes).any(::resteAEnvoyer)
 
-    /** Les actions du menu d'une ligne. « Envoyer ce groupe » seulement pour une saisie encore à
-     *  envoyer qui a des enfants locaux : pour une saisie seule, il n'apporte rien sur « Tout
-     *  envoyer ». */
-    fun options(s: SaisieEnAttente, nbEnfants: Int, envoiAutorise: Boolean, cache: CacheSuivis): List<OptionSaisie> = buildList {
+    /** Les actions du menu d'une ligne, selon ses [descendants] locaux. « Envoyer ce groupe »
+     *  seulement pour une saisie encore à envoyer qui a des enfants locaux : pour une saisie seule, il
+     *  n'apporte rien sur « Tout envoyer ». « Retirer de la liste » (elle et ses descendants)
+     *  seulement quand tout est parti : un enfant à envoyer a besoin de son parent local. */
+    fun options(s: SaisieEnAttente, descendants: List<SaisieEnAttente>, envoiAutorise: Boolean, cache: CacheSuivis): List<OptionSaisie> = buildList {
         if (s.etat == SaisieEnAttente.Etat.ERROR) add(OptionSaisie.Reessayer)
-        if (nbEnfants > 0 && envoiAutorise && resteAEnvoyer(s)) add(OptionSaisie.EnvoyerGroupe(nbEnfants + 1))
+        if (descendants.isNotEmpty() && envoiAutorise && resteAEnvoyer(s)) add(OptionSaisie.EnvoyerGroupe(descendants.size + 1))
         if (s.etat != SaisieEnAttente.Etat.SENT) add(OptionSaisie.Supprimer("Supprimer ${ceTypeDe(s, cache)}"))
-        if (s.etat == SaisieEnAttente.Etat.SENT) add(OptionSaisie.Retirer)
+        if (s.etat == SaisieEnAttente.Etat.SENT && descendants.none(::resteAEnvoyer)) add(OptionSaisie.Retirer)
     }
 
     /** Le fil d'Ariane du formulaire d'une saisie rouverte depuis « Mes visites » : le protocole,

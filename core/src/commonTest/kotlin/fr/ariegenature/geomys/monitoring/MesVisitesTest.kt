@@ -99,14 +99,23 @@ class MesVisitesTest {
         val visite = saisie("v1", Etat.ERROR)
         assertEquals(
             listOf("Réessayer", "Envoyer ce groupe (3 données)", "Supprimer cette visite"),
-            MesVisites.options(visite, nbEnfants = 2, envoiAutorise = true, cache = cache).map { it.libelle },
+            MesVisites.options(visite, listOf(saisie("o1"), saisie("o2")), envoiAutorise = true, cache = cache).map { it.libelle },
         )
-        assertEquals(listOf("Retirer de la liste"), MesVisites.options(saisie("v2", Etat.SENT), 0, true, cache).map { it.libelle })
+        assertEquals(listOf("Retirer de la liste"), MesVisites.options(saisie("v2", Etat.SENT), emptyList(), true, cache).map { it.libelle })
         val passage = saisie("p1", objectType = "passage")
         assertEquals("Supprimer ce passage ?", MesVisites.titreSuppression(passage, cache))
         assertTrue(MesVisites.messageSuppression(passage, 2, cache).startsWith("Ce passage a 2 donnée(s) locale(s)"))
         assertTrue(MesVisites.messageSuppression(passage, 2, cache).endsWith("Supprimer le passage ET ses 2 enfant(s) ?"))
-        assertEquals("Supprimer cette observation", MesVisites.options(saisie("o1", objectType = "observation"), 0, true, cache).single().libelle)
+        assertEquals("Supprimer cette observation", MesVisites.options(saisie("o1", objectType = "observation"), emptyList(), true, cache).single().libelle)
+    }
+
+    @Test
+    fun une_visite_envoyee_ne_se_retire_que_lorsque_ses_observations_sont_parties() {
+        val visite = saisie("v1", Etat.SENT)
+        val envoyee = saisie("o1", Etat.SENT, "observation", parentLocal = "v1")
+        val enEchec = saisie("o2", Etat.ERROR, "observation", parentLocal = "v1")
+        assertEquals(listOf("Retirer de la liste"), MesVisites.options(visite, listOf(envoyee), true, cache).map { it.libelle })
+        assertTrue(MesVisites.options(visite, listOf(envoyee, enEchec), true, cache).isEmpty(), "l'obs en échec a besoin de sa visite")
     }
 
     @Test

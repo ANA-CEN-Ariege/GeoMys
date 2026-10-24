@@ -26,6 +26,10 @@ package fr.ariegenature.geomys.network
 import fr.ariegenature.geomys.ServicesDeTest
 import fr.ariegenature.geomys.json.JSONObject
 import fr.ariegenature.geomys.model.SaisieEnAttente
+import fr.ariegenature.geomys.monitoring.ItemMesVisites
+import fr.ariegenature.geomys.monitoring.MesVisites
+import fr.ariegenature.geomys.monitoring.OngletMesVisites
+import fr.ariegenature.geomys.monitoring.cacheSuivis
 import fr.ariegenature.geomys.network.ServeurSimule.Companion.champMultipart
 import fr.ariegenature.geomys.network.ServeurSimule.Companion.json
 import fr.ariegenature.geomys.network.ServeurSimule.Companion.statut
@@ -167,6 +171,12 @@ class OutboxEnvoiTest {
 
     private suspend fun envoyerTout(): OutboxEnvoi.Resultat = t.services.outboxEnvoi.envoyerTout(config) { _, _, _ -> }
 
+    /** Toute la file est partie : chaque saisie y reste, envoyée, pour l'onglet « Envoyées ». */
+    private suspend fun assertToutEnvoye(message: String) {
+        val file = outbox.tout()
+        assertTrue(file.isNotEmpty() && file.all { it.etat == SaisieEnAttente.Etat.SENT }, "$message : $file")
+    }
+
     // ── Report dans le cache ───────────────────────────────────────────────────────
 
     /** Propre au portage (décision de l'utilisateur du 20 octobre) : les écrans ne lisent que le cache,
@@ -191,6 +201,24 @@ class OutboxEnvoiTest {
         assertEquals(listOf(42), visite.enfants.getValue("visite").map { it.id })
     }
 
+    // ── Onglet « Envoyées » ───────────────────────────────────────────────────────
+
+    /** Demande terrain du 24 octobre 2026 : la purge de fin d'envoi (héritée de GeoMys-Android)
+     *  vidait la file, et l'onglet « Envoyées » de « Mes visites » restait toujours vide. */
+    @Test
+    fun une_visite_envoyee_passe_dans_l_onglet_envoyees_avec_ses_observations() = runTest {
+        outbox.ajouter(saisie("visite"))
+        outbox.ajouter(saisie("obs", parentUuidLocal = "visite"))
+        assertEquals(2, envoyerTout().succes)
+        val toutes = outbox.tout()
+        val cache = t.services.cacheSuivis()
+        val envoyees = MesVisites.items(toutes, OngletMesVisites.ENVOYEES, cache).filterIsInstance<ItemMesVisites.Ligne>()
+        assertEquals(listOf("visite" to 41, "obs" to 42), envoyees.map { it.saisie.uuid to it.saisie.idServeur })
+        assertEquals(listOf(0, 1), envoyees.map { it.profondeur }, "l'observation reste sous sa visite")
+        assertTrue(MesVisites.items(toutes, OngletMesVisites.A_ENVOYER, cache).none { it is ItemMesVisites.Ligne })
+        assertEquals(0, outbox.countEnAttente(), "plus rien à envoyer sur l'accueil")
+    }
+
     // ── Idempotence ────────────────────────────────────────────────────────────────
 
     @Test
@@ -200,7 +228,7 @@ class OutboxEnvoiTest {
         val b = async { t.services.outboxEnvoi.envoyerTout(config) { _, _, _ -> } }
         a.await(); b.await()
         assertEquals(1, postsVisite.size, "la saisie ne doit partir qu'une seule fois")
-        assertTrue(outbox.tout().isEmpty(), "file vide après envoi (SENT purgé)")
+        assertToutEnvoye("envoyée une fois")
     }
 
     @Test
@@ -211,7 +239,7 @@ class OutboxEnvoiTest {
         val res = envoyerTout()
         assertEquals(1, res.succes)
         assertEquals(0, postsVisite.size, "aucun re-POST : l'objet existe déjà côté serveur")
-        assertTrue(outbox.tout().isEmpty(), "envoyée et purgée")
+        assertToutEnvoye("envoyée")
     }
 
     @Test
@@ -222,7 +250,7 @@ class OutboxEnvoiTest {
         val res = envoyerTout()
         assertEquals(1, res.succes)
         assertEquals(1, postsVisite.size)
-        assertTrue(outbox.tout().isEmpty())
+        assertToutEnvoye("envoyée")
     }
 
     @Test
@@ -236,7 +264,7 @@ class OutboxEnvoiTest {
         assertEquals(2, res.succes)
         assertEquals(2, postsVisite.size)
         assertTrue(postsVisite[1].contains("\"id_base_site\":41"), "le POST enfant porte la clé du parent : ${postsVisite[1]}")
-        assertTrue(outbox.tout().isEmpty())
+        assertToutEnvoye("parent et enfant envoyés")
     }
 
     // ── Dépendances parent → enfant ────────────────────────────────────────────────
@@ -274,7 +302,7 @@ class OutboxEnvoiTest {
         // État après un envoi raté (ex. coupure réseau) : visite ERROR, obs ERROR « parent en
         // échec ». Avant le correctif, la flèche ne faisait RIEN (seuls les PENDING étaient
         // traités) et « Réessayer » sur la seule visite l'envoyait sans ses obs (puis les rendait
-        // orphelines à la purge : « parent introuvable »).
+        // orphelines : « parent introuvable »).
         outbox.ajouter(saisie("visite", etat = SaisieEnAttente.Etat.ERROR))
         outbox.ajouter(saisie("obs", parentUuidLocal = "visite", etat = SaisieEnAttente.Etat.ERROR))
         val res = t.services.outboxEnvoi.envoyerGroupe(config, "visite") { _, _, _ -> }
@@ -282,7 +310,7 @@ class OutboxEnvoiTest {
         assertEquals(0, res.echecs)
         assertEquals(2, postsVisite.size)
         assertTrue(postsVisite[1].contains("\"id_base_site\":41"), "le POST de l'obs porte la clé de la visite : ${postsVisite[1]}")
-        assertTrue(outbox.tout().isEmpty(), "file vide après envoi complet")
+        assertToutEnvoye("visite et obs envoyées")
     }
 
     @Test
@@ -298,16 +326,16 @@ class OutboxEnvoiTest {
     @Test
     fun envoi_partiel_garde_la_visite_en_groupe_avec_les_obs_restantes() = runTest {
         // Visite + 2 obs ; la visite et la 1re obs partent, la 2e échoue. La visite SENT doit RESTER
-        // dans la file comme groupe de l'obs restante (lien local conservé) — avant, elle était
-        // purgée et l'obs devenait une racine détachée.
+        // dans la file comme groupe de l'obs restante (lien local conservé), et le groupe rester
+        // dans « À envoyer » tant que l'obs n'est pas partie.
         codesVisite.add(200); codesVisite.add(200); codesVisite.add(500)
         outbox.ajouter(saisie("visite"))
         outbox.ajouter(saisie("obs1", parentUuidLocal = "visite"))
         outbox.ajouter(saisie("obs2", parentUuidLocal = "visite"))
         envoyerTout()
         val restants = outbox.tout()
-        assertEquals(setOf("visite", "obs2"), restants.map { it.uuid }.toSet(),
-            "la visite (groupe) et l'obs en échec restent, obs1 purgée")
+        assertEquals(setOf("visite", "obs1", "obs2"), restants.map { it.uuid }.toSet(), "tout reste dans la file")
+        assertEquals(SaisieEnAttente.Etat.SENT, restants.single { it.uuid == "obs1" }.etat)
         val visite = restants.single { it.uuid == "visite" }
         assertEquals(SaisieEnAttente.Etat.SENT, visite.etat, "la visite reste à l'état envoyé (pas de re-POST possible)")
         val obs2 = restants.single { it.uuid == "obs2" }
@@ -320,7 +348,7 @@ class OutboxEnvoiTest {
         assertEquals(1, res.succes)
         assertEquals(postsAvant + 1, postsVisite.size, "un seul POST de plus (obs2)")
         assertTrue(postsVisite.last().contains("\"id_base_site\":41"), "le re-POST d'obs2 porte la clé : ${postsVisite.last()}")
-        assertTrue(outbox.tout().isEmpty(), "groupe complet → tout est purgé ensemble")
+        assertToutEnvoye("groupe complet")
     }
 
     @Test
@@ -356,7 +384,7 @@ class OutboxEnvoiTest {
         val res = envoyerTout()
         assertEquals(1, res.succes)
         assertEquals(0, postsVisite.size, "AUCUN re-POST : l'objet existe déjà")
-        assertTrue(outbox.tout().isEmpty(), "réconciliée et purgée")
+        assertToutEnvoye("réconciliée")
         assertEquals(
             "/api/monitorings/list/STOC/visite?uuid_observation=uuid-obs&fields=id_observation&fields=uuid_observation",
             recherchesUuid.single(),
@@ -480,7 +508,7 @@ class OutboxEnvoiTest {
         val res = envoyerTout()
         assertEquals(0, res.succes)
         assertEquals(1, res.echecs)
-        // La saisie ne doit PAS avoir été purgée comme envoyée : elle reste visible en erreur, avec
+        // La saisie ne doit PAS passer envoyée : elle reste visible en erreur, avec
         // l'explication et l'id serveur (l'objet, lui, est créé).
         val s = outbox.tout().single { it.uuid == "u1" }
         assertEquals(SaisieEnAttente.Etat.ERROR, s.etat)
@@ -517,7 +545,7 @@ class OutboxEnvoiTest {
         assertEquals(1, res.succes)
         assertEquals(1, postsVisite.size, "PAS de second POST de la visite (doublon sinon)")
         assertTrue(postsMedia.value > avantNouvelEssai, "le média doit avoir été retenté")
-        assertTrue(outbox.tout().isEmpty(), "saisie envoyée et purgée")
+        assertToutEnvoye("saisie envoyée")
     }
 
     @Test
@@ -530,9 +558,9 @@ class OutboxEnvoiTest {
         assertEquals(1, res.echecs, "seul le parent (médias) est en échec")
         assertEquals(2, postsVisite.size)
         assertTrue(postsVisite[1].contains("\"id_base_site\":41"), "le POST enfant doit porter la clé du parent créé : ${postsVisite[1]}")
-        // Le parent reste en erreur ré-essayable (médias seulement) ; l'enfant est purgé.
-        val restants = outbox.tout()
-        assertEquals(listOf("parent"), restants.map { it.uuid })
+        // Le parent reste en erreur ré-essayable (médias seulement) ; l'enfant est envoyé.
+        val restants = outbox.tout().associate { it.uuid to it.etat }
+        assertEquals(mapOf("parent" to SaisieEnAttente.Etat.ERROR, "enfant" to SaisieEnAttente.Etat.SENT), restants)
     }
 
     @Test
@@ -546,13 +574,13 @@ class OutboxEnvoiTest {
         val enfant = outbox.tout().single { it.uuid == "enfant" }
         assertEquals(SaisieEnAttente.Etat.ERROR, enfant.etat)
         assertEquals(41, enfant.parentIdServeur, "l'id serveur du parent doit être conservé pour le nouvel essai")
-        // « Réessayer » : seul l'enfant repart — le parent (purgé après SENT) n'est pas re-posté.
+        // « Réessayer » : seul l'enfant repart — le parent (SENT) n'est pas re-posté.
         outbox.mettreAJour("enfant") { it.copy(etat = SaisieEnAttente.Etat.PENDING, messageErreur = null) }
         val res = envoyerTout()
         assertEquals(1, res.succes)
         assertEquals(3, postsVisite.size, "un seul POST de plus (l'enfant)")
         assertTrue(postsVisite[2].contains("\"id_base_site\":41"), "le re-POST de l'enfant garde la clé parent : ${postsVisite[2]}")
-        assertTrue(outbox.tout().isEmpty(), "file vide après succès")
+        assertToutEnvoye("parent et enfant envoyés")
     }
 
     // ── Saisies « à compléter » (champs obligatoires de FIN de visite) ─────────────────
@@ -594,8 +622,8 @@ class OutboxEnvoiTest {
         val res = envoyerTout()
         assertEquals(1, res.succes, "la visite complète part")
         assertEquals(1, res.echecs)
-        assertTrue(outbox.tout().none { it.uuid == "v2" }) // envoyée puis purgée
-        assertTrue(outbox.tout().any { it.uuid == "v1" })
+        assertEquals(SaisieEnAttente.Etat.SENT, outbox.tout().single { it.uuid == "v2" }.etat)
+        assertEquals(SaisieEnAttente.Etat.PENDING, outbox.tout().single { it.uuid == "v1" }.etat)
     }
 
     @Test

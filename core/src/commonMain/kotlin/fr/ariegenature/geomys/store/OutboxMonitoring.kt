@@ -91,26 +91,23 @@ class OutboxMonitoring(fichier: FichierAtomique) :
 
     suspend fun tout(): List<SaisieEnAttente> = charger()
 
-    /** Saisies qui restent à envoyer (PENDING et ERROR). Les SENT restent dans la liste pour
-     *  information mais ne comptent pas comme « en attente ». */
+    /** Saisies qui restent à envoyer (PENDING et ERROR). Les SENT restent dans la liste (onglet
+     *  « Envoyées ») mais ne comptent pas comme « en attente ». */
     suspend fun enAttente(): List<SaisieEnAttente> =
         charger().filter { it.etat == SaisieEnAttente.Etat.PENDING || it.etat == SaisieEnAttente.Etat.ERROR }
 
     /** Compteur affiché sur l'accueil et dans le menu. */
     suspend fun countEnAttente(): Int = enAttente().size
 
-    /** Purge les saisies déjà envoyées — SAUF un parent SENT encore référencé par un enfant NON
-     *  envoyé (parentUuidLocal) : une visite partiellement envoyée reste affichée dans « Mes
-     *  visites » comme groupe portant ses observations restantes, jusqu'à ce que tout soit parti.
-     *  Quand tout le groupe est envoyé, parent et enfants sont purgés ensemble. */
-    suspend fun purgerSent() {
-        muter { liste ->
-            val referencees = liste
-                .filterNot { it.etat == SaisieEnAttente.Etat.SENT }
-                .mapNotNull { it.parentUuidLocal }
-                .toSet()
-            liste.removeAll { it.etat == SaisieEnAttente.Etat.SENT && it.uuid !in referencees }
-        }
+    /** « Retirer de la liste » : la saisie envoyée [uuid] et ses descendants, s'ils sont TOUS
+     *  envoyés — un enfant encore à envoyer a besoin de son parent local, qui porte sa clé et son
+     *  groupe. Renvoie le nombre de saisies retirées (0 si le groupe n'est pas entièrement parti).
+     *  Les envoyées ne sont jamais retirées d'office (demande terrain du 24 octobre 2026). */
+    suspend fun retirerEnvoyee(uuid: String): Int = muterCalcul { liste ->
+        val groupe = (descendantsDe(liste, uuid) + uuid).toSet()
+        if (liste.any { it.uuid in groupe && it.etat != SaisieEnAttente.Etat.SENT }) return@muterCalcul 0
+        liste.removeAll { it.uuid in groupe }
+        groupe.size
     }
 
     suspend fun vider() {

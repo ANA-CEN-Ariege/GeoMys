@@ -119,7 +119,7 @@ class MesVisitesViewModel(private val services: ServicesGeoNature) : ViewModel()
     // ─── Menu d'une ligne ───
 
     fun toucher(s: SaisieEnAttente) {
-        val liste = MesVisites.options(s, MesVisites.descendants(s, toutes).size, envoiAutorise(s), cache)
+        val liste = MesVisites.options(s, MesVisites.descendants(s, toutes), envoiAutorise(s), cache)
         if (liste.isNotEmpty()) options = OptionsLigne(s, MesVisites.titreOptions(s, cache), liste)
     }
 
@@ -136,7 +136,7 @@ class MesVisitesViewModel(private val services: ServicesGeoNature) : ViewModel()
             is OptionSaisie.EnvoyerGroupe -> envoyerGroupe(s)
             is OptionSaisie.Supprimer -> demanderSuppression(s)
             OptionSaisie.Retirer -> viewModelScope.launch {
-                services.outbox.supprimer(s.uuid)
+                services.outbox.retirerEnvoyee(s.uuid)
                 rafraichir()
             }
         }
