@@ -118,13 +118,16 @@ fun FondGeoMys(modifier: Modifier = Modifier, content: @Composable BoxScope.() -
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(CouleursGeoMys.fondHaut, CouleursGeoMys.fondBas),
-                    start = Offset.Zero,
-                    end = Offset.Infinite,
-                ),
-            ),
+            .fondGeoMys(),
         content = content,
     )
 }
+
+/** Le dégradé de [FondGeoMys], sur l'élément lui-même (ce qu'un flou d'arrière-plan enregistre). */
+fun Modifier.fondGeoMys(): Modifier = background(
+    Brush.linearGradient(
+        colors = listOf(CouleursGeoMys.fondHaut, CouleursGeoMys.fondBas),
+        start = Offset.Zero,
+        end = Offset.Infinite,
+    ),
+)

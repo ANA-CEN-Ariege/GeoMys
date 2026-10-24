@@ -84,12 +84,16 @@ import fr.ariegenature.geomys.ui.composants.BoutonAlerte
 import fr.ariegenature.geomys.ui.composants.BoutonIos
 import fr.ariegenature.geomys.ui.composants.BoutonMaterial
 import fr.ariegenature.geomys.ui.composants.DialogueAlerte
+import fr.ariegenature.geomys.ui.composants.EtatFlou
 import fr.ariegenature.geomys.ui.composants.Interrupteur
 import fr.ariegenature.geomys.ui.composants.PILULE
 import fr.ariegenature.geomys.ui.composants.Pastille
 import fr.ariegenature.geomys.ui.composants.SeparateurIos
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.estIos
+import fr.ariegenature.geomys.ui.composants.fondFlou
+import fr.ariegenature.geomys.ui.composants.rememberEtatFlou
+import fr.ariegenature.geomys.ui.composants.sourceFlou
 import fr.ariegenature.geomys.ui.composants.styleLibelleMaterial
 import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.ui.ressources.ic_menu
@@ -99,6 +103,7 @@ import fr.ariegenature.geomys.ui.ressources.logo_geomys
 import fr.ariegenature.geomys.ui.ressources.logo_geomys_ios
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import fr.ariegenature.geomys.ui.theme.FondGeoMys
+import fr.ariegenature.geomys.ui.theme.fondGeoMys
 import fr.ariegenature.geomys.ui.theme.FormeContinue
 import org.jetbrains.compose.resources.painterResource
 
@@ -165,21 +170,25 @@ fun AccueilScreen(etat: EtatAccueil, actions: ActionsAccueil, onTexteLicence: ()
     var menuOuvert by remember { mutableStateOf(false) }
     val nomAppli = etat.nomAppli
     val ios = estIos
+    val flou = rememberEtatFlou()
     FondGeoMys {
-        if (ios) ContenuIos(etat, actions, nomAppli, onLicence = { licence = true })
-        else ContenuAndroid(etat, actions, nomAppli, onLicence = { licence = true })
         if (ios) {
-            // Voile de fermeture du menu déroulant (sous la barre haute, au-dessus du contenu).
-            AnimatedVisibility(menuOuvert, enter = fadeIn(tween(150)), exit = fadeOut(tween(150))) {
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.15f))
-                        .clickable(remember { MutableInteractionSource() }, indication = null) { menuOuvert = false },
-                )
+            // Ce que le menu déroulant floute : le contenu, fond compris, et le voile.
+            Box(Modifier.fillMaxSize().sourceFlou(flou).fondGeoMys()) {
+                ContenuIos(etat, actions, nomAppli, onLicence = { licence = true })
+                // Voile de fermeture du menu déroulant (sous la barre haute, au-dessus du contenu).
+                AnimatedVisibility(menuOuvert, enter = fadeIn(tween(150)), exit = fadeOut(tween(150))) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.15f))
+                            .clickable(remember { MutableInteractionSource() }, indication = null) { menuOuvert = false },
+                    )
+                }
             }
-            BarreHautIos(etat, actions, menuOuvert, onMenu = { menuOuvert = it })
+            BarreHautIos(etat, actions, menuOuvert, flou, onMenu = { menuOuvert = it })
         } else {
+            ContenuAndroid(etat, actions, nomAppli, onLicence = { licence = true })
             BarreHautAndroid(etat, actions, menuOuvert, onMenu = { menuOuvert = it })
         }
         DialogueAlerte(
@@ -426,7 +435,7 @@ private fun BoutonAccueilIos(texte: String, actif: Boolean, onClick: () -> Unit,
 /** Barre haute : menu (« line.3.horizontal » blanc) et Paramètres (« gearshape.fill » blanc 70 %)
  *  dans des cadres de 48 pt, pastilles de 10 pt, menu déroulant maison ancré sous le menu. */
 @Composable
-private fun BarreHautIos(etat: EtatAccueil, actions: ActionsAccueil, menuOuvert: Boolean, onMenu: (Boolean) -> Unit) {
+private fun BarreHautIos(etat: EtatAccueil, actions: ActionsAccueil, menuOuvert: Boolean, flou: EtatFlou, onMenu: (Boolean) -> Unit) {
     Column(Modifier.fillMaxWidth().safeDrawingPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
             Box {
@@ -453,7 +462,7 @@ private fun BarreHautIos(etat: EtatAccueil, actions: ActionsAccueil, menuOuvert:
             enter = fadeIn(tween(150)) + slideInVertically(tween(150)) { -it / 4 },
             exit = fadeOut(tween(150)) + slideOutVertically(tween(150)) { -it / 4 },
         ) {
-            MenuDeroulantIos(etat) { entree ->
+            MenuDeroulantIos(etat, flou) { entree ->
                 onMenu(false)
                 actions.menu(entree)
             }
@@ -461,18 +470,23 @@ private fun BarreHautIos(etat: EtatAccueil, actions: ActionsAccueil, menuOuvert:
     }
 }
 
+/** La teinte sombre de `.regularMaterial` posée sur le flou : assez claire pour laisser deviner ce qui
+ *  est dessous, assez dense pour le texte du menu. */
+private val TEINTE_MATERIAU_REGULIER = Color(0xB3252525)
+
 /** Menu déroulant de GeoMys-IOS : 240 pt de large, matériau translucide aux coins continus de
  *  14 pt, filet blanc 12 %, ombre ; lignes de 16 pt séparées, pastille rouge après le titre. Le
- *  matériau `.regularMaterial` (flou de ce qui est dessous) est rendu par sa teinte sombre. */
+ *  matériau `.regularMaterial` floute ce qui est dessous ([flou], depuis le 24 octobre), sous sa
+ *  teinte sombre. */
 @Composable
-private fun MenuDeroulantIos(etat: EtatAccueil, onChoix: (EntreeMenuAccueil) -> Unit) {
+private fun MenuDeroulantIos(etat: EtatAccueil, flou: EtatFlou, onChoix: (EntreeMenuAccueil) -> Unit) {
     val forme = FormeContinue(14.dp)
     Column(
         Modifier
             .padding(start = 8.dp)
             .width(240.dp)
             .shadow(10.dp, forme, ambientColor = Color.Black.copy(alpha = 0.3f), spotColor = Color.Black.copy(alpha = 0.3f))
-            .background(Color(0xE6252525), forme)
+            .fondFlou(flou, forme, TEINTE_MATERIAU_REGULIER, rayon = 30.dp)
             .border(1.dp, Color.White.copy(alpha = 0.12f), forme),
     ) {
         val entrees = entreesMenu(etat)

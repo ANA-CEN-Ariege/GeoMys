@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.uikit.LocalUIViewController
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitInteropInteractionMode
 import androidx.compose.ui.viewinterop.UIKitInteropProperties
@@ -61,6 +62,8 @@ import platform.UIKit.UIAlertActionStyleDefault
 import platform.UIKit.UIAlertActionStyleDestructive
 import platform.UIKit.UIAlertController
 import platform.UIKit.UIAlertControllerStyleAlert
+import platform.UIKit.UIBlurEffect
+import platform.UIKit.UIBlurEffectStyle
 import platform.UIKit.UIColor
 import platform.UIKit.UIControlEventValueChanged
 import platform.UIKit.UIGraphicsImageRenderer
@@ -75,6 +78,7 @@ import platform.UIKit.UIImageSymbolWeightRegular
 import platform.UIKit.UIImageSymbolWeightSemibold
 import platform.UIKit.UIScreen
 import platform.UIKit.UISwitch
+import platform.UIKit.UIVisualEffectView
 import platform.darwin.NSObject
 import platform.posix.memcpy
 
@@ -242,4 +246,24 @@ actual fun AlerteSysteme(
         while (sommet.presentedViewController != null) sommet = sommet.presentedViewController!!
         sommet.presentViewController(alerte, animated = true, completion = null)
     }
+}
+
+// ─── Matériau ───
+
+/** UIVisualEffectView au matériau ultra-fin du système (sombre : l'appli l'est, Info.plist), posée sous
+ *  le canevas de Compose : elle floute la carte, vue native elle aussi. Elle ne prend pas les touchers,
+ *  qui restent au bouton dessiné par-dessus. */
+@Composable
+actual fun MateriauUltraFin(modifier: Modifier, rayonCoins: Dp) {
+    UIKitView(
+        factory = {
+            UIVisualEffectView(effect = UIBlurEffect.effectWithStyle(UIBlurEffectStyle.UIBlurEffectStyleSystemUltraThinMaterial)).apply {
+                layer.cornerRadius = rayonCoins.value.toDouble()
+                clipsToBounds = true
+                userInteractionEnabled = false
+            }
+        },
+        modifier = modifier,
+        properties = UIKitInteropProperties(interactionMode = null),
+    )
 }

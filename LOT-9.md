@@ -596,3 +596,20 @@ C'est une exception voulue à la règle « le cache seulement ». Elle ne bloque
     - Aucun profil n'a été calculé : les 10 premiers taxons différents répondent tous « No profile ». Un seul profil trouvé écarte ce cas pour de bon.
   - Le serveur est retenu par son adresse : un autre serveur dans les Paramètres est interrogé. « Recharger les données » repart de zéro.
 - Tests : `ProfilsTaxonsTest` (socle, serveur simulé) et `DonneesExceptionnellesTest` (relevé et « Mes saisies »). Contre-épreuves faites.
+
+## 35. Le vrai flou des matériaux de GeoMys-IOS (24 octobre)
+
+Question de l'utilisateur : « est-il possible d'utiliser une interface avec transparence sur iPhone ? » Deux niveaux lui ont été proposés : le flou des matériaux de GeoMys-IOS, puis du Liquid Glass sur les éléments posés sur la carte. Il a choisi le premier : « 1 ».
+
+L'interface est dessinée par Compose, et les effets d'iOS ne s'appliquent d'eux-mêmes qu'aux éléments natifs (alertes, interrupteurs, menus système). GeoMys-IOS employait trois matériaux, que le portage rendait par leur seule teinte :
+
+- **Menu déroulant de l'accueil** (`.regularMaterial`), au-dessus du logo et du nom, dessinés par Compose.
+  - Le contenu de l'accueil, fond et voile compris, est enregistré dans une couche graphique (`sourceFlou`). Le menu la redessine floutée (30 pt) et recalée sous lui, découpée à sa forme, puis pose sa teinte sombre (`fondFlou`, `composants/FlouArrierePlan.kt`).
+  - La teinte passe de 90 à 70 % : le dessous se devine.
+- **Boussole des cartes** (`.ultraThinMaterial`), au-dessus de la carte, vue native.
+  - C'est le matériau d'iOS lui-même : une `UIVisualEffectView` au style `systemUltraThinMaterial`, sombre comme l'appli, posée sous le canevas de Compose (`MateriauUltraFin`). Elle floute la carte ; l'aiguille et le cercle sont dessinés par-dessus, et les touchers restent au bouton.
+  - Cela vaut pour la saisie multi-taxons et mono, OccHab et l'Explorer.
+- **Cadre des champs additionnels** de l'écran intercalé (`.ultraThinMaterial`) : inchangé. Il ne passe au-dessus que du dégradé uni du fond, dont le flou est identique à la teinte.
+- Rien ne change sous Android (allure de GeoMys-Android, sans transparence).
+- Test : `FlouArrierePlanTest` (simulateur iOS). Une frontière rouge/bleu sous le menu doit y paraître mélangée, et à sa place. Contre-épreuves faites, sans flou et sans recalage. Le matériau natif de la boussole se vérifie sur l'iPhone.
+

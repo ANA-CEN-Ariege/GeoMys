@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ariegenature.geomys.geo.LissageCap
 import fr.ariegenature.geomys.geo.ecartAngulaire
+import fr.ariegenature.geomys.ui.composants.MateriauUltraFin
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import kotlin.math.abs
@@ -77,8 +78,8 @@ import org.maplibre.spatialk.units.extensions.inDegrees
  *  [aiguille] degrés.
  *  - Android : CompassView (disque blanc ombré, anneau bleu quand la carte suit le cap, aiguille
  *    rouge marquée « N », talon gris, moyeu gris foncé) ;
- *  - iOS : BoussoleBouton de GeoMys-IOS (disque translucide cerclé, vert quand la carte suit le cap ;
- *    pointe rouge, talon blanc). */
+ *  - iOS : BoussoleBouton de GeoMys-IOS (disque de matériau ultra-fin cerclé, vert quand la carte suit
+ *    le cap ; pointe rouge, talon blanc). */
 @Composable
 fun BoutonBoussole(aiguille: Double, actif: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val clic = Modifier.clickable(
@@ -91,11 +92,12 @@ fun BoutonBoussole(aiguille: Double, actif: Boolean, onClick: () -> Unit, modifi
         Box(
             modifier
                 .size(44.dp)
-                .background(Color.White.copy(alpha = 0.35f), CircleShape)
                 .border(if (actif) 2.dp else 1.dp, if (actif) CouleursGeoMys.vert else Color.White.copy(alpha = 0.25f), CircleShape)
                 .then(clic),
             contentAlignment = Alignment.Center,
         ) {
+            // Le disque `.ultraThinMaterial` de GeoMys-IOS : la carte floutée dessous (24 octobre).
+            MateriauUltraFin(Modifier.matchParentSize(), rayonCoins = 22.dp)
             Box(Modifier.size(9.dp, 24.dp).rotate(aiguille.toFloat()), contentAlignment = Alignment.Center) {
                 Box(Modifier.size(9.dp, 12.dp).offset(y = (-6).dp).background(Color.Red, TRIANGLE_HAUT))
                 Box(Modifier.size(9.dp, 12.dp).offset(y = 6.dp).rotate(180f).background(Color.White.copy(alpha = 0.85f), TRIANGLE_HAUT))

@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /** Pas de symboles SF sous Android : les écrans y affichent les drawables de GeoMys-Android. */
@@ -77,3 +78,6 @@ actual fun AlerteSysteme(
     boutons: List<BoutonAlerte>,
     onFermee: () -> Unit,
 ) = Unit
+
+@Composable
+actual fun MateriauUltraFin(modifier: Modifier, rayonCoins: Dp) = Unit
