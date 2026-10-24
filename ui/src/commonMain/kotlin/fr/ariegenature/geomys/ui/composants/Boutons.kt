@@ -45,8 +45,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.semantics.Role
@@ -80,6 +83,18 @@ internal fun styleLibelleMaterial(couleur: Color, taille: Float = 14f) = TextSty
     platformStyle = styleTextePlateforme,
 )
 
+/** Fond « en relief » (variante demandée le 24 octobre 2026 pour les boutons de l'accueil) : ombre
+ *  portée, [couleur] (opaque, l'ombre se verrait au travers) éclaircie en haut et assombrie en bas,
+ *  liseré clair en haut. [enfonce] : l'ombre se resserre, le bouton s'enfonce sous le doigt. */
+internal fun Modifier.fondEnRelief(couleur: Color, forme: Shape, enfonce: Boolean = false): Modifier = this
+    .shadow(if (enfonce) 1.dp else 6.dp, forme, ambientColor = Color.Black, spotColor = Color.Black)
+    .background(Brush.verticalGradient(listOf(lerp(couleur, Color.White, 0.18f), couleur, lerp(couleur, Color.Black, 0.15f))), forme)
+    .border(
+        1.dp,
+        Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.4f), Color.White.copy(alpha = 0f), Color.Black.copy(alpha = 0.25f))),
+        forme,
+    )
+
 /** Un MaterialButton : hauteur minimale [hauteurMin] (48 dp) dont [retraitVertical] (4 dp) en haut et
  *  en bas (le fond ne couvre que 40 dp, la zone tactile garde 48 dp), largeur minimale [largeurMin]
  *  (88 dp), [forme] (pilule), contenu centré dans les marges intérieures [marges], comptées depuis
@@ -98,9 +113,11 @@ internal fun BoutonMaterial(
     largeurMin: Dp = 88.dp,
     retraitVertical: Dp = 4.dp,
     forme: Shape = PILULE,
+    relief: Boolean = false,
     contenu: @Composable () -> Unit,
 ) {
     val interactions = remember { MutableInteractionSource() }
+    val appuye by interactions.collectIsPressedAsState()
     Box(
         modifier = modifier
             .defaultMinSize(minWidth = largeurMin, minHeight = hauteurMin)
@@ -118,8 +135,7 @@ internal fun BoutonMaterial(
             Modifier
                 .matchParentSize()
                 .padding(vertical = retraitVertical)
-                .clip(forme)
-                .background(fond)
+                .then(if (relief) Modifier.fondEnRelief(fond, forme, enfonce = appuye) else Modifier.clip(forme).background(fond))
                 .then(if (contour != null) Modifier.border(contour, forme) else Modifier)
                 .indication(interactions, ripple(color = couleurContenu)),
         )
@@ -214,7 +230,8 @@ fun BoutonContour(
 
 /** Bouton plein bleu primaire : `Widget.Material3.Button` sous Android (grisé quand il est
  *  désactivé), `GeoMysBoutonBleuStyle` sous iOS (pilule pleine largeur, 15 pt medium, estompé à
- *  40 % quand il est désactivé). Sous iOS, [enCours] place l'indicateur devant [texteEnCours]. */
+ *  40 % quand il est désactivé). Sous iOS, [enCours] place l'indicateur devant [texteEnCours].
+ *  [relief] : en relief (essai du 24 octobre 2026 sur la saisie multi-taxons). */
 @Composable
 fun BoutonPlein(
     texte: String,
@@ -224,6 +241,7 @@ fun BoutonPlein(
     onLongClick: (() -> Unit)? = null,
     enCours: Boolean = false,
     texteEnCours: String = texte,
+    relief: Boolean = false,
 ) {
     if (LocalApparence.current == Apparence.IOS) {
         // `LongPressGesture(minimumDuration: 0.6)` de GeoMys-IOS.
@@ -234,7 +252,7 @@ fun BoutonPlein(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .background(CouleursGeoMys.primaire, PILULE)
+                        .then(if (relief) Modifier.fondEnRelief(CouleursGeoMys.primaire, PILULE) else Modifier.background(CouleursGeoMys.primaire, PILULE))
                         .padding(vertical = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically,
@@ -259,6 +277,7 @@ fun BoutonPlein(
             fond = if (actif) couleurs.primary else couleurs.onSurface.copy(alpha = 0.12f),
             couleurContenu = contenu,
             onLongClick = onLongClick,
+            relief = relief && actif,
         ) { Text(texte, style = styleLibelleMaterial(contenu)) }
     }
 }
@@ -266,7 +285,8 @@ fun BoutonPlein(
 /** Bouton plein vert translucide (green_85), texte blanc : un `Button` Material 3 à fond
  *  `backgroundTint="@color/green_85"` sous Android, `GeoMysBoutonVertStyle` sous iOS (pilule pleine
  *  largeur, 15 pt medium, marges 24 pt × [margeVerticaleIos], estompé à 40 % quand il est désactivé),
- *  précédé du symbole [symboleIos] s'il y en a un (`Label` de SwiftUI). */
+ *  précédé du symbole [symboleIos] s'il y en a un (`Label` de SwiftUI). [relief] : en relief, d'un
+ *  vert opaque (sur les cartes, demande du 24 octobre 2026). */
 @Composable
 fun BoutonVert(
     texte: String,
@@ -275,13 +295,14 @@ fun BoutonVert(
     actif: Boolean = true,
     margeVerticaleIos: Dp = 12.dp,
     symboleIos: String? = null,
+    relief: Boolean = false,
 ) {
     if (LocalApparence.current == Apparence.IOS) {
         BoutonIos(onClick, modifier, actif, opaciteInactif = 0.4f) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .background(CouleursGeoMys.vert85, PILULE)
+                    .then(if (relief) Modifier.fondEnRelief(CouleursGeoMys.vert, PILULE) else Modifier.background(CouleursGeoMys.vert85, PILULE))
                     .padding(horizontal = 24.dp, vertical = margeVerticaleIos),
                 horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.CenterVertically,
@@ -301,8 +322,9 @@ fun BoutonVert(
             onClick = onClick,
             modifier = modifier,
             actif = actif,
-            fond = CouleursGeoMys.vert85,
+            fond = if (relief) CouleursGeoMys.vert else CouleursGeoMys.vert85,
             couleurContenu = Color.White,
+            relief = relief,
         ) { Text(texte, style = styleLibelleMaterial(Color.White)) }
     }
 }

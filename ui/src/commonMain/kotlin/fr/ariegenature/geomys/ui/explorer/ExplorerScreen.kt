@@ -201,7 +201,7 @@ private fun BoxScope.CarteExplorer(vm: ExplorerViewModel) {
             BoutonCarte(Res.drawable.ic_location_on, "Centrer sur ma position", StyleBoutonCarte.CONTROLE, {
                 vm.positionPourCentrer()?.let { p -> portee.launch { etat.animerCamera(CameraUpdate(center = p.enPosition())) } }
             }, teinteIos = CouleursGeoMys.primaire)
-            BoutonBoussole(-(cap ?: 0.0), actif = false, onClick = {})
+            BoutonBoussole(-(cap ?: 0.0), onClick = {})
             BoutonCarte(Res.drawable.ic_map, "Changer fond", StyleBoutonCarte.CONTROLE, vm::montrerChoixFond)
         }
     }

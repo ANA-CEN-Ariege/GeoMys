@@ -109,6 +109,7 @@ import fr.ariegenature.geomys.ui.composants.RetourSysteme
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.afficher
 import fr.ariegenature.geomys.ui.composants.estIos
+import fr.ariegenature.geomys.ui.composants.fondEnRelief
 import fr.ariegenature.geomys.ui.composants.rememberDemandeLocalisation
 import fr.ariegenature.geomys.ui.composants.styleLibelleMaterial
 import fr.ariegenature.geomys.ui.ressources.Res
@@ -123,9 +124,7 @@ import fr.ariegenature.geomys.ui.ressources.ic_location_off
 import fr.ariegenature.geomys.ui.ressources.ic_location_on
 import fr.ariegenature.geomys.ui.ressources.ic_map
 import fr.ariegenature.geomys.ui.ressources.ic_pin_drop
-import fr.ariegenature.geomys.ui.ressources.ic_play
 import fr.ariegenature.geomys.ui.ressources.ic_remove
-import fr.ariegenature.geomys.ui.ressources.ic_stop
 import fr.ariegenature.geomys.ui.ressources.ic_walk
 import fr.ariegenature.geomys.ui.ressources.oiseaux
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
@@ -172,6 +171,12 @@ private val GRIS_FONCE = Color(0xFFAAAAAA)
 
 /** `Couleurs.iconeCarteInactive` de GeoMys-IOS : goutte de « Centrer » quand le suivi est coupé. */
 internal val GRIS_INACTIF_IOS = Color(0xFF9E9E9E)
+
+/** Disque blanc appuyé (#E0E0E0, comme `btn_circle_white`). */
+private val GRIS_APPUYE = Color(0xFFE0E0E0)
+
+/** Le gris des icônes Material (#757575) : le bonhomme éteint. */
+private val GRIS_ICONE_ANDROID = Color(0xFF757575)
 
 /** La carte de la saisie multi-taxons. [onOuvrirReleve] ouvre la saisie d'un relevé, [onOuvrirListe]
  *  la liste des observations, « i » le dialogue des détails communs de la saisie ; [onQuitter]
@@ -339,7 +344,7 @@ private fun EcranCarte(vm: SaisieMultiViewModel, onAccueil: () -> Unit) {
                 },
                 teinteIos = if (vm.suivrePosition) CouleursGeoMys.primaire else GRIS_INACTIF_IOS,
             )
-            Boussole(etat, vm.carteSuitBoussole, vm::basculerBoussole)
+            Boussole(etat, vm::basculerBoussole)
             BoutonCarte(Res.drawable.ic_map, "Changer fond", StyleBoutonCarte.CONTROLE, vm::montrerChoixFond)
         }
         Column(
@@ -357,7 +362,7 @@ private fun EcranCarte(vm: SaisieMultiViewModel, onAccueil: () -> Unit) {
         // ─── Bas : barre d'info du parcours, puis le panneau de commandes ou de validation ───
         // Sous Android, le panneau de commandes (transparent) chevauche la barre d'info, comme dans
         // fragment_trace.xml ; sous iOS, la barre devient la pastille au-dessus des boutons.
-        val infoVisible = enCours && vm.enregistrerTrace
+        val infoVisible = enCours
         if (!ios && infoVisible) BarreInfo(distance, observations.size, Modifier.align(Alignment.BottomCenter).then(bas))
         // La mention des données, au-dessus des commandes, entre les boutons.
         var hautPanneau by remember { mutableStateOf(0.dp) }
@@ -483,7 +488,7 @@ private fun CarteMulti(vm: SaisieMultiViewModel, ouverture: OuvertureCarte): Map
         etat.setCameraPosition(camera)
         val emprise = (ouverture as? OuvertureCarte.Reprise)?.cadrage as? CadrageReprise.Emprise ?: return@LaunchedEffect
         etat.awaitViewport()
-        val marge = (if (vm.enregistrerTrace) 84.dp else 80.dp) + 32.dp
+        val marge = 84.dp + 32.dp
         etat.fitCameraToBounds(
             BoundingBox(west = emprise.ouest, south = emprise.sud, east = emprise.est, north = emprise.nord),
             CameraFit(fitPadding = DpPadding(marge, marge, marge, marge)),
@@ -560,12 +565,12 @@ private fun CarteMulti(vm: SaisieMultiViewModel, ouverture: OuvertureCarte): Map
 /** La boussole, dont l'aiguille montre le nord de la carte. À part : elle se redessine à chaque
  *  mouvement de la carte. */
 @Composable
-internal fun Boussole(etat: MapState, actif: Boolean, onClick: () -> Unit) {
-    BoutonBoussole(-etat.cameraPosition.bearing, actif, onClick)
+internal fun Boussole(etat: MapState, onClick: () -> Unit) {
+    BoutonBoussole(-etat.cameraPosition.bearing, onClick)
 }
 
 /** Bouton de mode de géométrie : actif = disque bleu primaire, icône blanche ; inactif = disque
- *  blanc, icône bleue.
+ *  blanc, icône bleue. En relief (demande du 24 octobre 2026).
  *  - Android : ImageButton sur `btn_map_bg` teinté, icône de 24 dp, sans ombre ni état appuyé ;
  *  - iOS : symbole SF de 18 pt demi-gras sur un disque de 44 pt ombré, estompé à l'appui. */
 @Composable
@@ -582,16 +587,18 @@ private fun BoutonMode(
     val teinte = if (actif) Color.White else CouleursGeoMys.primaire
     if (estIos) {
         BoutonIos({ onChoisir(mode) }, opaciteAppui = 0.6f) {
-            Box(Modifier.size(44.dp).shadow(3.dp, CircleShape).background(fond, CircleShape), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(44.dp).fondEnRelief(fond, CircleShape), contentAlignment = Alignment.Center) {
                 SymboleSf(symbole, 18f, listOf(teinte), graisse = GraisseSymbole.DEMI_GRASSE, description = description)
             }
         }
     } else {
+        val interactions = remember { MutableInteractionSource() }
+        val appuye by interactions.collectIsPressedAsState()
         Box(
             Modifier
                 .size(44.dp)
-                .background(fond, CircleShape)
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Button) { onChoisir(mode) },
+                .fondEnRelief(fond, CircleShape, enfonce = appuye)
+                .clickable(interactionSource = interactions, indication = null, role = Role.Button) { onChoisir(mode) },
             contentAlignment = Alignment.Center,
         ) {
             Image(painterResource(icone), contentDescription = description, colorFilter = ColorFilter.tint(teinte), modifier = Modifier.size(24.dp))
@@ -648,18 +655,17 @@ private fun PanneauCommandes(vm: SaisieMultiViewModel, enCours: Boolean, infoVis
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (vm.enregistrerTrace) {
-                    BoutonRondIos(
-                        if (enCours) "stop.fill" else "play.fill",
-                        if (enCours) CouleursGeoMys.rougePastille else CouleursGeoMys.vert,
-                        Color.White,
-                        "Parcours",
-                        vm::basculerParcours,
-                    )
-                }
+                // Le bonhomme : blanc et gris tant que la trace est arrêtée, vert quand elle enregistre.
+                BoutonRondIos(
+                    "figure.walk",
+                    if (enCours) CouleursGeoMys.vert else Color.White,
+                    if (enCours) Color.White else GRIS_INACTIF_IOS,
+                    if (enCours) "Arrêter la trace GPS" else "Démarrer la trace GPS",
+                    vm::basculerTrace,
+                )
                 BoutonRondIos("plus", CouleursGeoMys.primaire, Color.White, "Observation", vm::nouveauReleve)
                 Box {
-                    BoutonRondIos("list.bullet", Color.White.copy(alpha = 0.95f), CouleursGeoMys.primaire, "Liste", vm::ouvrirListe)
+                    BoutonRondIos("list.bullet", Color.White, CouleursGeoMys.primaire, "Liste", vm::ouvrirListe)
                     if (nbObs > 0) {
                         Text(
                             "$nbObs",
@@ -678,24 +684,25 @@ private fun PanneauCommandes(vm: SaisieMultiViewModel, enCours: Boolean, infoVis
         }
     } else {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp)) {
-            if (vm.enregistrerTrace) {
-                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    BoutonRondAndroid(
-                        if (enCours) Res.drawable.ic_stop else Res.drawable.ic_play,
-                        CouleursGeoMys.vert,
-                        Color(0xFF2E7D32),
-                        52.dp,
-                        "Parcours",
-                        vm::basculerParcours,
-                    )
-                }
+            // Le bonhomme : blanc et gris tant que la trace est arrêtée, vert quand elle enregistre.
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                BoutonRondAndroid(
+                    Res.drawable.ic_walk,
+                    if (enCours) CouleursGeoMys.vert else Color.White,
+                    if (enCours) Color(0xFF2E7D32) else GRIS_APPUYE,
+                    52.dp,
+                    if (enCours) "Arrêter la trace GPS" else "Démarrer la trace GPS",
+                    vm::basculerTrace,
+                    teinte = if (enCours) Color.White else GRIS_ICONE_ANDROID,
+                )
             }
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                 BoutonRondAndroid(Res.drawable.ic_add, CouleursGeoMys.primaire, BLEU_APPUYE, 48.dp, "Observation", vm::nouveauReleve)
             }
             Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                 Box {
-                    BoutonRondAndroid(Res.drawable.ic_list, CouleursGeoMys.primaire, BLEU_APPUYE, 44.dp, "Liste", vm::ouvrirListe)
+                    // Disque blanc, icône bleue, comme sous iOS (demande du 24 octobre 2026).
+                    BoutonRondAndroid(Res.drawable.ic_list, Color.White, GRIS_APPUYE, 44.dp, "Liste", vm::ouvrirListe, teinte = CouleursGeoMys.primaire)
                     if (nbObs > 0) {
                         Text(
                             "$nbObs",
@@ -748,28 +755,38 @@ private fun PanneauValidation(vm: SaisieMultiViewModel, onValider: () -> Unit) {
 }
 
 /** Bouton rond Android (`btn_circle_green`, `btn_circle_blue`) : disque plein, plus foncé appuyé,
- *  icône blanche de 24 dp. */
+ *  icône de 24 dp teintée de [teinte] (blanche par défaut). En relief, enfoncé à l'appui (demande du
+ *  24 octobre 2026). */
 @Composable
-internal fun BoutonRondAndroid(icone: DrawableResource, fond: Color, fondAppuye: Color, taille: Dp, description: String, onClick: () -> Unit) {
+internal fun BoutonRondAndroid(
+    icone: DrawableResource,
+    fond: Color,
+    fondAppuye: Color,
+    taille: Dp,
+    description: String,
+    onClick: () -> Unit,
+    teinte: Color = Color.White,
+) {
     val interactions = remember { MutableInteractionSource() }
     val appuye by interactions.collectIsPressedAsState()
+    val couleur = if (appuye) fondAppuye else fond
     Box(
         Modifier
             .size(taille)
-            .background(if (appuye) fondAppuye else fond, CircleShape)
+            .fondEnRelief(couleur, CircleShape, enfonce = appuye)
             .clickable(interactionSource = interactions, indication = null, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Image(painterResource(icone), contentDescription = description, colorFilter = ColorFilter.tint(Color.White), modifier = Modifier.size(24.dp))
+        Image(painterResource(icone), contentDescription = description, colorFilter = ColorFilter.tint(teinte), modifier = Modifier.size(24.dp))
     }
 }
 
 /** `boutonRond` de TraceView : disque de 56 pt ombré, symbole SF de 22 pt demi-gras, estompé à
- *  l'appui. */
+ *  l'appui. En relief (demande du 24 octobre 2026). */
 @Composable
 internal fun BoutonRondIos(symbole: String, fond: Color, teinte: Color, description: String, onClick: () -> Unit) {
     BoutonIos(onClick, opaciteAppui = 0.6f) {
-        Box(Modifier.size(56.dp).shadow(4.dp, CircleShape).background(fond, CircleShape), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(56.dp).fondEnRelief(fond, CircleShape), contentAlignment = Alignment.Center) {
             SymboleSf(symbole, 22f, listOf(teinte), graisse = GraisseSymbole.DEMI_GRASSE, description = description)
         }
     }

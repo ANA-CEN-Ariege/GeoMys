@@ -28,6 +28,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -111,6 +112,7 @@ import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.afficher
 import fr.ariegenature.geomys.ui.composants.estIos
+import fr.ariegenature.geomys.ui.composants.fondEnRelief
 import fr.ariegenature.geomys.ui.occtax.BLEU_APPUYE
 import fr.ariegenature.geomys.ui.occtax.BoutonRondAndroid
 import fr.ariegenature.geomys.ui.occtax.BoutonRondIos
@@ -272,7 +274,7 @@ private fun EcranCarte(vm: CarteOccHabViewModel, onAccueil: () -> Unit, onStatio
                     onClick = { vm.centrer()?.let { p -> portee.launch { etat.animerCamera(CameraUpdate(center = p.enPosition())) } } },
                     teinteIos = CouleursGeoMys.primaire,
                 )
-                BoutonBoussole(-etat.cameraPosition.bearing, vm.carteSuitBoussole, vm::basculerBoussole)
+                BoutonBoussole(-etat.cameraPosition.bearing, vm::basculerBoussole)
                 BoutonCarte(Res.drawable.ic_map, "Changer fond", StyleBoutonCarte.CONTROLE, vm::montrerChoixFond)
             }
         }
@@ -551,7 +553,7 @@ private fun PoigneeAjout(modifier: Modifier, onClick: () -> Unit) {
 
 /** Bouton de mode de géométrie : actif = disque bleu primaire, icône blanche ; inactif = disque
  *  blanc, icône bleue ; estompé à 40 % quand la géométrie est engagée (le type se choisit avant
- *  de dessiner).
+ *  de dessiner). En relief (demande du 24 octobre 2026).
  *  - Android : `btn_map_bg` teinté, `ic_pin_drop` / `ic_geom_polygon` ;
  *  - iOS : symboles `mappin` / `triangle` de 18 pt demi-gras. */
 @Composable
@@ -562,17 +564,19 @@ private fun BoutonMode(mode: ModeGeometrie, vm: CarteOccHabViewModel, descriptio
     val teinte = if (actif) Color.White else CouleursGeoMys.primaire
     if (estIos) {
         BoutonIos({ vm.changerMode(mode) }, actif = !verrouille, opaciteAppui = 0.6f, opaciteInactif = 0.4f) {
-            Box(Modifier.size(44.dp).background(fond, CircleShape), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(44.dp).fondEnRelief(fond, CircleShape), contentAlignment = Alignment.Center) {
                 SymboleSf(if (mode == ModeGeometrie.POINT) "mappin" else "triangle", 18f, listOf(teinte), graisse = GraisseSymbole.DEMI_GRASSE, description = description)
             }
         }
     } else {
+        val interactions = remember { MutableInteractionSource() }
+        val appuye by interactions.collectIsPressedAsState()
         Box(
             Modifier
                 .size(44.dp)
                 .alpha(if (verrouille) 0.4f else 1f)
-                .background(fond, CircleShape)
-                .clickable(remember { MutableInteractionSource() }, indication = null, enabled = !verrouille, role = Role.Button) { vm.changerMode(mode) },
+                .fondEnRelief(fond, CircleShape, enfonce = appuye)
+                .clickable(interactions, indication = null, enabled = !verrouille, role = Role.Button) { vm.changerMode(mode) },
             contentAlignment = Alignment.Center,
         ) {
             Image(
@@ -601,9 +605,9 @@ private fun PanneauAndroid(vm: CarteOccHabViewModel, modifier: Modifier) {
         modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BoutonPlein("Annuler", vm::annuler, Modifier.weight(1f), actif = vm.peutAnnuler)
+        BoutonPlein("Annuler", vm::annuler, Modifier.weight(1f), actif = vm.peutAnnuler, relief = true)
         Spacer(Modifier.size(8.dp))
-        BoutonVert("Valider", vm::valider, Modifier.weight(1f).alpha(if (vm.peutValider) 1f else 0.5f), actif = vm.peutValider)
+        BoutonVert("Valider", vm::valider, Modifier.weight(1f).alpha(if (vm.peutValider) 1f else 0.5f), actif = vm.peutValider, relief = true)
     }
 }
 
@@ -628,8 +632,8 @@ private fun PanneauIos(vm: CarteOccHabViewModel) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BoutonPlein("Annuler", vm::annuler, Modifier.weight(1f), actif = vm.peutAnnuler)
-        BoutonVert("Valider", vm::valider, Modifier.weight(1f), actif = vm.peutValider)
+        BoutonPlein("Annuler", vm::annuler, Modifier.weight(1f), actif = vm.peutAnnuler, relief = true)
+        BoutonVert("Valider", vm::valider, Modifier.weight(1f), actif = vm.peutValider, relief = true)
     }
 }
 

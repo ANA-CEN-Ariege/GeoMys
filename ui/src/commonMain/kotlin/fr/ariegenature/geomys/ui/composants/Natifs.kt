@@ -21,7 +21,6 @@ package fr.ariegenature.geomys.ui.composants
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.Dp
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 
 // Les éléments que chaque plateforme dessine elle-même : interrupteur, indicateur d'activité,
@@ -84,9 +83,3 @@ expect fun AlerteSysteme(
     boutons: List<BoutonAlerte>,
     onFermee: () -> Unit,
 )
-
-/** Le matériau `.ultraThinMaterial` de SwiftUI (UIVisualEffectView, flou d'iOS lui-même), aux coins
- *  arrondis de [rayonCoins] : sous ce que Compose dessine, il floute la vue native du dessous (la
- *  carte). Ne s'affiche que sous iOS. */
-@Composable
-expect fun MateriauUltraFin(modifier: Modifier, rayonCoins: Dp)

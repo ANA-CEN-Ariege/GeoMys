@@ -25,7 +25,6 @@ package fr.ariegenature.geomys.ui.carte
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -42,11 +41,9 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
@@ -57,9 +54,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ariegenature.geomys.geo.LissageCap
 import fr.ariegenature.geomys.geo.ecartAngulaire
-import fr.ariegenature.geomys.ui.composants.MateriauUltraFin
 import fr.ariegenature.geomys.ui.composants.estIos
-import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
+import fr.ariegenature.geomys.ui.composants.fondEnRelief
 import kotlin.math.abs
 import kotlin.math.min
 import kotlin.time.Duration
@@ -76,12 +72,13 @@ import org.maplibre.spatialk.units.extensions.inDegrees
 
 /** Bouton boussole de 44 de côté ; l'aiguille rouge pointe vers le nord de la carte, tournée de
  *  [aiguille] degrés.
- *  - Android : CompassView (disque blanc ombré, anneau bleu quand la carte suit le cap, aiguille
- *    rouge marquée « N », talon gris, moyeu gris foncé) ;
- *  - iOS : BoussoleBouton de GeoMys-IOS (disque de matériau ultra-fin cerclé, vert quand la carte suit
- *    le cap ; pointe rouge, talon blanc). */
+ *  Disque blanc opaque en relief, comme les autres boutons des cartes, sans anneau quand la carte
+ *  suit le cap : elle tourne, cela suffit (demandes du 24 octobre 2026 ; sous iOS, il remplace le
+ *  disque de matériau ultra-fin de GeoMys-IOS).
+ *  - Android : CompassView (aiguille rouge marquée « N », talon gris, moyeu gris foncé) ;
+ *  - iOS : BoussoleBouton de GeoMys-IOS (pointe rouge), talon gris et moyeu gris foncé sur le blanc. */
 @Composable
-fun BoutonBoussole(aiguille: Double, actif: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun BoutonBoussole(aiguille: Double, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val clic = Modifier.clickable(
         interactionSource = remember { MutableInteractionSource() },
         indication = null,
@@ -92,26 +89,22 @@ fun BoutonBoussole(aiguille: Double, actif: Boolean, onClick: () -> Unit, modifi
         Box(
             modifier
                 .size(44.dp)
-                .border(if (actif) 2.dp else 1.dp, if (actif) CouleursGeoMys.vert else Color.White.copy(alpha = 0.25f), CircleShape)
+                .fondEnRelief(Color.White, CircleShape)
                 .then(clic),
             contentAlignment = Alignment.Center,
         ) {
-            // Le disque `.ultraThinMaterial` de GeoMys-IOS : la carte floutée dessous (24 octobre).
-            MateriauUltraFin(Modifier.matchParentSize(), rayonCoins = 22.dp)
             Box(Modifier.size(9.dp, 24.dp).rotate(aiguille.toFloat()), contentAlignment = Alignment.Center) {
                 Box(Modifier.size(9.dp, 12.dp).offset(y = (-6).dp).background(Color.Red, TRIANGLE_HAUT))
-                Box(Modifier.size(9.dp, 12.dp).offset(y = 6.dp).rotate(180f).background(Color.White.copy(alpha = 0.85f), TRIANGLE_HAUT))
-                Box(Modifier.size(3.dp).background(Color.White, CircleShape))
+                Box(Modifier.size(9.dp, 12.dp).offset(y = 6.dp).rotate(180f).background(Color(0xFF9E9E9E), TRIANGLE_HAUT))
+                Box(Modifier.size(3.dp).background(Color(0xFF424242), CircleShape))
             }
         }
     } else {
         val mesure = rememberTextMeasurer()
-        Canvas(modifier.size(44.dp).shadow(4.dp, CircleShape).then(clic)) {
+        Canvas(modifier.size(44.dp).fondEnRelief(Color.White, CircleShape).then(clic)) {
             val cx = size.width / 2f
             val cy = size.height / 2f
             val r = min(cx, cy) - 2f
-            drawCircle(Color.White, r)
-            if (actif) drawCircle(Color(0xFF1976D2), r - 2f, style = Stroke(width = 4f))
             rotate(aiguille.toFloat(), Offset(cx, cy)) {
                 val largeur = r * 0.26f
                 val hauteur = r * 0.70f

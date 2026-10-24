@@ -606,7 +606,7 @@ L'interface est dessinée par Compose, et les effets d'iOS ne s'appliquent d'eux
 - **Menu déroulant de l'accueil** (`.regularMaterial`), au-dessus du logo et du nom, dessinés par Compose.
   - Le contenu de l'accueil, fond et voile compris, est enregistré dans une couche graphique (`sourceFlou`). Le menu la redessine floutée (30 pt) et recalée sous lui, découpée à sa forme, puis pose sa teinte sombre (`fondFlou`, `composants/FlouArrierePlan.kt`).
   - La teinte passe de 90 à 70 % : le dessous se devine.
-- **Boussole des cartes** (`.ultraThinMaterial`), au-dessus de la carte, vue native.
+- **Boussole des cartes** (`.ultraThinMaterial`), au-dessus de la carte, vue native. *Remplacée le jour même par un disque blanc opaque en relief, au choix de l'utilisateur (§ 37) : `MateriauUltraFin` est retiré.*
   - C'est le matériau d'iOS lui-même : une `UIVisualEffectView` au style `systemUltraThinMaterial`, sombre comme l'appli, posée sous le canevas de Compose (`MateriauUltraFin`). Elle floute la carte ; l'aiguille et le cercle sont dessinés par-dessus, et les touchers restent au bouton.
   - Cela vaut pour la saisie multi-taxons et mono, OccHab et l'Explorer.
 - **Cadre des champs additionnels** de l'écran intercalé (`.ultraThinMaterial`) : inchangé. Il ne passe au-dessus que du dégradé uni du fond, dont le flou est identique à la teinte.
@@ -623,3 +623,27 @@ Remarque de l'utilisateur : « dans mes visites, quand j'envoie une visite etc, 
 - Les photos d'une visite envoyée restent sur le téléphone jusqu'à ce qu'elle soit retirée de la liste, comme pour OccTax.
 - Les visites déjà envoyées avant ce correctif ont été purgées : elles n'apparaîtront pas.
 - Tests : `OutboxEnvoiTest` (une visite et son observation envoyées apparaissent sous « Envoyées », l'une sous l'autre ; les autres tests vérifient désormais l'état envoyé au lieu d'une file vide), `OutboxMonitoringTest` et `MesVisitesTest` (le retrait et sa garde). Contre-épreuves faites : purge remise, retrait sans garde, retrait sans les descendants, option proposée sans garde.
+
+## 37. Boutons en relief (24 octobre)
+
+Demandes de l'utilisateur : « essaye une variante en mettant les boutons de l'écran d'accueil un peu en relief », puis « le même genre de choses pour les boutons sur les cartes », essayé sur la saisie multi-taxons, puis « applique le même traitement aux autres cartes ».
+
+- `fondEnRelief` (`composants/Boutons.kt`) : ombre portée de 6 dp, couleur éclaircie en haut et assombrie en bas, liseré clair en haut et sombre en bas. Sous Android, l'ombre se resserre à l'appui (`enfonce`) ; sous iOS, le bouton garde son estompage.
+- Le fond doit être opaque : l'ombre se verrait au travers. Le vert translucide de l'accueil devient le même vert posé sur le bas du dégradé (`VERT_RELIEF`) ; sur les cartes, « Valider » d'OccHab prend le vert plein.
+- Accueil : les quatre boutons de saisie, sous les deux allures.
+- Cartes (saisie multi-taxons et mono, OccHab, Explorer, Suivis, détail d'une saisie, Maps Manager) : tous les disques (`BoutonCarte`, `BoutonRondAndroid`, `BoutonRondIos`, modes de géométrie, « Enregistrer ici », corbeille), « Annuler » et « Valider » posés sur la carte d'OccHab, et le panneau de validation de la saisie multi-taxons sous Android.
+- Boussole : sous iOS, le matériau translucide ne pouvait pas avoir le même relief (une ombre sous le disque se verrait au travers, un dégradé cacherait la transparence). Choix de l'utilisateur : un disque blanc opaque en relief, comme les autres ; l'aiguille garde sa pointe rouge, le talon devient gris et le moyeu gris foncé pour rester visibles sur le blanc. Sous Android, son ombre simple devient le relief commun.
+- Boussole, ensuite : « n'ajoute pas de contour sur le bouton boussole quand on clique dessus ». L'anneau qui marquait la carte tournée avec le cap (vert sous iOS, bleu sous Android) est retiré : la carte qui tourne suffit à le montrer.
+- Pas de test automatique : le rendu se juge sur les téléphones (A12 et iPhone 16), où chaque étape a été installée.
+
+## 38. Le bonhomme de la trace GPS (24 octobre)
+
+Demandes de l'utilisateur : « sur la version iPhone, supprime sur l'écran d'accueil le bouton "Enregistrer la trace GPS". Remplace cela simplement par un bouton sur la carte multi-taxons avec le petit bonhomme, désactivé par défaut. Si on clique sur ce bouton, ça affiche une info pour indiquer que la trace GPS démarre. », puis « fais la même chose pour l'Android. Et change le bouton en bas pour les observations pour un fond blanc comme sur l'iPhone ».
+
+- Accueil, sous les deux allures : l'interrupteur « Enregistrer la trace GPS » est retiré, avec son réglage (`PreferencesGeoMys.enregistrerTrace`, clé `enregistrer_trace` laissée sans usage).
+- Carte multi-taxons : le bonhomme (`figure.walk` sous iOS, `ic_walk` sous Android) remplace le ▶ / ⏹, à la même place, à gauche du « + ». Il est toujours présent.
+  - Éteint (disque blanc, bonhomme gris) à l'ouverture, la trace n'étant jamais lancée d'office.
+  - Allumé (disque vert, bonhomme blanc) pendant l'enregistrement ; la pastille distance / observations (iOS) ou la barre d'info (Android) s'affiche.
+  - Son toucher bascule la trace comme le ▶ (`CarteSaisie.basculerParcours` : une trace commencée reprend au lieu de recommencer) et le dit : « La trace GPS démarre. », « La trace GPS reprend. » ou « La trace GPS est arrêtée. » (`CarteSaisie.messageTrace`).
+- Sous Android, le bouton « Liste » des observations devient un disque blanc à l'icône bleue, comme sous iOS (`BoutonRondAndroid` prend une `teinte`).
+- Test : `CarteSaisieTest.message_du_bonhomme_selon_la_trace`.

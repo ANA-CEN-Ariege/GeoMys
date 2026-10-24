@@ -83,10 +83,6 @@ class SaisieMultiViewModel(
     private val _evenements = Channel<EvenementSaisieMulti>(Channel.BUFFERED)
     val evenements = _evenements.receiveAsFlow()
 
-    /** Interrupteur « Enregistrer la trace GPS » de l'accueil : sans lui, ni bouton ▶ ni barre
-     *  d'info. */
-    val enregistrerTrace = services.preferences.enregistrerTrace
-
     var suivrePosition by mutableStateOf(true)
     var modePositionnement by mutableStateOf(false)
         private set
@@ -213,6 +209,14 @@ class SaisieMultiViewModel(
     /** ▶ / ⏸ : arrêter, sinon CONTINUER une trace non vide (un aller-retour par l'accueil la met en
      *  pause ; la recommencer effacerait le parcours de la journée), sinon démarrer. */
     fun basculerParcours() = CarteSaisie.basculerParcours(tracker)
+
+    /** Le bonhomme de la carte, à la place de l'interrupteur de l'accueil et du ▶ (demande du 24
+     *  octobre 2026) : éteint à l'ouverture, il bascule la trace et le dit. */
+    fun basculerTrace() {
+        val message = CarteSaisie.messageTrace(tracker.estEnCours.value, tracker.parcours.value.isNotEmpty())
+        basculerParcours()
+        _evenements.trySend(EvenementSaisieMulti.Message(message))
+    }
 
     // ─── Positionnement d'un nouveau relevé ───
 

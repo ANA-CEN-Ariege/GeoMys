@@ -22,7 +22,6 @@
 package fr.ariegenature.geomys.ui.carte
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -35,13 +34,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import fr.ariegenature.geomys.ui.composants.estIos
+import fr.ariegenature.geomys.ui.composants.fondEnRelief
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
@@ -71,10 +70,12 @@ private val BLEU_APPUYE = Color(0xFF1565C0)
 /** Bouton rond de 44 de côté sur une carte.
  *  - Android : ImageButton à fond ovale ; les contrôles gardent l'icône à sa taille (24 dp, sans
  *    teinte), les actions la ramènent à 24 dp dans 10 dp de marge ; disques blanc (gris E0E0E0
- *    appuyé) ou bleu (colorPrimaryVariant appuyé), sans ombre ;
+ *    appuyé) ou bleu (colorPrimaryVariant appuyé) ;
  *  - iOS : BoutonCarteRond de GeoMys-IOS (disque blanc, icône teintée de 24 pt) ; l'envoi est un
- *    disque bleu ombré, icône blanche de 22 pt.
- *  [teinteIos] remplace la teinte du style sous iOS (goutte de « Centrer », bleue ou grise). */
+ *    disque bleu, icône blanche de 22 pt.
+ *  [teinteIos] remplace la teinte du style sous iOS (goutte de « Centrer », bleue ou grise).
+ *  Sur les deux plateformes, le disque est en relief et s'enfonce à l'appui (demande du 24 octobre
+ *  2026). */
 @Composable
 fun BoutonCarte(
     icone: DrawableResource,
@@ -100,8 +101,7 @@ fun BoutonCarte(
     Box(
         modifier
             .size(44.dp)
-            .then(if (ios && style == StyleBoutonCarte.PRINCIPAL) Modifier.shadow(3.dp, CircleShape) else Modifier)
-            .background(fond, CircleShape)
+            .fondEnRelief(fond, CircleShape, enfonce = appuye)
             .clickable(interactionSource = interactions, indication = null, role = Role.Button, onClick = onClick)
             // Sous iOS, `.buttonStyle(.plain)` estompe le bouton appuyé.
             .then(if (ios && appuye) Modifier.alpha(0.6f) else Modifier),

@@ -28,11 +28,6 @@ import fr.ariegenature.geomys.model.Taxon
  *  sous Android. On ne mémorise que des valeurs d'interface, pas de donnée naturaliste. */
 class PreferencesGeoMys(private val prefs: Settings) {
 
-    /** Interrupteur « Enregistrer la trace GPS » de l'accueil (`enregistrer_trace`), oui par défaut. */
-    var enregistrerTrace: Boolean
-        get() = prefs.getBoolean("enregistrer_trace", true)
-        set(value) = prefs.putBoolean("enregistrer_trace", value)
-
     /** Dernier groupe taxonomique choisi sur les écrans de saisie (`saisie_dernier_taxon`, nom de
      *  l'énumération), ou null. */
     fun dernierTaxon(): Taxon? {

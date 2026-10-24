@@ -70,6 +70,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -85,12 +87,12 @@ import fr.ariegenature.geomys.ui.composants.BoutonIos
 import fr.ariegenature.geomys.ui.composants.BoutonMaterial
 import fr.ariegenature.geomys.ui.composants.DialogueAlerte
 import fr.ariegenature.geomys.ui.composants.EtatFlou
-import fr.ariegenature.geomys.ui.composants.Interrupteur
 import fr.ariegenature.geomys.ui.composants.PILULE
 import fr.ariegenature.geomys.ui.composants.Pastille
 import fr.ariegenature.geomys.ui.composants.SeparateurIos
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.estIos
+import fr.ariegenature.geomys.ui.composants.fondEnRelief
 import fr.ariegenature.geomys.ui.composants.fondFlou
 import fr.ariegenature.geomys.ui.composants.rememberEtatFlou
 import fr.ariegenature.geomys.ui.composants.sourceFlou
@@ -98,7 +100,6 @@ import fr.ariegenature.geomys.ui.composants.styleLibelleMaterial
 import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.ui.ressources.ic_menu
 import fr.ariegenature.geomys.ui.ressources.ic_settings
-import fr.ariegenature.geomys.ui.ressources.ic_walk
 import fr.ariegenature.geomys.ui.ressources.logo_geomys
 import fr.ariegenature.geomys.ui.ressources.logo_geomys_ios
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
@@ -121,7 +122,6 @@ data class EtatAccueil(
     val saisiesEnAttente: Int = 0,
     val visitesEnAttente: Int = 0,
     val stationsEnAttente: Int = 0,
-    val enregistrerTrace: Boolean = true,
 ) {
     /** Pastille du menu : il reste quelque chose à envoyer, même dans une entrée masquée
      *  (`updatePastilleMenu` de GeoMys-Android ; GeoMys-IOS n'y comptait que les entrées visibles). */
@@ -146,7 +146,6 @@ class ActionsAccueil(
     val occhab: () -> Unit,
     val parametres: () -> Unit,
     val menu: (EntreeMenuAccueil) -> Unit,
-    val enregistrerTrace: (Boolean) -> Unit,
 )
 
 /** Mention légale de la GPL : la garantie nulle doit être portée à l'utilisateur. */
@@ -249,20 +248,8 @@ private fun ContenuAndroid(etat: EtatAccueil, actions: ActionsAccueil, nomAppli:
             if (etat.occhabDisponible) {
                 BoutonAccueilAndroid("OccHab", etat.saisieValide, actions.occhab, Modifier.fillMaxWidth().padding(bottom = 12.dp), 16.dp)
             }
-            Row(
-                Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(painterResource(Res.drawable.ic_walk), contentDescription = null, tint = CouleursGeoMys.blanc70, modifier = Modifier.size(20.dp))
-                Text(
-                    "Enregistrer la trace GPS",
-                    color = CouleursGeoMys.blanc70,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f).padding(start = 10.dp),
-                )
-                Interrupteur(etat.enregistrerTrace, actions.enregistrerTrace, description = "Enregistrer la trace GPS")
-            }
+            // Pas d'interrupteur « Enregistrer la trace GPS » : la trace se lance du bonhomme de la
+            // carte multi-taxons (demande du 24 octobre 2026).
         }
     }
 }
@@ -285,15 +272,21 @@ private fun RangeeSaisiesAndroid(modifier: Modifier, boutons: @Composable () -> 
     }
 }
 
+/** Le vert des boutons de l'accueil en relief : green_85 posé sur le bas du dégradé, rendu opaque
+ *  pour que l'ombre ne se voie pas au travers. */
+private val VERT_RELIEF = CouleursGeoMys.vert85.compositeOver(lerp(CouleursGeoMys.fondHaut, CouleursGeoMys.fondBas, 0.75f))
+
 /** Bouton de l'accueil : MaterialButton teinté green_85, texte blanc 15 sp sans majuscules,
- *  estompé à 40 % et inactif tant que la configuration n'est pas valide (`setBoutonActif`). */
+ *  estompé à 40 % et inactif tant que la configuration n'est pas valide (`setBoutonActif`). En
+ *  relief (variante du 24 octobre 2026). */
 @Composable
 private fun BoutonAccueilAndroid(texte: String, actif: Boolean, onClick: () -> Unit, modifier: Modifier, margeVerticale: Dp) {
     BoutonMaterial(
         onClick = onClick,
         modifier = modifier.alpha(if (actif) 1f else 0.4f),
         actif = actif,
-        fond = CouleursGeoMys.vert85,
+        fond = VERT_RELIEF,
+        relief = true,
         marges = PaddingValues(horizontal = 24.dp, vertical = margeVerticale),
         couleurContenu = Color.White,
     ) { Text(texte, style = styleLibelleMaterial(Color.White, taille = 15f)) }
@@ -393,28 +386,15 @@ private fun ContenuIos(etat: EtatAccueil, actions: ActionsAccueil, nomAppli: Str
             if (etat.occhabDisponible) {
                 BoutonAccueilIos("OccHab", etat.saisieValide, actions.occhab, Modifier.fillMaxWidth(), 16.dp)
             }
-            Row(
-                Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SymboleSf("figure.walk", 17f, listOf(CouleursGeoMys.blanc70))
-                Text(
-                    "Enregistrer la trace GPS",
-                    color = CouleursGeoMys.blanc70,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f),
-                )
-                Interrupteur(etat.enregistrerTrace, actions.enregistrerTrace, description = "Enregistrer la trace GPS")
-            }
+            // Pas d'interrupteur « Enregistrer la trace GPS » : la trace se lance du bonhomme de la
+            // carte multi-taxons (demande du 24 octobre 2026).
         }
     }
 }
 
 /** `GeoMysBoutonVertStyle` : pilule green_85, texte blanc 15 pt medium centré, marges de 24 pt sur
  *  les côtés. Désactivé, le style l'estompe à 40 % et l'écran encore à 40 % : 16 % en tout, comme
- *  dans GeoMys-IOS. */
+ *  dans GeoMys-IOS. En relief (variante du 24 octobre 2026). */
 @Composable
 private fun BoutonAccueilIos(texte: String, actif: Boolean, onClick: () -> Unit, modifier: Modifier, margeVerticale: Dp) {
     BoutonIos(onClick, modifier.alpha(if (actif) 1f else 0.4f), actif, opaciteInactif = 0.4f) {
@@ -426,7 +406,7 @@ private fun BoutonAccueilIos(texte: String, actif: Boolean, onClick: () -> Unit,
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .background(CouleursGeoMys.vert85, PILULE)
+                .fondEnRelief(VERT_RELIEF, PILULE)
                 .padding(horizontal = 24.dp, vertical = margeVerticale),
         )
     }

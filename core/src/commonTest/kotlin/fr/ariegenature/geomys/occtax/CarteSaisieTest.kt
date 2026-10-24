@@ -110,4 +110,12 @@ class CarteSaisieTest {
         assertTrue(CarteSaisie.peutEnvoyer(listOf(obs("a").copy(releveSansEspece = true)), configuree = true))
         assertTrue(!CarteSaisie.peutEnvoyer(listOf(obs("a").copy(cdNom = 1)), configuree = false))
     }
+
+    /** Le bonhomme de la carte (demande du 24 octobre 2026) dit ce que fait son toucher. */
+    @Test
+    fun message_du_bonhomme_selon_la_trace() {
+        assertEquals("La trace GPS démarre.", CarteSaisie.messageTrace(enCours = false, commencee = false))
+        assertEquals("La trace GPS reprend.", CarteSaisie.messageTrace(enCours = false, commencee = true))
+        assertEquals("La trace GPS est arrêtée.", CarteSaisie.messageTrace(enCours = true, commencee = true))
+    }
 }

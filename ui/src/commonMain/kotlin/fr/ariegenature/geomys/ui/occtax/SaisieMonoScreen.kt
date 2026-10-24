@@ -97,7 +97,6 @@ import fr.ariegenature.geomys.ui.carte.enPosition
 import fr.ariegenature.geomys.ui.carte.rememberStyleFond
 import fr.ariegenature.geomys.ui.composants.AlerteEchecEcriture
 import fr.ariegenature.geomys.ui.composants.BandeauNavigation
-import fr.ariegenature.geomys.ui.composants.barreChampObligatoire
 import fr.ariegenature.geomys.ui.composants.BoutonAlerte
 import fr.ariegenature.geomys.ui.composants.BoutonContour
 import fr.ariegenature.geomys.ui.composants.BoutonIos
@@ -116,7 +115,9 @@ import fr.ariegenature.geomys.ui.composants.RetourSysteme
 import fr.ariegenature.geomys.ui.composants.SeparateurIos
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.afficher
+import fr.ariegenature.geomys.ui.composants.barreChampObligatoire
 import fr.ariegenature.geomys.ui.composants.estIos
+import fr.ariegenature.geomys.ui.composants.fondEnRelief
 import fr.ariegenature.geomys.ui.composants.rememberDemandeLocalisation
 import fr.ariegenature.geomys.ui.composants.rememberDictee
 import fr.ariegenature.geomys.ui.composants.rememberVibration
@@ -408,7 +409,7 @@ private fun EcranCarteMono(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
                 },
                 teinteIos = if (vm.suivrePosition) CouleursGeoMys.primaire else GRIS_INACTIF_IOS,
             )
-            Boussole(etat, vm.carteSuitBoussole, vm::basculerBoussole)
+            Boussole(etat, vm::basculerBoussole)
             BoutonCarte(Res.drawable.ic_map, "Changer fond", StyleBoutonCarte.CONTROLE, vm::montrerChoixFond)
         }
         Column(
@@ -589,7 +590,7 @@ private fun PanneauMono(vm: SaisieMonoViewModel, onEnregistrer: () -> Unit, modi
             Spacer(Modifier.weight(1f))
             if (ios) {
                 BoutonIos(onEnregistrer, opaciteAppui = 0.6f) {
-                    Box(Modifier.size(48.dp).background(CouleursGeoMys.primaire, CircleShape), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(48.dp).fondEnRelief(CouleursGeoMys.primaire, CircleShape), contentAlignment = Alignment.Center) {
                         SymboleSf("plus", 22f, listOf(Color.White), graisse = GraisseSymbole.GRASSE, description = "Enregistrer ici")
                     }
                 }

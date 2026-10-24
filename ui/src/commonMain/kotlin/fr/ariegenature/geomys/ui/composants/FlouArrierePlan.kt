@@ -17,7 +17,7 @@
  */
 
 // Propre au portage (demande du 24 octobre 2026) : le flou des matériaux de SwiftUI (`.regularMaterial`…) sur
-// ce que Compose dessine. Sur une vue native (la carte), c'est le matériau d'iOS lui-même (MateriauUltraFin).
+// ce que Compose dessine.
 
 package fr.ariegenature.geomys.ui.composants
 

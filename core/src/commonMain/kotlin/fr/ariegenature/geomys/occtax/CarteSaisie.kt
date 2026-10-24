@@ -176,8 +176,6 @@ object CarteSaisie {
         return titre to especes
     }
 
-    /** « Enregistrer et envoyer à GeoNature » n'est proposé qu'avec une appli configurée et au moins
-     *  une obs déterminée ou un relevé sans espèce. */
     /** ▶ / ⏸ du parcours : arrêter, sinon CONTINUER une trace non vide (un aller-retour par l'accueil
      *  la met en pause ; la recommencer effacerait le parcours de la journée — défaut du portage
      *  iOS), sinon démarrer. */
@@ -189,6 +187,16 @@ object CarteSaisie {
         }
     }
 
+    /** Le message du bonhomme de la carte multi-taxons (demande du 24 octobre 2026), selon
+     *  l'état de la trace AVANT le toucher : [enCours], ou déjà [commencee] (elle reprend alors). */
+    fun messageTrace(enCours: Boolean, commencee: Boolean): String = when {
+        enCours -> "La trace GPS est arrêtée."
+        commencee -> "La trace GPS reprend."
+        else -> "La trace GPS démarre."
+    }
+
+    /** « Enregistrer et envoyer à GeoNature » n'est proposé qu'avec une appli configurée et au moins
+     *  une obs déterminée ou un relevé sans espèce. */
     fun peutEnvoyer(observations: List<Observation>, configuree: Boolean): Boolean =
         configuree && observations.any { it.cdNom != null || it.releveSansEspece }
 }

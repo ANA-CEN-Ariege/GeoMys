@@ -936,7 +936,6 @@ private fun lireEtatAccueil(infos: InfosApp, services: ServicesGeoNature): EtatA
         saisieValide = config.saisieOcctaxValide,
         monitoringDisponible = services.monitoringModules.countModulesEnCache() > 0,
         occhabDisponible = config.occhabDisponible && config.occhabPeutCreer,
-        enregistrerTrace = services.preferences.enregistrerTrace,
     )
 }
 
@@ -1004,10 +1003,6 @@ private fun EcranAccueil(
                     EntreeMenuAccueil.EXPLORER -> nav.navigate(RouteExplorer())
                     EntreeMenuAccueil.MAPS_MANAGER -> nav.navigate(RouteMapsManager())
                 }
-            },
-            enregistrerTrace = { actif ->
-                services.preferences.enregistrerTrace = actif
-                etat = etat.copy(enregistrerTrace = actif)
             },
         ),
         onTexteLicence = { liens.openUri("https://www.gnu.org/licenses/gpl-3.0.html") },
