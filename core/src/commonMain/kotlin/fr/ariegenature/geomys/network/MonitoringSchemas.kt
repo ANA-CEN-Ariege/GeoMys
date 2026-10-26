@@ -510,13 +510,13 @@ class MonitoringSchemas(
                 else -> false
             }
             val typeUtil = typeUtilBrut
-            // Liste taxonomique portée par le champ lui-même, qui restreint son autocomplétion. Pour le
-            // widget `taxonomy`, `id_list` seule, comme le composant du web (`[idList]="formDefComp
-            // ['id_list']"`, qui cherche sinon dans tout TaxRef) : son `api` n'y compte pas (PAPALTB et
-            // pelouses_seches à l'ANA ; décision de l'utilisateur du 21 octobre, « comme le web »). Les
-            // autres widgets (une datalist de taxons) gardent celle de leur api `taxref/allnamebylist/<id>`.
-            val idListTaxonomie = extraireInt(v.opt("id_list"))
-                ?: apiBrut?.takeUnless { typeWidget.equals("taxonomy", ignoreCase = true) }?.let { extraireIdListeAllnamebylist(it) }
+            // Liste taxonomique portée par le champ lui-même, qui restreint son autocomplétion : son
+            // `id_list`, sinon la liste de son api `taxref/allnamebylist/<id>`. Pour le widget
+            // `taxonomy`, le web ne lit que `id_list` (`[idList]="formDefComp['id_list']"`) et cherche
+            // sinon dans tout TaxRef ; l'appli prend aussi la liste de l'api, celle qu'a voulue qui a
+            // configuré le protocole (PAPALTB et pelouses_seches à l'ANA ; décision de l'utilisateur du
+            // 26 octobre 2026, qui revient sur celle du 21, « comme le web »).
+            val idListTaxonomie = extraireInt(v.opt("id_list")) ?: apiBrut?.let { extraireIdListeAllnamebylist(it) }
             // Valeur initiale : la seule `value` du schéma, comme le formulaire web (toForm de
             // gn_module_monitoring) ; un objet `{code_nomenclature_type, cd_nomenclature}` se résout
             // par son cd. Le `default` ne vaut que pour une datalist (composant datalist du web).

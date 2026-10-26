@@ -148,10 +148,10 @@ fun construireFormulaire(schemaObjet: MonitoringApi.MonitoringSchemaObjet): Form
                 effacable = viewType == ViewType.SELECT && widget in setOf("nomenclature", "observers", "dataset"),
                 selectSimple = viewType == ViewType.SELECT && widget == "select",
                 hiddenExpr = prop.hiddenExpr,
-                // Pour les widgets TAXON, la liste portée par le champ lui-même, seule, comme le web :
-                // l'autocomplétion s'y limite. Sans elle, tout TaxRef (le téléphone charge alors toutes
-                // les listes, cf. listesDesSuivis) ; ni celle du type d'objet ni celle du module ne la
-                // remplacent plus (21 octobre).
+                // Pour les widgets TAXON, la liste portée par le champ lui-même (son `id_list`, sinon
+                // celle de son api, 26 octobre) : l'autocomplétion s'y limite. Sans elle, tout TaxRef
+                // (le téléphone charge alors toutes les listes, cf. listesDesSuivis) ; ni celle du type
+                // d'objet ni celle du module ne la remplacent plus (21 octobre).
                 idListeTaxonomieRestreinte = if (viewType == ViewType.TAXON) prop.idListTaxonomie else null,
                 // Bornes numériques (NUMBER uniquement — ignorées sinon), transmises brutes : un
                 // littéral est résolu immédiatement, une expression `(value) => value.X` contre les

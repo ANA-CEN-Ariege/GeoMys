@@ -410,9 +410,9 @@ data class ListesDesSuivis(val ids: Set<Int>, val champSansListe: Boolean)
 
 /** Les listes de taxons dont les protocoles ([protocoles] : la liste de chaque protocole, et son
  *  schéma) peuvent avoir besoin : celle du protocole, de chaque type d'objet et de chaque champ
- *  espèce. Un champ espèce sans liste propre (`id_list`) cherche dans tout TaxRef, comme le web, même
- *  si son protocole en déclare une (21 octobre) : [ListesDesSuivis.champSansListe]. Un champ masqué
- *  (le `cd_nom` du type « module ») ne compte pas. */
+ *  espèce. Un champ espèce sans liste propre (ni `id_list` ni api `taxref/allnamebylist/<id>`)
+ *  cherche dans tout TaxRef, comme le web, même si son protocole en déclare une (21 octobre) :
+ *  [ListesDesSuivis.champSansListe]. Un champ masqué (le `cd_nom` du type « module ») ne compte pas. */
 fun listesDesSuivis(protocoles: List<Pair<Int?, Map<String, MonitoringApi.MonitoringSchemaObjet>?>>): ListesDesSuivis {
     val ids = mutableSetOf<Int>()
     var sansListe = false

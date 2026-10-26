@@ -113,7 +113,6 @@ import fr.ariegenature.geomys.ui.composants.IndicateurActivite
 import fr.ariegenature.geomys.ui.composants.LigneCorbeille
 import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.Progression
-import fr.ariegenature.geomys.ui.composants.Relief
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.composants.fondEnRelief
@@ -325,7 +324,7 @@ private fun BoxScope.EcranAndroid(vm: MapsManagerViewModel, etat: MapState, onAc
             .align(Alignment.TopEnd)
             .padding(8.dp)
             .size(48.dp)
-            .fondEnRelief(Color.White, CircleShape, Relief.DOUX)
+            .fondEnRelief(Color.White, CircleShape)
             .clickable(onClickLabel = "Vider le cache", onClick = vm::demanderVidage),
         contentAlignment = Alignment.Center,
     ) {
@@ -411,7 +410,7 @@ private fun BoxScope.EcranIos(vm: MapsManagerViewModel, etat: MapState, onAccuei
         Box(Modifier.fillMaxWidth().padding(top = 8.dp)) {
             Badge(Modifier.align(Alignment.Center))
             BoutonIos(vm::demanderVidage, Modifier.align(Alignment.CenterEnd).padding(end = 12.dp), opaciteAppui = 0.6f) {
-                Box(Modifier.size(44.dp).fondEnRelief(Color.White, CircleShape, Relief.DOUX), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(44.dp).fondEnRelief(Color.White, CircleShape), contentAlignment = Alignment.Center) {
                     SymboleSf("trash", 18f, listOf(CouleursGeoMys.holoRougeFonce), graisse = GraisseSymbole.DEMI_GRASSE, description = "Vider le cache")
                 }
             }

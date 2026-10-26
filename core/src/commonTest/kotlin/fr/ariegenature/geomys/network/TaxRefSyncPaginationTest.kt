@@ -24,6 +24,7 @@
 package fr.ariegenature.geomys.network
 
 import com.russhwolf.settings.MapSettings
+import fr.ariegenature.geomys.json.JSONObject
 import fr.ariegenature.geomys.network.ServeurSimule.Companion.json
 import fr.ariegenature.geomys.network.ServeurSimule.Companion.panne
 import fr.ariegenature.geomys.network.ServeurSimule.Companion.statut
@@ -195,8 +196,8 @@ class TaxRefSyncPaginationTest {
         val stom = 101 to mapOf("observation" to type("observation", null, prop("cd_nom", "taxonomy", liste = 101)))
         val propre = null to mapOf("observation" to type("observation", null, prop("cd_nom", "taxonomy", liste = 205)))
         assertEquals(ListesDesSuivis(setOf(101, 205), champSansListe = false), listesDesSuivis(listOf(stom, propre)))
-        // Comme le web (21 octobre) : un champ espèce sans `id_list` cherche dans tout TaxRef, même si
-        // le protocole ou un autre type déclare une liste (PAPALTB, pelouses_seches à l'ANA).
+        // Comme le web (21 octobre) : un champ espèce sans liste propre cherche dans tout TaxRef, même
+        // si le protocole ou un autre type déclare une liste.
         val autreType = 103 to mapOf("module" to type("module", 103), "observation" to type("observation", null, prop("cd_nom", "taxonomy")))
         assertTrue(listesDesSuivis(listOf(autreType)).champSansListe)
         // Le `cd_nom` masqué du type « module » ne compte pas.
@@ -206,5 +207,10 @@ class TaxRefSyncPaginationTest {
         // RHOMEOOrthoptere sur le serveur de l'ANA : aucune liste nulle part.
         val sansListe = null to mapOf("observation" to type("observation", null, prop("cd_nom", "taxonomy"), prop("nb", "number")))
         assertTrue(listesDesSuivis(listOf(stom, sansListe)).champSansListe)
+        // PAPALTB à l'ANA : un champ espèce sans `id_list`, avec une api vers la liste 102. Depuis le
+        // 26 octobre, cette liste se charge, et non plus toutes les listes publiques.
+        val apiSeule = MonitoringSchemas.parserUnePropriete("cd_nom", JSONObject("""{"type_widget":"taxonomy","api":"taxref/allnamebylist/102"}"""))!!
+        val papaltb = 102 to mapOf("observation" to type("observation", null, apiSeule))
+        assertEquals(ListesDesSuivis(setOf(102), champSansListe = false), listesDesSuivis(listOf(papaltb)))
     }
 }

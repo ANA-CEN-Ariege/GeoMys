@@ -409,7 +409,7 @@ Audit complet refait après la 0.2.0 (`AUDIT-2026-10-21-complet.md`, fichier loc
 - **Version du serveur** (M28, réponse 2) : seule une version lue et trop ancienne refuse le serveur. Une version non lue (réseau faible, proxy, portail captif) laisse l'état d'avant ; « v2.17 » se lit 2.17.
 - **Jeton** (M27, réponse 3) : le jeton et les cookies ne partent que vers le serveur configuré, redirections comprises ; une liste d'une API sur un autre serveur est demandée sans eux.
 - **Date de fin d'une visite** (réponse 4) : masquée ou vidée, elle reprend la date de début, comme dans la 0.1.0.
-- **Champ espèce des Suivis** (réponse 5) : seule sa propre liste (`id_list`) le restreint, comme le web ; ni celle de son `api`, ni celle du protocole. PAPALTB et pelouses_seches proposent tout TaxRef chargé, et un tel champ fait charger toutes les listes publiques (le `cd_nom` masqué du type « module » ne compte pas).
+- **Champ espèce des Suivis** (réponse 5, revue au § 40 pour l'`api`) : seule sa propre liste (`id_list`) le restreint, comme le web ; ni celle de son `api`, ni celle du protocole. PAPALTB et pelouses_seches proposent tout TaxRef chargé, et un tel champ fait charger toutes les listes publiques (le `cd_nom` masqué du type « module » ne compte pas).
 - **Android 7.0** (M42, réponse 6) : les racines ISRG Root X1 et X2 de Let's Encrypt sont embarquées (`res/raw`, empreintes vérifiées) ; sans elles, aucun serveur sous Let's Encrypt n'était joignable.
 - **Mot de passe ressaisi** (M29) : il ne vide plus les nomenclatures, les stations du serveur ni la version ; seul un changement d'adresse ou de compte le fait.
 - **Liste choisie hors réseau** (M30) : si elle ne se charge pas, la liste précédente revient, avec un message.
@@ -630,7 +630,7 @@ Demandes de l'utilisateur : « essaye une variante en mettant les boutons de l'�
 
 - `fondEnRelief` (`composants/Boutons.kt`) : ombre portée de 6 dp, couleur éclaircie en haut et assombrie en bas, liseré clair en haut et sombre en bas. Sous Android, l'ombre se resserre à l'appui (`enfonce`) ; sous iOS, le bouton garde son estompage.
 - Le fond doit être opaque : l'ombre se verrait au travers. Le vert translucide de l'accueil devient le même vert posé sur le bas du dégradé (`VERT_RELIEF`) ; sur les cartes, « Valider » d'OccHab prend le vert plein.
-- Accueil : les quatre boutons de saisie, sous les deux allures.
+- Accueil : les quatre boutons de saisie, sous les deux allures (retiré le 26 octobre, § 39).
 - Cartes (saisie multi-taxons et mono, OccHab, Explorer, Suivis, détail d'une saisie, Maps Manager) : tous les disques (`BoutonCarte`, `BoutonRondAndroid`, `BoutonRondIos`, modes de géométrie, « Enregistrer ici », corbeille), « Annuler » et « Valider » posés sur la carte d'OccHab, et le panneau de validation de la saisie multi-taxons sous Android.
 - Boussole : sous iOS, le matériau translucide ne pouvait pas avoir le même relief (une ombre sous le disque se verrait au travers, un dégradé cacherait la transparence). Choix de l'utilisateur : un disque blanc opaque en relief, comme les autres ; l'aiguille garde sa pointe rouge, le talon devient gris et le moyeu gris foncé pour rester visibles sur le blanc. Sous Android, son ombre simple devient le relief commun.
 - Boussole, ensuite : « n'ajoute pas de contour sur le bouton boussole quand on clique dessus ». L'anneau qui marquait la carte tournée avec le cap (vert sous iOS, bleu sous Android) est retiré : la carte qui tourne suffit à le montrer.
@@ -648,11 +648,22 @@ Demandes de l'utilisateur : « sur la version iPhone, supprime sur l'écran d'ac
 - Sous Android, le bouton « Liste » des observations devient un disque blanc à l'icône bleue, comme sous iOS (`BoutonRondAndroid` prend une `teinte`).
 - Test : `CarteSaisieTest.message_du_bonhomme_selon_la_trace`.
 
-## 39. Relief adouci sur les cartes (26 octobre)
+## 39. Relief adouci sur les cartes, retiré de l'accueil (26 octobre)
 
-Demandes de l'utilisateur : « adoucis un peu l'effet de relief des boutons sur les cartes », puis « encore plus doux ».
+Demandes de l'utilisateur : « adoucis un peu l'effet de relief des boutons sur les cartes », puis « encore plus doux », puis « enlève l'effet de relief sur les boutons de la page d'accueil. Garde comme ça les boutons sur les cartes ».
 
-- `fondEnRelief` prend une intensité (`Relief`). `MARQUE` garde le relief du § 37 : ombre de 6 dp, 18 % de blanc en haut, 15 % de noir en bas, liseré à 40 % / 25 %. `DOUX` a une ombre de 2 dp, 5 % / 4 % et un liseré à 20 % / 6 % (premier essai : 4 dp, 10 % / 8 %, 30 % / 12 %). L'ombre enfoncée à l'appui reste à 1 dp.
-- L'accueil garde `MARQUE`. Toutes les cartes du § 37 passent en `DOUX` : disques, boussole, modes de géométrie, « Enregistrer ici », corbeille du Maps Manager, « Annuler » et « Valider » d'OccHab.
-- Le `relief` de `BoutonMaterial`, `BoutonPlein` et `BoutonVert` est désormais une intensité ou `null`, et non plus un booléen.
+- `fondEnRelief` : ombre de 2 dp (1 dp à l'appui), 5 % de blanc en haut du dégradé et 4 % de noir en bas, liseré à 20 % en haut et 6 % en bas. Au § 37 : 6 dp, 18 % / 15 %, 40 % / 25 % ; premier essai d'adoucissement : 4 dp, 10 % / 8 %, 30 % / 12 %.
+- Il vaut pour toutes les cartes du § 37 : disques, boussole, modes de géométrie, « Enregistrer ici », corbeille du Maps Manager, « Annuler » et « Valider » d'OccHab.
+- L'accueil revient à ses boutons d'avant le § 37, sous les deux allures : pilule green_85 translucide, sans ombre ni dégradé (`VERT_RELIEF` retiré).
+- Une intensité par usage (`Relief.MARQUE` pour l'accueil, `Relief.DOUX` pour les cartes) a servi le temps des essais ; l'accueil n'en ayant plus, elle est retirée et `relief` redevient un booléen.
 - Pas de test automatique : le rendu se juge sur les téléphones.
+
+## 40. Le champ espèce des Suivis prend la liste de son `api` (26 octobre)
+
+Question de l'utilisateur : « quand il y a api seulement, ne pourrais-tu pas utiliser la liste indiquée et la charger dans le cache si elle ne l'est pas déjà ? », puis « oui ». La décision du 21 octobre (§ 24, réponse 5) est revue sur ce point.
+
+- Sur le web, le champ espèce (`pnx-taxonomy`) ne lit que `id_list`. Sans elle, il cherche dans tout TaxRef, même si le champ a une `api` `taxref/allnamebylist/<id>` : seule la liste déroulante (`pnx-datalist`) lit `api`.
+- Dans l'appli, un champ espèce sans `id_list` prend désormais la liste de son `api` (`MonitoringSchemas.parserUnePropriete`). Elle restreint les propositions et la dictée, et la synchronisation la télécharge (`listesDesSuivis`). Si elle manque au téléphone, TaxRef est rechargé, comme pour toute liste utile absente.
+- Sur le serveur de l'ANA, cela concerne PAPALTB (liste 102) et pelouses_seches (liste 100). Le web y propose tout TaxRef, l'appli seulement ces listes. Ces deux listes sont déjà chargées par d'autres protocoles : rien à recharger.
+- Un champ sans `id_list` ni `api` (RHOMEOOrthoptere) cherche toujours dans tout ce qui est chargé et fait charger toutes les listes publiques.
+- Tests : `MonitoringApiParsingTest.le_champ_taxonomy_prend_son_id_list_sinon_la_liste_de_son_api` et `TaxRefSyncPaginationTest.les_listes_des_suivis_et_le_champ_espece_sans_liste`. Revenir à la règle du 21 octobre fait échouer les deux.

@@ -105,7 +105,6 @@ import fr.ariegenature.geomys.ui.composants.GraisseSymbole
 import fr.ariegenature.geomys.ui.composants.HAUTEUR_BANDEAU_IOS
 import fr.ariegenature.geomys.ui.composants.IndicateurActivite
 import fr.ariegenature.geomys.ui.composants.LocalToasts
-import fr.ariegenature.geomys.ui.composants.Relief
 import fr.ariegenature.geomys.ui.composants.RetourSysteme
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.afficher
@@ -588,7 +587,7 @@ private fun BoutonMode(
     val teinte = if (actif) Color.White else CouleursGeoMys.primaire
     if (estIos) {
         BoutonIos({ onChoisir(mode) }, opaciteAppui = 0.6f) {
-            Box(Modifier.size(44.dp).fondEnRelief(fond, CircleShape, Relief.DOUX), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(44.dp).fondEnRelief(fond, CircleShape), contentAlignment = Alignment.Center) {
                 SymboleSf(symbole, 18f, listOf(teinte), graisse = GraisseSymbole.DEMI_GRASSE, description = description)
             }
         }
@@ -598,7 +597,7 @@ private fun BoutonMode(
         Box(
             Modifier
                 .size(44.dp)
-                .fondEnRelief(fond, CircleShape, Relief.DOUX, enfonce = appuye)
+                .fondEnRelief(fond, CircleShape, enfonce = appuye)
                 .clickable(interactionSource = interactions, indication = null, role = Role.Button) { onChoisir(mode) },
             contentAlignment = Alignment.Center,
         ) {
@@ -774,7 +773,7 @@ internal fun BoutonRondAndroid(
     Box(
         Modifier
             .size(taille)
-            .fondEnRelief(couleur, CircleShape, Relief.DOUX, enfonce = appuye)
+            .fondEnRelief(couleur, CircleShape, enfonce = appuye)
             .clickable(interactionSource = interactions, indication = null, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -787,7 +786,7 @@ internal fun BoutonRondAndroid(
 @Composable
 internal fun BoutonRondIos(symbole: String, fond: Color, teinte: Color, description: String, onClick: () -> Unit) {
     BoutonIos(onClick, opaciteAppui = 0.6f) {
-        Box(Modifier.size(56.dp).fondEnRelief(fond, CircleShape, Relief.DOUX), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(56.dp).fondEnRelief(fond, CircleShape), contentAlignment = Alignment.Center) {
             SymboleSf(symbole, 22f, listOf(teinte), graisse = GraisseSymbole.DEMI_GRASSE, description = description)
         }
     }

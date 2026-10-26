@@ -54,7 +54,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ariegenature.geomys.geo.LissageCap
 import fr.ariegenature.geomys.geo.ecartAngulaire
-import fr.ariegenature.geomys.ui.composants.Relief
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.composants.fondEnRelief
 import kotlin.math.abs
@@ -90,7 +89,7 @@ fun BoutonBoussole(aiguille: Double, onClick: () -> Unit, modifier: Modifier = M
         Box(
             modifier
                 .size(44.dp)
-                .fondEnRelief(Color.White, CircleShape, Relief.DOUX)
+                .fondEnRelief(Color.White, CircleShape)
                 .then(clic),
             contentAlignment = Alignment.Center,
         ) {
@@ -102,7 +101,7 @@ fun BoutonBoussole(aiguille: Double, onClick: () -> Unit, modifier: Modifier = M
         }
     } else {
         val mesure = rememberTextMeasurer()
-        Canvas(modifier.size(44.dp).fondEnRelief(Color.White, CircleShape, Relief.DOUX).then(clic)) {
+        Canvas(modifier.size(44.dp).fondEnRelief(Color.White, CircleShape).then(clic)) {
             val cx = size.width / 2f
             val cy = size.height / 2f
             val r = min(cx, cy) - 2f

@@ -70,8 +70,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -89,11 +87,9 @@ import fr.ariegenature.geomys.ui.composants.DialogueAlerte
 import fr.ariegenature.geomys.ui.composants.EtatFlou
 import fr.ariegenature.geomys.ui.composants.PILULE
 import fr.ariegenature.geomys.ui.composants.Pastille
-import fr.ariegenature.geomys.ui.composants.Relief
 import fr.ariegenature.geomys.ui.composants.SeparateurIos
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.estIos
-import fr.ariegenature.geomys.ui.composants.fondEnRelief
 import fr.ariegenature.geomys.ui.composants.fondFlou
 import fr.ariegenature.geomys.ui.composants.rememberEtatFlou
 import fr.ariegenature.geomys.ui.composants.sourceFlou
@@ -273,21 +269,15 @@ private fun RangeeSaisiesAndroid(modifier: Modifier, boutons: @Composable () -> 
     }
 }
 
-/** Le vert des boutons de l'accueil en relief : green_85 posé sur le bas du dégradé, rendu opaque
- *  pour que l'ombre ne se voie pas au travers. */
-private val VERT_RELIEF = CouleursGeoMys.vert85.compositeOver(lerp(CouleursGeoMys.fondHaut, CouleursGeoMys.fondBas, 0.75f))
-
 /** Bouton de l'accueil : MaterialButton teinté green_85, texte blanc 15 sp sans majuscules,
- *  estompé à 40 % et inactif tant que la configuration n'est pas valide (`setBoutonActif`). En
- *  relief (variante du 24 octobre 2026). */
+ *  estompé à 40 % et inactif tant que la configuration n'est pas valide (`setBoutonActif`). */
 @Composable
 private fun BoutonAccueilAndroid(texte: String, actif: Boolean, onClick: () -> Unit, modifier: Modifier, margeVerticale: Dp) {
     BoutonMaterial(
         onClick = onClick,
         modifier = modifier.alpha(if (actif) 1f else 0.4f),
         actif = actif,
-        fond = VERT_RELIEF,
-        relief = Relief.MARQUE,
+        fond = CouleursGeoMys.vert85,
         marges = PaddingValues(horizontal = 24.dp, vertical = margeVerticale),
         couleurContenu = Color.White,
     ) { Text(texte, style = styleLibelleMaterial(Color.White, taille = 15f)) }
@@ -395,7 +385,7 @@ private fun ContenuIos(etat: EtatAccueil, actions: ActionsAccueil, nomAppli: Str
 
 /** `GeoMysBoutonVertStyle` : pilule green_85, texte blanc 15 pt medium centré, marges de 24 pt sur
  *  les côtés. Désactivé, le style l'estompe à 40 % et l'écran encore à 40 % : 16 % en tout, comme
- *  dans GeoMys-IOS. En relief (variante du 24 octobre 2026). */
+ *  dans GeoMys-IOS. */
 @Composable
 private fun BoutonAccueilIos(texte: String, actif: Boolean, onClick: () -> Unit, modifier: Modifier, margeVerticale: Dp) {
     BoutonIos(onClick, modifier.alpha(if (actif) 1f else 0.4f), actif, opaciteInactif = 0.4f) {
@@ -407,7 +397,7 @@ private fun BoutonAccueilIos(texte: String, actif: Boolean, onClick: () -> Unit,
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .fondEnRelief(VERT_RELIEF, PILULE, Relief.MARQUE)
+                .background(CouleursGeoMys.vert85, PILULE)
                 .padding(horizontal = 24.dp, vertical = margeVerticale),
         )
     }
