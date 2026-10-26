@@ -25,7 +25,7 @@ android {
         applicationId = "fr.ariegenature.geomys.common"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 202
+        versionCode = 203
         versionName = "2.1.1"
         // Les téléphones seulement (ARM 64 et 32 bits, comme le Galaxy A12) : le moteur de MapLibre pèse
         // une dizaine de mégaoctets par architecture. L'émulateur des Mac Apple Silicon est aussi en arm64.
