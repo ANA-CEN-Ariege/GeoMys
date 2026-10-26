@@ -89,6 +89,7 @@ import fr.ariegenature.geomys.ui.composants.DialogueAlerte
 import fr.ariegenature.geomys.ui.composants.EtatFlou
 import fr.ariegenature.geomys.ui.composants.PILULE
 import fr.ariegenature.geomys.ui.composants.Pastille
+import fr.ariegenature.geomys.ui.composants.Relief
 import fr.ariegenature.geomys.ui.composants.SeparateurIos
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.estIos
@@ -286,7 +287,7 @@ private fun BoutonAccueilAndroid(texte: String, actif: Boolean, onClick: () -> U
         modifier = modifier.alpha(if (actif) 1f else 0.4f),
         actif = actif,
         fond = VERT_RELIEF,
-        relief = true,
+        relief = Relief.MARQUE,
         marges = PaddingValues(horizontal = 24.dp, vertical = margeVerticale),
         couleurContenu = Color.White,
     ) { Text(texte, style = styleLibelleMaterial(Color.White, taille = 15f)) }
@@ -406,7 +407,7 @@ private fun BoutonAccueilIos(texte: String, actif: Boolean, onClick: () -> Unit,
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
-                .fondEnRelief(VERT_RELIEF, PILULE)
+                .fondEnRelief(VERT_RELIEF, PILULE, Relief.MARQUE)
                 .padding(horizontal = 24.dp, vertical = margeVerticale),
         )
     }

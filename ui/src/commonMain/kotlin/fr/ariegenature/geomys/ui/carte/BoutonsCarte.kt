@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import fr.ariegenature.geomys.ui.composants.Relief
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.composants.fondEnRelief
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
@@ -101,7 +102,7 @@ fun BoutonCarte(
     Box(
         modifier
             .size(44.dp)
-            .fondEnRelief(fond, CircleShape, enfonce = appuye)
+            .fondEnRelief(fond, CircleShape, Relief.DOUX, enfonce = appuye)
             .clickable(interactionSource = interactions, indication = null, role = Role.Button, onClick = onClick)
             // Sous iOS, `.buttonStyle(.plain)` estompe le bouton appuyé.
             .then(if (ios && appuye) Modifier.alpha(0.6f) else Modifier),

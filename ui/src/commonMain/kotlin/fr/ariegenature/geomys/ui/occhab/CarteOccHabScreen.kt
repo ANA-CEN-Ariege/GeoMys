@@ -109,6 +109,7 @@ import fr.ariegenature.geomys.ui.composants.DialogueProgression
 import fr.ariegenature.geomys.ui.composants.GraisseSymbole
 import fr.ariegenature.geomys.ui.composants.HAUTEUR_BANDEAU_IOS
 import fr.ariegenature.geomys.ui.composants.LocalToasts
+import fr.ariegenature.geomys.ui.composants.Relief
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.afficher
 import fr.ariegenature.geomys.ui.composants.estIos
@@ -564,7 +565,7 @@ private fun BoutonMode(mode: ModeGeometrie, vm: CarteOccHabViewModel, descriptio
     val teinte = if (actif) Color.White else CouleursGeoMys.primaire
     if (estIos) {
         BoutonIos({ vm.changerMode(mode) }, actif = !verrouille, opaciteAppui = 0.6f, opaciteInactif = 0.4f) {
-            Box(Modifier.size(44.dp).fondEnRelief(fond, CircleShape), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(44.dp).fondEnRelief(fond, CircleShape, Relief.DOUX), contentAlignment = Alignment.Center) {
                 SymboleSf(if (mode == ModeGeometrie.POINT) "mappin" else "triangle", 18f, listOf(teinte), graisse = GraisseSymbole.DEMI_GRASSE, description = description)
             }
         }
@@ -575,7 +576,7 @@ private fun BoutonMode(mode: ModeGeometrie, vm: CarteOccHabViewModel, descriptio
             Modifier
                 .size(44.dp)
                 .alpha(if (verrouille) 0.4f else 1f)
-                .fondEnRelief(fond, CircleShape, enfonce = appuye)
+                .fondEnRelief(fond, CircleShape, Relief.DOUX, enfonce = appuye)
                 .clickable(interactions, indication = null, enabled = !verrouille, role = Role.Button) { vm.changerMode(mode) },
             contentAlignment = Alignment.Center,
         ) {
@@ -605,9 +606,9 @@ private fun PanneauAndroid(vm: CarteOccHabViewModel, modifier: Modifier) {
         modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BoutonPlein("Annuler", vm::annuler, Modifier.weight(1f), actif = vm.peutAnnuler, relief = true)
+        BoutonPlein("Annuler", vm::annuler, Modifier.weight(1f), actif = vm.peutAnnuler, relief = Relief.DOUX)
         Spacer(Modifier.size(8.dp))
-        BoutonVert("Valider", vm::valider, Modifier.weight(1f).alpha(if (vm.peutValider) 1f else 0.5f), actif = vm.peutValider, relief = true)
+        BoutonVert("Valider", vm::valider, Modifier.weight(1f).alpha(if (vm.peutValider) 1f else 0.5f), actif = vm.peutValider, relief = Relief.DOUX)
     }
 }
 
@@ -632,8 +633,8 @@ private fun PanneauIos(vm: CarteOccHabViewModel) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BoutonPlein("Annuler", vm::annuler, Modifier.weight(1f), actif = vm.peutAnnuler, relief = true)
-        BoutonVert("Valider", vm::valider, Modifier.weight(1f), actif = vm.peutValider, relief = true)
+        BoutonPlein("Annuler", vm::annuler, Modifier.weight(1f), actif = vm.peutAnnuler, relief = Relief.DOUX)
+        BoutonVert("Valider", vm::valider, Modifier.weight(1f), actif = vm.peutValider, relief = Relief.DOUX)
     }
 }
 

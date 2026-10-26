@@ -647,3 +647,12 @@ Demandes de l'utilisateur : « sur la version iPhone, supprime sur l'écran d'ac
   - Son toucher bascule la trace comme le ▶ (`CarteSaisie.basculerParcours` : une trace commencée reprend au lieu de recommencer) et le dit : « La trace GPS démarre. », « La trace GPS reprend. » ou « La trace GPS est arrêtée. » (`CarteSaisie.messageTrace`).
 - Sous Android, le bouton « Liste » des observations devient un disque blanc à l'icône bleue, comme sous iOS (`BoutonRondAndroid` prend une `teinte`).
 - Test : `CarteSaisieTest.message_du_bonhomme_selon_la_trace`.
+
+## 39. Relief adouci sur les cartes (26 octobre)
+
+Demandes de l'utilisateur : « adoucis un peu l'effet de relief des boutons sur les cartes », puis « encore plus doux ».
+
+- `fondEnRelief` prend une intensité (`Relief`). `MARQUE` garde le relief du § 37 : ombre de 6 dp, 18 % de blanc en haut, 15 % de noir en bas, liseré à 40 % / 25 %. `DOUX` a une ombre de 2 dp, 5 % / 4 % et un liseré à 20 % / 6 % (premier essai : 4 dp, 10 % / 8 %, 30 % / 12 %). L'ombre enfoncée à l'appui reste à 1 dp.
+- L'accueil garde `MARQUE`. Toutes les cartes du § 37 passent en `DOUX` : disques, boussole, modes de géométrie, « Enregistrer ici », corbeille du Maps Manager, « Annuler » et « Valider » d'OccHab.
+- Le `relief` de `BoutonMaterial`, `BoutonPlein` et `BoutonVert` est désormais une intensité ou `null`, et non plus un booléen.
+- Pas de test automatique : le rendu se juge sur les téléphones.

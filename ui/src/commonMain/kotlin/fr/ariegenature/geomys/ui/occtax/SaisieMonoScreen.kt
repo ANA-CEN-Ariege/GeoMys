@@ -111,6 +111,7 @@ import fr.ariegenature.geomys.ui.composants.GraisseSymbole
 import fr.ariegenature.geomys.ui.composants.HAUTEUR_BANDEAU_IOS
 import fr.ariegenature.geomys.ui.composants.Interrupteur
 import fr.ariegenature.geomys.ui.composants.LocalToasts
+import fr.ariegenature.geomys.ui.composants.Relief
 import fr.ariegenature.geomys.ui.composants.RetourSysteme
 import fr.ariegenature.geomys.ui.composants.SeparateurIos
 import fr.ariegenature.geomys.ui.composants.SymboleSf
@@ -590,7 +591,7 @@ private fun PanneauMono(vm: SaisieMonoViewModel, onEnregistrer: () -> Unit, modi
             Spacer(Modifier.weight(1f))
             if (ios) {
                 BoutonIos(onEnregistrer, opaciteAppui = 0.6f) {
-                    Box(Modifier.size(48.dp).fondEnRelief(CouleursGeoMys.primaire, CircleShape), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(48.dp).fondEnRelief(CouleursGeoMys.primaire, CircleShape, Relief.DOUX), contentAlignment = Alignment.Center) {
                         SymboleSf("plus", 22f, listOf(Color.White), graisse = GraisseSymbole.GRASSE, description = "Enregistrer ici")
                     }
                 }
