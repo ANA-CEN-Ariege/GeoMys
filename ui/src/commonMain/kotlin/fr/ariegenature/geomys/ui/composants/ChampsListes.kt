@@ -85,8 +85,9 @@ internal const val SEUIL_RECHERCHE_LISTE = 20
  *  ExposedDropdownMenu, 4 dp sous son titre). Toucher vide le texte et déroule toute la liste ; la
  *  frappe la filtre (accents et casse ignorés) ; un choix ferme le clavier. Moins de
  *  [SEUIL_RECHERCHE_LISTE] valeurs : le champ n'ouvre pas le clavier, le toucher déroule toute la
- *  liste. Refermée sans choix, la liste rend au champ le libellé choisi si [restaurer]. [onEffacer] :
- *  la croix des listes du web, qui vide le choix. */
+ *  liste. Quitté sans choix, ou la liste refermée par Retour, le champ reprend le libellé choisi si
+ *  [restaurer] ; un toucher hors de la liste la referme seulement. [onEffacer] : la croix des listes
+ *  du web, qui vide le choix. */
 @Composable
 internal fun DeroulantAndroid(
     indication: String,
@@ -129,7 +130,7 @@ internal fun DeroulantAndroid(
             modifier = Modifier
                 .fillMaxWidth()
                 .onGloballyPositioned { ancre = Rect(it.positionInWindow(), it.size.toSize()) }
-                .onFocusChanged { if (!it.isFocused && ouvert) fermer() }
+                .onFocusChanged { if (!it.isFocused) fermer() }
                 .onInterceptKeyBeforeSoftKeyboard { touche ->
                     if (touche.key != Key.Back || !ouvert) return@onInterceptKeyBeforeSoftKeyboard false
                     if (touche.type == KeyEventType.KeyUp) fermer()
@@ -151,11 +152,17 @@ internal fun DeroulantAndroid(
         )
         val zone = ancre
         if (ouvert && positions.isNotEmpty() && zone != null) {
-            PopupListeAndroid(zone, positions, onFermer = ::fermer) { i ->
+            // Un toucher ailleurs ne fait que refermer la liste, la frappe reste. Sous Android, la
+            // liste, sans focus, est au-dessus du clavier : chaque touche du clavier la referme aussi,
+            // et y rendre le libellé choisi effaçait le texte tapé, chaque lettre remplaçant la
+            // précédente (JDD et observateurs d'une nouvelle station OccHab, 29 octobre 2026). La
+            // lettre tapée la redéroule.
+            PopupListeAndroid(zone, positions, onFermer = { ouvert = false }) { i ->
                 LigneListeAndroid(libelles[i]) {
                     ouvert = false
-                    texte = if (restaurer) libelles[i] else ""
+                    // Le focus quitté d'abord : il rend au champ l'ancien libellé.
                     focus.clearFocus()
+                    texte = if (restaurer) libelles[i] else ""
                     onChoix(i)
                 }
             }

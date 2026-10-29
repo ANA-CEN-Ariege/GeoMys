@@ -667,3 +667,13 @@ Question de l'utilisateur : « quand il y a api seulement, ne pourrais-tu pas ut
 - Sur le serveur de l'ANA, cela concerne PAPALTB (liste 102) et pelouses_seches (liste 100). Le web y propose tout TaxRef, l'appli seulement ces listes. Ces deux listes sont déjà chargées par d'autres protocoles : rien à recharger.
 - Un champ sans `id_list` ni `api` (RHOMEOOrthoptere) cherche toujours dans tout ce qui est chargé et fait charger toutes les listes publiques.
 - Tests : `MonitoringApiParsingTest.le_champ_taxonomy_prend_son_id_list_sinon_la_liste_de_son_api` et `TaxRefSyncPaginationTest.les_listes_des_suivis_et_le_champ_espece_sans_liste`. Revenir à la règle du 21 octobre fait échouer les deux.
+
+## 41. La frappe effacée dans les listes à recherche sous Android (29 octobre)
+
+Relevé par l'utilisateur sur une nouvelle station OccHab : « pour les champs JDD et observateurs, je ne peux pas taper plus d'une lettre. Si je tape une lettre, elle s'affiche, puis si je tape une 2ème, celle-ci la remplace ».
+
+- Cause : la liste du champ « menu déroulant » (`DeroulantAndroid`, à partir de 20 valeurs) est une fenêtre sans focus, au-dessus du clavier. Compose la referme à chaque toucher hors d'elle (`ACTION_OUTSIDE`, `PopupLayout.onTouchEvent` de Compose UI 1.12.1), donc à chaque touche du clavier. Sa fermeture rendait au champ le libellé choisi, vide sur une nouvelle station : la lettre suivante arrivait dans un champ vide.
+- Correction : un toucher hors de la liste ne fait que la refermer, le texte tapé reste, et la lettre suivante la redéroule, comme pour la recherche d'habitat et le champ espèce. Le champ reprend le libellé choisi quand il perd le focus, ou quand Retour referme la liste.
+- Même défaut, même correction pour le jeu de données des détails d'un relevé OccTax. Les observateurs d'un relevé (`ObservateursAndroid`) n'étaient pas touchés : leur champ ne garde pas de libellé.
+- Sous iOS, la liste est dans le formulaire (`LignesRechercheIos`), sans fenêtre à part : pas concerné.
+- Test : `DeroulantAndroidTest.la_liste_refermee_par_un_toucher_ailleurs_garde_la_frappe`, sur le simulateur, où un toucher ailleurs tient lieu de touche du clavier. L'ancienne fermeture le fait échouer : « Expected <jeu>, actual <u> ».
