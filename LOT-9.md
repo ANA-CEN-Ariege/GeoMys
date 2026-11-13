@@ -677,3 +677,16 @@ Relevé par l'utilisateur sur une nouvelle station OccHab : « pour les champs J
 - Même défaut, même correction pour le jeu de données des détails d'un relevé OccTax. Les observateurs d'un relevé (`ObservateursAndroid`) n'étaient pas touchés : leur champ ne garde pas de libellé.
 - Sous iOS, la liste est dans le formulaire (`LignesRechercheIos`), sans fenêtre à part : pas concerné.
 - Test : `DeroulantAndroidTest.la_liste_refermee_par_un_toucher_ailleurs_garde_la_frappe`, sur le simulateur, où un toucher ailleurs tient lieu de touche du clavier. L'ancienne fermeture le fait échouer : « Expected <jeu>, actual <u> ».
+
+## 42. Le champ « Serveur GeoNature » des Paramètres (13 novembre)
+
+Demande de l'utilisateur : « dans les paramètres, ne pas afficher les champs identifiants et mot de passe avant que le champ serveur n'est pas rempli. Ce champ "URL du serveur GeoNature" doit être remplacé par "Serveur GeoNature". Il doit proposer de choisir dans la liste suivante ou entrer une URL. »
+
+- La liste : vingt instances où l'on peut se créer un compte, ou en accès public, reprises de BiodiVisio (OtusEco, GPLv3), et celle de l'ANA - CEN Ariège, ajoutée en tête à la demande de l'utilisateur. Elle est dans `ServeursGeoNature.proposes` (module commun), dans l'ordre alphabétique de BiodiVisio. Le serveur de démonstration est en dernier.
+- Le champ (`ChampServeur`) : ce qu'on y tape est l'adresse, et filtre en même temps la liste par nom ou par adresse, sans tenir compte de la casse ni des accents. Choisir un serveur met son adresse dans le champ. Toucher le champ déroule toute la liste.
+- Sous Android, la liste est celle des autres listes à recherche (`PopupListeAndroid`), et chaque frappe la redéroule (§ 41). Sous iOS, elle s'affiche sous le champ, dans la page, tant que le champ a le focus ou que le chevron l'ouvre.
+- L'identifiant, le mot de passe et « Tester la connexion », avec son résultat, n'apparaissent qu'une fois le serveur renseigné (`champsConnexionVisibles`). Pour le bouton, c'est une seconde demande du même jour : « le bouton "Tester la connexion" ne doit apparaitre que lorsque le serveur est renseigné, en même temps que les champs identifiant et mot de passe ». Si l'on efface le serveur, ils disparaissent. Un serveur déjà enregistré les montre d'emblée.
+- Tests :
+  - `ServeursGeoNatureTest` couvre le filtre et la forme des adresses (https, sans `/api` ni barre finale, sans doublon) ;
+  - `IdentifiantsApresServeurTest` couvre la visibilité des champs et du bouton.
+  - Deux mutations les font échouer : les champs toujours visibles, et un filtre sur le nom seul.

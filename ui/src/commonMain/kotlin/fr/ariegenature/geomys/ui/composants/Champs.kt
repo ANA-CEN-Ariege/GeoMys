@@ -111,7 +111,7 @@ import org.jetbrains.compose.resources.painterResource
  *  « Cgross »). */
 enum class TypeChamp { TEXTE, URL, IDENTIFIANT, MOT_DE_PASSE, NOMBRE }
 
-private fun TypeChamp.clavier() = when (this) {
+internal fun TypeChamp.clavier() = when (this) {
     TypeChamp.TEXTE -> KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
     TypeChamp.URL -> KeyboardOptions(KeyboardCapitalization.None, autoCorrectEnabled = false, keyboardType = KeyboardType.Uri)
     TypeChamp.IDENTIFIANT -> KeyboardOptions(KeyboardCapitalization.None, autoCorrectEnabled = false)

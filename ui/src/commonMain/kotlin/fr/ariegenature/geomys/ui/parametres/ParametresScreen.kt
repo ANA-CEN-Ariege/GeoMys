@@ -188,7 +188,7 @@ fun ParametresScreen(vm: ParametresViewModel, onFermer: () -> Unit, onTaxonsList
 private fun ColumnScope.SectionConnexion(vm: ParametresViewModel) {
     val ios = estIos
     if (ios) {
-        ChampTexte(vm.url, vm::changerUrl, "URL du serveur GeoNature", type = TypeChamp.URL)
+        ChampServeur(vm.url, vm::changerUrl)
         // iOS refuse le trafic en clair (ATS) et l'appli ne demande aucune dérogation : une
         // instance en http:// reste injoignable. Texte de GeoMys-IOS.
         if (vm.urlEnClair) {
@@ -199,13 +199,14 @@ private fun ColumnScope.SectionConnexion(vm: ParametresViewModel) {
             )
         }
     } else {
-        ChampTexte(
-            vm.url, vm::changerUrl, "URL du serveur GeoNature",
-            type = TypeChamp.URL,
+        ChampServeur(
+            vm.url, vm::changerUrl,
             aide = if (vm.urlEnClair) "⚠ Connexion NON chiffrée (http) : votre mot de passe transite en clair. Préférez https://." else null,
             couleurAide = CouleursGeoMys.avertissement,
         )
     }
+    // Le reste attend un serveur : identifiant, mot de passe, « Tester la connexion » et son résultat.
+    if (!vm.champsConnexionVisibles) return
     ChampTexte(vm.login, vm::changerLogin, "Identifiant", Modifier.margesAndroid(haut = 12.dp), type = TypeChamp.IDENTIFIANT)
     ChampMotDePasse(vm.motDePasse, vm::changerMotDePasse, "Mot de passe", Modifier.margesAndroid(haut = 12.dp))
     BoutonContour(

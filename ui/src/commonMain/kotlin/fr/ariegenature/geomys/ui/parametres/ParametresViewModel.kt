@@ -240,6 +240,10 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
         refleterEditionConnexion()
     }
 
+    /** Identifiant, mot de passe et « Tester la connexion » : seulement une fois le serveur
+     *  renseigné (demandes du 13 novembre 2026). */
+    val champsConnexionVisibles: Boolean get() = url.isNotBlank()
+
     /** Avertissement sous l'URL : une adresse en clair `http://`. */
     val urlEnClair: Boolean get() = url.trim().startsWith("http://", ignoreCase = true)
 
