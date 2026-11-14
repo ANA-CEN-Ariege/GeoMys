@@ -46,6 +46,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import fr.ariegenature.geomys.InfosApp
 import fr.ariegenature.geomys.ServicesGeoNature
+import fr.ariegenature.geomys.store.ModeSaisie
 import fr.ariegenature.geomys.store.configurationComplete
 import fr.ariegenature.geomys.store.envoisEnAttente
 import fr.ariegenature.geomys.store.io.mapDepuisJson
@@ -83,10 +84,16 @@ import fr.ariegenature.geomys.occtax.SaisieMono
 import fr.ariegenature.geomys.saisie.ChampsAdditionnels
 import fr.ariegenature.geomys.ui.occtax.CaracterisationScreen
 import fr.ariegenature.geomys.ui.occtax.CaracterisationViewModel
+import fr.ariegenature.geomys.ui.occtax.CommentaireEspeceScreen
+import fr.ariegenature.geomys.ui.occtax.CommentaireEspeceViewModel
 import fr.ariegenature.geomys.ui.occtax.DenombrementScreen
 import fr.ariegenature.geomys.ui.occtax.DenombrementViewModel
+import fr.ariegenature.geomys.ui.occtax.DetailsEspeceScreen
+import fr.ariegenature.geomys.ui.occtax.DetailsEspeceViewModel
 import fr.ariegenature.geomys.ui.occtax.DetailsReleveIntercalaireScreen
 import fr.ariegenature.geomys.ui.occtax.DetailsReleveIntercalaireViewModel
+import fr.ariegenature.geomys.ui.occtax.FicheEspeceScreen
+import fr.ariegenature.geomys.ui.occtax.FicheEspeceViewModel
 import fr.ariegenature.geomys.ui.occtax.ObservationsScreen
 import fr.ariegenature.geomys.ui.occtax.ObservationsViewModel
 import fr.ariegenature.geomys.ui.occtax.SaisieMonoScreen
@@ -98,6 +105,7 @@ import fr.ariegenature.geomys.ui.occtax.SaisieMultiViewModel
 import fr.ariegenature.geomys.ui.occtax.SessionSaisieViewModel
 import fr.ariegenature.geomys.ui.occtax.SortieDetailScreen
 import fr.ariegenature.geomys.ui.occtax.SortieDetailViewModel
+import fr.ariegenature.geomys.ui.occtax.VoletEspece
 import fr.ariegenature.geomys.ui.parametres.ParametresScreen
 import fr.ariegenature.geomys.ui.parametres.ParametresViewModel
 import fr.ariegenature.geomys.ui.parametres.TaxonsListeScreen
@@ -185,9 +193,23 @@ data class RouteDetailsReleve(
 )
 
 /** Caractérisation de l'espèce [index] du relevé ouvert ; [comportementSeul] : ouverte d'elle-même pour un
- *  oiseau nicheur ; [mono] : les réglages de la saisie mono-taxon. */
+ *  oiseau nicheur ; [mono] : les réglages de la saisie mono-taxon ; [simplifie] : « Comportement » de la
+ *  saisie simplifiée (avec [comportementSeul]). */
 @Serializable
-data class RouteCaracterisation(val index: Int, val comportementSeul: Boolean = false, val mono: Boolean = false)
+data class RouteCaracterisation(val index: Int, val comportementSeul: Boolean = false, val mono: Boolean = false, val simplifie: Boolean = false)
+
+/** Saisie simplifiée : la « Fiche de l'observation » [index] du relevé ouvert (Détails, Comportement,
+ *  Commentaire, Photo, Audio). */
+@Serializable
+data class RouteFicheEspece(val index: Int)
+
+/** Saisie simplifiée : « Détails » de l'espèce [index] du relevé ouvert. */
+@Serializable
+data class RouteDetailsEspece(val index: Int)
+
+/** Saisie simplifiée : « Commentaire » de l'espèce [index] du relevé ouvert. */
+@Serializable
+data class RouteCommentaireEspece(val index: Int)
 
 /** Dénombrements de l'espèce [index] du relevé ouvert ; [mono] : les réglages de la saisie mono-taxon. */
 @Serializable
@@ -285,7 +307,17 @@ private val DESTINATIONS_SAISIE = listOf(
     RouteReleve::class,
     RouteCaracterisation::class,
     RouteDenombrement::class,
+    RouteFicheEspece::class,
+    RouteDetailsEspece::class,
+    RouteCommentaireEspece::class,
 )
+
+/** La route d'un volet de la saisie simplifiée de l'espèce [index]. */
+private fun VoletEspece.route(index: Int): Any = when (this) {
+    VoletEspece.DETAILS -> RouteDetailsEspece(index)
+    VoletEspece.COMPORTEMENT -> RouteCaracterisation(index, comportementSeul = true, simplifie = true)
+    VoletEspece.COMMENTAIRE -> RouteCommentaireEspece(index)
+}
 
 /** Navigue seulement si l'écran [depuis] est au premier plan : un double toucher n'empile pas deux
  *  fois l'écran suivant (`naviguerSur` de GeoMys-Android). */
@@ -729,6 +761,13 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
                 onCaracterisation = { index, seul -> nav.naviguerDepuis(entree, RouteCaracterisation(index, seul)) },
                 onDenombrement = { nav.naviguerDepuis(entree, RouteDenombrement(it)) },
+                onFicheEspece = { index, volet ->
+                    // L'écran de l'espèce, puis, d'office, un volet par-dessus : son ✓ ramène à l'écran.
+                    if (entree.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                        nav.navigate(RouteFicheEspece(index))
+                        volet?.let { nav.navigate(it.route(index)) }
+                    }
+                },
                 onTermine = {
                     // Comme le drapeau que GeoMys-Android pose sur l'écran précédent : seule la carte
                     // multi-taxons repart en positionnement (pas la saisie mono, ni la liste).
@@ -775,6 +814,66 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
                 onValide = { caracterisee ->
                     releve.releve.modifier(route.index) { caracterisee }
+                    nav.popBackStack()
+                },
+                titre = if (route.simplifie) "Comportement" else "Caractérisation de l'occurrence",
+                sousTitre = if (route.simplifie) espece.espece else null,
+            )
+        }
+        composable<RouteFicheEspece> { entree ->
+            val route = entree.toRoute<RouteFicheEspece>()
+            val releve = releveOuvert(nav, entree, services, sessionSaisie)
+            if (releve == null) {
+                LaunchedEffect(Unit) { nav.popBackStack() }
+                return@composable
+            }
+            val sousTitre = remember(releve) { releve.releve.especes.value.getOrNull(route.index)?.let(releve::nomScientifiqueSous) }
+            val vm = viewModel { FicheEspeceViewModel(services, releve.releve, route.index) }
+            FicheEspeceScreen(
+                vm,
+                releve.typeSaisieLabel,
+                sousTitre,
+                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
+                onVolet = { volet -> nav.naviguerDepuis(entree, volet.route(route.index)) },
+            )
+        }
+        composable<RouteDetailsEspece> { entree ->
+            val route = entree.toRoute<RouteDetailsEspece>()
+            val releve = releveOuvert(nav, entree, services, sessionSaisie)
+            val espece = remember(releve) { releve?.releve?.especes?.value?.getOrNull(route.index) }
+            if (releve == null || espece == null) {
+                LaunchedEffect(Unit) { nav.popBackStack() }
+                return@composable
+            }
+            val vm = viewModel { DetailsEspeceViewModel(services, espece, releve.releve.idDatasetEffectif()) }
+            DetailsEspeceScreen(
+                vm,
+                releve.typeSaisieLabel,
+                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
+                onValide = { detaillee ->
+                    releve.releve.modifier(route.index) { detaillee }
+                    nav.popBackStack()
+                },
+            )
+        }
+        composable<RouteCommentaireEspece> { entree ->
+            val route = entree.toRoute<RouteCommentaireEspece>()
+            val releve = releveOuvert(nav, entree, services, sessionSaisie)
+            val espece = remember(releve) { releve?.releve?.especes?.value?.getOrNull(route.index) }
+            if (releve == null || espece == null) {
+                LaunchedEffect(Unit) { nav.popBackStack() }
+                return@composable
+            }
+            val vm = viewModel { CommentaireEspeceViewModel(espece) }
+            CommentaireEspeceScreen(
+                vm,
+                releve.typeSaisieLabel,
+                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
+                onValide = { commentee ->
+                    releve.releve.modifier(route.index) { commentee }
                     nav.popBackStack()
                 },
             )
@@ -928,14 +1027,20 @@ private fun saisieMonoOuverte(
 
 /** L'état de l'accueil, relu à chaque retour sur l'écran. Les envois en attente, lus dans les stores
  *  de saisie, sont comptés à part, hors du fil principal ([envoisEnAttente]). */
-private fun lireEtatAccueil(infos: InfosApp, services: ServicesGeoNature): EtatAccueil {
+internal fun lireEtatAccueil(infos: InfosApp, services: ServicesGeoNature): EtatAccueil {
     val config = services.config
+    val simplifie = services.preferences.modeSaisie == ModeSaisie.SIMPLIFIE
+    // Monitoring et OccHab : ni en saisie simplifiée, ni en mode pro sur des données chargées pour
+    // elle (ni Suivis, ni OccHab, ni listes des protocoles) — jusqu'au rechargement que Paramètres
+    // demande alors.
+    val completes = !simplifie && !config.donneesSimplifiees
     return EtatAccueil(
         nomAppli = infos.nom,
         version = infos.version,
         saisieValide = config.saisieOcctaxValide,
-        monitoringDisponible = services.monitoringModules.countModulesEnCache() > 0,
-        occhabDisponible = config.occhabDisponible && config.occhabPeutCreer,
+        monitoringDisponible = completes && services.monitoringModules.countModulesEnCache() > 0,
+        occhabDisponible = completes && config.occhabDisponible && config.occhabPeutCreer,
+        simplifie = simplifie,
     )
 }
 

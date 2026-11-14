@@ -96,12 +96,18 @@ fun GeoNatureConfig.reinitialiserSelectionsOcctax() {
 
 /** Texte du bandeau orange en tête des Paramètres, ou null s'il n'y a rien à signaler : liste de
  *  taxons partiellement téléchargée, qui bloque la saisie ; ou, sans rien bloquer, une mise à jour de
- *  l'application qui lit des données nouvelles. Aucun accès de secours vers les saisies n'accompagne
- *  ce bandeau : décision produit de 2026-09-18 (GeoMys-Android), le blocage de Paramètres est entier. */
-fun texteBandeauRechargement(config: GeoNatureConfig, taxRef: TaxRefCache): String? {
+ *  l'application qui lit des données nouvelles, ou le mode pro ([modePro]) sur des données chargées
+ *  en saisie simplifiée. Aucun accès de secours vers les saisies n'accompagne ce bandeau : décision
+ *  produit de 2026-09-18 (GeoMys-Android), le blocage de Paramètres est entier. */
+fun texteBandeauRechargement(config: GeoNatureConfig, taxRef: TaxRefCache, modePro: Boolean = true): String? {
     val incompletes = taxRef.listesIncompletes
     if (incompletes.isEmpty()) {
-        if (config.versionDonneesChargees >= GeoNatureConfig.VERSION_DONNEES_REQUISE || taxRef.versionSauvegardee == null) return null
+        if (taxRef.versionSauvegardee == null) return null
+        if (modePro && config.donneesSimplifiees) {
+            return "Données chargées pour la saisie simplifiée : rechargez-les pour retrouver Monitoring " +
+                "et OccHab. La saisie multi-taxons reste utilisable d'ici là."
+        }
+        if (config.versionDonneesChargees >= GeoNatureConfig.VERSION_DONNEES_REQUISE) return null
         return "Mise à jour de l'application : rechargez les données quand vous aurez du réseau, pour " +
             "profiter de ses nouveautés. L'application reste utilisable d'ici là."
     }

@@ -216,7 +216,7 @@ private fun CarteVue(vm: DenombrementViewModel, carte: CarteDenombrement, index:
  *  Le nombre est justifié à gauche, comme tous les champs (demande du 22 octobre ; il était centré).
  *  Un effectif est obligatoire, comme sur le web : vide, il porte la barre rouge. */
 @Composable
-private fun Compteur(libelle: String, valeur: String, onValeur: (String) -> Unit, onAjuster: (Int) -> Unit, modifier: Modifier) {
+internal fun Compteur(libelle: String, valeur: String, onValeur: (String) -> Unit, onAjuster: (Int) -> Unit, modifier: Modifier) {
     val clavier = KeyboardOptions(keyboardType = KeyboardType.Number)
     val chiffres = { texte: String -> onValeur(texte.filter { it.isDigit() }) }
     if (estIos) {
@@ -279,7 +279,7 @@ private fun BoutonEffectifIos(symbole: String, description: String, onClick: () 
 /** Un média du dénombrement : son nom (coupé au milieu : les noms générés ne diffèrent que par la
  *  fin), et sa suppression. */
 @Composable
-private fun LigneMedia(uri: String, onSupprimer: () -> Unit) {
+internal fun LigneMedia(uri: String, onSupprimer: () -> Unit) {
     val nom = nomMedia(uri)
     if (estIos) {
         val audio = nom.substringAfterLast('.', "").lowercase() in setOf("m4a", "mp3", "aac", "ogg", "wav")

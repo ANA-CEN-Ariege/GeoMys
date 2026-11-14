@@ -146,6 +146,7 @@ fun ParametresScreen(vm: ParametresViewModel, onFermer: () -> Unit, onTaxonsList
                 modifier = if (ios) Modifier.padding(end = 44.dp) else Modifier.fillMaxWidth().padding(bottom = 12.dp),
             )
             vm.bandeau?.let { BandeauAvertissement(it) }
+            CarteSection("Mode de saisie", Modifier.margesAndroid(bas = 16.dp)) { ChoixModeSaisie(vm.modeSaisie, vm::choisirMode) }
             CarteSection("Connexion au serveur", Modifier.margesAndroid(bas = 16.dp)) { SectionConnexion(vm) }
             if (vm.sectionChargerVisible) {
                 CarteSection("Chargement des données", Modifier.margesAndroid(bas = 16.dp)) { SectionChargement(vm) }
@@ -257,12 +258,13 @@ private fun ColumnScope.SectionChargement(vm: ParametresViewModel) {
     val compteurs = vm.compteurs
     val lignes = buildList {
         add("Taxons" to compteurs?.taxons)
-        // Aucun protocole accessible : ligne masquée, comme la tuile « Monitoring » de l'accueil.
-        if ((compteurs?.protocoles ?: 0) > 0) add("Protocoles" to compteurs?.protocoles)
+        // Aucun protocole accessible : ligne masquée, comme la tuile « Monitoring » de l'accueil. Ni
+        // protocoles ni stations en saisie simplifiée, qui ne les charge pas.
+        if (!vm.simplifie && (compteurs?.protocoles ?: 0) > 0) add("Protocoles" to compteurs?.protocoles)
         add("Nomenclatures" to compteurs?.nomenclatures)
         add("Listes" to compteurs?.listes)
         add("Observateurs" to compteurs?.observateurs)
-        if (vm.occhabDisponible) add("Stations OccHab" to compteurs?.stationsOccHab)
+        if (vm.occhabDisponible && !vm.simplifie) add("Stations OccHab" to compteurs?.stationsOccHab)
     }
     if (ios) {
         for ((libelle, valeur) in lignes) LigneCompteur(libelle, valeur)

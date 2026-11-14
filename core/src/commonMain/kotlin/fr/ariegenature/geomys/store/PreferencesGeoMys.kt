@@ -24,8 +24,19 @@ package fr.ariegenature.geomys.store
 import com.russhwolf.settings.Settings
 import fr.ariegenature.geomys.model.Taxon
 
+/** Le mode de saisie, choisi en tête des Paramètres (demandes du 14 novembre 2026). */
+enum class ModeSaisie {
+    /** Les écrans de GeoMys-Android : caractérisation et dénombrements complets. */
+    PRO,
+
+    /** La saisie multi-taxons allégée : après chaque espèce, Détails, Comportement, Photo et Audio ;
+     *  les autres champs gardent leur valeur par défaut. */
+    SIMPLIFIE,
+}
+
 /** Préférences de l'utilisateur hors connexion GeoNature, dans les réglages `GeoMys_prefs` comme
- *  sous Android. On ne mémorise que des valeurs d'interface, pas de donnée naturaliste. */
+ *  sous Android. On ne mémorise que des valeurs d'interface, pas de donnée naturaliste. Ni un
+ *  changement de serveur ou de compte, ni « Vider le cache » n'y touchent. */
 class PreferencesGeoMys(private val prefs: Settings) {
 
     /** Dernier groupe taxonomique choisi sur les écrans de saisie (`saisie_dernier_taxon`, nom de
@@ -54,7 +65,16 @@ class PreferencesGeoMys(private val prefs: Settings) {
             if (value == null) prefs.remove(CLE_FOND) else prefs.putString(CLE_FOND, value)
         }
 
+    /** Le mode de saisie (`mode_saisie`) : [ModeSaisie.PRO] tant que rien n'est choisi, pour qu'une
+     *  mise à jour ne change rien. */
+    var modeSaisie: ModeSaisie
+        get() = prefs.getStringOrNull(CLE_MODE)?.let { nom -> ModeSaisie.entries.firstOrNull { it.name == nom } } ?: ModeSaisie.PRO
+        set(value) {
+            prefs.putString(CLE_MODE, value.name)
+        }
+
     private companion object {
+        const val CLE_MODE = "mode_saisie"
         const val CLE_DERNIER_TAXON = "saisie_dernier_taxon"
         const val CLE_NOM_SCI = "saisie_nom_sci"
         const val CLE_FOND = "fond_carte"

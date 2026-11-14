@@ -99,17 +99,19 @@ class SyncRunner(
 
     /** Lance [executer] hors du cycle de vie de l'écran : SyncForegroundService.start sous Android,
      *  désormais [ExecutionLongue] sur les deux plateformes. La notification suit [etat]. */
-    fun lancer(forcerTaxRef: Boolean = false) {
+    fun lancer(forcerTaxRef: Boolean = false, occtaxSeul: Boolean = false) {
         executionLongue.lancer(
             nom = "Synchronisation GeoNature",
             avancement = etat.map { it.texte.ifEmpty { "Synchronisation…" } },
-        ) { executer(forcerTaxRef) }
+        ) { executer(forcerTaxRef, occtaxSeul) }
     }
 
     /** Exécute la synchro complète. Idempotent vis-à-vis d'un appel concurrent : si une synchro
      *  est déjà en cours, retourne immédiatement. Ne lève pas — les échecs d'étape sont agrégés
-     *  dans l'[Etat] terminal. */
-    suspend fun executer(forcerTaxRef: Boolean = false) {
+     *  dans l'[Etat] terminal. [occtaxSeul] : le mode de saisie simplifié (14 novembre 2026), qui ne
+     *  saisit qu'en multi-taxons — ni Suivis (modules, schémas, objets, droits, listes de taxons des
+     *  protocoles) ni données d'OccHab ; la détection des modules reste, pour les droits d'OccTax. */
+    suspend fun executer(forcerTaxRef: Boolean = false, occtaxSeul: Boolean = false) {
         // Garde atomique : un seul executer() à la fois, même appelé concurremment.
         if (!enCours.compareAndSet(false, true)) return
         try {
@@ -139,6 +141,7 @@ class SyncRunner(
             var toutesLesListes = false
             coroutineScope {
                 val mod = async {
+                    if (occtaxSeul) return@async ListesDesSuivis(emptySet(), false)
                     try {
                         val modules = monitoring.chargerModules(config)
                         // + les listes propres à un champ espèce (`id_list`, que le `pnx-taxonomy` du web
@@ -222,7 +225,7 @@ class SyncRunner(
                         val texteModules = occHab.chargerModulesGeoNature(config)
                         val modules = texteModules?.let { occHab.modulesDetectes(it, setOf(OccHabApi.MODULE_CODE, "OCCTAX")) }.orEmpty()
                         // Les droits de création des Suivis, par protocole et type d'objet, comme le web.
-                        if (texteModules != null) {
+                        if (texteModules != null && !occtaxSeul) {
                             try { monitoring.enregistrerDroits(texteModules) } catch (e: CancellationException) { throw e } catch (_: Exception) {}
                         }
                         // Map VIDE = appel RATÉ (offline/timeout/annulé) → on NE TOUCHE PAS aux
@@ -236,7 +239,7 @@ class SyncRunner(
                         config.occhabPeutCreer = acces.peutCreer
                         // Datasets propres au module OccHab (périmètre serveur distinct d'OCCTAX)
                         // + ids créables — pour ne proposer à la saisie que les bons JDD.
-                        if (acces.disponible) {
+                        if (acces.disponible && !occtaxSeul) {
                             try {
                                 // Une liste vide du serveur fait foi, comme sur le web ; un échec garde
                                 // le cache.
@@ -341,6 +344,7 @@ class SyncRunner(
                     catch (e: Throwable) { erreurEtape(e) }
                 }
                 val suiviJob = async {
+                    if (occtaxSeul) return@async 0 to SUIVIS_NON_CHARGES
                     try { monitoringSync.synchroniserSuivis(config) { _, _, _ -> } }
                     catch (c: CancellationException) { throw c }
                     catch (e: Throwable) { erreurEtape(e) }
@@ -372,6 +376,7 @@ class SyncRunner(
             // étape secondaire a échoué.
             if (taxRef.versionSauvegardee != null) {
                 config.versionDonneesChargees = GeoNatureConfig.VERSION_DONNEES_REQUISE
+                config.donneesSimplifiees = occtaxSeul
             }
             _etat.value = Etat(enCours = false, texte = "Terminé", termine = true, succes = echecs.isEmpty(), resume = resume)
         } catch (c: CancellationException) {
@@ -400,6 +405,9 @@ class SyncRunner(
     }
 
     private companion object {
+        /** Les Suivis sautés en saisie simplifiée : « Aucun… », qui n'est pas un échec. */
+        const val SUIVIS_NON_CHARGES = "Aucun module : saisie simplifiée"
+
         /** Défauts de nomenclature OccHab (mnémonique → id), en JSON comme le faisait Gson. */
         val DEFAUTS_NOMENCLATURES = MapSerializer(String.serializer(), Int.serializer())
     }

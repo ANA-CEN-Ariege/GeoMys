@@ -37,6 +37,7 @@ import fr.ariegenature.geomys.store.CompteursCache
 import fr.ariegenature.geomys.store.ListeTaxons
 import fr.ariegenature.geomys.store.ListesProposees
 import fr.ariegenature.geomys.store.MessageListe
+import fr.ariegenature.geomys.store.ModeSaisie
 import fr.ariegenature.geomys.store.ReglesSelectionOcctax
 import fr.ariegenature.geomys.store.TaxonsParListes
 import fr.ariegenature.geomys.store.compteursCache
@@ -160,6 +161,22 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
     val observateurManquant: Boolean get() = observateurChoisi == null
     private var toutesListes = emptyList<GeoNatureListe>()
 
+    // ─── Mode de saisie ───
+    /** Pro ou simplifié (demandes du 14 novembre 2026), en tête de l'écran. Il est enregistré
+     *  aussitôt, dans les préférences de l'appli et non avec la connexion. */
+    var modeSaisie by mutableStateOf(services.preferences.modeSaisie)
+        private set
+
+    /** Saisie simplifiée : seule la saisie multi-taxons, et seules ses données au chargement. */
+    val simplifie: Boolean get() = modeSaisie == ModeSaisie.SIMPLIFIE
+
+    fun choisirMode(mode: ModeSaisie) {
+        services.preferences.modeSaisie = mode
+        modeSaisie = mode
+        // Retour au mode pro sur des données de la saisie simplifiée : le bandeau invite à recharger.
+        bandeau = texteBandeauRechargement(config, taxRef, modePro = !simplifie)
+    }
+
     // ─── Bandeau, statut, dialogue ───
     var bandeau by mutableStateOf<String?>(null)
         private set
@@ -184,7 +201,7 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
             restaurerCaches()
             majStatut()
             afficherVersionGeoNature()
-            bandeau = texteBandeauRechargement(config, taxRef)
+            bandeau = texteBandeauRechargement(config, taxRef, modePro = !simplifie)
             relancerCompteurs()
             launch { majMessageListe() }
             verifierVersionTaxRef()
@@ -317,7 +334,7 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
             if (forcerTaxRef) "Rechargement complet (taxons forcés)…" else "Démarrage de la synchronisation…",
             NatureMessage.NEUTRE,
         )
-        services.synchro.lancer(forcerTaxRef)
+        services.synchro.lancer(forcerTaxRef, occtaxSeul = simplifie)
     }
 
     private suspend fun terminerSynchro(texte: String, succes: Boolean) {
@@ -345,7 +362,7 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
             donneesChargees = true
             libelleCharger = "Recharger les données"
         }
-        bandeau = texteBandeauRechargement(config, taxRef)
+        bandeau = texteBandeauRechargement(config, taxRef, modePro = !simplifie)
         // L'état terminal est consommé : il ne se rejouera pas à la prochaine ouverture.
         services.synchro.accuserReception()
         // Ce qui lit TaxRef en entier (non rechargé, il n'est peut-être pas encore en mémoire), à part.

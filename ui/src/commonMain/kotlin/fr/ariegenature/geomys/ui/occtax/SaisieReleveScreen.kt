@@ -89,6 +89,7 @@ import fr.ariegenature.geomys.ui.composants.rememberDictee
 import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.ui.ressources.coche
 import fr.ariegenature.geomys.ui.ressources.ic_delete
+import fr.ariegenature.geomys.ui.ressources.ic_edit
 import fr.ariegenature.geomys.ui.ressources.ic_info
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import fr.ariegenature.geomys.ui.theme.FondGeoMys
@@ -103,7 +104,8 @@ private val GRIS_GROUPE = Color(0xFFAAAAAA)
 
 /** Le relevé en cours : groupe, espèces ajoutées une à une, ✓ pour le terminer. [onCaracterisation]
  *  et [onDenombrement] ouvrent les sous-écrans d'une espèce, « Détails » le dialogue des détails du
- *  relevé, [onTermine] revient à la carte. */
+ *  relevé, [onTermine] revient à la carte. En saisie simplifiée, [onFicheEspece] ouvre la fiche de
+ *  l'observation (puis un volet par-dessus). */
 @Composable
 fun SaisieReleveScreen(
     vm: SaisieReleveViewModel,
@@ -111,6 +113,7 @@ fun SaisieReleveScreen(
     onCaracterisation: (index: Int, comportementSeul: Boolean) -> Unit,
     onDenombrement: (index: Int) -> Unit,
     onTermine: () -> Unit,
+    onFicheEspece: (index: Int, volet: VoletEspece?) -> Unit = { _, _ -> },
 ) {
     val ios = estIos
     val toasts = LocalToasts.current
@@ -120,6 +123,7 @@ fun SaisieReleveScreen(
                 is EvenementReleve.Message -> toasts.afficher(evenement.texte)
                 is EvenementReleve.Caracterisation -> onCaracterisation(evenement.index, evenement.comportementSeul)
                 is EvenementReleve.Denombrement -> onDenombrement(evenement.index)
+                is EvenementReleve.FicheEspece -> onFicheEspece(evenement.index, evenement.volet)
                 EvenementReleve.Termine -> onTermine()
             }
         }
@@ -312,7 +316,9 @@ internal fun BoutonDetailsIos(onClick: () -> Unit) {
 }
 
 /** Une espèce du relevé : icône du groupe, nom (et nom scientifique dessous), « × N » qui ouvre le
- *  dénombrement, « i » la caractérisation, et la corbeille.
+ *  dénombrement, « i » la caractérisation, et la corbeille. En saisie simplifiée (demande du
+ *  14 novembre 2026), ni « × N » ni « i » : un crayon, et le nom lui-même, ouvrent la « Fiche de
+ *  l'observation » ; le crayon est rouge si un champ obligatoire de Détails est vide.
  *  - Android : item_pending_obs (icône teintée du texte, compteur dans un disque blanc de 24 dp,
  *    « i » blanc de 28 dp, corbeille rouge de 24 dp, zones de 36 dp) ;
  *  - iOS : LigneEspeceView (icône teintée du groupe, pastilles blanches de 28 pt, corbeille SF).
@@ -320,8 +326,13 @@ internal fun BoutonDetailsIos(onClick: () -> Unit) {
  *  « × N » qui y mène en rouge (21 octobre). */
 @Composable
 private fun LigneEspece(espece: EspeceReleve, sci: String?, avertissements: List<String>, index: Int, vm: SaisieReleveViewModel, requis: RequisEspece) {
+    val simplifie = vm.simplifie
     val caracterisation = requis.caracterisationIncomplete(espece)
     val denombrement = requis.denombrementIncomplet(espece)
+    // En saisie simplifiée, Détails porte les champs obligatoires des deux écrans.
+    val incomplet = caracterisation || denombrement
+    // Le nom ouvre aussi la fiche, en saisie simplifiée.
+    val nomTouchable = if (simplifie) Modifier.clickable(onClickLabel = TITRE_FICHE_OBSERVATION) { vm.ouvrirFiche(index) } else Modifier
     if (estIos) {
         Row(
             Modifier.barreChampObligatoire(caracterisation || denombrement).padding(4.dp),
@@ -329,13 +340,19 @@ private fun LigneEspece(espece: EspeceReleve, sci: String?, avertissements: List
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) { IconeGroupe(espece.taxon, 18, espece.taxon.couleur) }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Column(Modifier.weight(1f).then(nomTouchable), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                 Text(espece.espece, fontSize = 15.sp, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (sci != null) Text(sci, fontSize = 13.sp, fontStyle = FontStyle.Italic, color = CouleursGeoMys.blanc70, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 AvertissementProfil(avertissements, Modifier.padding(top = 2.dp))
             }
-            PastilleIos("× ${espece.total}", "Dénombrement", alerte = denombrement) { vm.ouvrirDenombrement(index) }
-            PastilleIos("i", "Caractérisation", alerte = caracterisation) { vm.ouvrirCaracterisation(index) }
+            if (simplifie) {
+                BoutonIos({ vm.ouvrirFiche(index) }, Modifier.size(36.dp), opaciteAppui = 0.6f) {
+                    SymboleSf("square.and.pencil", 18f, listOf(if (incomplet) CouleursGeoMys.rougePastille else Color.White), description = TITRE_FICHE_OBSERVATION)
+                }
+            } else {
+                PastilleIos("× ${espece.total}", "Dénombrement", alerte = denombrement) { vm.ouvrirDenombrement(index) }
+                PastilleIos("i", "Caractérisation", alerte = caracterisation) { vm.ouvrirCaracterisation(index) }
+            }
             BoutonIos({ vm.supprimer(index) }, Modifier.size(36.dp), opaciteAppui = 0.6f) {
                 SymboleSf("trash", 18f, listOf(CouleursGeoMys.rougePastille), description = "Supprimer")
             }
@@ -352,15 +369,19 @@ private fun LigneEspece(espece: EspeceReleve, sci: String?, avertissements: List
                 colorFilter = ColorFilter.tint(texte),
                 modifier = Modifier.padding(end = 10.dp).size(24.dp),
             )
-            Column(Modifier.weight(1f).padding(horizontal = 4.dp, vertical = 6.dp)) {
+            Column(Modifier.weight(1f).then(nomTouchable).padding(horizontal = 4.dp, vertical = 6.dp)) {
                 Text(espece.espece, fontSize = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 if (sci != null) {
                     Text(sci, fontSize = 13.sp, fontStyle = FontStyle.Italic, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 AvertissementProfil(avertissements, Modifier.padding(top = 2.dp))
             }
-            CompteurAndroid("× ${espece.total}", alerte = denombrement) { vm.ouvrirDenombrement(index) }
-            BoutonLigneAndroid(Res.drawable.ic_info, "Détails", if (caracterisation) CouleursGeoMys.holoRougeFonce else Color.White, marge = 4) { vm.ouvrirCaracterisation(index) }
+            if (simplifie) {
+                BoutonLigneAndroid(Res.drawable.ic_edit, TITRE_FICHE_OBSERVATION, if (incomplet) CouleursGeoMys.holoRougeFonce else Color.White, marge = 6) { vm.ouvrirFiche(index) }
+            } else {
+                CompteurAndroid("× ${espece.total}", alerte = denombrement) { vm.ouvrirDenombrement(index) }
+                BoutonLigneAndroid(Res.drawable.ic_info, "Détails", if (caracterisation) CouleursGeoMys.holoRougeFonce else Color.White, marge = 4) { vm.ouvrirCaracterisation(index) }
+            }
             BoutonLigneAndroid(Res.drawable.ic_delete, "Supprimer", CouleursGeoMys.holoRougeFonce, marge = 6) { vm.supprimer(index) }
         }
     }

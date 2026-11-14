@@ -128,6 +128,20 @@ class ParametresGeoNatureTest {
         assertNull(texteBandeauRechargement(config, services.taxRef), "données à jour")
     }
 
+    /** 14 novembre 2026 : des données chargées en saisie simplifiée n'ont ni Suivis ni OccHab ; le mode
+     *  pro invite à recharger, sans rien bloquer. */
+    @Test
+    fun bandeau_du_mode_pro_sur_des_donnees_de_la_saisie_simplifiee() {
+        services.taxRef.versionSauvegardee = "17"
+        config.versionDonneesChargees = GeoNatureConfig.VERSION_DONNEES_REQUISE
+        config.donneesSimplifiees = true
+        val texte = assertNotNull(texteBandeauRechargement(config, services.taxRef, modePro = true))
+        assertTrue(texte.startsWith("Données chargées pour la saisie simplifiée : rechargez-les pour retrouver Monitoring et OccHab"), texte)
+        assertNull(texteBandeauRechargement(config, services.taxRef, modePro = false), "en saisie simplifiée, rien ne manque")
+        config.donneesSimplifiees = false
+        assertNull(texteBandeauRechargement(config, services.taxRef, modePro = true), "rechargées en mode pro")
+    }
+
     @Test
     fun bandeau_d_une_liste_incomplete_nomme_la_liste() {
         services.taxRef.listesIncompletes = listOf(100, 200)

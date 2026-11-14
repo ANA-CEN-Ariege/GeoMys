@@ -116,6 +116,9 @@ data class EtatAccueil(
     val monitoringDisponible: Boolean,
     /** Module OccHab présent ET droit de créer : bouton « OccHab » et « Mes stations ». */
     val occhabDisponible: Boolean,
+    /** Saisie simplifiée (demande du 14 novembre 2026) : le seul bouton « Démarrer une saisie », la
+     *  saisie multi-taxons. */
+    val simplifie: Boolean = false,
     val saisiesEnAttente: Int = 0,
     val visitesEnAttente: Int = 0,
     val stationsEnAttente: Int = 0,
@@ -125,6 +128,9 @@ data class EtatAccueil(
     val pastilleMenu: Boolean
         get() = saisiesEnAttente > 0 || visitesEnAttente > 0 || stationsEnAttente > 0
 }
+
+/** Le bouton de la saisie multi-taxons en saisie simplifiée, seul sur l'accueil. */
+internal const val LIBELLE_SAISIE_SIMPLIFIEE = "Démarrer une saisie"
 
 /** Les entrées du menu de l'accueil. */
 enum class EntreeMenuAccueil(val libelle: String) {
@@ -198,11 +204,12 @@ fun AccueilScreen(etat: EtatAccueil, actions: ActionsAccueil, onTexteLicence: ()
 }
 
 /** Entrées du menu, dans l'ordre et selon les conditions de GeoMys-Android, avec leur nombre
- *  d'éléments en attente d'envoi. */
-private fun entreesMenu(etat: EtatAccueil): List<Pair<EntreeMenuAccueil, Int>> = buildList {
+ *  d'éléments en attente d'envoi. « Mes visites » et « Mes stations » restent tant qu'il y a quelque
+ *  chose à envoyer, même sans Monitoring ni OccHab (saisie simplifiée) : rien ne reste hors d'atteinte. */
+internal fun entreesMenu(etat: EtatAccueil): List<Pair<EntreeMenuAccueil, Int>> = buildList {
     add(EntreeMenuAccueil.MES_SAISIES to etat.saisiesEnAttente)
-    if (etat.monitoringDisponible) add(EntreeMenuAccueil.MES_VISITES to etat.visitesEnAttente)
-    if (etat.occhabDisponible) add(EntreeMenuAccueil.MES_STATIONS to etat.stationsEnAttente)
+    if (etat.monitoringDisponible || etat.visitesEnAttente > 0) add(EntreeMenuAccueil.MES_VISITES to etat.visitesEnAttente)
+    if (etat.occhabDisponible || etat.stationsEnAttente > 0) add(EntreeMenuAccueil.MES_STATIONS to etat.stationsEnAttente)
     add(EntreeMenuAccueil.EXPLORER to 0)
     add(EntreeMenuAccueil.MAPS_MANAGER to 0)
 }
@@ -235,9 +242,13 @@ private fun ContenuAndroid(etat: EtatAccueil, actions: ActionsAccueil, nomAppli:
         )
         Spacer(Modifier.weight(1f))
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
-            RangeeSaisiesAndroid(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-                BoutonAccueilAndroid("Saisie multi-taxons", etat.saisieValide, actions.saisieMulti, Modifier, 18.dp)
-                BoutonAccueilAndroid("Saisie mono-taxon", etat.saisieValide, actions.saisieMono, Modifier, 6.dp)
+            if (etat.simplifie) {
+                BoutonAccueilAndroid(LIBELLE_SAISIE_SIMPLIFIEE, etat.saisieValide, actions.saisieMulti, Modifier.fillMaxWidth().padding(bottom = 12.dp), 18.dp)
+            } else {
+                RangeeSaisiesAndroid(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                    BoutonAccueilAndroid("Saisie multi-taxons", etat.saisieValide, actions.saisieMulti, Modifier, 18.dp)
+                    BoutonAccueilAndroid("Saisie mono-taxon", etat.saisieValide, actions.saisieMono, Modifier, 6.dp)
+                }
             }
             if (etat.monitoringDisponible) {
                 BoutonAccueilAndroid("Monitoring", etat.saisieValide, actions.monitoring, Modifier.fillMaxWidth().padding(bottom = 12.dp), 16.dp)
@@ -367,9 +378,13 @@ private fun ContenuIos(etat: EtatAccueil, actions: ActionsAccueil, nomAppli: Str
             Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 60.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                BoutonAccueilIos("Saisie\nmulti-taxons", etat.saisieValide, actions.saisieMulti, Modifier.weight(1f), 18.dp)
-                BoutonAccueilIos("Saisie\nmono-taxon", etat.saisieValide, actions.saisieMono, Modifier.weight(1f), 18.dp)
+            if (etat.simplifie) {
+                BoutonAccueilIos(LIBELLE_SAISIE_SIMPLIFIEE, etat.saisieValide, actions.saisieMulti, Modifier.fillMaxWidth(), 18.dp)
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BoutonAccueilIos("Saisie\nmulti-taxons", etat.saisieValide, actions.saisieMulti, Modifier.weight(1f), 18.dp)
+                    BoutonAccueilIos("Saisie\nmono-taxon", etat.saisieValide, actions.saisieMono, Modifier.weight(1f), 18.dp)
+                }
             }
             if (etat.monitoringDisponible) {
                 BoutonAccueilIos("Monitoring", etat.saisieValide, actions.monitoring, Modifier.fillMaxWidth(), 16.dp)

@@ -28,6 +28,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 
@@ -75,6 +76,40 @@ class SyncRunnerTest {
         assertEquals(1, s.monitoringModules.countModulesEnCache())
         assertEquals("Forêt de Foix", s.monitoringObjets.labelObjetEnCache("STOM", "site", 5))
         assertEquals(GeoNatureConfig.VERSION_DONNEES_REQUISE, s.config.versionDonneesChargees)
+    }
+
+    /** 14 novembre 2026 : en saisie simplifiée, le chargement ne prend que les données de la saisie
+     *  multi-taxons ; un rechargement en mode pro rend Suivis et OccHab. */
+    @Test
+    fun synchro_simplifiee_ne_charge_que_la_saisie_multi_taxons() = runTest {
+        configurer()
+        t.serveur.routerGeoNatureComplet()
+        s.synchro.executer(occtaxSeul = true)
+
+        val fin = s.synchro.etat.value
+        assertTrue(fin.termine)
+        assertTrue(fin.succes, fin.resume)
+        // La saisie multi-taxons a tout ce qu'il lui faut.
+        assertEquals("17", s.taxRef.versionSauvegardee)
+        assertEquals(listOf(100), s.taxRef.listesSynchronisees)
+        assertEquals(1, s.nomenclatures.count)
+        assertEquals(listOf(12), listeDepuisJson(GeoNatureDataset.serializer(), s.config.datasetsCacheJson).map { it.id })
+        assertTrue(s.config.observateursCacheJson.contains("DUPONT Jean"))
+        assertEquals(1, s.habitatsOcctax.count, "l'habitat du relevé est un champ d'OccTax")
+        // Ni Suivis ni OccHab.
+        assertEquals(0, s.monitoringModules.countModulesEnCache())
+        assertEquals(0, s.habitatsOccHab.count)
+        assertNull(s.stationsServeur.dateChargement)
+        assertEquals("", s.config.datasetsOcchabCacheJson)
+        assertTrue(s.config.donneesSimplifiees)
+        assertEquals(GeoNatureConfig.VERSION_DONNEES_REQUISE, s.config.versionDonneesChargees)
+        assertFalse(t.serveur.chemins.any { "monitorings" in it }, "aucune route des Suivis : ${t.serveur.chemins.filter { "monitorings" in it }}")
+
+        s.synchro.accuserReception()
+        s.synchro.executer()
+        assertEquals(1, s.monitoringModules.countModulesEnCache())
+        assertEquals(1, s.habitatsOccHab.count)
+        assertFalse(s.config.donneesSimplifiees)
     }
 
     /** Rien de ce que la synchro précédente avait écrit ne doit disparaître. */

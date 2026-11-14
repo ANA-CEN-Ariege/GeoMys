@@ -55,7 +55,8 @@ private val BLEU_VARIANTE = Color(0xFF1565C0)
 /** Le bouton de la section avancée du web (`Advanced` du fr.json du cœur). */
 private const val LIBELLE_AVANCE = "Avancé"
 
-/** La caractérisation de l'occurrence ; [onValide] reçoit l'espèce caractérisée. */
+/** La caractérisation de l'occurrence ; [onValide] reçoit l'espèce caractérisée. [titre] et
+ *  [sousTitre] : « Comportement » et le nom de l'espèce en saisie simplifiée. */
 @Composable
 fun CaracterisationScreen(
     vm: CaracterisationViewModel,
@@ -63,13 +64,15 @@ fun CaracterisationScreen(
     onAccueil: () -> Unit,
     onRetour: () -> Unit,
     onValide: (EspeceReleve) -> Unit,
+    titre: String = "Caractérisation de l'occurrence",
+    sousTitre: String? = null,
 ) {
     val ios = estIos
     val toasts = LocalToasts.current
     val garde = rememberGardeSortie(vm::modifie, onRetour)
     EcranFormulaireEspece(
-        titre = "Caractérisation de l'occurrence",
-        sousTitre = null,
+        titre = titre,
+        sousTitre = sousTitre,
         typeSaisieLabel = typeSaisieLabel,
         onAccueil = { garde.demander(onAccueil) },
         onValider = {
@@ -138,5 +141,5 @@ fun CaracterisationScreen(
         val additionnels = vm.additionnels
         if (additionnels != null && additionnels.defsAffiches.isNotEmpty()) ChampsAdditionnelsVue(additionnels)
     }
-    DialogueGardeSortie(garde, "Caractérisation non enregistrée")
+    DialogueGardeSortie(garde, if (sousTitre != null) "$titre non enregistré" else "Caractérisation non enregistrée")
 }

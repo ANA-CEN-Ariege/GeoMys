@@ -155,6 +155,13 @@ class GeoNatureConfig(private val prefs: Settings, private val coffre: CoffreMot
         get() = prefs.getInt("gn_version_donnees_chargees", 0)
         set(v) = prefs.putInt("gn_version_donnees_chargees", v)
 
+    /** true si la dernière synchro a chargé les données de la seule saisie multi-taxons (mode de
+     *  saisie simplifié, demande du 14 novembre 2026) : ni Suivis ni OccHab, ni les listes de taxons
+     *  des protocoles. En mode pro, Monitoring et OccHab attendent un rechargement complet. */
+    var donneesSimplifiees: Boolean
+        get() = prefs.getBoolean("gn_donnees_simplifiees", false)
+        set(v) = prefs.putBoolean("gn_donnees_simplifiees", v)
+
     /** true si le module OccHab est installé sur le serveur ET accessible à l'utilisateur
      *  (au moins un droit CRUVED). Détecté à la synchro via `GET /api/gn_commons/modules`.
      *  Conditionne l'affichage de la tuile OccHab sur l'accueil (comme Monitoring). */
