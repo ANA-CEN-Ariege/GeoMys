@@ -19,7 +19,7 @@
 // Propre au portage : les serveurs proposés par le champ « Serveur GeoNature » des Paramètres
 // (demande du 13 novembre 2026). Liste reprise de BiodiVisio (OtusEco, GPLv3,
 // lib/login/login_screen.dart) : des instances où l'on peut se créer un compte, ou en accès public ;
-// celle de l'ANA - CEN Ariège ajoutée à la demande de l'utilisateur.
+// celles de l'ANA - CEN Ariège (production et tests) ajoutées à la demande de l'utilisateur.
 
 package fr.ariegenature.geomys.network
 
@@ -33,6 +33,7 @@ object ServeursGeoNature {
     /** Dans l'ordre de BiodiVisio : alphabétique, la démonstration à la fin. */
     val proposes: List<ServeurGeoNature> = listOf(
         ServeurGeoNature("ANA - CEN Ariège", "https://geonature.ariegenature.fr/geonature"),
+        ServeurGeoNature("ANA - CEN Ariège - Tests", "https://geonaturetest.intranet.ariegenature.fr/geonature"),
         ServeurGeoNature("Biodiv'Aura Expert", "https://donnees.biodiversite-auvergne-rhone-alpes.fr"),
         ServeurGeoNature("Biodiv'Bretagne", "https://data.biodiversite-bretagne.fr/geonature"),
         ServeurGeoNature("Biodiv'Occitanie", "https://geonature.biodiv-occitanie.fr"),

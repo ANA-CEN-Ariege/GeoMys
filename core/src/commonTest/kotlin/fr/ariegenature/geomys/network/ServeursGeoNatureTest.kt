@@ -30,7 +30,7 @@ class ServeursGeoNatureTest {
 
     @Test
     fun saisie_vide_tous_les_serveurs() {
-        assertEquals(21, ServeursGeoNature.proposes.size)
+        assertEquals(22, ServeursGeoNature.proposes.size)
         assertEquals(ServeursGeoNature.proposes, ServeursGeoNature.filtrer(""))
         assertEquals(ServeursGeoNature.proposes, ServeursGeoNature.filtrer("  "))
     }
@@ -40,7 +40,7 @@ class ServeursGeoNatureTest {
         assertEquals(listOf("Parc national des Pyrénées"), noms("PYRENEES"))
         assertEquals(listOf("Parc national des Cévennes"), noms("cevennes"))
         assertEquals(listOf("GeoNat'îdF"), noms("geonat'idf"))
-        assertEquals(listOf("ANA - CEN Ariège"), noms("ariege"))
+        assertEquals(listOf("ANA - CEN Ariège", "ANA - CEN Ariège - Tests"), noms("ariege"))
     }
 
     @Test
