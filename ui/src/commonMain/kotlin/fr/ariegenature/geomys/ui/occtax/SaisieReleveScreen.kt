@@ -76,8 +76,10 @@ import fr.ariegenature.geomys.model.Taxon
 import fr.ariegenature.geomys.occtax.EspeceReleve
 import fr.ariegenature.geomys.occtax.RequisEspece
 import fr.ariegenature.geomys.ui.composants.BandeauNavigation
+import fr.ariegenature.geomys.ui.composants.BoutonAlerte
 import fr.ariegenature.geomys.ui.composants.BoutonContour
 import fr.ariegenature.geomys.ui.composants.BoutonIos
+import fr.ariegenature.geomys.ui.composants.DialogueConfirmation
 import fr.ariegenature.geomys.ui.composants.HAUTEUR_BANDEAU_IOS
 import fr.ariegenature.geomys.ui.composants.Interrupteur
 import fr.ariegenature.geomys.ui.composants.LocalToasts
@@ -244,10 +246,27 @@ fun SaisieReleveScreen(
             }
         }
         EcranDetailsReleve(vm.details, vm.typeSaisieLabel, onAccueil, vm::fermerDetails, vm::validerDetails)
+        val aSupprimer = vm.suppressionDemandee
+        DialogueConfirmation(
+            visible = aSupprimer != null,
+            titre = TITRE_SUPPRESSION_ESPECE,
+            message = aSupprimer?.let(::messageSuppressionEspece).orEmpty(),
+            boutons = listOf(
+                BoutonAlerte("Annuler", annulation = true),
+                BoutonAlerte("Supprimer", destructif = true, action = vm::confirmerSuppression),
+            ),
+            onFermer = vm::annulerSuppression,
+        )
     }
     // Un échec de l'enregistrement au fil de l'eau est signalé par la carte, au retour (comme sous
     // Android, où seuls TraceFragment et SaisieRapideFragment observent echecEcritureBrouillon).
 }
+
+internal const val TITRE_SUPPRESSION_ESPECE = "Supprimer cette espèce ?"
+
+/** Ce que la corbeille de [espece] emporte. */
+internal fun messageSuppressionEspece(espece: EspeceReleve): String =
+    "« ${espece.espece} » sera retirée du relevé, avec ce qui a été saisi pour elle."
 
 /** La palette des [groupes] (null pendant leur calcul), défilant à l'horizontale ; seuls les groupes
  *  chargés y figurent. Mêmes boutons dans les saisies mono et multi-taxons.
@@ -353,7 +372,7 @@ private fun LigneEspece(espece: EspeceReleve, sci: String?, avertissements: List
                 PastilleIos("× ${espece.total}", "Dénombrement", alerte = denombrement) { vm.ouvrirDenombrement(index) }
                 PastilleIos("i", "Caractérisation", alerte = caracterisation) { vm.ouvrirCaracterisation(index) }
             }
-            BoutonIos({ vm.supprimer(index) }, Modifier.size(36.dp), opaciteAppui = 0.6f) {
+            BoutonIos({ vm.demanderSuppression(index) }, Modifier.size(36.dp), opaciteAppui = 0.6f) {
                 SymboleSf("trash", 18f, listOf(CouleursGeoMys.rougePastille), description = "Supprimer")
             }
         }
@@ -382,7 +401,7 @@ private fun LigneEspece(espece: EspeceReleve, sci: String?, avertissements: List
                 CompteurAndroid("× ${espece.total}", alerte = denombrement) { vm.ouvrirDenombrement(index) }
                 BoutonLigneAndroid(Res.drawable.ic_info, "Détails", if (caracterisation) CouleursGeoMys.holoRougeFonce else Color.White, marge = 4) { vm.ouvrirCaracterisation(index) }
             }
-            BoutonLigneAndroid(Res.drawable.ic_delete, "Supprimer", CouleursGeoMys.holoRougeFonce, marge = 6) { vm.supprimer(index) }
+            BoutonLigneAndroid(Res.drawable.ic_delete, "Supprimer", CouleursGeoMys.holoRougeFonce, marge = 6) { vm.demanderSuppression(index) }
         }
     }
 }

@@ -89,8 +89,8 @@ class SaisieReleveViewModel(
     val session = sessionVm.session
     val releve = ReleveEnCours(session, config, ouverture, preferences.dernierTaxon())
 
-    /** La saisie simplifiée (mode choisi dans Paramètres) : chaque espèce ajoutée ouvre son écran à quatre
-     *  boutons, au lieu de la caractérisation et du dénombrement. Le mode ne change pas pendant un
+    /** La saisie simplifiée (mode choisi dans Paramètres) : chaque espèce ajoutée ouvre sa fiche de
+     *  l'observation, au lieu de la caractérisation et du dénombrement. Le mode ne change pas pendant un
      *  relevé : il se choisit dans Paramètres. */
     val simplifie: Boolean = preferences.modeSaisie == ModeSaisie.SIMPLIFIE
 
@@ -233,7 +233,28 @@ class SaisieReleveViewModel(
         _evenements.trySend(EvenementReleve.FicheEspece(index))
     }
 
-    fun supprimer(index: Int) = releve.supprimer(index)
+    /** L'espèce dont la corbeille attend sa confirmation, null sinon. La corbeille touche le crayon,
+     *  geste principal de la ligne en saisie simplifiée : un doigt décalé supprimait l'espèce avec ses
+     *  détails, son commentaire et ses médias (audit du 14 novembre 2026, M58). */
+    var suppressionDemandee by mutableStateOf<EspeceReleve?>(null)
+        private set
+
+    /** La corbeille de l'espèce [index] : rien n'est supprimé avant [confirmerSuppression]. */
+    fun demanderSuppression(index: Int) {
+        suppressionDemandee = releve.especes.value.getOrNull(index)
+    }
+
+    fun annulerSuppression() {
+        suppressionDemandee = null
+    }
+
+    /** « Supprimer » : l'espèce demandée, retrouvée par son identité (la liste a pu bouger). */
+    fun confirmerSuppression() {
+        val demandee = suppressionDemandee ?: return
+        suppressionDemandee = null
+        val index = releve.especes.value.indexOfFirst { it.vmId == demandee.vmId }
+        if (index >= 0) releve.supprimer(index)
+    }
 
     fun ouvrirCaracterisation(index: Int) {
         _evenements.trySend(EvenementReleve.Caracterisation(index, comportementSeul = false))

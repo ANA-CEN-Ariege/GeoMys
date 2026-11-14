@@ -53,6 +53,9 @@ import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
  *  liste du relevé. */
 internal const val TITRE_FICHE_OBSERVATION = "Fiche de l'observation"
 
+/** Sous « Photo » et « Audio » d'une observation déjà sur le serveur. */
+internal const val MEDIAS_FIGES = "Observation déjà envoyée : une photo ou un son ajouté maintenant ne partirait pas."
+
 /** La fiche de l'observation : le nom de l'espèce sous le titre, et [sousTitre], son nom scientifique,
  *  s'il diffère ; [onVolet] ouvre « Détails », « Comportement » ou « Commentaire » ; ✓ et le retour ([onRetour]) reviennent au relevé, tout étant déjà enregistré. */
 @Composable
@@ -73,6 +76,7 @@ fun FicheEspeceScreen(
         return
     }
     var choixPhoto by remember { mutableStateOf(false) }
+    var mediaASupprimer by remember { mutableStateOf<String?>(null) }
     val medias = rememberAjoutMedias(vm.dossierMedias, onImportes = vm::ajouterMedias, onErreur = { toasts.afficher(it, true) })
     val secondaire = if (ios) CouleursGeoMys.blanc70 else MaterialTheme.colorScheme.onSurfaceVariant
     EcranFormulaireEspece(
@@ -102,14 +106,16 @@ fun FicheEspeceScreen(
             }
             if (vm.mediasVisibles) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val figes = vm.mediasFiges(espece)
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         BoutonPlein("Photo", {
                             // Sans appareil photo (simulateur), la galerie directement.
                             if (medias.appareilPhoto) choixPhoto = true else medias.choisirPhotos()
-                        }, Modifier.weight(1f))
-                        BoutonPlein("Audio", medias::choisirSons, Modifier.weight(1f))
+                        }, Modifier.weight(1f), actif = !figes)
+                        BoutonPlein("Audio", medias::choisirSons, Modifier.weight(1f), actif = !figes)
                     }
-                    for (uri in espece.mediaUrisCounting0) LigneMedia(uri) { vm.retirerMedia(uri) }
+                    if (figes) Text(MEDIAS_FIGES, fontSize = 13.sp, color = secondaire, modifier = Modifier.padding(horizontal = 4.dp))
+                    for (uri in espece.mediaUrisCounting0) LigneMedia(uri) { mediaASupprimer = uri }
                 }
             }
         }
@@ -124,6 +130,7 @@ fun FicheEspeceScreen(
         ),
         onFermer = { choixPhoto = false },
     )
+    DialogueSuppressionMedia(mediaASupprimer, onConfirmer = { mediaASupprimer?.let(vm::retirerMedia) }, onFermer = { mediaASupprimer = null })
 }
 
 /** Un bouton de l'écran de l'espèce, et dessous ce qu'il porte déjà. */

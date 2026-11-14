@@ -740,3 +740,36 @@ Cinquième demande du même jour : « en mode simplifié, il ne faut plus avoir 
 - En saisie simplifiée, la ligne d'une espèce n'a plus ni « × N » ni « i » : un crayon (`ic_edit` sous Android, « square.and.pencil » sous iOS) ouvre la fiche, rouge si un champ obligatoire de « Détails » est vide ; toucher le nom l'ouvre aussi. La corbeille reste. Le mode pro garde « × N » et « i ».
 - Test : `SaisieSimplifieeEcransTest.en_mode_simplifie_l_espece_ajoutee_ouvre_son_ecran` (deux espèces de suite, puis le crayon).
 
+## 44. Changement de serveur protégé (14 novembre, audit complet M46 à M49)
+
+L'audit complet du 14 novembre (rapport local `AUDIT-2026-11-14-complet.md`) a montré que la liste des serveurs (§ 42) faisait du changement de serveur un geste à un toucher, sans protection. L'utilisateur a répondu « vas y » à la proposition de commencer par là. Les questions de l'audit sur ce point n'étant pas tranchées, les choix ci-dessous sont les moins risqués, à revoir s'il en décide autrement.
+
+- **Adresse (M46).** `normaliserAdresseServeur` : sans espaces autour, sans barre finale, sans le `/api` ni le `/#/…` recopiés du navigateur, schéma et hôte en minuscules. Ce qui n'est pas une adresse http ou https avec un hôte n'est jamais enregistré : « Tester la connexion » le refuse avec un message. Les adresses se comparent normalisées : une barre finale ne fait plus un autre serveur.
+- **Confirmation (M46, M49).** Tester un autre serveur que celui enregistré demande d'abord « Changer de serveur ? », qui dit ce qui sera effacé et combien de saisies attendent encore d'être envoyées, faites pour l'ancien serveur. Rien n'est enregistré ni purgé avant le « oui ». Les saisies ne sont pas encore marquées de leur serveur : c'est un avertissement, pas un blocage, pour qu'un serveur qui change d'adresse reste utilisable.
+- **Coche.** Une connexion modifiée mais jamais testée ne remplace plus une configuration complète : ✓ garde la connexion précédente, le dit, et ferme. En première configuration, rien ne change.
+- **Mot de passe (M47).** Dès que l'hôte du champ n'est plus celui du serveur enregistré, le mot de passe relu du coffre quitte le champ ; il revient avec l'adresse enregistrée. Un mot de passe tapé pour le nouveau serveur reste. L'identifiant reste proposé.
+- **TaxRef (M48).** Changer de serveur vide tout ce que la synchro a chargé, TaxRef compris. Changer de compte sur le même serveur le garde.
+- Tests : `ParametresGeoNatureTest` (adresse normalisée ou refusée, barre finale, TaxRef vidé ou gardé) et `ChangementServeurTest` (recherche jamais enregistrée, coche, mot de passe, confirmation et envois en attente, même serveur retesté). Mutations : retirer la confirmation, le retrait du mot de passe, la garde de la coche ou le vidage de TaxRef fait échouer un test. La seconde garde de l'adresse, dans l'enregistrement, n'a pas de test propre : le refus de « Tester » passe avant.
+
+## 45. Photos de la fiche de l'observation et corrections sûres (14 novembre, audit complet M50 à M54)
+
+Suite du plan de l'audit (« continue »).
+
+- **M50, volet validé.** « Détails », « Commentaire » et « Comportement » ne rendent plus une espèce entière, prise à leur ouverture : ils rendent ce qu'il faut écrire, appliqué à l'espèce telle qu'elle est au moment du ✓, et seulement si c'est bien la même (`vmId`). Une photo rattachée entre-temps n'est plus écrasée. Sous Android, l'import d'un média va à son terme même si l'on quitte la fiche pendant la recompression (`PORTEE_IMPORTS`, portée du processus).
+- **M51, corbeille d'un média.** Retirer un média de la fiche n'efface plus sa copie locale : le balayage des médias orphelins s'en charge après 48 heures. Il n'y a toujours pas de confirmation (question 4 de l'audit).
+- **M52, observation déjà envoyée.** « Photo » et « Audio » sont grisés, avec une phrase d'explication : la mise à jour d'une occurrence ne porte pas de média, la photo ne serait jamais partie.
+- **M53, indicateur des données simplifiées.** Il suit ce que la synchro a fait : un chargement simplifié ne le pose que s'il n'a aucun échec ; un chargement pro ne le lève que si TaxRef et les Suivis ont réussi.
+- **M54, nombre.** Dix chiffres ou plus : « Nombre trop grand », au lieu d'un 1 enregistré sans message.
+- **Divers.** Le texte du mode Simplifié cite « Commentaire » ; les groupes 3 de TaxRef sont préchauffés au démarrage (reste de M40).
+- Tests : cas ajoutés à `SaisieSimplifieeEcransTest` (photo arrivée pendant Détails ou Commentaire, copie locale gardée, médias figés), `SaisieSimplifieeTest` (nombre) et `SyncRunnerTest` (indicateur). Six mutations, une par correction, font chacune échouer un test.
+- Non traité ici : M56 (mort du processus Android pendant la prise de photo), M55 et M58 (parcours, corbeille d'espèce), à arbitrer.
+
+## 46. Confirmations de suppression et GPS lié à l'écran (14 novembre, audit complet M55, M58, M60)
+
+Réponses de l'utilisateur aux questions de l'audit, le 14 novembre.
+
+- **M58, corbeilles.** La corbeille d'une espèce du relevé (modes pro et simplifié) ouvre « Supprimer cette espèce ? » : `SaisieReleveViewModel.demanderSuppression`, `confirmerSuppression` (l'espèce est retrouvée par son `vmId`), `annulerSuppression`. La corbeille d'un média demande aussi confirmation, dans la fiche de l'observation et dans le dénombrement (`DialogueSuppressionMedia`). Les médias des Suivis ne sont pas concernés.
+- **M60, GPS.** Trace éteinte, le GPS ne reste plus actif écran verrouillé ou appli quittée. Règle commune `etatSuiviGps(demande, premierPlan, trace)` (`core/.../location/SuiviGps.kt`) : le récepteur écoute si un écran de saisie le demande et que l'appli est à l'écran ou qu'une trace tourne ; le service au premier plan et sa notification ne vivent que pendant une trace. `SuiviGpsAndroid` suit le cycle de l'activité et `estEnCours` ; `LocationForegroundService` ne démarre ni n'arrête plus le récepteur. Au retour à l'écran, un point frais est demandé aussitôt. Contrepartie : pendant les premières secondes après le déverrouillage, la position connue est celle d'avant.
+- **M55, parcours simplifié.** Décision : la fiche de l'observation continue de s'ouvrir à chaque espèce ajoutée. Rien n'est changé.
+- **Serveur de tests de l'ANA.** Il reste dans la liste publique.
+- Tests : `SuiviGpsTest`, `SaisieSimplifieeEcransTest.la_corbeille_d_une_espece_attend_sa_confirmation`. Le branchement Android du GPS (cycle de l'activité, service) n'a pas de test automatique : à vérifier sur le Samsung.

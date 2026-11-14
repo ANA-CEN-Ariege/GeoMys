@@ -112,6 +112,31 @@ class SyncRunnerTest {
         assertFalse(s.config.donneesSimplifiees)
     }
 
+    /** Audit du 14 novembre 2026, M53 : l'indicateur suit ce que la synchro a fait. */
+    @Test
+    fun un_chargement_rate_ne_change_pas_l_indicateur_des_donnees_simplifiees() = runTest {
+        configurer()
+        t.serveur.routerGeoNatureComplet()
+        s.synchro.executer()
+        s.synchro.accuserReception()
+        assertFalse(s.config.donneesSimplifiees)
+
+        // Données pro complètes, puis un chargement simplifié sans réseau : rien n'a été retiré.
+        t.serveur.router { panne() }
+        s.synchro.executer(occtaxSeul = true)
+        s.synchro.accuserReception()
+        assertFalse(s.config.donneesSimplifiees, "Monitoring et OccHab ont toujours leurs données")
+
+        // Données simplifiées, puis un chargement pro sans réseau : rien n'est revenu.
+        t.serveur.routerGeoNatureComplet()
+        s.synchro.executer(occtaxSeul = true)
+        s.synchro.accuserReception()
+        assertTrue(s.config.donneesSimplifiees)
+        t.serveur.router { panne() }
+        s.synchro.executer()
+        assertTrue(s.config.donneesSimplifiees, "le bandeau des Paramètres doit rester")
+    }
+
     /** Rien de ce que la synchro précédente avait écrit ne doit disparaître. */
     private fun verifierDonneesIntactes() {
         assertEquals("17", s.taxRef.versionSauvegardee)

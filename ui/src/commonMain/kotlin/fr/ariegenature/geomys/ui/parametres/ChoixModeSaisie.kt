@@ -52,9 +52,9 @@ private val MODES = listOf(
     Triple(
         ModeSaisie.SIMPLIFIE,
         "Simplifié",
-        "La seule saisie multi-taxons, allégée : après chaque espèce, Détails (nombre, stade de vie, " +
-            "sexe, état biologique), Comportement, Photo et Audio ; les autres champs gardent leur valeur " +
-            "par défaut. Le chargement ne prend que les données de cette saisie.",
+        "Saisie multi-taxons seulement, allégée : après chaque espèce, une fiche propose Détails (nombre, " +
+            "stade de vie, sexe, état biologique), Comportement, Commentaire, Photo et Audio. Les autres " +
+            "champs gardent leur valeur par défaut. Seules les données de cette saisie sont chargées.",
     ),
 )
 

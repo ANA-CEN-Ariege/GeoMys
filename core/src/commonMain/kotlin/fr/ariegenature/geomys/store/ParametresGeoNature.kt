@@ -42,6 +42,22 @@ enum class ChangementConnexion {
     IDENTITE,
 }
 
+private val ADRESSE_SERVEUR = Regex("^(https?)://([^/\\s?#@]+)(/[^\\s?#]*)?$", RegexOption.IGNORE_CASE)
+
+/** L'adresse d'un serveur telle qu'on l'enregistre et qu'on la compare (audit du 14 novembre 2026,
+ *  M46) : sans espaces autour, sans barre finale, sans le `/api` ni le `/#/…` recopiés du navigateur,
+ *  schéma et hôte en minuscules. Null si ce n'est pas une adresse http ou https avec un hôte : ce
+ *  qu'on tape pour chercher dans la liste des serveurs (« pyr ») n'en est pas une. */
+fun normaliserAdresseServeur(saisie: String): String? {
+    var texte = saisie.trim().substringBefore('#').trimEnd('/')
+    if (texte.endsWith("/api", ignoreCase = true)) texte = texte.dropLast(4).trimEnd('/')
+    val m = ADRESSE_SERVEUR.matchEntire(texte) ?: return null
+    return m.groupValues[1].lowercase() + "://" + m.groupValues[2].lowercase() + m.groupValues[3]
+}
+
+/** L'hôte (et le port) d'une adresse de serveur, null si elle n'en est pas une. */
+fun hoteServeur(adresse: String): String? = normaliserAdresseServeur(adresse)?.substringAfter("://")?.substringBefore('/')
+
 /** Enregistre la connexion saisie dans Paramètres (`sauvegarderChamps` de GeoMys-Android).
  *
  *  Tout changement invalide les caches de SESSION : le jeton du mot de passe précédent n'a plus
@@ -51,10 +67,16 @@ enum class ChangementConnexion {
  *  restent valides. Changer d'identité purge en plus
  *  les pictogrammes et le cache disque des suivis, dont les ids appartiennent à l'ancienne
  *  instance, et réinitialise les trois sélections OCCTAX : un id de liste ou d'observateur peut
- *  exister sur les deux serveurs et y désigner autre chose. */
+ *  exister sur les deux serveurs et y désigner autre chose.
+ *
+ *  Les adresses se comparent normalisées ([normaliserAdresseServeur]) : une barre finale ou une
+ *  majuscule ne fait pas un autre serveur. Changer de SERVEUR vide en plus tout ce que la synchro a
+ *  chargé, TaxRef compris : une liste de même numéro et de même version sur les deux serveurs n'a
+ *  pas le même contenu, et la synchro la croyait à jour (audit du 14 novembre 2026, M48). */
 fun ServicesGeoNature.enregistrerConnexion(url: String, login: String, motDePasse: String): ChangementConnexion {
-    val ancien = Triple(config.urlServeur, config.login, config.motDePasse)
-    config.urlServeur = url
+    fun adresse(texte: String) = normaliserAdresseServeur(texte) ?: texte.trim()
+    val ancien = Triple(adresse(config.urlServeur), config.login, config.motDePasse)
+    config.urlServeur = adresse(url)
     config.login = login
     config.motDePasse = motDePasse
     val nouveau = Triple(config.urlServeur, config.login, config.motDePasse)
@@ -70,6 +92,7 @@ fun ServicesGeoNature.enregistrerConnexion(url: String, login: String, motDePass
     invalidationCaches.invaliderCachesSession()
     pictos.vider()
     monitoringCache.vider()
+    if (ancien.first != nouveau.first) cachesSynchronises.viderCachesSynchronises()
     // La version affichée appartient à l'ancienne instance ; le nouveau serveur sera jugé à son
     // premier test de connexion.
     config.versionGeoNatureServeur = ""

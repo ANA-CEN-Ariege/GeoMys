@@ -172,6 +172,14 @@ fun ParametresScreen(vm: ParametresViewModel, onFermer: () -> Unit, onTaxonsList
             },
             onFermer = vm::fermerTaxonsParListes,
         )
+        val changement = vm.changementServeur
+        DialogueConfirmation(
+            changement != null,
+            "Changer de serveur ?",
+            changement?.message.orEmpty(),
+            listOf(BoutonAlerte("Annuler", annulation = true), BoutonAlerte("Changer de serveur", destructif = true, action = vm::confirmerChangementServeur)),
+            vm::annulerChangementServeur,
+        )
         DialogueConfirmation(
             vm.confirmationVidage,
             "Vider le cache ?",

@@ -376,7 +376,14 @@ class SyncRunner(
             // étape secondaire a échoué.
             if (taxRef.versionSauvegardee != null) {
                 config.versionDonneesChargees = GeoNatureConfig.VERSION_DONNEES_REQUISE
-                config.donneesSimplifiees = occtaxSeul
+            }
+            // L'indicateur suit ce que la synchro a FAIT, pas ce qu'on lui a demandé (audit du
+            // 14 novembre 2026, M53) : un chargement simplifié raté ne retire rien aux données du mode
+            // pro, et un chargement pro dont TaxRef ou les Suivis échouent ne les a pas rendues.
+            if (occtaxSeul) {
+                if (echecs.isEmpty()) config.donneesSimplifiees = true
+            } else if (taxRef.versionSauvegardee != null && echecs.none { it.startsWith("TaxRef") || it.startsWith("Suivis") }) {
+                config.donneesSimplifiees = false
             }
             _etat.value = Etat(enCours = false, texte = "Terminé", termine = true, succes = echecs.isEmpty(), resume = resume)
         } catch (c: CancellationException) {

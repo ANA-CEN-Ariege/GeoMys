@@ -22,18 +22,22 @@
 
 package fr.ariegenature.geomys.common
 
+import android.app.Activity
+import android.app.Application
 import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.os.Bundle
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import fr.ariegenature.geomys.location.LocationTracker
 import fr.ariegenature.geomys.location.SuiviGps
+import fr.ariegenature.geomys.location.etatSuiviGps
 import fr.ariegenature.geomys.servicesGeoNature
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,20 +46,88 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
-/** [SuiviGps] Android : le suivi passe par [LocationForegroundService], qui garde le GPS actif
- *  écran éteint ou appli en arrière-plan. */
+/** [SuiviGps] Android. Trace éteinte, le récepteur ne tourne que l'appli à l'écran ; pendant une
+ *  trace, [LocationForegroundService] le garde actif écran éteint ou appli en arrière-plan (règle :
+ *  [etatSuiviGps] ; décision du 14 novembre 2026, audit M60). Tout se passe sur le fil principal. */
 class SuiviGpsAndroid(context: Context) : SuiviGps {
     private val contexte = context.applicationContext
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    private var demande = false
+
+    // Le suivi est demandé depuis un écran : l'appli est alors à l'écran.
+    private var premierPlan = true
+    private var suivi: LocationTracker? = null
+    private var ecoute = false
+    private var service = false
+
+    private val cycle = object : Application.ActivityLifecycleCallbacks {
+        override fun onActivityStarted(activity: Activity) = versPremierPlan(true)
+
+        override fun onActivityStopped(activity: Activity) {
+            // Une rotation recrée l'activité : ce n'est pas un passage en arrière-plan.
+            if (!activity.isChangingConfigurations) versPremierPlan(false)
+        }
+
+        override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+
+        override fun onActivityResumed(activity: Activity) {}
+
+        override fun onActivityPaused(activity: Activity) {}
+
+        override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+
+        override fun onActivityDestroyed(activity: Activity) {}
+    }
+
+    private fun versPremierPlan(valeur: Boolean) {
+        premierPlan = valeur
+        suivi?.let(::appliquer)
+    }
 
     override fun demarrer(tracker: LocationTracker) {
-        ContextCompat.startForegroundService(contexte, Intent(contexte, LocationForegroundService::class.java))
+        demande = true
+        if (suivi == null) {
+            suivi = tracker
+            (contexte as Application).registerActivityLifecycleCallbacks(cycle)
+            scope.launch { tracker.estEnCours.collect { appliquer(tracker) } }
+        }
+        appliquer(tracker)
     }
 
     override fun arreter(tracker: LocationTracker) {
-        contexte.stopService(Intent(contexte, LocationForegroundService::class.java))
+        demande = false
+        appliquer(tracker)
+    }
+
+    private fun appliquer(tracker: LocationTracker) {
+        val etat = etatSuiviGps(demande, premierPlan, tracker.estEnCours.value)
+        if (etat.ecoute) {
+            // Sans effet si le récepteur tourne déjà ; s'il n'a pas pu démarrer, nouvel essai.
+            tracker.demarrer()
+            // Au retour à l'écran, un point frais sans attendre le flux continu.
+            if (!ecoute) tracker.rafraichirPosition()
+        } else if (ecoute) {
+            // Seulement ce que ce suivi a allumé : d'autres cartes (OccHab, Suivis, Explorer)
+            // démarrent le récepteur elles-mêmes.
+            tracker.arreter()
+        }
+        ecoute = etat.ecoute
+        if (etat.service && !service) {
+            // Android refuse un service au premier plan lancé hors de l'écran : la trace se
+            // démarre depuis la carte, mais on ne plante pas si ce n'est pas le cas.
+            service = runCatching {
+                ContextCompat.startForegroundService(contexte, Intent(contexte, LocationForegroundService::class.java))
+            }.isSuccess
+        } else if (!etat.service && service) {
+            contexte.stopService(Intent(contexte, LocationForegroundService::class.java))
+            service = false
+        }
     }
 }
 
+/** Le service au premier plan d'une trace : il garde le processus et le GPS vivants et montre la
+ *  distance parcourue. Le récepteur, lui, est démarré et arrêté par [SuiviGpsAndroid]. */
 class LocationForegroundService : Service() {
 
     companion object {
@@ -88,7 +160,6 @@ class LocationForegroundService : Service() {
             combine(tracker.distanceTotale, tracker.estEnCours) { distance, enCours -> distance to enCours }
                 .collect { (distance, enCours) -> updateNotification(distance, enCours) }
         }
-        tracker.demarrer()
     }
 
     // START_NOT_STICKY : si Android tue le process pendant une saisie, il ne doit PAS
@@ -101,7 +172,6 @@ class LocationForegroundService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         scope.cancel()
-        tracker.arreter()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

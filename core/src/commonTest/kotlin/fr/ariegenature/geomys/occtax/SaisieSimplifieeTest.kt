@@ -165,6 +165,8 @@ class SaisieSimplifieeTest {
         assertEquals("Renseignez le nombre", SaisieSimplifiee.refusNombre(""))
         assertEquals("Nombre entier attendu", SaisieSimplifiee.refusNombre("2,5"))
         assertNull(SaisieSimplifiee.refusNombre("0"))
+        assertNull(SaisieSimplifiee.refusNombre("2147483647"))
+        assertEquals("Nombre trop grand", SaisieSimplifiee.refusNombre("99999999999"), "il était enregistré comme 1")
         assertEquals("2", SaisieSimplifiee.nombreInitial(espece))
     }
 

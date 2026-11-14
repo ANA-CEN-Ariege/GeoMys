@@ -35,21 +35,27 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.FileProvider
 import java.io.File
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** La portée des imports de médias, celle du processus : un import commencé va à son terme. */
+private val PORTEE_IMPORTS = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
 @Composable
 actual fun rememberAjoutMedias(dossier: String, onImportes: (List<String>) -> Unit, onErreur: (String) -> Unit): AjoutMedias {
     val contexte = LocalContext.current
-    val portee = rememberCoroutineScope()
+    // L'import survit à l'écran : quitter la fiche pendant la recompression de plusieurs photos
+    // annulait leur rattachement, sans message (audit du 14 novembre 2026, M50).
+    val portee = PORTEE_IMPORTS
     val importes by rememberUpdatedState(onImportes)
     val erreur by rememberUpdatedState(onErreur)
     // Fichier temporaire de la prise de vue : gardé si le processus meurt derrière l'appareil photo.

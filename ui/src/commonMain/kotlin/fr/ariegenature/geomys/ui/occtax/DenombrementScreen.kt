@@ -72,6 +72,7 @@ import fr.ariegenature.geomys.ui.composants.BoutonTexte
 import fr.ariegenature.geomys.ui.composants.ChampLibelle
 import fr.ariegenature.geomys.ui.composants.ChampTexteFormulaire
 import fr.ariegenature.geomys.ui.composants.DialogueActions
+import fr.ariegenature.geomys.ui.composants.DialogueConfirmation
 import fr.ariegenature.geomys.ui.composants.DialogueGardeSortie
 import fr.ariegenature.geomys.ui.composants.GRIS_TITRE_CHAMP
 import fr.ariegenature.geomys.ui.composants.LocalToasts
@@ -102,6 +103,7 @@ fun DenombrementScreen(
     // Le dénombrement qui attend le retour d'un sélecteur de médias (-1 : aucun).
     var cible by rememberSaveable { mutableIntStateOf(-1) }
     var choixPhoto by remember { mutableStateOf(false) }
+    var mediaASupprimer by remember { mutableStateOf<Pair<CarteDenombrement, String>?>(null) }
     val medias = rememberAjoutMedias(
         vm.dossierMedias,
         onImportes = { uris -> vm.ajouterMedias(cible, uris) },
@@ -119,7 +121,7 @@ fun DenombrementScreen(
         },
     ) {
         vm.cartes.forEachIndexed { index, carte ->
-            CarteVue(vm, carte, index, onPhoto = {
+            CarteVue(vm, carte, index, onSupprimerMedia = { mediaASupprimer = carte to it }, onPhoto = {
                 cible = index
                 // Sans appareil photo (simulateur), la galerie directement.
                 if (medias.appareilPhoto) choixPhoto = true else medias.choisirPhotos()
@@ -144,11 +146,16 @@ fun DenombrementScreen(
         ),
         onFermer = { choixPhoto = false },
     )
+    DialogueSuppressionMedia(
+        mediaASupprimer?.second,
+        onConfirmer = { mediaASupprimer?.let { (carte, uri) -> vm.retirerMedia(carte, uri) } },
+        onFermer = { mediaASupprimer = null },
+    )
     DialogueGardeSortie(garde, "Dénombrement non enregistré", onAbandon = vm::abandonner)
 }
 
 @Composable
-private fun CarteVue(vm: DenombrementViewModel, carte: CarteDenombrement, index: Int, onPhoto: () -> Unit, onAudio: () -> Unit) {
+private fun CarteVue(vm: DenombrementViewModel, carte: CarteDenombrement, index: Int, onSupprimerMedia: (String) -> Unit, onPhoto: () -> Unit, onAudio: () -> Unit) {
     val ios = estIos
     val forme = RoundedCornerShape(8.dp)
     Column(
@@ -193,7 +200,7 @@ private fun CarteVue(vm: DenombrementViewModel, carte: CarteDenombrement, index:
         // Le bloc Médias, si le serveur l'active (`OCCTAX.ENABLE_MEDIAS`).
         if (vm.mediasVisibles) ChampLibelle("Médias", margeHautAndroid = 10, tailleAndroid = 12) {
             Column(Modifier.padding(top = if (ios) 0.dp else 2.dp), verticalArrangement = Arrangement.spacedBy(if (ios) 8.dp else 0.dp)) {
-                for (uri in carte.medias) LigneMedia(uri) { vm.retirerMedia(carte, uri) }
+                for (uri in carte.medias) LigneMedia(uri) { onSupprimerMedia(uri) }
                 Row(Modifier.padding(top = if (ios) 0.dp else 4.dp), horizontalArrangement = Arrangement.spacedBy(if (ios) 12.dp else 0.dp)) {
                     if (ios) {
                         BoutonTexteJauneIos("＋ Photo", onPhoto, Modifier.weight(1f))
@@ -296,6 +303,19 @@ internal fun LigneMedia(uri: String, onSupprimer: () -> Unit) {
             BoutonSupprimer(32, "Supprimer la photo", onSupprimer)
         }
     }
+}
+
+/** Confirmation de la corbeille du média [uri] (null : fermé), demandée le 14 novembre 2026 (audit,
+ *  M58). À poser à la racine de l'écran. */
+@Composable
+internal fun DialogueSuppressionMedia(uri: String?, onConfirmer: () -> Unit, onFermer: () -> Unit) {
+    DialogueConfirmation(
+        visible = uri != null,
+        titre = "Supprimer ce média ?",
+        message = uri?.let { "« ${nomMedia(it)} » ne sera plus joint à l'observation." }.orEmpty(),
+        boutons = listOf(BoutonAlerte("Annuler", annulation = true), BoutonAlerte("Supprimer", destructif = true, action = onConfirmer)),
+        onFermer = onFermer,
+    )
 }
 
 /** ImageButton de suppression : `@android:drawable/ic_menu_delete` (32 dp) sans fond ; sous iOS, la

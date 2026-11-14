@@ -70,6 +70,8 @@ object SaisieSimplifiee {
     fun refusNombre(texte: String): String? = when {
         texte.isEmpty() -> "Renseignez le nombre"
         !ENTIER.matches(texte) -> "Nombre entier attendu"
+        // Dix chiffres ou plus : illisible, il était enregistré comme 1 (audit du 14 novembre 2026, M54).
+        texte.toIntOrNull() == null -> "Nombre trop grand"
         else -> null
     }
 

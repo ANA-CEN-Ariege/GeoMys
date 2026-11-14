@@ -378,6 +378,10 @@ class ReleveEnCours(
      *  comme le web) et « Détails » ne l'a pas encore posée. */
     fun dateAChoisir(): Boolean = !config.occtaxDateDuJour && dateDebut == null
 
+    /** L'observation de [espece] est déjà sur le serveur : une mise à jour n'y porte pas de média. */
+    fun dejaTransmise(espece: EspeceReleve): Boolean =
+        session.observations.value.any { it.id == (espece.existingId ?: espece.vmId) && it.envoyeeServeur }
+
     private val memoRequis = MemoRequis()
 
     /** Les champs additionnels obligatoires à remplir des espèces, pour le jeu du relevé. */

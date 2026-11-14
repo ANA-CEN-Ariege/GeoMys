@@ -45,18 +45,22 @@ class CommentaireEspeceViewModel(private val espece: EspeceReleve) : ViewModel()
     /** L'écran a changé depuis son ouverture. */
     fun modifie(): Boolean = texte != espece.notes
 
-    /** ✓ : l'espèce avec son commentaire. */
-    fun valider(): EspeceReleve = SaisieSimplifiee.appliquerCommentaire(espece, texte)
+    /** ✓ : ce qu'il faut écrire dans l'espèce, telle qu'elle est au moment du ✓ (audit du 14 novembre
+     *  2026, M50). */
+    fun valider(): (EspeceReleve) -> EspeceReleve {
+        val saisi = texte
+        return { courante -> SaisieSimplifiee.appliquerCommentaire(courante, saisi) }
+    }
 }
 
-/** « Commentaire » : un champ sur plusieurs lignes ; [onValide] reçoit l'espèce. */
+/** « Commentaire » : un champ sur plusieurs lignes ; [onValide] reçoit ce qu'il faut écrire dans l'espèce. */
 @Composable
 fun CommentaireEspeceScreen(
     vm: CommentaireEspeceViewModel,
     typeSaisieLabel: String,
     onAccueil: () -> Unit,
     onRetour: () -> Unit,
-    onValide: (EspeceReleve) -> Unit,
+    onValide: ((EspeceReleve) -> EspeceReleve) -> Unit,
 ) {
     val garde = rememberGardeSortie(vm::modifie, onRetour)
     EcranFormulaireEspece(

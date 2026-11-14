@@ -101,6 +101,43 @@ class ParametresGeoNatureTest {
         verifierSelectionsVides()
     }
 
+    /** Audit du 14 novembre 2026, M46 : ce qu'on tape pour chercher dans la liste n'est pas une adresse. */
+    @Test
+    fun l_adresse_du_serveur_est_normalisee_ou_refusee() {
+        assertEquals("https://exemple.test/geonature", normaliserAdresseServeur("  HTTPS://Exemple.TEST/geonature/ "))
+        assertEquals("https://exemple.test/geonature", normaliserAdresseServeur("https://exemple.test/geonature/api"))
+        assertEquals("https://exemple.test/geonature", normaliserAdresseServeur("https://exemple.test/geonature/#/occtax"))
+        assertEquals("http://exemple.test:8000", normaliserAdresseServeur("http://exemple.test:8000/api/"))
+        for (saisie in listOf("", "pyr", "Parc national", "exemple.test", "https://", "ftp://exemple.test", "https://a b")) {
+            assertNull(normaliserAdresseServeur(saisie), saisie)
+        }
+        assertEquals("exemple.test:8000", hoteServeur("http://exemple.test:8000/geonature"))
+        assertNull(hoteServeur("pyr"))
+    }
+
+    @Test
+    fun une_barre_finale_ne_fait_pas_un_autre_serveur() {
+        connexionEtSelections()
+        config.urlServeur = "https://exemple.test/"
+        poserTaxons()
+        assertEquals(ChangementConnexion.AUCUN, services.enregistrerConnexion("https://Exemple.test", "u", "p"))
+        assertEquals("https://exemple.test", config.urlServeur)
+        assertEquals("1", config.idDataset)
+        assertTrue(services.taxRef.count > 0)
+    }
+
+    /** M48 : une liste de même numéro et de même version n'a pas le même contenu sur un autre serveur. */
+    @Test
+    fun changer_de_serveur_vide_taxref_changer_de_compte_le_garde() {
+        connexionEtSelections()
+        poserTaxons()
+        assertEquals(ChangementConnexion.IDENTITE, services.enregistrerConnexion("https://exemple.test", "v", "p"))
+        assertTrue(services.taxRef.count > 0, "même serveur, autre compte : le référentiel reste")
+        assertEquals(ChangementConnexion.IDENTITE, services.enregistrerConnexion("https://autre.test", "v", "p"))
+        assertEquals(0, services.taxRef.count)
+        assertNull(services.taxRef.versionSauvegardee)
+    }
+
     @Test
     fun changer_de_compte_reinitialise_les_selections() {
         connexionEtSelections()

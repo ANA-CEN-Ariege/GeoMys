@@ -114,8 +114,10 @@ class DetailsEspeceViewModel(
     /** L'écran a changé depuis son ouverture. */
     fun modifie(): Boolean = valeurs() != initiales
 
-    /** ✓ : l'espèce avec ses détails, ou le message d'un champ obligatoire vide (l'écran reste). */
-    fun valider(): Pair<EspeceReleve?, String?> {
+    /** ✓ : ce qu'il faut écrire dans l'espèce, ou le message d'un champ obligatoire vide (l'écran
+     *  reste). La transformation s'applique à l'espèce telle qu'elle est AU MOMENT du ✓, pas à celle de
+     *  l'ouverture : une photo rattachée entre-temps n'est pas écrasée (audit du 14 novembre 2026, M50). */
+    fun valider(): Pair<((EspeceReleve) -> EspeceReleve)?, String?> {
         val valeurs = champs.associate { c ->
             val code = c.champ.code
             code to FormulairesEspece.valeurRetenue(c, courant(c), nomenclatures.defautPour(code), positionsInitiales[code] ?: 0, positions[code] ?: 0)
@@ -124,12 +126,12 @@ class DetailsEspeceViewModel(
         FormulairesEspece.manque(champs, valeurs)?.let { return null to it }
         additionnelsOccurrence?.refus()?.let { return null to it }
         additionnelsDenombrement?.refus()?.let { return null to it }
-        return SaisieSimplifiee.appliquerDetails(
-            espece,
-            if (nombreVisible) nombre else denombrement.nombreMin.toString(),
-            valeurs,
-            additionnelsOccurrence?.collecter().orEmpty(),
-            additionnelsDenombrement?.collecter().orEmpty(),
-        ) to null
+        val nombreSaisi = nombre.takeIf { nombreVisible }
+        val occurrence = additionnelsOccurrence?.collecter().orEmpty()
+        val comptage = additionnelsDenombrement?.collecter().orEmpty()
+        val transformation = { courante: EspeceReleve ->
+            SaisieSimplifiee.appliquerDetails(courante, nombreSaisi ?: courante.nombre.toString(), valeurs, occurrence, comptage)
+        }
+        return transformation to null
     }
 }

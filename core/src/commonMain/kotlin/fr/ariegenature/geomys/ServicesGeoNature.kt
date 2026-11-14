@@ -249,6 +249,10 @@ class ServicesGeoNature(val socle: Socle) {
                 taxRef.tousLesGroupes()
                 taxRef.tousLesGroupes1()
                 taxRef.tousLesRegnes()
+                // Lus à l'ouverture d'une fiche, de Détails, d'une caractérisation ou d'un dénombrement
+                // (groupe taxonomique de l'espèce) : décodés ici plutôt que sur le fil de l'interface
+                // (audit du 14 novembre 2026, reste de M40).
+                taxRef.tousLesGroupes3()
                 // Lus au premier taxon reconnu (« TAXREF - Nom valide ») : décodés ici plutôt que sur
                 // le fil de l'interface (audit du 21 octobre, M40).
                 taxRef.nomValideParCdNom(0)

@@ -18,8 +18,9 @@
 
 package fr.ariegenature.geomys.location
 
-/** Le suivi GPS des écrans de saisie, maintenu quand l'appli passe en arrière-plan :
- *  - Android : un service au premier plan, avec sa notification « suivi GPS actif » ;
+/** Le suivi GPS des écrans de saisie, maintenu en arrière-plan PENDANT UNE TRACE seulement :
+ *  - Android : un service au premier plan, avec sa notification « suivi GPS actif », le temps de la
+ *    trace ; trace éteinte, le récepteur suit l'écran ([etatSuiviGps]) ;
  *  - iOS : le récepteur seul, que l'autorisation des mises à jour en arrière-plan garde actif
  *    ([SourcePositions.enregistrement]). */
 interface SuiviGps {
@@ -34,3 +35,14 @@ object SuiviGpsDirect : SuiviGps {
 
     override fun arreter(tracker: LocationTracker) = tracker.arreter()
 }
+
+/** Ce que le suivi tient allumé : le récepteur ([ecoute]) et le service au premier plan d'Android
+ *  ([service]). */
+data class EtatSuiviGps(val ecoute: Boolean, val service: Boolean)
+
+/** La règle du suivi sous Android (décision du 14 novembre 2026, audit M60) : un écran de saisie le
+ *  [demande] ; trace éteinte, le GPS ne tourne que l'appli à l'écran ([premierPlan]), et s'arrête
+ *  écran verrouillé ou appli quittée ; pendant une [trace], le service le garde actif partout. Avant,
+ *  le service tournait pendant toute la saisie, téléphone en poche compris. */
+fun etatSuiviGps(demande: Boolean, premierPlan: Boolean, trace: Boolean): EtatSuiviGps =
+    EtatSuiviGps(ecoute = demande && (premierPlan || trace), service = demande && trace)

@@ -39,6 +39,7 @@ import fr.ariegenature.geomys.store.TaxrefRestriction
 import fr.ariegenature.geomys.store.io.listeVersJson
 import fr.ariegenature.geomys.ui.ServicesEssai
 import fr.ariegenature.geomys.ui.laisserFinirLeTravailDeFond
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -168,8 +169,10 @@ class SaisieSimplifieeEcransTest {
         assertNull(refusee, "le code LUF est obligatoire")
         assertTrue(message.orEmpty().contains("Code LUF"), message)
         details.additionnelsOccurrence!!.saisirTexte("code_luf", "7")
-        val (espece, _) = details.valider()
-        releve.releve.modifier(0) { espece!! }
+        // Une photo rattachée pendant que « Détails » est ouvert : son ✓ ne l'écrase pas (M50).
+        fiche.ajouterMedias(listOf("file:///essai/pendant-details.jpg"))
+        val (transformation, _) = details.valider()
+        releve.releve.modifier(0) { transformation!!(it) }
 
         val apres = releve.releve.especes.value.single()
         assertEquals(3, apres.nombre)
@@ -177,6 +180,7 @@ class SaisieSimplifieeEcransTest {
         assertEquals("3", apres.sexe)
         assertEquals("4", apres.etaBio, "laissé au défaut : le défaut est retenu, comme en mode pro")
         assertEquals("7", apres.additionalFieldsOccurrence["code_luf"])
+        assertEquals(listOf("file:///essai/pendant-details.jpg"), apres.mediaUrisCounting0, "la photo arrivée entre-temps reste")
         assertEquals("", apres.techniqueObs, "hors des écrans simplifiés : rien n'est écrit")
         assertEquals("3 · Adulte · Mâle · Vivant", fiche.resumeDetails(apres))
         assertFalse(fiche.detailsIncomplets(apres))
@@ -220,10 +224,13 @@ class SaisieSimplifieeEcransTest {
         assertFalse(commentaire.modifie())
         commentaire.texte = "Sur une ombellifère "
         assertTrue(commentaire.modifie())
-        releve.releve.modifier(0) { commentaire.valider() }
+        // Idem pour « Commentaire » : il n'écrit que le commentaire de l'espèce courante (M50).
+        fiche.ajouterMedias(listOf("file:///essai/pendant-commentaire.m4a"))
+        releve.releve.modifier(0, commentaire.valider())
 
         val apres = releve.releve.especes.value.single()
         assertEquals("Sur une ombellifère", fiche.resumeCommentaire(apres))
+        assertEquals(listOf("file:///essai/pendant-commentaire.m4a"), apres.mediaUrisCounting0)
         val obs = releve.session.observations.value.single { it.releveId == releve.releve.releveId }
         assertEquals("Sur une ombellifère", obs.notes, "le commentaire de l'occurrence")
         assertNull(obs.commentReleve, "pas celui du relevé")
@@ -234,10 +241,50 @@ class SaisieSimplifieeEcransTest {
         val releve = releve(ModeSaisie.SIMPLIFIE)
         releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
         val fiche = FicheEspeceViewModel(services, releve.releve, 0)
-        fiche.ajouterMedias(listOf("file:///tmp/photo.jpg", "file:///tmp/chant.m4a"))
-        assertEquals(listOf("file:///tmp/photo.jpg", "file:///tmp/chant.m4a"), releve.releve.especes.value.single().mediaUrisCounting0)
-        fiche.retirerMedia("file:///tmp/photo.jpg")
+        // Une vraie copie locale : retirée de l'espèce, elle n'est pas effacée (M51).
+        val dossier = File(services.cheminMedias).apply { mkdirs() }
+        val photo = File(dossier, "photo.jpg").apply { writeText("jpeg") }
+        val uriPhoto = "file://${photo.absolutePath}"
+        fiche.ajouterMedias(listOf(uriPhoto, "file:///essai/chant.m4a"))
+        assertEquals(listOf(uriPhoto, "file:///essai/chant.m4a"), releve.releve.especes.value.single().mediaUrisCounting0)
+        fiche.retirerMedia(uriPhoto)
         val obs = releve.session.observations.value.single { it.releveId == releve.releve.releveId }
-        assertEquals(listOf("file:///tmp/chant.m4a"), obs.mediaUrisCounting0)
+        assertEquals(listOf("file:///essai/chant.m4a"), obs.mediaUrisCounting0)
+        assertTrue(photo.exists(), "la copie locale reste : le balayage des orphelins s'en chargera")
+    }
+
+    /** M52 : la mise à jour d'une occurrence déjà transmise ne porte pas de média. */
+    @Test
+    fun photo_et_audio_sont_figes_sur_une_observation_deja_envoyee() = runTest {
+        val releve = releve(ModeSaisie.SIMPLIFIE)
+        releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
+        val fiche = FicheEspeceViewModel(services, releve.releve, 0)
+        val espece = releve.releve.especes.value.single()
+        assertFalse(fiche.mediasFiges(espece))
+        val obs = releve.session.observations.value.single { it.releveId == releve.releve.releveId }
+        releve.session.remplacerObservationsDuReleve(releve.releve.releveId, listOf(obs.copy(envoyeeServeur = true)))
+        assertTrue(fiche.mediasFiges(espece))
+    }
+
+    /** M58 : la corbeille touche le crayon ; rien ne part sans le « Supprimer » du dialogue. */
+    @Test
+    fun la_corbeille_d_une_espece_attend_sa_confirmation() = runTest {
+        val releve = releve(ModeSaisie.SIMPLIFIE)
+        releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
+        releve.choisirSuggestion(SuggestionTaxon("Flambé", 54496))
+        releve.demanderSuppression(0)
+        assertEquals("Machaon", releve.suppressionDemandee?.espece)
+        assertEquals(2, releve.releve.especes.value.size, "rien n'est supprimé avant la confirmation")
+        releve.annulerSuppression()
+        assertEquals(null, releve.suppressionDemandee)
+        assertEquals(2, releve.releve.especes.value.size)
+
+        releve.demanderSuppression(0)
+        releve.confirmerSuppression()
+        assertEquals(listOf("Flambé"), releve.releve.especes.value.map { it.espece })
+        assertEquals(null, releve.suppressionDemandee)
+        // Sans demande, la confirmation ne supprime rien.
+        releve.confirmerSuppression()
+        assertEquals(1, releve.releve.especes.value.size)
     }
 }

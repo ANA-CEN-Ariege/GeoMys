@@ -33,14 +33,14 @@ import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.composants.rememberGardeSortie
 
 /** « Détails » : nombre, stade de vie, sexe, état biologique, et les champs additionnels obligatoires ;
- *  [onValide] reçoit l'espèce. */
+ *  [onValide] reçoit ce qu'il faut écrire dans l'espèce. */
 @Composable
 fun DetailsEspeceScreen(
     vm: DetailsEspeceViewModel,
     typeSaisieLabel: String,
     onAccueil: () -> Unit,
     onRetour: () -> Unit,
-    onValide: (EspeceReleve) -> Unit,
+    onValide: ((EspeceReleve) -> EspeceReleve) -> Unit,
 ) {
     val toasts = LocalToasts.current
     val garde = rememberGardeSortie(vm::modifie, onRetour)
@@ -50,8 +50,8 @@ fun DetailsEspeceScreen(
         typeSaisieLabel = typeSaisieLabel,
         onAccueil = { garde.demander(onAccueil) },
         onValider = {
-            val (espece, message) = vm.valider()
-            if (espece != null) onValide(espece) else if (message != null) toasts.afficher(message, true)
+            val (transformation, message) = vm.valider()
+            if (transformation != null) onValide(transformation) else if (message != null) toasts.afficher(message, true)
         },
     ) {
         if (vm.nombreVisible) {

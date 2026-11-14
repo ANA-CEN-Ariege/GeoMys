@@ -113,9 +113,15 @@ class FicheEspeceViewModel(
         releve.modifier(index) { SaisieSimplifiee.ajouterMedias(it, uris) }
     }
 
-    /** Retire un média de l'espèce et efface sa copie locale. */
+    /** Retire un média de l'espèce. Sa copie locale reste : une photo prise depuis la fiche n'existe
+     *  que là, d'autres observations d'une série peuvent la partager, et l'écran n'a pas de « Quitter
+     *  sans enregistrer » (audit du 14 novembre 2026, M51). Le balayage des médias orphelins l'efface
+     *  après 48 heures. */
     fun retirerMedia(uri: String) {
         releve.modifier(index) { SaisieSimplifiee.retirerMedia(it, uri) }
-        services.supprimerMedia(uri)
     }
+
+    /** L'observation est déjà sur le serveur : un média ajouté maintenant ne partirait jamais, la mise
+     *  à jour d'une occurrence n'en portant pas (audit du 14 novembre 2026, M52). */
+    fun mediasFiges(e: EspeceReleve): Boolean = releve.dejaTransmise(e)
 }

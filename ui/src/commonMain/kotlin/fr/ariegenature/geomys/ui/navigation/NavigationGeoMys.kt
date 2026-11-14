@@ -813,7 +813,15 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
                 onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
                 onValide = { caracterisee ->
-                    releve.releve.modifier(route.index) { caracterisee }
+                    // Ouverte sur le seul comportement, elle n'écrit que lui dans l'espèce courante : un
+                    // média rattaché entre-temps reste (audit du 14 novembre 2026, M50).
+                    releve.releve.modifier(route.index) { courante ->
+                        when {
+                            courante.vmId != espece.vmId -> courante
+                            route.comportementSeul -> courante.copy(comportement = caracterisee.comportement)
+                            else -> caracterisee
+                        }
+                    }
                     nav.popBackStack()
                 },
                 titre = if (route.simplifie) "Comportement" else "Caractérisation de l'occurrence",
@@ -852,8 +860,8 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 releve.typeSaisieLabel,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
                 onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
-                onValide = { detaillee ->
-                    releve.releve.modifier(route.index) { detaillee }
+                onValide = { transformation ->
+                    releve.releve.modifier(route.index) { courante -> if (courante.vmId == espece.vmId) transformation(courante) else courante }
                     nav.popBackStack()
                 },
             )
@@ -872,8 +880,8 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 releve.typeSaisieLabel,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
                 onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
-                onValide = { commentee ->
-                    releve.releve.modifier(route.index) { commentee }
+                onValide = { transformation ->
+                    releve.releve.modifier(route.index) { courante -> if (courante.vmId == espece.vmId) transformation(courante) else courante }
                     nav.popBackStack()
                 },
             )

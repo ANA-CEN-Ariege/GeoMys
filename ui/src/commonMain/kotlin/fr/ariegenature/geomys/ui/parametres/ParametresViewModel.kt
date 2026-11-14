@@ -43,6 +43,9 @@ import fr.ariegenature.geomys.store.TaxonsParListes
 import fr.ariegenature.geomys.store.compteursCache
 import fr.ariegenature.geomys.store.configurationComplete
 import fr.ariegenature.geomys.store.enregistrerConnexion
+import fr.ariegenature.geomys.store.envoisEnAttente
+import fr.ariegenature.geomys.store.hoteServeur
+import fr.ariegenature.geomys.store.normaliserAdresseServeur
 import fr.ariegenature.geomys.store.io.listeDepuisJson
 import fr.ariegenature.geomys.store.messageListe
 import fr.ariegenature.geomys.store.reinitialiserSelectionsOcctax
@@ -85,6 +88,9 @@ sealed interface EvenementParametres {
 
 /** L'écran Paramètres (`ConfigGeoNatureFragment`) : connexion au serveur, chargement des données,
  *  sélections par défaut. Tant que la configuration n'est pas complète, on ne peut pas en sortir. */
+/** Le refus d'une saisie du champ serveur qui n'est pas une adresse. */
+const val ADRESSE_NON_VALIDE = "Adresse du serveur non valide : choisissez un serveur dans la liste, ou saisissez son adresse complète (https://…)."
+
 class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel() {
     private val config = services.config
     private val taxRef = services.taxRef
@@ -244,8 +250,15 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
 
     fun changerUrl(valeur: String) {
         url = valeur
+        // Un autre serveur : le mot de passe enregistré ne lui est pas destiné, « Tester la connexion »
+        // le lui envoyait (audit du 14 novembre 2026, M47). Il revient avec l'adresse enregistrée ;
+        // un mot de passe tapé ici reste.
+        if (!motDePasseTape) motDePasse = if (hoteServeur(valeur) == hoteServeur(config.urlServeur)) config.motDePasse else ""
         refleterEditionConnexion()
     }
+
+    /** Le mot de passe du champ a été tapé ici, et non relu du coffre. */
+    private var motDePasseTape = false
 
     fun changerLogin(valeur: String) {
         login = valeur
@@ -254,6 +267,7 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
 
     fun changerMotDePasse(valeur: String) {
         motDePasse = valeur
+        motDePasseTape = true
         refleterEditionConnexion()
     }
 
@@ -278,11 +292,46 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
         resultatTest = MessageColore("Connexion non testée — cliquez sur « Tester la connexion ».", NatureMessage.AVERTISSEMENT)
     }
 
-    /** `sauvegarderChamps` : enregistre la connexion ; un changement d'identité vide les sélections. */
+    /** La connexion des champs diffère de celle enregistrée. */
+    private val connexionModifiee: Boolean
+        get() = url != config.urlServeur || login != config.login || motDePasse != config.motDePasse
+
+    /** `sauvegarderChamps` : enregistre la connexion ; un changement d'identité vide les sélections.
+     *  Rien n'est enregistré si le champ serveur ne porte pas une adresse : ce qu'on y tape sert
+     *  aussi à chercher dans la liste (audit du 14 novembre 2026, M46). */
     private fun enregistrerConnexion() {
+        if (url.isNotBlank() && normaliserAdresseServeur(url) == null) return
         if (services.enregistrerConnexion(url, login, motDePasse) == ChangementConnexion.IDENTITE) {
             viderSelectionsAffichees()
+            ListeTaxons.oublier()
         }
+        // L'adresse enregistrée est normalisée : le champ la montre telle quelle.
+        url = config.urlServeur
+        motDePasseTape = false
+    }
+
+    /** Un changement de serveur à confirmer : ce qu'il efface, et ce qui attend encore d'être envoyé. */
+    data class ChangementServeur(val ancien: String, val nouveau: String, val envoisEnAttente: Int) {
+        val message: String
+            get() = "Les sélections et les données chargées depuis $ancien seront effacées du téléphone. " +
+                "Il faudra recharger celles de $nouveau." +
+                if (envoisEnAttente > 0) {
+                    "\n\n⚠ $envoisEnAttente saisie${if (envoisEnAttente > 1) "s attendent" else " attend"} encore d'être " +
+                        "envoyée${if (envoisEnAttente > 1) "s" else ""}. Faite${if (envoisEnAttente > 1) "s" else ""} pour l'ancien serveur, " +
+                        "${if (envoisEnAttente > 1) "elles partiraient" else "elle partirait"} vers le nouveau : envoyez-${if (envoisEnAttente > 1) "les" else "la"} d'abord."
+                } else ""
+    }
+
+    var changementServeur by mutableStateOf<ChangementServeur?>(null)
+        private set
+
+    fun annulerChangementServeur() {
+        changementServeur = null
+    }
+
+    fun confirmerChangementServeur() {
+        changementServeur = null
+        lancerTest()
     }
 
     private fun viderSelectionsAffichees() {
@@ -296,7 +345,27 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
         observateurChoisi = null
     }
 
+    /** « Tester la connexion ». Une saisie qui n'est pas une adresse est refusée sans rien enregistrer ;
+     *  un autre serveur que celui enregistré demande d'abord confirmation, puisque l'enregistrer efface
+     *  les données de l'ancien (audit du 14 novembre 2026, M46 et M49). */
     fun testerConnexion() {
+        val adresse = normaliserAdresseServeur(url)
+        if (adresse == null) {
+            resultatTest = MessageColore(ADRESSE_NON_VALIDE, NatureMessage.ERREUR)
+            return
+        }
+        val ancienne = normaliserAdresseServeur(config.urlServeur)
+        if (ancienne != null && ancienne != adresse) {
+            viewModelScope.launch {
+                val attente = services.envoisEnAttente()
+                changementServeur = ChangementServeur(ancienne, adresse, attente.saisies + attente.visites + attente.stations)
+            }
+            return
+        }
+        lancerTest()
+    }
+
+    private fun lancerTest() {
         enregistrerConnexion()
         testEnCours = true
         resultatTest = null
@@ -532,8 +601,22 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
     /** Coche « Valider et fermer » : enregistre la connexion, puis ferme si la configuration est
      *  complète, sinon dit ce qui manque. */
     fun valider() {
-        enregistrerConnexion()
         viewModelScope.launch {
+            if (connexionModifiee) {
+                // Une connexion modifiée mais jamais testée ne remplace pas une configuration complète :
+                // l'enregistrer effaçait les données de l'ancien serveur (audit du 14 novembre 2026, M46).
+                majStatut()
+                if (configurationComplete) {
+                    url = config.urlServeur
+                    login = config.login
+                    motDePasse = config.motDePasse
+                    motDePasseTape = false
+                    _evenements.send(EvenementParametres.Toast("Connexion modifiée mais non testée : la connexion précédente est conservée.", longue = true))
+                    _evenements.send(EvenementParametres.Fermer)
+                    return@launch
+                }
+                enregistrerConnexion()
+            }
             majStatut()
             if (configurationComplete) {
                 _evenements.send(EvenementParametres.Fermer)
