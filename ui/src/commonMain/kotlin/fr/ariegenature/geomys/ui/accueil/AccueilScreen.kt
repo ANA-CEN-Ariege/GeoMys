@@ -95,6 +95,7 @@ import fr.ariegenature.geomys.ui.composants.rememberEtatFlou
 import fr.ariegenature.geomys.ui.composants.sourceFlou
 import fr.ariegenature.geomys.ui.composants.styleLibelleMaterial
 import fr.ariegenature.geomys.ui.ressources.Res
+import fr.ariegenature.geomys.ui.ressources.ic_add
 import fr.ariegenature.geomys.ui.ressources.ic_menu
 import fr.ariegenature.geomys.ui.ressources.ic_settings
 import fr.ariegenature.geomys.ui.ressources.logo_geomys
@@ -131,6 +132,10 @@ data class EtatAccueil(
 
 /** Le bouton de la saisie multi-taxons en saisie simplifiée, seul sur l'accueil. */
 internal const val LIBELLE_SAISIE_SIMPLIFIEE = "Démarrer une saisie"
+
+/** Sous le bouton estompé de la saisie simplifiée : pourquoi il l'est, et le chemin (le toucher
+ *  ouvre les Paramètres). */
+internal const val AIDE_CONFIGURATION = "Pour commencer, renseignez la connexion dans les Paramètres"
 
 /** Les entrées du menu de l'accueil. */
 enum class EntreeMenuAccueil(val libelle: String) {
@@ -243,7 +248,7 @@ private fun ContenuAndroid(etat: EtatAccueil, actions: ActionsAccueil, nomAppli:
         Spacer(Modifier.weight(1f))
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
             if (etat.simplifie) {
-                BoutonAccueilAndroid(LIBELLE_SAISIE_SIMPLIFIEE, etat.saisieValide, actions.saisieMulti, Modifier.fillMaxWidth().padding(bottom = 12.dp), 18.dp)
+                BoutonDemarrerAndroid(etat.saisieValide, actions)
             } else {
                 RangeeSaisiesAndroid(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
                     BoutonAccueilAndroid("Saisie multi-taxons", etat.saisieValide, actions.saisieMulti, Modifier, 18.dp)
@@ -292,6 +297,35 @@ private fun BoutonAccueilAndroid(texte: String, actif: Boolean, onClick: () -> U
         marges = PaddingValues(horizontal = 24.dp, vertical = margeVerticale),
         couleurContenu = Color.White,
     ) { Text(texte, style = styleLibelleMaterial(Color.White, taille = 15f)) }
+}
+
+/** Le bouton unique de la saisie simplifiée (demande du 14 novembre 2026) : c'est le seul geste de
+ *  l'accueil, il est donc plus haut que les boutons du mode pro, avec un « + » et un libellé de 18 sp.
+ *  Estompé, il dit pourquoi dessous. */
+@Composable
+private fun BoutonDemarrerAndroid(actif: Boolean, actions: ActionsAccueil) {
+    BoutonMaterial(
+        onClick = actions.saisieMulti,
+        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).alpha(if (actif) 1f else 0.4f),
+        actif = actif,
+        fond = CouleursGeoMys.vert85,
+        marges = PaddingValues(horizontal = 24.dp, vertical = 26.dp),
+        couleurContenu = Color.White,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(painterResource(Res.drawable.ic_add), contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+            Text(LIBELLE_SAISIE_SIMPLIFIEE, style = styleLibelleMaterial(Color.White, taille = 18f))
+        }
+    }
+    if (!actif) {
+        Text(
+            AIDE_CONFIGURATION,
+            color = CouleursGeoMys.jauneClair,
+            fontSize = 13.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().clickable(onClick = actions.parametres).padding(horizontal = 8.dp, vertical = 8.dp),
+        )
+    }
 }
 
 /** Boutons menu (haut gauche) et Paramètres (haut droite), dans des conteneurs de 8 dp de marge
@@ -379,7 +413,7 @@ private fun ContenuIos(etat: EtatAccueil, actions: ActionsAccueil, nomAppli: Str
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (etat.simplifie) {
-                BoutonAccueilIos(LIBELLE_SAISIE_SIMPLIFIEE, etat.saisieValide, actions.saisieMulti, Modifier.fillMaxWidth(), 18.dp)
+                BoutonDemarrerIos(etat.saisieValide, actions)
             } else {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     BoutonAccueilIos("Saisie\nmulti-taxons", etat.saisieValide, actions.saisieMulti, Modifier.weight(1f), 18.dp)
@@ -415,6 +449,27 @@ private fun BoutonAccueilIos(texte: String, actif: Boolean, onClick: () -> Unit,
                 .background(CouleursGeoMys.vert85, PILULE)
                 .padding(horizontal = 24.dp, vertical = margeVerticale),
         )
+    }
+}
+
+/** Le bouton unique de la saisie simplifiée, comme [BoutonDemarrerAndroid] : pilule plus haute, « + »
+ *  et libellé de 18 pt semi-gras ; estompé, il dit pourquoi dessous. */
+@Composable
+private fun BoutonDemarrerIos(actif: Boolean, actions: ActionsAccueil) {
+    BoutonIos(actions.saisieMulti, Modifier.fillMaxWidth().alpha(if (actif) 1f else 0.4f), actif, opaciteInactif = 0.4f) {
+        Row(
+            Modifier.fillMaxWidth().background(CouleursGeoMys.vert85, PILULE).padding(horizontal = 24.dp, vertical = 22.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SymboleSf("plus", 18f, listOf(Color.White))
+            Text(LIBELLE_SAISIE_SIMPLIFIEE, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+    if (!actif) {
+        BoutonIos(actions.parametres, Modifier.fillMaxWidth(), opaciteAppui = 0.3f) {
+            Text(AIDE_CONFIGURATION, color = CouleursGeoMys.jauneClair, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp))
+        }
     }
 }
 

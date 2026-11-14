@@ -782,3 +782,7 @@ Demandes de l'utilisateur après essai sur les téléphones.
 - **« Changer de serveur ? » sous iOS.** La feuille d'actions coupait le message et les boutons : c'est une alerte (`DialogueAlerte`), les serveurs y sont nommés par leur hôte, et le bouton s'appelle « Changer ».
 - **« Annuler ».** Les champs reviennent à la connexion enregistrée (adresse, identifiant, mot de passe) : `annulerChangementServeur`, testé dans `ChangementServeurTest`.
 
+## 48. Le bouton « Démarrer une saisie » de l'accueil simplifié (14 novembre)
+
+Demande de l'utilisateur : améliorer ce bouton. Seul geste de l'accueil en mode simplifié, il est plus haut que les boutons du mode pro, avec un « + » et un libellé de 18 points (`BoutonDemarrerAndroid`, `BoutonDemarrerIos`). Estompé tant que la configuration n'est pas complète, il le dit dessous (`AIDE_CONFIGURATION`), et cette ligne ouvre les Paramètres. Le mode pro ne change pas.
+
