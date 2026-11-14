@@ -312,9 +312,18 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
 
     /** Un changement de serveur à confirmer : ce qu'il efface, et ce qui attend encore d'être envoyé. */
     data class ChangementServeur(val ancien: String, val nouveau: String, val envoisEnAttente: Int) {
+        /** Les serveurs sont nommés par leur hôte : une adresse entière, insécable, déformait
+         *  l'alerte d'iOS. Deux serveurs du même hôte gardent leur adresse entière. */
         val message: String
-            get() = "Les sélections et les données chargées depuis $ancien seront effacées du téléphone. " +
-                "Il faudra recharger celles de $nouveau." +
+            get() {
+                val hotes = (hoteServeur(ancien) ?: ancien) to (hoteServeur(nouveau) ?: nouveau)
+                val (de, vers) = if (hotes.first != hotes.second) hotes else ancien to nouveau
+                return "Les sélections et les données chargées depuis $de seront effacées du téléphone. " +
+                    "Il faudra recharger celles de $vers." + attente
+            }
+
+        private val attente: String
+            get() = "" +
                 if (envoisEnAttente > 0) {
                     "\n\n⚠ $envoisEnAttente saisie${if (envoisEnAttente > 1) "s attendent" else " attend"} encore d'être " +
                         "envoyée${if (envoisEnAttente > 1) "s" else ""}. Faite${if (envoisEnAttente > 1) "s" else ""} pour l'ancien serveur, " +
@@ -325,8 +334,15 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
     var changementServeur by mutableStateOf<ChangementServeur?>(null)
         private set
 
+    /** « Annuler » : les champs reviennent à la connexion enregistrée (demande du 14 novembre 2026),
+     *  mot de passe compris — celui tapé pour l'autre serveur n'est pas destiné à celui-ci. */
     fun annulerChangementServeur() {
         changementServeur = null
+        url = config.urlServeur
+        login = config.login
+        motDePasse = config.motDePasse
+        motDePasseTape = false
+        refleterEditionConnexion()
     }
 
     fun confirmerChangementServeur() {

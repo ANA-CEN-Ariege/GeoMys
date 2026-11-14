@@ -266,15 +266,22 @@ private fun EcranCarte(vm: SaisieMultiViewModel, onAccueil: () -> Unit) {
 
     Box(Modifier.fillMaxSize()) {
         // ─── Haut : « 🏠 › Saisie multi-taxons », consigne du positionnement, coche « Terminer » ───
+        // La consigne : celle du positionnement, sinon les gestes d'une saisie rouverte.
+        val consigne = when {
+            vm.modePositionnement -> CarteSaisie.consignePositionnement(false, vm.modeGeom)
+            vm.aideReprise -> CarteSaisie.AIDE_REPRISE
+            else -> null
+        }
         if (ios) {
             Column(haut.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 BandeauNavigation(SaisieMultiViewModel.LIBELLE, onAccueil)
-                if (vm.modePositionnement) {
+                if (consigne != null) {
                     Text(
-                        CarteSaisie.consignePositionnement(false, vm.modeGeom),
+                        consigne,
                         color = Color.White,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center,
                         modifier = Modifier
                             .padding(start = 12.dp, end = 12.dp, top = 8.dp)
                             .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(10.dp))
@@ -290,12 +297,13 @@ private fun EcranCarte(vm: SaisieMultiViewModel, onAccueil: () -> Unit) {
             }
         } else {
             BandeauNavigation(SaisieMultiViewModel.LIBELLE, onAccueil, haut.padding(12.dp))
-            if (vm.modePositionnement) {
-                Box(haut.fillMaxWidth().padding(top = 84.dp), contentAlignment = Alignment.Center) {
+            if (consigne != null) {
+                Box(haut.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 84.dp), contentAlignment = Alignment.Center) {
                     Text(
-                        CarteSaisie.consignePositionnement(false, vm.modeGeom),
+                        consigne,
                         color = Color.White,
                         fontSize = 14.sp,
+                        textAlign = TextAlign.Center,
                         modifier = Modifier
                             .background(Color(0xA6000000), RoundedCornerShape(20.dp))
                             .padding(horizontal = 16.dp, vertical = 10.dp),

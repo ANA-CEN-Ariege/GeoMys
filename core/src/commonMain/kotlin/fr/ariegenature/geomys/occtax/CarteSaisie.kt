@@ -116,6 +116,10 @@ object CarteSaisie {
     fun poserSommet(mode: ModeGeom, sommets: List<LatLon>, p: LatLon): List<LatLon> =
         if (mode == ModeGeom.POINT) listOf(p) else sommets + p
 
+    /** La consigne affichée sous le bandeau à la réouverture d'une saisie depuis « Mes saisies » :
+     *  les gestes de la carte sur une observation déjà placée. */
+    const val AIDE_REPRISE = "Touchez une observation pour l'éditer · appui long puis glisser pour la déplacer · « + » pour en ajouter"
+
     /** Le cadrage sur les obs et la trace d'une saisie reprise. Les points (0,0) (obs ou trace sans
      *  position fixée) sont écartés, sinon l'emprise s'étirerait jusqu'au golfe de Guinée ; les
      *  sommets des lignes et polygones comptent, sinon on ne cadrerait que leur centroïde. Null

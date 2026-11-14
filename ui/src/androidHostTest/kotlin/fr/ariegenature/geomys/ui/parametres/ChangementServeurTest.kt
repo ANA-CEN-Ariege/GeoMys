@@ -161,7 +161,11 @@ class ChangementServeurTest {
         assertNull(vm.changementServeur)
         assertEquals("https://exemple.test", config.urlServeur)
         assertEquals("5", config.idDataset)
+        assertEquals("https://exemple.test", vm.url, "le champ revient au serveur enregistré")
+        assertEquals("secret", vm.motDePasse)
 
+        vm.changerUrl("https://autre.test")
+        vm.changerMotDePasse("p2")
         vm.testerConnexion()
         attendre { vm.changementServeur != null }
         vm.confirmerChangementServeur()

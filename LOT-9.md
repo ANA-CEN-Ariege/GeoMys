@@ -773,3 +773,12 @@ Réponses de l'utilisateur aux questions de l'audit, le 14 novembre.
 - **M55, parcours simplifié.** Décision : la fiche de l'observation continue de s'ouvrir à chaque espèce ajoutée. Rien n'est changé.
 - **Serveur de tests de l'ANA.** Il reste dans la liste publique.
 - Tests : `SuiviGpsTest`, `SaisieSimplifieeEcransTest.la_corbeille_d_une_espece_attend_sa_confirmation`. Le branchement Android du GPS (cycle de l'activité, service) n'a pas de test automatique : à vérifier sur le Samsung.
+
+## 47. Consigne à la réouverture d'une saisie, alerte de changement de serveur (14 novembre)
+
+Demandes de l'utilisateur après essai sur les téléphones.
+
+- **Saisie rouverte depuis « Mes saisies ».** Sous le bandeau de la carte, dans la bulle de la consigne de positionnement : `CarteSaisie.AIDE_REPRISE` (« Touchez une observation pour l'éditer · appui long puis glisser pour la déplacer · « + » pour en ajouter »). `SaisieMultiViewModel.aideReprise` : posée si la saisie reprise a des observations, levée au premier geste (toucher ou déplacer un relevé, « + »).
+- **« Changer de serveur ? » sous iOS.** La feuille d'actions coupait le message et les boutons : c'est une alerte (`DialogueAlerte`), les serveurs y sont nommés par leur hôte, et le bouton s'appelle « Changer ».
+- **« Annuler ».** Les champs reviennent à la connexion enregistrée (adresse, identifiant, mot de passe) : `annulerChangementServeur`, testé dans `ChangementServeurTest`.
+

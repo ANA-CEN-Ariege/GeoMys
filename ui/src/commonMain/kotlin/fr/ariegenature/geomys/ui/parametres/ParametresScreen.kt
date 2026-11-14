@@ -66,6 +66,7 @@ import fr.ariegenature.geomys.ui.composants.ChampAvecLibelleIos
 import fr.ariegenature.geomys.ui.composants.ChampMotDePasse
 import fr.ariegenature.geomys.ui.composants.ChampSelection
 import fr.ariegenature.geomys.ui.composants.ChampTexte
+import fr.ariegenature.geomys.ui.composants.DialogueAlerte
 import fr.ariegenature.geomys.ui.composants.DialogueConfirmation
 import fr.ariegenature.geomys.ui.composants.DialogueListe
 import fr.ariegenature.geomys.ui.composants.IndicateurActivite
@@ -173,11 +174,12 @@ fun ParametresScreen(vm: ParametresViewModel, onFermer: () -> Unit, onTaxonsList
             onFermer = vm::fermerTaxonsParListes,
         )
         val changement = vm.changementServeur
-        DialogueConfirmation(
+        // Une alerte, pas une feuille d'actions : sous iOS, ce long message y coupait les boutons.
+        DialogueAlerte(
             changement != null,
             "Changer de serveur ?",
             changement?.message.orEmpty(),
-            listOf(BoutonAlerte("Annuler", annulation = true), BoutonAlerte("Changer de serveur", destructif = true, action = vm::confirmerChangementServeur)),
+            listOf(BoutonAlerte("Annuler", annulation = true), BoutonAlerte("Changer", destructif = true, action = vm::confirmerChangementServeur)),
             vm::annulerChangementServeur,
         )
         DialogueConfirmation(

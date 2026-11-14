@@ -124,6 +124,11 @@ class SaisieMultiViewModel(
 
     private var doitCentrerSurObs = false
 
+    /** Saisie rouverte depuis « Mes saisies » : la consigne des gestes ([CarteSaisie.AIDE_REPRISE])
+     *  reste sous le bandeau jusqu'au premier geste sur un relevé ou sur « + ». */
+    var aideReprise by mutableStateOf(false)
+        private set
+
     /** La reprise d'une sortie est chargée : la carte peut s'ouvrir. */
     var repriseChargee by mutableStateOf(false)
         private set
@@ -139,6 +144,8 @@ class SaisieMultiViewModel(
                         // Reprise depuis « Mes saisies » : on cadrera la carte sur les obs/trace déjà
                         // saisies (pas sur la position courante du téléphone).
                         doitCentrerSurObs = sortie.observations.isNotEmpty() || sortie.pointsParcours.isNotEmpty()
+                        // Les gestes de la carte ne se devinent pas (demande du 14 novembre 2026).
+                        aideReprise = sortie.observations.isNotEmpty()
                     }
                 } finally {
                     repriseChargee = true
@@ -221,6 +228,7 @@ class SaisieMultiViewModel(
     // ─── Positionnement d'un nouveau relevé ───
 
     fun nouveauReleve() {
+        aideReprise = false
         suivrePosition = false
         modePositionnement = true
     }
@@ -268,6 +276,7 @@ class SaisieMultiViewModel(
     // ─── Relevés existants ───
 
     fun toucherReleve(observations: List<Observation>) {
+        aideReprise = false
         if (observations.isNotEmpty()) optionsReleve = observations
     }
 
@@ -285,6 +294,7 @@ class SaisieMultiViewModel(
 
     /** Marqueur d'un relevé ponctuel lâché : tout le relevé se déplace (un seul auto-save). */
     fun deplacerReleve(observation: Observation, p: LatLon) {
+        aideReprise = false
         val ids = CarteSaisie.obsDuReleve(session.observations.value, observation).map { it.id }
         session.mettreAJourObservationsPositions(ids, p.latitude, p.longitude)
     }
