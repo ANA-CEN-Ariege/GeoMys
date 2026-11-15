@@ -42,7 +42,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ariegenature.geomys.ui.composants.BoutonAlerte
+import fr.ariegenature.geomys.ui.composants.BoutonContour
 import fr.ariegenature.geomys.ui.composants.BoutonPlein
+import fr.ariegenature.geomys.ui.composants.BoutonVert
 import fr.ariegenature.geomys.ui.composants.DialogueActions
 import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.estIos
@@ -52,6 +54,11 @@ import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 /** Le nom de l'écran (demande du 14 novembre 2026 d'en proposer un), titre et libellé du crayon de la
  *  liste du relevé. */
 internal const val TITRE_FICHE_OBSERVATION = "Fiche de l'observation"
+
+/** Le bouton « Chant » de la fiche d'un oiseau (demande du 15 novembre 2026), et son libellé une fois
+ *  le chant noté. */
+internal const val CHANT = "♪ Chant"
+internal const val CHANT_COCHE = "✓ Chant"
 
 /** Sous « Photo » et « Audio » d'une observation déjà sur le serveur. */
 internal const val MEDIAS_FIGES = "Observation déjà envoyée : une photo ou un son ajouté maintenant ne partirait pas."
@@ -99,7 +106,13 @@ fun FicheEspeceScreen(
                 }
             }
             if (vm.comportementVisible) {
-                Volet("Comportement", vm.resumeComportement(espece), secondaire) { onVolet(VoletEspece.COMPORTEMENT) }
+                // Oiseau : « Chant » à côté, qui pose ou enlève ce comportement d'un toucher.
+                Volet(
+                    "Comportement",
+                    vm.resumeComportement(espece),
+                    secondaire,
+                    chant = if (vm.chantVisible) vm.chante(espece) to vm::basculerChant else null,
+                ) { onVolet(VoletEspece.COMPORTEMENT) }
             }
             if (vm.commentaireVisible) {
                 Volet("Commentaire", vm.resumeCommentaire(espece), secondaire) { onVolet(VoletEspece.COMMENTAIRE) }
@@ -133,11 +146,27 @@ fun FicheEspeceScreen(
     DialogueSuppressionMedia(mediaASupprimer, onConfirmer = { mediaASupprimer?.let(vm::retirerMedia) }, onFermer = { mediaASupprimer = null })
 }
 
-/** Un bouton de l'écran de l'espèce, et dessous ce qu'il porte déjà. */
+/** Un bouton de l'écran de l'espèce, et dessous ce qu'il porte déjà ; [chant] : le bouton « Chant » à sa
+ *  droite (noté ?, action). Ce n'est pas un écran à ouvrir mais une coche : il se distingue des autres
+ *  boutons (demande du 15 novembre 2026), en contour tant que le chant n'est pas noté, plein et vert
+ *  une fois noté. */
 @Composable
-private fun Volet(libelle: String, resume: String, couleur: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
+private fun Volet(
+    libelle: String,
+    resume: String,
+    couleur: androidx.compose.ui.graphics.Color,
+    chant: Pair<Boolean, () -> Unit>? = null,
+    onClick: () -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        BoutonPlein(libelle, onClick, Modifier.fillMaxWidth())
+        if (chant == null) {
+            BoutonPlein(libelle, onClick, Modifier.fillMaxWidth())
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                BoutonPlein(libelle, onClick, Modifier.weight(1f))
+                if (chant.first) BoutonVert(CHANT_COCHE, chant.second, Modifier.weight(1f)) else BoutonContour(CHANT, chant.second, Modifier.weight(1f))
+            }
+        }
         if (resume.isNotEmpty()) {
             Text(resume, fontSize = 13.sp, color = couleur, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 4.dp))
         }

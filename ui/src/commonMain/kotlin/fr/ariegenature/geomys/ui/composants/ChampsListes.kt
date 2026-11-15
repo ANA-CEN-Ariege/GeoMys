@@ -196,7 +196,13 @@ internal fun ObservateursAndroid(
     choisis: List<Pair<Int, String>>,
     onAjouter: (Int) -> Unit,
     onRetirer: (Int) -> Unit,
+    figes: Boolean = false,
 ) {
+    if (figes) {
+        // Saisie simplifiée : les noms seuls, sans liste pour en ajouter ni croix pour en retirer.
+        choisis.forEach { (_, nom) -> Text(nom, fontSize = 15.sp, modifier = Modifier.padding(vertical = 4.dp)) }
+        return
+    }
     if (proposes.isEmpty()) {
         if (choisis.isEmpty()) Text("—", fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else {
@@ -299,6 +305,7 @@ internal fun LignesObservateursIos(
     choisis: List<Pair<Int, String>>,
     onAjouter: (Int) -> Unit,
     onRetirer: (Int) -> Unit,
+    figes: Boolean = false,
 ) {
     if (proposes.isEmpty() && choisis.isEmpty()) LigneTexteSeulIos("—", couleur = CouleursGeoMys.blanc70)
     choisis.forEachIndexed { i, (id, nom) ->
@@ -306,13 +313,16 @@ internal fun LignesObservateursIos(
         LigneIos {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(nom, fontSize = 17.sp, color = Color.White, modifier = Modifier.weight(1f))
-                Box(Modifier.clickable(remember { MutableInteractionSource() }, indication = null) { onRetirer(id) }) {
-                    SymboleSf("xmark", 13f, listOf(CouleursGeoMys.rougePastille), graisse = GraisseSymbole.DEMI_GRASSE, description = "Retirer $nom")
+                // Saisie simplifiée ([figes]) : ni croix, ni liste pour en ajouter.
+                if (!figes) {
+                    Box(Modifier.clickable(remember { MutableInteractionSource() }, indication = null) { onRetirer(id) }) {
+                        SymboleSf("xmark", 13f, listOf(CouleursGeoMys.rougePastille), graisse = GraisseSymbole.DEMI_GRASSE, description = "Retirer $nom")
+                    }
                 }
             }
         }
     }
-    if (proposes.isNotEmpty()) {
+    if (proposes.isNotEmpty() && !figes) {
         if (choisis.isNotEmpty()) SeparateurIos(Modifier.padding(start = 16.dp))
         LigneIos {
             Box(Modifier.fillMaxWidth()) {

@@ -23,20 +23,33 @@
 
 package fr.ariegenature.geomys.ui.occtax
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import fr.ariegenature.geomys.ServicesGeoNature
 import fr.ariegenature.geomys.occtax.EspeceReleve
 import fr.ariegenature.geomys.occtax.FormulairesEspece
 import fr.ariegenature.geomys.occtax.ReleveEnCours
 import fr.ariegenature.geomys.occtax.SaisieSimplifiee
 import fr.ariegenature.geomys.saisie.ChampsTaxon
+import fr.ariegenature.geomys.store.NidificationOiseaux
 import fr.ariegenature.geomys.store.champFormVisible
+import fr.ariegenature.geomys.ui.ressources.Res
+import fr.ariegenature.geomys.util.moisCourant
+import kotlinx.coroutines.launch
 
 /** L'écran de l'espèce [index] du [releve]. */
 class FicheEspeceViewModel(
     private val services: ServicesGeoNature,
     val releve: ReleveEnCours,
     private val index: Int,
+    /** L'espèce (cd_nom) est-elle en période de nidification ce mois-ci ? Par défaut, le fichier embarqué. */
+    private val enPeriodeNidification: suspend (Int) -> Boolean = { cdNom ->
+        NidificationOiseaux(services.taxRef) { Res.readBytes(SaisieReleveViewModel.FICHIER_NIDIFICATION).decodeToString() }
+            .estEnPeriode(cdNom, moisCourant())
+    },
 ) : ViewModel() {
     private val config = services.config
     private val nomenclatures = services.nomenclatures
@@ -63,6 +76,47 @@ class FicheEspeceViewModel(
 
     /** « Comportement » : si le serveur montre ce champ, et pour un animal. */
     val comportementVisible = codesPertinents(FormulairesEspece.OCC_COMPORTEMENT).isNotEmpty()
+
+    /** Les identifiants des valeurs de chant du serveur, si le bouton « Chant » a sa place : un oiseau,
+     *  le comportement montré, et la valeur proposée pour ce taxon. « Chant », et l'indice de
+     *  nidification « Mâle chanteur en période de reproduction » des serveurs qui ont les codes atlas. */
+    private val idChant: String?
+    private val idMaleChanteur: String?
+
+    init {
+        val g = groupe?.takeIf { comportementVisible && SaisieSimplifiee.estOiseau(it) }
+        val proposes = g?.let {
+            FormulairesEspece.champsVisibles(FormulairesEspece.OCC_COMPORTEMENT, formFields)
+                .flatMap { c -> FormulairesEspece.champ(c, nomenclatures, it, config.nomenclaturesFiltreesParTaxon).codes }
+        }.orEmpty()
+        val valeurs = nomenclatures.get("OCC_COMPORTEMENT")
+        idChant = SaisieSimplifiee.valeurChant(valeurs)?.id?.toString()?.takeIf { it in proposes }
+        idMaleChanteur = SaisieSimplifiee.valeurMaleChanteur(valeurs)?.id?.toString()?.takeIf { it in proposes }
+    }
+
+    /** L'espèce est en période de nidification ce mois-ci (lue à l'ouverture, si le serveur a l'indice). */
+    private var nicheur by mutableStateOf(false)
+
+    init {
+        val cdNom = releve.especes.value.getOrNull(index)?.cdNom
+        if (idMaleChanteur != null && cdNom != null) viewModelScope.launch { nicheur = enPeriodeNidification(cdNom) }
+    }
+
+    /** Ce que le bouton poserait maintenant. */
+    private val chantAPoser: String? get() = SaisieSimplifiee.idChantAPoser(idChant, idMaleChanteur, nicheur)
+
+    /** « Chant » : pour un oiseau, si le serveur a une valeur de chant qui convient à la saison. */
+    val chantVisible: Boolean get() = chantAPoser != null
+
+    /** Le comportement de l'espèce est une des valeurs de chant. */
+    fun chante(e: EspeceReleve): Boolean = e.comportement.isNotEmpty() && (e.comportement == idChant || e.comportement == idMaleChanteur)
+
+    /** « Chant » : pose le chant (l'indice « Mâle chanteur » en période de nidification), ou l'enlève
+     *  s'il y est. */
+    fun basculerChant() {
+        val id = chantAPoser ?: return
+        releve.modifier(index) { SaisieSimplifiee.basculerChant(it, id, setOfNotNull(idChant, idMaleChanteur)) }
+    }
 
     /** « Commentaire » : si le serveur montre le commentaire de l'occurrence. */
     val commentaireVisible = champFormVisible(formFields, SaisieSimplifiee.CLE_COMMENTAIRE)

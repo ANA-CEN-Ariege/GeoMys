@@ -126,6 +126,8 @@ class EtatDetailsReleve(
     private val portee: CoroutineScope,
     /** Le TaxRef local, qui propose les taxons des champs additionnels `taxonomy`. */
     private val taxRef: TaxRefCache? = null,
+    /** Saisie simplifiée (demande du 15 novembre 2026) : ni ajout d'observateur, ni habitat. */
+    private val simplifie: Boolean = false,
     private val chercherHabitats: suspend (String) -> List<HabitatSuggestion>,
 ) {
     // ── Jeu de données ──
@@ -169,6 +171,11 @@ class EtatDetailsReleve(
             poser(this, id to nom)
         }
     }
+
+    /** Saisie simplifiée : les observateurs sont montrés sans pouvoir en ajouter ni en retirer (retirer
+     *  le seul observateur sans pouvoir le remettre bloquerait le relevé). Sans aucun observateur, la
+     *  liste reste, sans quoi le relevé ne pourrait pas être validé ; le texte libre reste aussi. */
+    val observateursFiges: Boolean = simplifie && !observateursEnTexte && observateurs.isNotEmpty()
 
     /** Aucun observateur (ou un texte vide) : obligatoire sur le web, le champ porte la barre rouge. */
     val observateursManquants: Boolean get() = if (observateursEnTexte) observateursTexte.isBlank() else observateurs.isEmpty()
@@ -299,7 +306,8 @@ class EtatDetailsReleve(
 
     // ── Habitat ──
 
-    val habitatVisible = champFormVisible(donnees.formFieldsJson, "habitat")
+    /** Pas d'habitat en saisie simplifiée ; celui que le relevé porte déjà est gardé tel quel. */
+    val habitatVisible = !simplifie && champFormVisible(donnees.formFieldsJson, "habitat")
 
     /** Le texte du champ habitat : le libellé de l'habitat choisi, ou la recherche en cours. */
     var habitatTexte by mutableStateOf(donnees.habitatLabel.orEmpty())
@@ -495,7 +503,7 @@ private fun ContenuAndroid(e: EtatDetailsReleve) {
                     compactAndroid = true,
                 )
             } else {
-                ObservateursAndroid(DetailsReleveFormulaire.INVITE_OBSERVATEURS, d.observateurs, e.observateurs, e::ajouterObservateur, e::retirerObservateur)
+                ObservateursAndroid(DetailsReleveFormulaire.INVITE_OBSERVATEURS, d.observateurs, e.observateurs, e::ajouterObservateur, e::retirerObservateur, e.observateursFiges)
             }
         }
 
@@ -688,7 +696,7 @@ private fun ContenuIos(e: EtatDetailsReleve) {
         if (e.observateursEnTexte) {
             LigneTexteIos(e.observateursTexte, { e.observateursTexte = it }, "", clavier = KeyboardOptions(capitalization = KeyboardCapitalization.Words))
         } else {
-            LignesObservateursIos(DetailsReleveFormulaire.INVITE_OBSERVATEURS, d.observateurs, e.observateurs, e::ajouterObservateur, e::retirerObservateur)
+            LignesObservateursIos(DetailsReleveFormulaire.INVITE_OBSERVATEURS, d.observateurs, e.observateurs, e::ajouterObservateur, e::retirerObservateur, e.observateursFiges)
         }
     }
 

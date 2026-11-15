@@ -18,7 +18,7 @@ Sous Android, GeoMys **remplace GeoMys-Android** sur Google Play depuis la versi
 
 **Saisies OccTax.** Les écrans de saisie de GeoMys-Android sont portés : carte multi-taxons et trace GPS, relevé, caractérisation, dénombrement avec photos et sons, détails du relevé, saisie mono-taxon, Mes saisies, détail d'une saisie, import et export GPX. Des paramètres de lancement les ouvrent sur des données d'essai, sur l'émulateur et le simulateur seulement. Le bilan du lot, avec la recette terrain à faire, est dans [`LOT-6.md`](LOT-6.md).
 
-**Mode pro et mode simplifié.** Les Paramètres proposent deux modes de saisie ; leurs différences sont inventoriées dans [`MODES-SAISIE.md`](MODES-SAISIE.md), à tenir à jour à chaque changement de l'un ou de l'autre.
+**Mode pro et mode simplifié.** Les Paramètres proposent deux modes de saisie ; leurs différences sont inventoriées dans [`MODES-SAISIE.md`](MODES-SAISIE.md) et, pour les utilisateurs, dans la page [`MODES-SAISIE.html`](MODES-SAISIE.html) ; les deux sont à tenir à jour à chaque changement de l'un ou de l'autre mode.
 
 **Suivis.** Les écrans des Suivis (Monitoring) de GeoMys-Android sont portés : liste des protocoles, détail d'un protocole, fiche d'un objet, nouvelle saisie et son formulaire, chaîne d'observations, Mes visites, carte des géométries. Le paramètre `action=monitoring-essai` charge des protocoles d'essai, sur l'émulateur et le simulateur seulement. Le bilan du lot, avec la recette terrain en cours, est dans [`LOT-7.md`](LOT-7.md).
 

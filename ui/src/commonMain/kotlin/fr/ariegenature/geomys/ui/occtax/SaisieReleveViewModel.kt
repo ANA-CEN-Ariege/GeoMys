@@ -270,7 +270,7 @@ class SaisieReleveViewModel(
 
     /** « Détails » : le dialogue sur les valeurs du relevé. */
     fun ouvrirDetails() {
-        details = EtatDetailsReleve(DetailsReleveFormulaire.pourReleve(releve, config), services.nomenclatures, viewModelScope, services.taxRef) { terme ->
+        details = EtatDetailsReleve(DetailsReleveFormulaire.pourReleve(releve, config), services.nomenclatures, viewModelScope, services.taxRef, simplifie) { terme ->
             // Restreinte à `OCCTAX.CD_TYPO_HABITAT`, comme le web.
             services.habitats.rechercher(terme, cdTypo = services.config.occtaxTypologieHabitat.takeIf { it > 0 })
         }
@@ -317,7 +317,7 @@ class SaisieReleveViewModel(
         details?.fermer()
     }
 
-    private companion object {
+    internal companion object {
         const val FICHIER_NIDIFICATION = "files/nidification_oiseaux.json"
     }
 }

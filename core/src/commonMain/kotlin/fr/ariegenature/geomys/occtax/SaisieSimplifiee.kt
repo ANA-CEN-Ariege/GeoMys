@@ -27,6 +27,7 @@ package fr.ariegenature.geomys.occtax
 
 import fr.ariegenature.geomys.store.GroupeTaxonomique
 import fr.ariegenature.geomys.store.NomenclatureCache
+import fr.ariegenature.geomys.store.NomValeur
 
 object SaisieSimplifiee {
 
@@ -49,7 +50,42 @@ object SaisieSimplifiee {
      *  champignon (demande du 14 novembre 2026). */
     val ANIMAUX_SEULEMENT = setOf("SEXE", "OCC_COMPORTEMENT")
 
+    /** Le `cd_nomenclature` de « Chant » dans les comportements (`OCC_COMPORTEMENT`), stable d'un
+     *  serveur à l'autre. */
+    const val CD_CHANT = "18"
+
+    /** Le `cd_nomenclature` de l'indice de nidification « Mâle chanteur (ou cris de nidification) en
+     *  période de reproduction » (codes atlas des oiseaux nicheurs, sur les serveurs qui les ont). */
+    const val CD_MALE_CHANTEUR = "CA2"
+
+    /** Le groupe 2 INPN des oiseaux : le bouton « Chant » n'est proposé que pour eux. */
+    const val GROUPE_OISEAUX = "Oiseaux"
+
     private val ENTIER = Regex("[0-9]+")
+
+    /** [groupe] est celui des oiseaux. */
+    fun estOiseau(groupe: GroupeTaxonomique): Boolean = groupe.group2.equals(GROUPE_OISEAUX, ignoreCase = true)
+
+    /** La valeur « Chant » parmi les comportements du serveur ([valeurs]) : par son code, sinon, pour un
+     *  cache d'avant les codes, par son libellé. Null si le serveur n'en a pas : pas de bouton. */
+    fun valeurChant(valeurs: List<NomValeur>): NomValeur? =
+        valeurs.firstOrNull { it.cd == CD_CHANT } ?: valeurs.firstOrNull { it.cd == null && it.libelle.trim().equals("Chant", ignoreCase = true) }
+
+    /** L'indice « Mâle chanteur en période de reproduction » parmi les comportements du serveur, null
+     *  s'il n'a pas les codes atlas. */
+    fun valeurMaleChanteur(valeurs: List<NomValeur>): NomValeur? = valeurs.firstOrNull { it.cd == CD_MALE_CHANTEUR }
+
+    /** La valeur que pose le bouton « Chant » : en période de nidification de l'espèce ([nicheur]),
+     *  l'indice « Mâle chanteur » si le serveur l'a, sinon « Chant » ; hors période, « Chant » seulement
+     *  (l'indice n'a pas de sens hors saison). Null : pas de bouton. */
+    fun idChantAPoser(idChant: String?, idMaleChanteur: String?, nicheur: Boolean): String? =
+        if (nicheur) idMaleChanteur ?: idChant else idChant
+
+    /** Bouton « Chant » (demande du 15 novembre 2026) : pose le comportement [aPoser], ou l'enlève si
+     *  l'espèce porte déjà une des valeurs de chant ([valeursChant]) ; un autre comportement est
+     *  remplacé. Rien d'autre ne change. */
+    fun basculerChant(espece: EspeceReleve, aPoser: String, valeursChant: Set<String> = setOf(aPoser)): EspeceReleve =
+        espece.copy(comportement = if (espece.comportement in valeursChant) "" else aPoser)
 
     /** Le champ [champ] a sa place pour un taxon de [groupe] (demande du 14 novembre 2026 : « les champs
      *  présentés doivent être en adéquation avec ceux du groupe taxonomique », le sexe n'existant pas

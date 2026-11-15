@@ -49,6 +49,7 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -93,6 +94,38 @@ class GeoNatureSync(
 
     /** Télécharge tous les taxons d'une liste (paginé). Ne touche AUCUN état partagé → peut
      *  tourner en parallèle ; l'agrégation est faite ensuite séquentiellement par l'appelant. */
+    /** Les attentes avant chaque nouvelle tentative d'une page de liste en échec : une page est donc
+     *  demandée jusqu'à trois fois. Un accroc du réseau (VPN, 4G) ne doit pas rendre une liste
+     *  incomplète et bloquer la saisie (demande du 15 novembre 2026). */
+    internal var delaisReprisePage: List<Long> = listOf(1_000L, 3_000L)
+
+    /** La page [page] de la liste [idListe], ou null si elle a échoué à chaque tentative (réseau,
+     *  délai dépassé, réponse autre que 200 ou illisible) ; la cause de chaque échec va au journal. */
+    private suspend fun pageDeListe(taxhubBase: String, idListe: Int, pageSize: Int, page: Int): JSONArray? {
+        val tentatives = delaisReprisePage.size + 1
+        for (tentative in 1..tentatives) {
+            val cause = try {
+                val reponse = clients.get(
+                    "$taxhubBase/api/taxref?orderby=cd_nom&fields=listes&id_liste=$idListe&limit=$pageSize&page=$page",
+                    timeoutMs = 60000,
+                )
+                if (reponse.status.value == 200) {
+                    reponse.bodyAsText().parserTableauJson("items", "data", "results")?.let { return it }
+                    "réponse illisible"
+                } else {
+                    "HTTP ${reponse.status.value}"
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                e::class.simpleName + (e.message?.let { " : $it" } ?: "")
+            }
+            Journal.w("GeoNatureSync", "liste $idListe, page $page, tentative $tentative/$tentatives en échec ($cause)")
+            delaisReprisePage.getOrNull(tentative - 1)?.let { delay(it) }
+        }
+        return null
+    }
+
     private suspend fun fetchListeTaxons(taxhubBase: String, idListe: Int, pageSize: Int): ResultatListe =
         withContext(Dispatchers.IO) {
             val items = mutableListOf<ItemTaxon>()
@@ -100,13 +133,7 @@ class GeoNatureSync(
             var page = 1
             while (true) {
                 try {
-                    val reponse = clients.get(
-                        "$taxhubBase/api/taxref?orderby=cd_nom&fields=listes&id_liste=$idListe&limit=$pageSize&page=$page",
-                        timeoutMs = 60000,
-                    )
-                    if (reponse.status.value != 200) break
-                    val text = reponse.bodyAsText()
-                    val array: JSONArray = text.parserTableauJson("items", "data", "results") ?: break
+                    val array: JSONArray = pageDeListe(taxhubBase, idListe, pageSize, page) ?: break
                     if (array.length() == 0) { complete = true; break }
                     for (i in 0 until array.length()) {
                         val item = array.getJSONObject(i)

@@ -147,10 +147,54 @@ class ListeIncompleteTest {
                 else -> statut(404)
             }
         }
+        t.services.geoNatureSync.delaisReprisePage = listOf(0L, 0L)
         val (_, msg) = t.services.geoNatureSync.synchroniserTaxRef(cfg) { _, _, _ -> }
         assertTrue(msg.contains("⚠"), msg)
         assertEquals(listOf(100), taxRef.listesIncompletes, "verdict persisté par la synchro")
         assertFalse(configurationComplete(cfg, taxRef))
+    }
+
+    /** 15 novembre 2026 : une page en échec est redemandée (trois tentatives en tout) avant que la
+     *  liste ne soit abandonnée ; un accroc passager ne la rend plus incomplète. */
+    @Test
+    fun une_page_en_echec_passager_est_redemandee_et_la_liste_reste_complete() = runTest {
+        val cfg = configValide()
+        cfg.urlServeur = t.serveur.base
+        t.services.geoNatureSync.delaisReprisePage = listOf(0L, 0L)
+        val page1 = (1..1000).joinToString(",", """{"items":[""", "]}") {
+            """{"cd_nom":$it,"lb_nom":"Taxon $it","group2_inpn":"Oiseaux","regne":"Animalia"}"""
+        }
+        val page2 = """{"items":[{"cd_nom":2001,"lb_nom":"Taxon 2001","group2_inpn":"Oiseaux","regne":"Animalia"}]}"""
+        var echecs = 0
+        var demandesPage2 = 0
+        fun serveur(echecsAvantSucces: Int, version: String) {
+            echecs = echecsAvantSucces
+            demandesPage2 = 0
+            t.serveur.router { chemin ->
+                when {
+                    chemin.contains("/api/taxhub/api/taxref/version") -> json("""{"version":"$version"}""")
+                    chemin.contains("/api/taxhub/api/taxref") && chemin.contains("page=1") -> json(page1)
+                    chemin.contains("/api/taxhub/api/taxref") -> {
+                        demandesPage2++
+                        if (echecs-- > 0) statut(500) else json(page2)
+                    }
+                    else -> statut(404)
+                }
+            }
+        }
+        // Deux échecs puis la page : la troisième tentative suffit.
+        serveur(echecsAvantSucces = 2, version = "17")
+        val (_, msg) = t.services.geoNatureSync.synchroniserTaxRef(cfg) { _, _, _ -> }
+        assertFalse(msg.contains("⚠"), msg)
+        assertEquals(emptyList<Int>(), taxRef.listesIncompletes)
+        assertEquals(3, demandesPage2)
+
+        // Trois échecs : la liste est abandonnée, sans quatrième demande. (Autre version du
+        // référentiel : à version inchangée, il ne serait pas rechargé.)
+        serveur(echecsAvantSucces = 3, version = "18")
+        t.services.geoNatureSync.synchroniserTaxRef(cfg) { _, _, _ -> }
+        assertEquals(listOf(100), taxRef.listesIncompletes)
+        assertEquals(3, demandesPage2)
     }
 
     // Garde non portée : parametres_n_ouvre_aucune_porte_derobee_vers_les_saisies lisait l'écran

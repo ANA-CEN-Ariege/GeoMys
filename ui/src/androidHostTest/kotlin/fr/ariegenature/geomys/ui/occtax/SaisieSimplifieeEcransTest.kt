@@ -53,6 +53,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -286,5 +287,102 @@ class SaisieSimplifieeEcransTest {
         // Sans demande, la confirmation ne supprime rien.
         releve.confirmerSuppression()
         assertEquals(1, releve.releve.especes.value.size)
+    }
+
+    /** Demande du 15 novembre 2026 : en saisie simplifiée, les détails du relevé ne laissent ni ajouter
+     *  un observateur ni choisir un habitat ; le mode pro garde les deux. */
+    @Test
+    fun les_details_du_releve_n_ont_ni_ajout_d_observateur_ni_habitat() = runTest {
+        services.config.apply {
+            observateursCacheJson = """[{"idRole":8,"nomComplet":"MARTIN Paul"},{"idRole":9,"nomComplet":"DURAND Zoé"}]"""
+            observateurDefautId = "8"
+            observateurDefautNom = "MARTIN Paul"
+        }
+        val simplifie = releve(ModeSaisie.SIMPLIFIE)
+        simplifie.ouvrirDetails()
+        val details = assertNotNull(simplifie.details)
+        assertEquals(listOf(8 to "MARTIN Paul"), details.observateurs.toList())
+        assertTrue(details.observateursFiges)
+        assertFalse(details.habitatVisible)
+        assertNull(details.valider().second, "le relevé reste validable")
+
+        magasin.clear()
+        val pro = releve(ModeSaisie.PRO)
+        pro.ouvrirDetails()
+        val detailsPro = assertNotNull(pro.details)
+        assertFalse(detailsPro.observateursFiges)
+        assertTrue(detailsPro.habitatVisible)
+    }
+
+    /** Demande du 15 novembre 2026 : pour un oiseau, « Chant » pose ou enlève ce comportement d'un
+     *  toucher ; les autres groupes n'ont pas le bouton. */
+    @Test
+    fun le_bouton_chant_d_un_oiseau_pose_et_enleve_le_comportement() = runTest {
+        nomenclatures()
+        val releve = releve(ModeSaisie.SIMPLIFIE)
+        // Ajouté sans passer par l'écran : la période de nidification lirait les ressources de l'appli.
+        val merle = releve.releve.ajouter(Taxon.OISEAU, "Merle noir", null)
+        val fiche = FicheEspeceViewModel(services, releve.releve, merle)
+        fun espece() = releve.releve.especes.value[merle]
+        assertTrue(fiche.chantVisible)
+        assertFalse(fiche.chante(espece()))
+
+        fiche.basculerChant()
+        assertTrue(fiche.chante(espece()))
+        assertEquals("12", espece().comportement)
+        assertEquals("Chant", fiche.resumeComportement(espece()))
+        val obs = releve.session.observations.value.single { it.releveId == releve.releve.releveId }
+        assertEquals("12", obs.comportement, "le comportement de l'observation enregistrée")
+
+        fiche.basculerChant()
+        assertFalse(fiche.chante(espece()))
+        assertEquals("", espece().comportement)
+
+        // Un insecte garde « Comportement », sans « Chant ».
+        releve.choisirTaxon(Taxon.INSECTE)
+        releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
+        val machaon = FicheEspeceViewModel(services, releve.releve, 1)
+        assertTrue(machaon.comportementVisible)
+        assertFalse(machaon.chantVisible)
+
+        // Un serveur sans valeur « Chant » : pas de bouton.
+        services.nomenclatures.setAll(mapOf("OCC_COMPORTEMENT" to listOf(NomValeur(13, "Repos", listOf(TaxrefRestriction("all", "all"))))))
+        assertFalse(FicheEspeceViewModel(services, releve.releve, merle).chantVisible)
+    }
+
+    /** Serveur aux codes atlas : en période de nidification, « Chant » pose l'indice « Mâle chanteur » ;
+     *  hors période, le chant simple. L'un comme l'autre s'enlève au second toucher. */
+    @Test
+    fun en_periode_de_nidification_le_chant_pose_l_indice_male_chanteur() = runTest {
+        val tous = listOf(TaxrefRestriction("all", "all"))
+        services.nomenclatures.setAll(
+            mapOf(
+                "OCC_COMPORTEMENT" to listOf(
+                    NomValeur(12, "Chant", tous, cd = "18"),
+                    NomValeur(30, "2 - Mâle chanteur (ou cris de nidification) en période de reproduction", tous, cd = "CA2"),
+                ),
+            ),
+        )
+        val releve = releve(ModeSaisie.SIMPLIFIE)
+        val merle = releve.releve.ajouter(Taxon.OISEAU, "Merle noir", 4117)
+        fun espece() = releve.releve.especes.value[merle]
+
+        val auPrintemps = FicheEspeceViewModel(services, releve.releve, merle) { true }
+        auPrintemps.basculerChant()
+        assertEquals("30", espece().comportement)
+        assertTrue(auPrintemps.chante(espece()))
+
+        // Hors période, la fiche reconnaît encore l'indice posé, et l'enlève ; puis pose le chant simple.
+        val enHiver = FicheEspeceViewModel(services, releve.releve, merle) { false }
+        assertTrue(enHiver.chante(espece()))
+        enHiver.basculerChant()
+        assertEquals("", espece().comportement)
+        enHiver.basculerChant()
+        assertEquals("12", espece().comportement)
+
+        // Un serveur qui n'a que l'indice : pas de bouton hors période.
+        services.nomenclatures.setAll(mapOf("OCC_COMPORTEMENT" to listOf(NomValeur(30, "2 - Mâle chanteur", tous, cd = "CA2"))))
+        assertFalse(FicheEspeceViewModel(services, releve.releve, merle) { false }.chantVisible)
+        assertTrue(FicheEspeceViewModel(services, releve.releve, merle) { true }.chantVisible)
     }
 }

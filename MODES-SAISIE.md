@@ -1,8 +1,8 @@
 # Mode pro et mode simplifié : les différences
 
-État au 15 novembre 2026 (version 2.2.0-beta3, build 207).
+État au 15 novembre 2026 (après la version 2.2.0-beta3, build 207).
 
-**À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 49.
+**À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51.
 
 ## En bref
 
@@ -34,7 +34,19 @@ Le mode pro est le mode par défaut : sans choix, et après une mise à jour, ri
 
 ## Saisie multi-taxons
 
-La carte, la trace GPS, le placement des observations, les détails du relevé (dont son commentaire), « Mes saisies » et l'envoi sont **identiques** dans les deux modes. Seule la saisie d'une espèce diffère.
+La carte, la trace GPS, le placement des observations, « Mes saisies » et l'envoi sont **identiques** dans les deux modes. Diffèrent les détails du relevé et la saisie d'une espèce.
+
+### Les détails du relevé
+
+Ce sont les détails d'un relevé (bouton « Détails ») et les détails communs de la saisie (bouton « i » de la carte).
+
+| | Mode pro | Mode simplifié |
+|---|---|---|
+| Observateurs | Liste pour en ajouter, croix pour en retirer | Montrés sans pouvoir en ajouter ni en retirer : l'observateur par défaut des Paramètres |
+| Habitat | Recherche d'un habitat, si le serveur montre le champ | Absent ; un habitat déjà porté par le relevé est gardé |
+| Autres champs (jeu de données, dates, heures, commentaire, etc.) | Oui | Oui, identiques |
+
+Deux cas gardent le champ des observateurs du mode pro, pour que le relevé reste validable : un relevé sans aucun observateur, et un serveur qui demande les observateurs en texte libre.
 
 ### Après l'ajout d'une espèce
 
@@ -59,12 +71,13 @@ La carte, la trace GPS, le placement des observations, les détails du relevé (
 - **Dénombrement** : objet et type du dénombrement, nombre min et nombre max, stade de vie, sexe, médias, champs additionnels ; plusieurs dénombrements par espèce.
 - **Caractérisation** : technique d'observation, état biologique ; sous « Plus de champs » : méthode de détermination, statut d'observation, naturalité, statut biologique, comportement, statut de la source, floutage, preuve d'existence, preuves numérique et non numérique, déterminateur, commentaire ; champs additionnels.
 
-**Mode simplifié**, la « Fiche de l'observation » et ses cinq boutons :
+**Mode simplifié**, la « Fiche de l'observation » et ses boutons :
 
 | Bouton | Ce qu'il porte | Présent si |
 |---|---|---|
 | Détails | Nombre, stade de vie, sexe, état biologique, plus les champs additionnels obligatoires | Toujours |
 | Comportement | Le comportement | Le serveur montre `behaviour` et l'espèce est un animal |
+| Chant (à droite de « Comportement ») | D'un toucher, pose un comportement de chant, ou l'enlève : l'indice « Mâle chanteur en période de reproduction » si l'espèce est en période de nidification et que le serveur a les codes atlas, sinon « Chant » | L'espèce est un oiseau et le serveur a la valeur qui convient |
 | Commentaire | Le commentaire de l'observation | Le serveur montre `comment_occ` |
 | Photo | Appareil photo ou galerie | Le serveur active les médias |
 | Audio | Choix d'un fichier son | Le serveur active les médias |

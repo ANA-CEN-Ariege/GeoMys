@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GeoMys, mode pro et mode simplifié</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Mise en page : une colonne de lecture, chaque rubrique = un tableau à deux colonnes colorées (pro en bleu ardoise, simplifié en vert). */
+:root {
+  --fond: #f6f8f6;
+  --surface: #ffffff;
+  --texte: #1b2420;
+  --discret: #5a6862;
+  --trait: #dbe2dd;
+  --pro: #2f5d86;
+  --pro-fond: #e9f0f6;
+  --simple: #2c7a4b;
+  --simple-fond: #e6f3ea;
+  --alerte: #b3261e;
+  --titre: "Space Grotesk", "Avenir Next", "Segoe UI", sans-serif;
+  --corps: "Inter", "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fond: #121715; --surface: #1a211e; --texte: #e7ede9; --discret: #9fada6; --trait: #2c3631;
+    --pro: #8fbbe3; --pro-fond: #1c2a37; --simple: #7fcf9c; --simple-fond: #1a2e22; --alerte: #f28b82;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --fond: #121715; --surface: #1a211e; --texte: #e7ede9; --discret: #9fada6; --trait: #2c3631;
+  --pro: #8fbbe3; --pro-fond: #1c2a37; --simple: #7fcf9c; --simple-fond: #1a2e22; --alerte: #f28b82;
+  color-scheme: dark;
+}
+body {
+  background: var(--fond); color: var(--texte);
+  font: 400 16px/1.55 var(--corps);
+  padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.page { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+header { display: flex; flex-direction: column; gap: 10px; }
+h1 { font: 600 2rem/1.15 var(--titre); margin: 0; text-wrap: balance; }
+h2 { font: 600 1.3rem/1.25 var(--titre); margin: 0; text-wrap: balance; }
+h3 { font: 600 1.02rem/1.3 var(--titre); margin: 0; }
+p { margin: 0; max-width: 68ch; }
+.etat { color: var(--discret); font-size: .9rem; }
+section { display: flex; flex-direction: column; gap: 14px; scroll-margin-top: 16px; }
+.sous { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+nav { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+nav a {
+  color: var(--texte); text-decoration: none; font-size: .88rem;
+  border: 1px solid var(--trait); border-radius: 999px; padding: 4px 12px; background: var(--surface);
+}
+nav a:hover { border-color: var(--discret); }
+a:focus-visible { outline: 2px solid var(--pro); outline-offset: 2px; }
+
+/* Les deux modes en tête */
+.duo { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.mode { border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.mode.pro { background: var(--pro-fond); }
+.mode.simple { background: var(--simple-fond); }
+.mode .nom { font: 600 1.15rem var(--titre); }
+.mode.pro .nom { color: var(--pro); }
+.mode.simple .nom { color: var(--simple); }
+.mode ul { margin: 0; padding-left: 1.1em; display: flex; flex-direction: column; gap: 4px; }
+
+/* Tableaux de comparaison */
+.cadre { overflow-x: auto; border: 1px solid var(--trait); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: .94rem; }
+th, td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--trait); }
+tr:last-child > td, tr:last-child > th { border-bottom: 0; }
+thead th { font: 600 .78rem var(--corps); letter-spacing: .06em; text-transform: uppercase; }
+thead th.pro { color: var(--pro); background: var(--pro-fond); }
+thead th.simple { color: var(--simple); background: var(--simple-fond); }
+tbody th { font-weight: 600; width: 24%; }
+td { width: 38%; }
+td.non { color: var(--discret); }
+
+.touche {
+  display: inline-block; font: 500 .85em var(--corps); white-space: nowrap;
+  border: 1px solid var(--discret); border-radius: 6px; padding: 0 7px; line-height: 1.5;
+}
+.touche.plein { background: var(--simple); border-color: var(--simple); color: var(--surface); }
+.touche.rouge { border-color: var(--alerte); color: var(--alerte); }
+ul.liste { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; max-width: 68ch; }
+.note { border-left: 3px solid var(--trait); padding-left: 14px; color: var(--discret); font-size: .94rem; }
+footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--trait); padding-top: 16px; }
+@media (max-width: 480px) { h1 { font-size: 1.6rem; } body { font-size: 15px; } }
+</style>
+</head>
+<body style="margin:0">
+
+<div class="page">
+
+<header>
+  <h1>GeoMys : mode pro et mode simplifié</h1>
+  <p>GeoMys propose deux façons de saisir. Le mode pro donne tout ce que GeoNature permet. Le mode simplifié ne garde que l'essentiel pour noter une espèce sur le terrain.</p>
+  <p class="etat">État au 15 novembre 2026, version de développement qui suit la 2.2.0-beta3.</p>
+  <nav aria-label="Rubriques">
+    <a href="#choix">Choisir le mode</a>
+    <a href="#accueil">Accueil</a>
+    <a href="#releve">Détails du relevé</a>
+    <a href="#espece">Saisie d'une espèce</a>
+    <a href="#fiche">Fiche de l'observation</a>
+    <a href="#regles">Règles du mode simplifié</a>
+    <a href="#donnees">Chargement des données</a>
+    <a href="#passage">Changer de mode</a>
+  </nav>
+</header>
+
+<section>
+  <h2>En bref</h2>
+  <div class="duo">
+    <div class="mode pro">
+      <span class="nom">Mode pro</span>
+      <p>Pour les naturalistes habitués à GeoNature.</p>
+      <ul>
+        <li>Saisie multi-taxons, saisie mono-taxon, Monitoring, OccHab</li>
+        <li>Tous les champs que le serveur montre</li>
+        <li>Toutes les données sont chargées</li>
+      </ul>
+    </div>
+    <div class="mode simple">
+      <span class="nom">Mode simplifié</span>
+      <p>Pour les utilisateurs amateurs.</p>
+      <ul>
+        <li>Saisie multi-taxons seulement</li>
+        <li>Nombre, stade de vie, sexe, état biologique, comportement, commentaire, photo, audio</li>
+        <li>Seules les données utiles à cette saisie sont chargées</li>
+      </ul>
+    </div>
+  </div>
+  <p>Le mode pro est le mode par défaut. Sans choix de votre part, et après une mise à jour, rien ne change.</p>
+</section>
+
+<section id="choix">
+  <h2>Choisir le mode</h2>
+  <ul class="liste">
+    <li>Le choix se fait en haut des Paramètres, dans la carte « Mode de saisie » : Pro ou Simplifié.</li>
+    <li>Il est enregistré aussitôt et reste en place : ni un changement de serveur ou de compte, ni « Vider le cache » ne le modifient.</li>
+    <li>Un relevé déjà ouvert garde le mode qu'il avait à son ouverture.</li>
+  </ul>
+</section>
+
+<section id="accueil">
+  <h2>Accueil</h2>
+  <div class="cadre"><table>
+    <thead><tr><th></th><th class="pro">Mode pro</th><th class="simple">Mode simplifié</th></tr></thead>
+    <tbody>
+      <tr><th>Boutons de saisie</th><td>« Saisie multi-taxons » et « Saisie mono-taxon »</td><td>Un seul bouton, plus haut : <span class="touche plein">+ Démarrer une saisie</span>. Il ouvre la saisie multi-taxons.</td></tr>
+      <tr><th>Configuration incomplète</th><td>Boutons estompés</td><td>Bouton estompé et, dessous, « Pour commencer, renseignez la connexion dans les Paramètres », qui ouvre les Paramètres</td></tr>
+      <tr><th>Monitoring</th><td>Si des protocoles sont chargés</td><td class="non">Jamais</td></tr>
+      <tr><th>OccHab</th><td>Si le serveur l'a et que vous avez le droit de créer</td><td class="non">Jamais</td></tr>
+      <tr><th>Menu : Mes saisies, Explorer, Maps Manager</th><td>Oui</td><td>Oui</td></tr>
+      <tr><th>Menu : Mes visites, Mes stations</th><td>Si le module est là, ou s'il reste quelque chose à envoyer</td><td>Seulement s'il reste quelque chose à envoyer</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="releve">
+  <h2>Détails du relevé</h2>
+  <p>La carte, la trace GPS, le placement des observations, « Mes saisies » et l'envoi sont identiques dans les deux modes. Les différences portent sur les détails du relevé (bouton « Détails », ou « i » sur la carte) et sur la saisie d'une espèce.</p>
+  <div class="cadre"><table>
+    <thead><tr><th></th><th class="pro">Mode pro</th><th class="simple">Mode simplifié</th></tr></thead>
+    <tbody>
+      <tr><th>Observateurs</th><td>Une liste pour en ajouter, une croix pour en retirer</td><td>Affichés sans pouvoir en ajouter ni en retirer : c'est l'observateur par défaut des Paramètres</td></tr>
+      <tr><th>Habitat</th><td>Recherche d'un habitat, si le serveur montre le champ</td><td class="non">Absent. Un habitat déjà porté par le relevé est conservé.</td></tr>
+      <tr><th>Jeu de données, dates, heures, commentaire…</th><td>Oui</td><td>Oui, identiques</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">Deux cas gardent le champ des observateurs du mode pro, pour que le relevé reste validable : un relevé sans aucun observateur, et un serveur qui demande les observateurs en texte libre.</p>
+</section>
+
+<section id="espece">
+  <h2>Saisie d'une espèce</h2>
+
+  <div class="sous">
+    <h3>Juste après l'ajout d'une espèce</h3>
+    <div class="cadre"><table>
+      <thead><tr><th></th><th class="pro">Mode pro</th><th class="simple">Mode simplifié</th></tr></thead>
+      <tbody>
+        <tr><th>Ce qui s'ouvre</th><td>Rien, sauf dans les cas ci-dessous : on reste sur le relevé</td><td>La « Fiche de l'observation », à chaque espèce</td></tr>
+        <tr><th>Champ obligatoire resté vide</th><td>La Caractérisation ou le Dénombrement s'ouvre d'office</td><td>« Détails » s'ouvre par-dessus la fiche</td></tr>
+        <tr><th>Oiseau en période de nidification</th><td>La Caractérisation s'ouvre, réduite au comportement</td><td>« Comportement » s'ouvre par-dessus la fiche</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="sous">
+    <h3>La ligne de l'espèce dans le relevé</h3>
+    <div class="cadre"><table>
+      <thead><tr><th></th><th class="pro">Mode pro</th><th class="simple">Mode simplifié</th></tr></thead>
+      <tbody>
+        <tr><th>Boutons</th><td><span class="touche">× N</span> ouvre le Dénombrement, <span class="touche">i</span> la Caractérisation</td><td>Un crayon <span class="touche">✎</span> ouvre la fiche. Toucher le nom l'ouvre aussi.</td></tr>
+        <tr><th>Champ obligatoire vide</th><td>Le bouton de l'écran concerné passe au rouge : <span class="touche rouge">i</span></td><td>Le crayon passe au rouge : <span class="touche rouge">✎</span></td></tr>
+        <tr><th>Corbeille</th><td>Oui, avec confirmation</td><td>Oui, avec confirmation</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="sous">
+    <h3>Les écrans du mode pro</h3>
+    <p>Ils reprennent le formulaire web de GeoNature.</p>
+    <ul class="liste">
+      <li><strong>Dénombrement.</strong> Objet et type du dénombrement, nombre minimum et maximum, stade de vie, sexe, médias, champs additionnels. Plusieurs dénombrements possibles par espèce.</li>
+      <li><strong>Caractérisation.</strong> Technique d'observation et état biologique. Sous « Plus de champs » : méthode de détermination, statut d'observation, naturalité, statut biologique, comportement, statut de la source, floutage, preuve d'existence, preuves numérique et non numérique, déterminateur, commentaire. Puis les champs additionnels.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="fiche">
+  <h2>La fiche de l'observation (mode simplifié)</h2>
+  <p>Elle remplace les deux écrans du mode pro par quelques boutons. Il n'y a rien à valider à la fin : chaque volet validé et chaque média sont enregistrés aussitôt dans le relevé.</p>
+  <div class="cadre"><table>
+    <thead><tr><th>Bouton</th><th class="simple">Ce qu'il porte</th><th class="simple">Présent si</th></tr></thead>
+    <tbody>
+      <tr><th>Détails</th><td>Nombre, stade de vie, sexe, état biologique, et les champs additionnels obligatoires</td><td>Toujours</td></tr>
+      <tr><th>Comportement</th><td>Le comportement de l'animal</td><td>Le serveur montre ce champ et l'espèce est un animal</td></tr>
+      <tr><th>Chant</th><td>D'un toucher, note que l'oiseau chante ; d'un second, l'enlève. En période de nidification de l'espèce, c'est l'indice « Mâle chanteur en période de reproduction » qui est posé, si le serveur a les codes atlas. Sinon, c'est « Chant ».<br><span class="touche">♪ Chant</span> non noté, <span class="touche plein">✓ Chant</span> noté.</td><td>L'espèce est un oiseau et le serveur a la valeur qui convient. Le bouton est à droite de « Comportement ».</td></tr>
+      <tr><th>Commentaire</th><td>Le commentaire de l'observation</td><td>Le serveur montre ce champ</td></tr>
+      <tr><th>Photo</th><td>Appareil photo ou galerie</td><td>Le serveur accepte les médias</td></tr>
+      <tr><th>Audio</th><td>Choix d'un fichier son</td><td>Le serveur accepte les médias</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="regles">
+  <h2>Règles propres au mode simplifié</h2>
+  <ul class="liste">
+    <li><strong>Un seul nombre.</strong> Il vaut à la fois pour le minimum et le maximum. Un maximum saisi en mode pro reste en place tant que le nombre ne change pas.</li>
+    <li><strong>Un seul dénombrement.</strong> La fiche ne touche que le premier. Les autres, saisis en mode pro, sont conservés tels quels.</li>
+    <li><strong>Champs selon l'espèce.</strong> Le sexe et le comportement ne sont proposés que pour un animal. Une liste qui n'a aucune valeur pour l'espèce est masquée. En mode pro, tous les champs restent, comme sur le web.</li>
+    <li><strong>Champs non montrés.</strong> Ils gardent leur valeur. S'ils n'ont jamais été saisis, ils partent vides et le serveur y met sa valeur par défaut (technique d'observation, objet du dénombrement, etc.).</li>
+    <li><strong>Champs additionnels facultatifs.</strong> Ils ne sont pas proposés. Seuls les obligatoires le sont, dans « Détails ».</li>
+    <li><strong>Observation déjà envoyée.</strong> « Photo » et « Audio » sont grisés, avec une phrase d'explication.</li>
+  </ul>
+</section>
+
+<section id="donnees">
+  <h2>Chargement des données</h2>
+  <div class="cadre"><table>
+    <thead><tr><th></th><th class="pro">Mode pro</th><th class="simple">Mode simplifié</th></tr></thead>
+    <tbody>
+      <tr><th>« Charger les données »</th><td>Tout : OccTax, Suivis, OccHab</td><td>OccTax seulement</td></tr>
+      <tr><th>Suivis (protocoles, droits, listes de taxons des protocoles)</th><td>Chargés</td><td class="non">Non chargés</td></tr>
+      <tr><th>OccHab (jeux de données, habitats, stations)</th><td>Chargé</td><td class="non">Non chargé</td></tr>
+      <tr><th>Référentiel des espèces</th><td>Listes d'OccTax et des protocoles</td><td>Listes d'OccTax seulement</td></tr>
+      <tr><th>Résumé du chargement</th><td>Compte aussi les protocoles et les stations OccHab</td><td>Ne les compte pas</td></tr>
+    </tbody>
+  </table></div>
+  <p>Sont chargés dans les deux modes : jeux de données, listes d'espèces, observateurs, champs additionnels et configuration d'OccTax, habitats d'OccTax, nomenclatures, détection des modules du serveur.</p>
+  <p>Le reste des Paramètres (connexion, liste des serveurs, sélections par défaut) est identique.</p>
+</section>
+
+<section id="passage">
+  <h2>Changer de mode</h2>
+  <ul class="liste">
+    <li><strong>De pro vers simplifié.</strong> Rien n'est effacé. Les données des Suivis et d'OccHab restent sur le téléphone, et les visites ou stations en attente d'envoi restent accessibles par le menu.</li>
+    <li><strong>De simplifié vers pro.</strong> Si les données ont été chargées en mode simplifié, Monitoring et OccHab restent masqués à l'accueil. Les Paramètres invitent alors à recharger les données ; la saisie multi-taxons reste utilisable d'ici là. Un rechargement en mode pro les fait revenir.</li>
+    <li><strong>Saisie faite dans un mode, rouverte dans l'autre.</strong> Elle s'ouvre sans perte : le mode simplifié ne modifie que les champs qu'il montre.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Ce qui ne dépend pas du mode</h2>
+  <p>Explorer, Maps Manager, la carte et la trace GPS, l'envoi des saisies, la connexion au serveur. La saisie mono-taxon, Monitoring et OccHab sont absents du mode simplifié et inchangés en mode pro.</p>
+</section>
+
+<footer>GeoMys, application de saisie naturaliste pour GeoNature. ANA - CEN Ariège.</footer>
+
+</div>
+</body>
+</html>

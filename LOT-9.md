@@ -790,3 +790,46 @@ Demande de l'utilisateur : améliorer ce bouton. Seul geste de l'accueil en mode
 ## 49. Changer de serveur sans rien à perdre : pas d'avertissement (15 novembre)
 
 Demande de l'utilisateur : l'alerte « Changer de serveur ? » ne doit pas paraître quand il n'y avait pas de serveur avant. Sans adresse enregistrée elle ne paraissait déjà pas ; elle paraissait encore après une première adresse seulement testée (test raté, adresse corrigée). `ParametresViewModel.testerConnexion` ne la pose plus que si l'ancienne adresse a laissé quelque chose : des données chargées (jeux de données, listes, observateurs, taxons) ou des saisies à envoyer. Sinon le test part directement. `ChangementServeurTest` : les deux cas.
+
+## 50. Détails du relevé en saisie simplifiée : ni ajout d'observateur, ni habitat (15 novembre)
+
+Demande de l'utilisateur : « Dans le mode simplifié, dans le détail des relevés, ne pas permettre l'ajout d'un observateur et ne pas proposer des habitats. »
+
+- `EtatDetailsReleve(simplifie)`, pour les détails d'un relevé et les détails communs de la carte.
+- **Observateurs** (`observateursFiges`) : montrés sans liste ni croix. Le retrait est fermé avec l'ajout : retirer le seul observateur sans pouvoir le remettre bloquerait le relevé (choix à confirmer par l'utilisateur). Sans aucun observateur, ou si le serveur les demande en texte libre, le champ du mode pro reste.
+- **Habitat** : le champ n'est plus montré ; l'habitat déjà porté par un relevé est gardé tel quel.
+- Test : `SaisieSimplifieeEcransTest.les_details_du_releve_n_ont_ni_ajout_d_observateur_ni_habitat`. `MODES-SAISIE.md` mis à jour.
+
+## 51. Bouton « Chant » de la fiche d'un oiseau (15 novembre)
+
+Demande de l'utilisateur : en mode simplifié, pour les oiseaux, pouvoir indiquer facilement que l'oiseau chantait. Champ retenu avec lui : le comportement de l'occurrence (`OCC_COMPORTEMENT`), dont la liste standard de GeoNature a la valeur « Chant », `cd_nomenclature` 18 (lue sur le serveur de démonstration public). La technique d'observation « Entendu » a été écartée : elle dit comment l'oiseau a été détecté, pas qu'il chantait.
+
+- Sur la fiche de l'observation, « ♪ Chant » à droite de « Comportement » ; un toucher pose le comportement « Chant » (le bouton devient « ✓ Chant », le résumé dit « Chant »), un second l'enlève. Un autre comportement est remplacé.
+- Le bouton n'apparaît que pour un oiseau (groupe 2 INPN « Oiseaux », celui de TaxRef sinon de la palette), si le serveur montre le comportement et propose la valeur pour ce taxon. La valeur est reconnue par son code 18, sinon par son libellé sur un cache sans codes (`SaisieSimplifiee.valeurChant`).
+- Rien ne change à l'envoi : c'est le comportement de l'occurrence. Le mode pro ne change pas.
+- Tests : `SaisieSimplifieeTest.le_chant_est_reconnu_par_son_code_et_bascule_le_comportement`, `SaisieSimplifieeEcransTest.le_bouton_chant_d_un_oiseau_pose_et_enleve_le_comportement`.
+
+Complément du même jour, après la question de l'utilisateur (« chant utilise la valeur Chant hors de période de nidif et Mâle chanteur en période de nidif ? ») : le serveur de l'ANA a les codes atlas des oiseaux nicheurs, dont `CA2`, « 2 - Mâle chanteur (ou cris de nidification) en période de reproduction », que le serveur de démonstration n'a pas.
+
+- En période de nidification de l'espèce ce mois-ci (fichier embarqué `nidification_oiseaux.json`, celui de l'ouverture d'office du comportement), le bouton pose `CA2` si le serveur l'a, sinon « Chant ». Hors période, « Chant » seulement ; un serveur qui n'aurait que `CA2` n'a alors pas de bouton (`SaisieSimplifiee.idChantAPoser`).
+- Le bouton est coché pour l'une ou l'autre valeur, et le second toucher enlève celle qui est portée.
+- Test : `SaisieSimplifieeEcransTest.en_periode_de_nidification_le_chant_pose_l_indice_male_chanteur`.
+
+## 52. Périodes de nidification corrigées d'après les tableaux des codes atlas (15 novembre)
+
+Demandes de l'utilisateur : vérifier sur le net les périodes de `nidification_oiseaux.json`, puis « corrige les 7 écarts ainsi que les 63 écarts de majorité ».
+
+- **Vérification.** Les 285 espèces ont été comparées aux tableaux de dates des codes atlas de quatre bases Faune / LPO : Isère, Côte-d'Or, Bretagne (pré-atlas des nicheurs) et Île-de-France (2025). 223 espèces sont dans au moins un tableau ; 62 (méditerranéennes, pyrénéennes, marines, nicheurs rares) dans aucun, donc non vérifiées. Aucun tableau pour l'Occitanie n'a été trouvé.
+- **Règle de correction.** Un écart est retenu s'il est le même dans toutes les sources de l'espèce, dans la moitié au moins, ou de 1,5 mois ou plus dans sa seule source. La borne en écart prend le mois de la médiane des sources : début ou fin de la période principale pour une période trop courte, fin ou début de la période large pour une période trop longue.
+- **Résultat.** 55 espèces corrigées. 13 écarts retenus ne changent rien au mois près. Deux corrections écartées, leur seule source ne donnant pas une période exploitable : Aigle royal (dates extrêmes constatées en Isère, de janvier à décembre) et Bernache du Canada (début au 6 mai en Isère).
+- **Conséquence.** Le fichier n'est plus identique à celui de GeoMys-IOS (inventaire § 6). Il sert à l'ouverture d'office du comportement (mode pro et simplifié) et au choix de l'indice « Mâle chanteur » du bouton « Chant » (§ 51).
+- Corrections (avant → après) : Alouette calandrelle (avr.–août → avr.–juil.) ; Bouscarle de Cetti (mars–août → mars–juil.) ; Bouvreuil pivoine (mai–août → mars–août) ; Bruant zizi (mai–sept. → mars–sept.) ; Bécasse des bois (févr.–juin → févr.–juil.) ; Chardonneret élégant (mai–sept. → avr.–sept.) ; Choucas des tours (mars–juin → mars–juil.) ; Chouette de Tengmalm (mars–juin → janv.–août) ; Chouette hulotte (févr.–mai → févr.–juin) ; Cincle plongeur (févr.–juin → févr.–juil.) ; Corbeau freux (févr.–mai → févr.–juin) ; Cormoran huppé (févr.–juin → févr.–août) ; Coucou gris (mai–août → avr.–août) ; Crave à bec rouge (avr.–juil. → mars–juil.) ; Cygne tuberculé (mars–juin → mars–août) ; Fauvette grisette (mai–août → mai–juil.) ; Fuligule milouin (avr.–juil. → avr.–août) ; Fulmar boréal (mars–juil. → janv.–juil.) ; Gobemouche noir (mai–août → mai–juil.) ; Goéland leucophée (mars–juil. → mars–août) ; Grand Corbeau (févr.–juin → févr.–juil.) ; Grand Cormoran (févr.–juin → févr.–août) ; Grand-duc d'Europe (janv.–mai → janv.–août) ; Grande Aigrette (avr.–août → avr.–juil.) ; Grimpereau des bois (mars–juin → févr.–juil.) ; Guillemot de Troïl (mars–juil. → janv.–juil.) ; Gélinotte des bois (avr.–juin → févr.–juin) ; Hibou des marais (avr.–juil. → mars–juil.) ; Hirondelle rustique (mai–sept. → mai–août) ; Héron cendré (févr.–juin → févr.–août) ; Lagopède alpin (mai–juil. → mars–juil.) ; Linotte mélodieuse (avr.–sept. → avr.–août) ; Marouette ponctuée (avr.–août → avr.–juil.) ; Milan noir (avr.–août → avr.–juil.) ; Moineau friquet (avr.–août → mars–août) ; Mouette rieuse (mars–juin → mars–juil.) ; Mésange bleue (avr.–juil. → mars–juil.) ; Mésange charbonnière (avr.–juil. → mars–juil.) ; Mésange huppée (mars–juin → mars–juil.) ; Mésange nonnette (avr.–juil. → mars–juil.) ; Perdrix rouge (avr.–juil. → mars–juil.) ; Petit Gravelot (avr.–août → avr.–juil.) ; Pic mar (mars–juin → févr.–juil.) ; Pic vert (mars–juin → févr.–juil.) ; Pic épeiche (avr.–juin → févr.–juin) ; Pic épeichette (avr.–juin → févr.–juil.) ; Pipit des arbres (mai–août → mai–juil.) ; Pouillot de Bonelli (mai–août → mai–juil.) ; Pouillot fitis (mai–août → mai–juil.) ; Rouge-gorge familier (mars–août → mars–juil.) ; Rousserolle turdoïde (mai–sept. → mai–août) ; Sittelle torchepot (avr.–juil. → mars–juil.) ; Sterne pierregarin (mai–août → avr.–août) ; Tourterelle turque (mars–août → févr.–août) ; Échasse blanche (avr.–août → avr.–juil.).
+
+Complément du 15 novembre (§ 51) : « dans la fiche de l'observation, distingue le bouton "Chant" des autres boutons ». Ce n'est pas un écran à ouvrir mais une coche : il est en contour (`BoutonContour`, « ♪ Chant ») tant que le chant n'est pas noté, plein et vert (`BoutonVert`, « ✓ Chant ») une fois noté ; les autres boutons de la fiche restent pleins et bleus.
+
+## 53. Une page de liste de taxons en échec est redemandée (15 novembre)
+
+L'utilisateur a eu, après un rechargement, le bandeau d'une liste de taxons incomplète. Cause : la liste était abandonnée au premier échec d'une de ses pages (réseau, délai de 60 s, réponse autre que 200), sans nouvelle tentative et sans trace de la raison. Sa demande : « Retenter une page en échec deux ou trois fois avant d'abandonner la liste ».
+
+- `GeoNatureSync.pageDeListe` : une page est demandée jusqu'à trois fois, avec 1 s puis 3 s d'attente (`delaisReprisePage`) ; la cause de chaque échec va au journal (`liste N, page P, tentative i/3 en échec (…)`). Après trois échecs, la liste est incomplète comme avant, et la saisie bloquée jusqu'au rechargement.
+- Test : `ListeIncompleteTest.une_page_en_echec_passager_est_redemandee_et_la_liste_reste_complete` (deux échecs puis la page : liste complète ; trois échecs : liste incomplète, sans quatrième demande).

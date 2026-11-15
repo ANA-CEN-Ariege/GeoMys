@@ -187,4 +187,32 @@ class SaisieSimplifieeTest {
         reglages.putString("mode_saisie", "INCONNU")
         assertEquals(ModeSaisie.PRO, PreferencesGeoMys(reglages).modeSaisie)
     }
+
+    /** 15 novembre 2026 : le bouton « Chant » des oiseaux. */
+    @Test
+    fun le_chant_est_reconnu_par_son_code_et_bascule_le_comportement() {
+        val valeurs = listOf(NomValeur(40, "Repos", cd = "17"), NomValeur(41, "Chanteur", cd = "18"), NomValeur(42, "Chant", cd = "99"))
+        assertEquals(41, SaisieSimplifiee.valeurChant(valeurs)?.id, "le code 18, quel que soit le libellé")
+        assertEquals(7, SaisieSimplifiee.valeurChant(listOf(NomValeur(6, "Repos"), NomValeur(7, "Chant")))?.id, "cache sans codes : le libellé")
+        assertNull(SaisieSimplifiee.valeurChant(listOf(NomValeur(40, "Repos", cd = "17"))))
+        assertTrue(SaisieSimplifiee.estOiseau(GroupeTaxonomique("Animalia", "Oiseaux", null)))
+        assertFalse(SaisieSimplifiee.estOiseau(GroupeTaxonomique("Animalia", "Insectes", null)))
+
+        val espece = EspeceReleve(taxon = Taxon.OISEAU, espece = "Merle noir", cdNom = null, comportement = "40", notes = "posé sur un fil")
+        val chante = SaisieSimplifiee.basculerChant(espece, "41")
+        assertEquals("41", chante.comportement, "un autre comportement est remplacé")
+        assertEquals(espece.copy(comportement = "41"), chante, "rien d'autre ne change")
+        assertEquals("", SaisieSimplifiee.basculerChant(chante, "41").comportement)
+
+        // Codes atlas : l'indice « Mâle chanteur » en période de nidification seulement.
+        val atlas = valeurs + NomValeur(50, "2 - Mâle chanteur", cd = "CA2")
+        assertEquals(50, SaisieSimplifiee.valeurMaleChanteur(atlas)?.id)
+        assertNull(SaisieSimplifiee.valeurMaleChanteur(valeurs))
+        assertEquals("50", SaisieSimplifiee.idChantAPoser("41", "50", nicheur = true))
+        assertEquals("41", SaisieSimplifiee.idChantAPoser("41", "50", nicheur = false))
+        assertEquals("41", SaisieSimplifiee.idChantAPoser("41", null, nicheur = true))
+        assertNull(SaisieSimplifiee.idChantAPoser(null, "50", nicheur = false))
+        // L'indice posé au printemps s'enlève même si le bouton poserait aujourd'hui le chant simple.
+        assertEquals("", SaisieSimplifiee.basculerChant(espece.copy(comportement = "50"), "41", setOf("41", "50")).comportement)
+    }
 }
