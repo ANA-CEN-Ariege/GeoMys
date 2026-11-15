@@ -43,6 +43,22 @@ fun vocabulaireDictee(propositions: List<SuggestionTaxon>, maximum: Int = MAX_VO
     return premiersMots(noms, maximum)
 }
 
+/** Au-delà, pas de modèle de langue sur mesure : sa préparation sur le téléphone serait trop longue. */
+const val MAX_NOMS_MODELE_DICTEE = 5000
+
+/** Les noms dont la dictée d'iOS fait son modèle de langue (demande du 15 novembre 2026) : TOUTES les
+ *  espèces proposables ici, sans doublon, là où [vocabulaireDictee] n'en souffle que 200. Vide : trop de
+ *  noms ([maximum]), ou aucun. */
+fun nomsModeleDictee(propositions: List<SuggestionTaxon>, maximum: Int = MAX_NOMS_MODELE_DICTEE): List<String> {
+    val noms = LinkedHashSet<String>()
+    for (s in propositions) {
+        val nom = TaxRefCache.nettoyerSuffixeArticle(s.nom)
+        if (nom.isNotEmpty()) noms.add(nom)
+        if (noms.size > maximum) return emptyList()
+    }
+    return noms.toList()
+}
+
 /** Premiers mots (3 lettres au moins) des [noms], du plus répandu au moins répandu ; à égalité,
  *  l'ordre alphabétique, pour que deux appels donnent la même liste. */
 fun premiersMots(noms: List<String>, maximum: Int): List<String> {

@@ -17,9 +17,39 @@
  */
 
 import SwiftUI
+import Speech
+import GeoMysUi
+
+/// Les données d'entraînement du modèle de langue de la dictée (les noms d'espèces proposables).
+/// `SFCustomLanguageModelData` n'existe qu'en Swift : le reste est dans ModeleLangueDictee.kt.
+final class ExportModeleLangueIos: ExportModeleLangue {
+    func exporter(phrases: [String], chemin: String, fin: ExportFini) {
+        Task.detached(priority: .utility) {
+            let donnees = SFCustomLanguageModelData(
+                locale: Locale(identifier: "fr_FR"),
+                identifier: "fr.ariegenature.geomys.especes",
+                version: "1"
+            )
+            // Chaque nom pèse autant : aucune espèce n'est plus attendue qu'une autre.
+            for phrase in phrases {
+                donnees.insert(phraseCount: SFCustomLanguageModelData.PhraseCount(phrase: phrase, count: 100))
+            }
+            do {
+                try await donnees.export(to: URL(fileURLWithPath: chemin))
+                fin.fini(reussi: true)
+            } catch {
+                fin.fini(reussi: false)
+            }
+        }
+    }
+}
 
 @main
 struct iOSApp: App {
+    init() {
+        ModeleLangueDictee.shared.exportateur = ExportModeleLangueIos()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

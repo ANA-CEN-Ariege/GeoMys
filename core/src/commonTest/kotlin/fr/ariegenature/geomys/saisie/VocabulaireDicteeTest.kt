@@ -49,6 +49,18 @@ class VocabulaireDicteeTest {
     }
 
     @Test
+    fun le_modele_de_langue_prend_tous_les_noms_ou_aucun() {
+        val propositions = listOf(
+            SuggestionTaxon("Serin cini (Le)", 1),
+            SuggestionTaxon("Serin cini", 1),
+            SuggestionTaxon("Pic vert", 2),
+        )
+        assertEquals(listOf("Serin cini", "Pic vert"), nomsModeleDictee(propositions))
+        // Trop de noms : pas de modèle, plutôt qu'un modèle amputé d'espèces.
+        assertEquals(emptyList(), nomsModeleDictee(propositions, maximum = 1))
+    }
+
+    @Test
     fun la_palette_part_du_groupe_voulu_s_il_a_un_bouton() {
         assertEquals(Taxon.PLANTE, groupeDeDepart(Taxon.PLANTE, listOf(Taxon.OISEAU, Taxon.PLANTE)))
         assertEquals(Taxon.OISEAU, groupeDeDepart(Taxon.FONGE, listOf(Taxon.OISEAU, Taxon.PLANTE)))

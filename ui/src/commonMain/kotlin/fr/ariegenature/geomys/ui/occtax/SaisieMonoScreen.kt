@@ -230,10 +230,13 @@ private fun EcranReglages(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
     // Seule une espèce RÉELLEMENT proposée ouvre la saisie.
     val demarrable = champ.texte.trim().isNotEmpty() && ligne.statut is TaxRefStatut.Trouve
     val dictee = rememberDictee(
-        onPartiel = vm::saisir,
+        onPartiel = vm::dicterPartiel,
         onFinal = vm::dicter,
         onErreur = { message, longue -> toasts.afficher(message, longue) },
     )
+    // Les espèces proposables changent avec le groupe et la liste : la dictée d'iOS en refait son modèle.
+    val nomsDictee = champ.nomsDictee
+    LaunchedEffect(dictee, nomsDictee) { dictee.preparer(nomsDictee) }
     val indicateur = remember(modele) { vm.saisie.indicateurDetails() }
     val champEspece: @Composable (Modifier) -> Unit = { modifier ->
         ChampEspece(

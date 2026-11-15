@@ -172,9 +172,16 @@ class IndexPhonetique(private val liste: List<SuggestionTaxon>) {
         }
 
         /** Écart relatif de deux mots (0 : le même son, 1 : rien de commun). Un mot de deux sons ne
-         *  ressemble qu'à lui-même : « up » (huppe) n'est pas à moitié « ap ». */
+         *  ressemble qu'à lui-même, ou à lui-même suivi d'un son : « up » (huppe) n'est pas à moitié « ap ». */
         internal fun ecart(a: String, b: String): Double {
-            if (min(a.length, b.length) <= 2) return if (a == b) 0.0 else 1.0
+            if (min(a.length, b.length) <= 2) {
+                if (a == b) return 0.0
+                // Un son de plus à la fin (« up » de huppe, « upé » de huppé) reste proche : dire
+                // « huppe » amène encore le « Vanneau huppé ».
+                val court = if (a.length < b.length) a else b
+                val long = if (a.length < b.length) b else a
+                return if (court.length == 2 && long.length == 3 && long.startsWith(court)) 1.0 / 3 else 1.0
+            }
             return distance(a, b, max(a.length, b.length)).toDouble() / max(a.length, b.length)
         }
 

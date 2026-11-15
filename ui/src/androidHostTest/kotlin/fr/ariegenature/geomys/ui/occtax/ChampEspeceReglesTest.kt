@@ -213,7 +213,7 @@ class ChampEspeceReglesTest {
         services.ajouterTaxRefEssai()
         avecChamp(Taxon.OISEAU) { champ ->
             toutAvancer()
-            champ.dicter(listOf("mésanges")) { fail("« mésanges » ne désigne aucune espèce à lui seul") }
+            champ.dicter(listOf("mésanges"))
             avancerJusqua { champ.entendu != null }
             assertEquals("mésanges", champ.texte, "le champ garde ce qui a été entendu")
             assertEquals("mésanges", champ.entendu)
@@ -228,11 +228,37 @@ class ChampEspeceReglesTest {
     }
 
     @Test
+    fun la_dictee_en_cours_propose_deja_les_especes_qui_lui_ressemblent() = runTest {
+        // Demande du 15 novembre 2026 : ne plus attendre la fin de la phrase pour proposer.
+        services.ajouterTaxRefEssai()
+        avecChamp(Taxon.OISEAU) { champ ->
+            toutAvancer()
+            // Ce qui est entendu ne commence aucun nom : les espèces proches par le son.
+            champ.dicterPartiel("mésanges")
+            avancerJusqua { champ.entendu != null }
+            assertEquals("mésanges", champ.texte)
+            assertEquals(listOf(534742, 3764), champ.suggestions.map { it.cdNom })
+
+            // Ce qui est entendu commence des noms proposés : ces noms, comme une frappe.
+            champ.dicterPartiel("Mésange c")
+            toutAvancer()
+            assertNull(champ.entendu)
+            assertEquals(listOf(3764), champ.suggestions.map { it.cdNom })
+
+            // Un nom dit exactement n'est pas tenu pour choisi : pas de statut, l'espèce est proposée.
+            champ.dicterPartiel("Mésange charbonnière")
+            toutAvancer()
+            assertNull(champ.recherche.statut)
+            assertEquals(listOf(3764), champ.suggestions.map { it.cdNom })
+        }
+    }
+
+    @Test
     fun les_especes_proches_d_une_dictee_tombent_avec_le_groupe() = runTest {
         services.ajouterTaxRefEssai()
         avecChamp(Taxon.OISEAU) { champ ->
             toutAvancer()
-            champ.dicter(listOf("mésanges")) { fail("rien à reconnaître") }
+            champ.dicter(listOf("mésanges"))
             avancerJusqua { champ.entendu != null }
             champ.choisirTaxon(Taxon.MAMMIFERE)
             assertNull(champ.entendu, "ces oiseaux ne sont pas des mammifères")
@@ -259,7 +285,23 @@ class ChampEspeceReglesTest {
     }
 
     @Test
-    fun la_saisie_mono_pose_l_espece_reconnue_au_son_sous_son_nom() = runTest {
+    fun une_espece_reconnue_a_la_dictee_est_proposee_sans_etre_ajoutee() = runTest {
+        // Demande du 15 novembre 2026 : « ne pas sélectionner l'espèce même s'il n'y en a qu'une ».
+        services.ajouterTaxRefEssai()
+        services.preferences.memoiserTaxon(Taxon.MAMMIFERE)
+        val session = vm { SessionSaisieViewModel(services) }
+        val releve = vm { SaisieReleveViewModel(services, session, OuvertureReleve(geometrie = GeometrieFinale("Point", null, 42.9, 1.6))) }
+        avancerJusqua { releve.vocabulaire().isNotEmpty() }
+        releve.dicter(listOf("Écureuil roux"))
+        avancerJusqua { releve.champ.entendu != null }
+        assertTrue(releve.releve.especes.value.isEmpty(), "rien n'est ajouté sans choix")
+        assertEquals(61153, releve.suggestions.first().cdNom, "l'espèce reconnue est proposée en tête")
+        releve.choisirSuggestion(releve.suggestions.first())
+        assertEquals(listOf(61153), releve.releve.especes.value.map { it.cdNom })
+    }
+
+    @Test
+    fun la_saisie_mono_propose_l_espece_reconnue_au_son_sans_la_poser() = runTest {
         services.ajouterTaxRefEssai()
         jeuParDefaut()
         services.preferences.memoiserTaxon(Taxon.OISEAU)
@@ -267,7 +309,11 @@ class ChampEspeceReglesTest {
         val mono = vm { SaisieMonoViewModel(services, session, null) }
         avancerJusqua { mono.vocabulaire().isNotEmpty() }
         mono.dicter(listOf("pic et pêche"))
-        avancerJusqua { mono.champ.recherche.statut is TaxRefStatut.Trouve }
+        avancerJusqua { mono.champ.entendu != null }
+        assertNull(mono.champ.recherche.statut, "rien n'est choisi d'office")
+        assertEquals("pic et pêche", mono.champ.texte)
+        assertEquals(3611, mono.champ.suggestions.first().cdNom, "le Pic épeiche est proposé en tête")
+        mono.choisirSuggestion(mono.champ.suggestions.first())
         assertEquals(3611, (mono.champ.recherche.statut as TaxRefStatut.Trouve).cdNom)
         assertEquals("Pic épeiche", mono.champ.texte, "le nom proposé, pas ce qui a été entendu")
     }
@@ -290,6 +336,8 @@ class ChampEspeceReglesTest {
         releve.saisir("Papillon inconnu")
         releve.champ.recherche.ligne.first { it.statut == TaxRefStatut.NonTrouve }
         releve.dicter(listOf("Papillon inconnu", "Machaon"))
+        avancerJusqua { releve.champ.entendu != null }
+        releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
         releve.releve.especes.first { it.size == 1 }
         // Le Machaon est déjà dans le relevé : il s'ajoute une seconde fois.
         releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
@@ -299,7 +347,7 @@ class ChampEspeceReglesTest {
         mono.saisir("Papillon inconnu")
         mono.champ.recherche.ligne.first { it.statut == TaxRefStatut.NonTrouve }
         mono.dicter(listOf("Papillon inconnu", "Machaon"))
-        mono.champ.recherche.ligne.first { (it.statut as? TaxRefStatut.Trouve)?.cdNom == 54303 }
+        avancerJusqua { mono.champ.entendu != null }
         mono.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
         mono.demarrer()
         assertTrue(mono.modeActif)

@@ -22,9 +22,9 @@
 
 package fr.ariegenature.geomys.ui.composants
 
-/** Silence, après le dernier mot entendu, au bout duquel la phrase dictée est tenue pour finie (ms) :
- *  de l'ordre de celui de la reconnaissance d'Android. */
-internal const val SILENCE_FIN_DE_PHRASE = 1500L
+/** Silence, après le dernier mot entendu, au bout duquel la phrase dictée est tenue pour finie (ms).
+ *  1,5 s jusqu'au 15 novembre 2026, ramené à 1 s : un nom d'espèce se dit d'une traite. */
+internal const val SILENCE_FIN_DE_PHRASE = 1000L
 
 /**
  * La fin d'une phrase dictée, quand la reconnaissance ne la signale pas : [delai] ms sans nouveau texte.

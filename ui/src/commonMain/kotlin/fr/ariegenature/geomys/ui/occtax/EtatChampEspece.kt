@@ -35,6 +35,7 @@ import fr.ariegenature.geomys.occtax.groupeDeDepart
 import fr.ariegenature.geomys.occtax.groupesNonVides
 import fr.ariegenature.geomys.saisie.RechercheTaxRef
 import fr.ariegenature.geomys.saisie.filtrerSuggestions
+import fr.ariegenature.geomys.saisie.nomsModeleDictee
 import fr.ariegenature.geomys.saisie.vocabulaireDictee
 import fr.ariegenature.geomys.store.SuggestionTaxon
 import fr.ariegenature.geomys.store.TaxRefEntry
@@ -42,6 +43,7 @@ import fr.ariegenature.geomys.store.champFormVisible
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -49,8 +51,9 @@ import kotlinx.coroutines.withContext
 /** Les propositions d'un périmètre (groupe × mode × liste) et leurs clés normalisées. */
 private class Propositions(val liste: List<SuggestionTaxon>, val normalisees: List<Pair<String, SuggestionTaxon>>)
 
-/** Les espèces qui ressemblent à ce qu'une dictée non reconnue a [entendu]. */
-private class Vocaux(val entendu: String, val liste: List<SuggestionTaxon>)
+/** Les espèces qui ressemblent à ce qu'une dictée non reconnue a [entendu]. [enCours] : la phrase
+ *  n'est pas finie, ces espèces ne servent que si le texte entendu ne commence aucun nom proposé. */
+private class Vocaux(val entendu: String, val liste: List<SuggestionTaxon>, val enCours: Boolean = false)
 
 /** Le premier nom français d'un taxon reconnu (le cache en garde parfois plusieurs, séparés par des
  *  virgules), null s'il n'en a pas. */
@@ -91,6 +94,11 @@ class EtatChampEspece(
      *  (les propositions de l'ancien périmètre ne répondent plus à la frappe). */
     private var propositions by mutableStateOf<Propositions?>(null)
 
+    /** Tous les noms proposés ici, pour le modèle de langue de la dictée d'iOS ; vide pendant leur
+     *  calcul, ou s'ils sont trop nombreux. */
+    var nomsDictee by mutableStateOf<List<String>>(emptyList())
+        private set
+
     /** Les propositions qui correspondent au texte, celles qui commencent par lui d'abord. */
     private var filtrees by mutableStateOf<List<SuggestionTaxon>>(emptyList())
 
@@ -100,11 +108,18 @@ class EtatChampEspece(
     private var vocaux by mutableStateOf<Vocaux?>(null)
 
     /** La liste déroulante : les espèces proches de la dictée, sinon les propositions filtrées. */
-    val suggestions: List<SuggestionTaxon> get() = vocaux?.liste ?: filtrees
+    val suggestions: List<SuggestionTaxon> get() = vocaux?.takeUnless { it.cedeAuFiltre() }?.liste ?: filtrees
 
     /** Ce que la dictée a entendu, tant que la liste montre les espèces qui lui ressemblent ; la
      *  ligne sous le champ le dit à la place du statut. */
-    val entendu: String? get() = vocaux?.entendu
+    val entendu: String? get() = vocaux?.takeUnless { it.cedeAuFiltre() }?.entendu
+
+    /** Pendant la dictée, ce qui est entendu et qui commence des noms proposés (« Serin ») montre ces
+     *  noms, comme une frappe ; les espèces proches par le son ne viennent que s'il n'y en a pas. */
+    private fun Vocaux.cedeAuFiltre(): Boolean = enCours && filtrees.isNotEmpty()
+
+    /** La recherche des espèces proches de la phrase en cours de dictée : la dernière seule compte. */
+    private var prochesEnCours: Job? = null
 
     /** Texte posé par un choix dans la liste : pas de propositions tant qu'il reste tel quel (le
      *  choix referme la liste, comme `performCompletion` d'AutoCompleteTextView). */
@@ -222,32 +237,59 @@ class EtatChampEspece(
 
     /**
      * Fin de la dictée : la première hypothèse dans le champ, puis toutes essayées dans le périmètre
-     * (recherche étendue et sons, [TaxRefService.rechercherParmiCandidats]). Reconnue, l'espèce va à
-     * [onReconnue]. Sinon la liste déroulante montre les espèces du périmètre qui ressemblent le plus
-     * à ce qui a été entendu : jamais le texte entendu comme s'il était une espèce.
+     * (recherche étendue et sons, [TaxRefService.rechercherParmiCandidats]). L'espèce reconnue n'est
+     * JAMAIS choisie d'office, même seule (demande du 15 novembre 2026 : « ne pas sélectionner l'espèce
+     * même s'il n'y en a qu'une, proposer seulement ») : elle vient en tête de la liste déroulante,
+     * devant les espèces du périmètre qui ressemblent à ce qui a été entendu. C'est la toucher qui la
+     * choisit.
      */
-    fun dicter(hypotheses: List<String>, onReconnue: (TaxRefStatut.Trouve) -> Unit) {
+    fun dicter(hypotheses: List<String>) {
         val entendu = hypotheses.firstOrNull() ?: return
-        // Le texte entendu dans le champ, sans la recherche de la frappe (celle des résultats partiels
-        // est annulée) : son « Nom invalide » pourrait arriver après l'espèce reconnue.
+        prochesEnCours?.cancel()
+        // Le texte entendu dans le champ, sans la recherche de la frappe : un nom dit exactement
+        // serait tenu pour choisi.
         poserTexte(entendu)
-        recherche.annuler()
+        recherche.reset()
         val perimetre = Triple(taxon, nomScientifique, idListe)
         portee.launch {
             val (statut, _) = services.taxRefService.rechercherParmiCandidats(hypotheses, perimetre.first, perimetre.third, perimetre.second)
-            if (statut is TaxRefStatut.Trouve) {
-                onReconnue(statut)
-                return@launch
-            }
             val proches = withContext(calcul) {
                 services.taxRefLocal.candidatsVocaux(hypotheses, perimetre.first, perimetre.second, perimetre.third)
             }
             // Le texte ou le périmètre ont changé entre-temps : ces espèces ne répondent plus à rien.
             if (texte != entendu || perimetre != Triple(taxon, nomScientifique, idListe)) return@launch
-            // Le statut du texte entendu (« Nom invalide »), que la ligne « Entendu » remplace s'il y a
-            // des espèces proches.
-            recherche.rechercher(entendu)
-            if (proches.isNotEmpty()) vocaux = Vocaux(entendu, proches)
+            val reconnue = (statut as? TaxRefStatut.Trouve)?.let { trouve ->
+                // Telle que la liste la propose ici (nom français ou scientifique selon le mode).
+                propositions?.liste?.firstOrNull { it.cdNom == trouve.cdNom }
+                    ?: SuggestionTaxon((if (nomScientifique) null else premierNomFrancais(trouve)) ?: trouve.nomScientifique, trouve.cdNom)
+            }
+            val liste = listOfNotNull(reconnue) + proches.filter { it.cdNom != reconnue?.cdNom }
+            // Rien de reconnu : le statut du texte entendu (« Nom invalide »), que la ligne « Entendu »
+            // remplace s'il y a des espèces proches.
+            if (reconnue == null) recherche.rechercher(entendu)
+            if (liste.isNotEmpty()) vocaux = Vocaux(entendu, liste)
+        }
+    }
+
+    /**
+     * La phrase est en cours de dictée (demande du 15 novembre 2026 : « sera signé » restait seul dans
+     * le champ jusqu'à la fin de la phrase) : le texte entendu dans le champ, comme une frappe, et les
+     * espèces qui lui ressemblent proposées aussitôt, sans attendre le silence. Rien n'est validé, ici
+     * comme à la fin de la phrase ([dicter]) : une espèce n'est choisie que touchée dans la liste.
+     */
+    fun dicterPartiel(entendu: String) {
+        // Pas la recherche de la frappe : un nom dit exactement serait tenu pour choisi.
+        poserTexte(entendu)
+        recherche.reset()
+        prochesEnCours?.cancel()
+        if (entendu.isBlank()) return
+        val perimetre = Triple(taxon, nomScientifique, idListe)
+        prochesEnCours = portee.launch {
+            val proches = withContext(calcul) {
+                services.taxRefLocal.candidatsVocaux(listOf(entendu), perimetre.first, perimetre.second, perimetre.third)
+            }
+            if (texte != entendu || perimetre != Triple(taxon, nomScientifique, idListe)) return@launch
+            if (proches.isNotEmpty()) vocaux = Vocaux(entendu, proches, enCours = true)
         }
     }
 
@@ -256,19 +298,25 @@ class EtatChampEspece(
 
     private fun rafraichirPropositions() {
         propositions = null
+        nomsDictee = emptyList()
         vocaux = null
         val perimetre = Triple(taxon, nomScientifique, idListe)
         portee.launch {
-            val (calculees, listeAbsente) = withContext(calcul) {
+            val (calculees, listeAbsente, noms) = withContext(calcul) {
                 val (liste, normalisees) = services.taxRefLocal.getPropositionsNormalisees(perimetre.first, perimetre.second, perimetre.third)
                 // Liste de taxons configurée mais absente du cache : rien n'est proposé et rien ne
                 // sera accepté — on le dit sous le champ.
-                Propositions(liste, normalisees) to (perimetre.third != null && services.taxRef.listeAbsenteDuCache(perimetre.third!!))
+                Triple(
+                    Propositions(liste, normalisees),
+                    perimetre.third != null && services.taxRef.listeAbsenteDuCache(perimetre.third!!),
+                    nomsModeleDictee(liste),
+                )
             }
             // Un autre périmètre a été choisi entre-temps : ces propositions ne valent plus.
             if (perimetre != Triple(taxon, nomScientifique, idListe)) return@launch
             recherche.signalerPasDeDonnees(listeAbsente)
             propositions = calculees
+            nomsDictee = noms
         }
     }
 }

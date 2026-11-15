@@ -76,6 +76,22 @@ class IndexPhonetiqueTest {
     }
 
     @Test
+    fun un_e_qui_s_entend_en_fin_de_mot_n_est_pas_muet() {
+        // Constat du 15 novembre 2026 : « signé » s'entendait comme « signe ».
+        assertEquals("sine", PhonetiqueFr.cle("signé"))
+        assertEquals("sin", PhonetiqueFr.cle("signe"))
+        assertEquals(PhonetiqueFr.cle("Busard cendré"), PhonetiqueFr.cle("busard cendrés"))
+        assertEquals(PhonetiqueFr.cle("Mésange huppée"), PhonetiqueFr.cle("mésange huppé"))
+        // Devant une consonne finale muette, le « e » s'entend ; devant le « s » du pluriel, non.
+        assertEquals("martine", PhonetiqueFr.cle("martinet"))
+        assertEquals(PhonetiqueFr.cle("mésange"), PhonetiqueFr.cle("mésanges"))
+        // « -ier » s'entend « ié ».
+        assertEquals(PhonetiqueFr.cle("Épervier"), PhonetiqueFr.cle("épervié"))
+        // Ce que la dictée écrit pour « Serin cini » en reste le plus proche.
+        assertEquals("Serin cini", premiers("sera signé").first())
+    }
+
+    @Test
     fun un_nom_dit_a_moitie_amene_les_especes_qui_le_portent() {
         // « Huppe » ne fait que deux sons : il ne ressemble qu'à lui-même, mais le dire suffit.
         val huppe = premiers("huppe")

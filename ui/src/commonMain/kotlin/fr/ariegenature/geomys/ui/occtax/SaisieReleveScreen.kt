@@ -133,10 +133,13 @@ fun SaisieReleveScreen(
     // À chaque affichage (onViewCreated) : le relevé est enregistré.
     LaunchedEffect(Unit) { vm.afficher() }
     val dictee = rememberDictee(
-        onPartiel = vm::saisir,
+        onPartiel = vm::dicterPartiel,
         onFinal = vm::dicter,
         onErreur = { message, longue -> toasts.afficher(message, longue) },
     )
+    // Les espèces proposables changent avec le groupe et la liste : la dictée d'iOS en refait son modèle.
+    val nomsDictee = vm.champ.nomsDictee
+    LaunchedEffect(dictee, nomsDictee) { dictee.preparer(nomsDictee) }
     val especes by vm.releve.especes.collectAsState()
     val ligne by vm.recherche.ligne.collectAsState()
     val profils by vm.profils.collectAsState()

@@ -51,6 +51,9 @@ object PhonetiqueFr {
     fun son(mot: String): String {
         if (mot.isEmpty()) return ""
         val sortie = StringBuilder(mot.length)
+        // Le dernier « e » écrit s'entend (accentué, ou devant une consonne finale muette autre que
+        // la marque du pluriel) : il n'est pas un « e » muet de fin de mot.
+        var eFinalSonore = false
         var i = 0
         while (i < mot.length) {
             val c = mot[i]
@@ -58,7 +61,18 @@ object PhonetiqueFr {
             val suivant2 = mot.getOrNull(i + 2)
             // Consonne finale muette : « bruant » s'entend « bruan », « vélos » « vélo ». C'est ce qui
             // réunit ce que la dictée écrit autrement (« bruand », « vélauce »…).
-            if (i == mot.lastIndex && c in FINALES_MUETTES) break
+            if (i == mot.lastIndex && c in FINALES_MUETTES) {
+                // « Martinet », « pied », « nez » : le « e » s'entend. « Mésanges » : il reste muet.
+                if (c in "tdz" && i > 0 && mot[i - 1] == 'e') eFinalSonore = true
+                break
+            }
+            // « -ier » en fin de mot s'entend « ié » : « Épervier », « Pluvier », « Verdier ».
+            if (c == 'e' && suivant == 'r' && i + 1 == mot.lastIndex && i > 1 && mot[i - 1] == 'i') {
+                sortie.append('e')
+                eFinalSonore = true
+                break
+            }
+            eFinalSonore = c == E_ACCENTUE
             when (c) {
                 'a' -> when (suivant) {
                     'u' -> { sortie.append('o'); i += 2 }
@@ -76,6 +90,7 @@ object PhonetiqueFr {
                     suivant == 'e' && suivant2 == 'u' -> { sortie.append('e'); i += 3 }
                     else -> { sortie.append('o'); i += 1 }
                 }
+                E_ACCENTUE -> { sortie.append('e'); i += 1 }
                 'y' -> { sortie.append('i'); i += 1 }
                 // « ch » note un son à lui seul (ici « x ») ; « ce/ci/cy » siffle, le reste claque.
                 'c' -> when {
@@ -104,13 +119,16 @@ object PhonetiqueFr {
                 else -> { sortie.append(c); i += 1 }
             }
         }
-        // « e » final muet : « pêche » s'entend « pèch ».
-        if (sortie.length > 1 && sortie.last() == 'e') sortie.setLength(sortie.length - 1)
+        // « e » final muet : « pêche » s'entend « pèch ». Un « e » accentué, lui, s'entend : « huppé »,
+        // « cendré », « signé » (constat du 15 novembre 2026 : « sera signé » pour « Serin cini »).
+        if (sortie.length > 1 && sortie.last() == 'e' && !eFinalSonore) sortie.setLength(sortie.length - 1)
         return sansDoublons(sortie)
     }
 
-    private const val VOYELLES = "aeiouy"
-    private const val VOYELLES_DOUCES = "eiy"
+    /** Un « e » accentué, marqué avant que la normalisation n'efface son accent : il s'entend toujours. */
+    private const val E_ACCENTUE = 'ə'
+    private const val VOYELLES = "aeiouyə"
+    private const val VOYELLES_DOUCES = "eiyə"
 
     /** Consonnes muettes en fin de mot français ; « r », « f », « l » et « c », eux, s'entendent
      *  (« Pic », « Martinet noir »). */
@@ -122,6 +140,7 @@ object PhonetiqueFr {
             .replace("œ", "oe").replace("Œ", "oe")
             .replace("æ", "ae").replace("Æ", "ae")
             .replace('ç', 's').replace('Ç', 's')
+            .replace(Regex("[éèêëÉÈÊË]"), E_ACCENTUE.toString())
         return TaxRefCache.normaliser(brut).split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() }
     }
 

@@ -181,6 +181,9 @@ class SaisieMonoViewModel(
 
     fun saisir(texte: String) = champ.saisir(texte)
 
+    /** La phrase en cours de dictée : dans le champ, avec les espèces qui lui ressemblent. */
+    fun dicterPartiel(entendu: String) = champ.dicterPartiel(entendu)
+
     /** Une proposition CHOISIE est prise telle quelle, avec son cd_nom : re-chercher son texte
      *  pouvait désigner un autre taxon du même groupe et de la même liste portant ce nom. */
     fun choisirSuggestion(suggestion: SuggestionTaxon) {
@@ -190,19 +193,9 @@ class SaisieMonoViewModel(
         champ.recherche.poser(TaxRefStatut.Trouve(suggestion.cdNom, sci, if (champ.nomScientifique) null else suggestion.nom), suggestion.nom)
     }
 
-    /** Fin de la dictée : la première hypothèse dans le champ, puis toutes essayées contre TaxRef ;
-     *  reconnue, l'espèce est posée comme si elle avait été choisie dans la liste (son nom dans le
-     *  champ, son taxon sous lui), sinon la liste montre les espèces qui ressemblent à ce qui a été
-     *  entendu ([EtatChampEspece.dicter]). Rien n'est enregistré ici : la saisie démarre au bouton. */
-    fun dicter(candidats: List<String>) {
-        champ.dicter(candidats) { statut ->
-            // Le nom tel que la liste l'aurait proposé : le nom scientifique en mode « noms
-            // scientifiques », sinon le premier nom français.
-            val nom = if (champ.nomScientifique) statut.nomScientifique else premierNomFrancais(statut) ?: statut.nomScientifique
-            champ.poserChoix(nom)
-            champ.recherche.poser(statut, nom)
-        }
-    }
+    /** Fin de la dictée : ce qui a été entendu dans le champ, et les espèces reconnues ou proches dans
+     *  la liste. Aucune n'est posée sans être touchée ([EtatChampEspece.dicter]). */
+    fun dicter(candidats: List<String>) = champ.dicter(candidats)
 
     fun vocabulaire(): List<String> = champ.vocabulaire()
 

@@ -149,21 +149,18 @@ class SaisieReleveViewModel(
 
     fun saisir(nouveau: String) = champ.saisir(nouveau)
 
+    /** La phrase en cours de dictée : dans le champ, avec les espèces qui lui ressemblent. */
+    fun dicterPartiel(entendu: String) = champ.dicterPartiel(entendu)
+
     /** Une proposition CHOISIE est ajoutée avec son cd_nom, jamais re-résolue depuis son texte : le
      *  cache ne garde qu'un taxon par nom, la re-résolution pouvait enregistrer un autre taxon. */
     fun choisirSuggestion(suggestion: SuggestionTaxon) {
         ajouter(suggestion.nom, suggestion.cdNom)
     }
 
-    /** Fin de la dictée : la première hypothèse dans le champ, puis TOUTES essayées contre TaxRef
-     *  (recherche étendue) ; reconnue, l'espèce est ajoutée, sinon la liste montre les espèces qui
-     *  ressemblent à ce qui a été entendu ([EtatChampEspece.dicter]). */
-    fun dicter(candidats: List<String>) {
-        champ.dicter(candidats) { statut ->
-            // Le premier nom français du taxon, sinon son nom scientifique.
-            ajouter(premierNomFrancais(statut) ?: statut.nomScientifique, statut.cdNom)
-        }
-    }
+    /** Fin de la dictée : ce qui a été entendu dans le champ, et les espèces reconnues ou proches dans
+     *  la liste. Aucune n'est ajoutée sans être touchée ([EtatChampEspece.dicter]). */
+    fun dicter(candidats: List<String>) = champ.dicter(candidats)
 
     /** Ajoute l'espèce, même si le taxon est déjà dans le relevé : sans la confirmation du web
      *  (demande du 21 octobre 2026). */

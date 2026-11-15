@@ -34,6 +34,10 @@ interface Dictee {
      *  soufflés à la reconnaissance d'iOS. */
     fun basculer(vocabulaire: List<String>)
 
+    /** Les espèces proposables ici viennent d'être calculées ([noms], vide : trop nombreuses) : iOS en
+     *  prépare son modèle de langue, en tâche de fond, pour les dictées qui suivront. */
+    fun preparer(noms: List<String>) {}
+
     /** Arrête l'écoute : une espèce vient d'être choisie à la main. */
     fun arreter()
 

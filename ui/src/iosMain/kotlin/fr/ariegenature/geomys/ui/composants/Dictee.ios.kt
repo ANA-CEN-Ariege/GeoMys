@@ -87,7 +87,7 @@ actual fun rememberDictee(
 private const val MAX_HYPOTHESES = 5
 
 /** Attente du résultat final après la fermeture du micro (ms) ; au-delà, la transcription en tient lieu. */
-private const val DELAI_RESULTAT_FINAL = 2000L
+private const val DELAI_RESULTAT_FINAL = 1000L
 
 /** [action] sur la file principale, dans [delai] ms. */
 private fun apres(delai: Long, action: () -> Unit) {
@@ -124,6 +124,17 @@ private class DicteeIos(
 
     /** Les noms soufflés à l'écoute en cours, pour la relancer à l'identique. */
     private var vocabulaire: List<String> = emptyList()
+
+    /** Les espèces proposables ici : leur modèle de langue sert dès qu'il est prêt. */
+    private var noms: List<String> = emptyList()
+
+    /** L'écoute en cours s'appuie sur ce modèle de langue (null : aucun). */
+    private var modeleEnCours: List<String>? = null
+
+    override fun preparer(noms: List<String>) {
+        this.noms = noms
+        ModeleLangueDictee.preparer(noms)
+    }
 
     /** Réseau disponible, suivi en continu : il décide du modèle vocal. */
     private var reseau = true
@@ -200,8 +211,14 @@ private class DicteeIos(
         // Modèle RÉSEAU dès qu'il y a du réseau, plus précis sur les noms d'espèces ; hors
         // couverture, celui de l'appareil.
         val embarque = reconnaissance.supportsOnDeviceRecognition
-        val surLAppareil = embarque && (forcerSurLAppareil ?: !reseau)
+        // Le modèle de langue fait des noms d'espèces (iOS 17) : la reconnaissance attend « Serin cini »
+        // et non « sera signé ». Il ne vaut que pour la reconnaissance de l'appareil, qui est alors
+        // préférée au réseau.
+        val modele = if (embarque) ModeleLangueDictee.pret(noms) else null
+        modeleEnCours = if (modele != null) noms else null
+        val surLAppareil = embarque && (modele != null || (forcerSurLAppareil ?: !reseau))
         req.requiresOnDeviceRecognition = surLAppareil
+        if (modele != null) req.customizedLanguageModel = modele
         requete = req
 
         val noeud = moteur.inputNode
@@ -248,6 +265,15 @@ private class DicteeIos(
                 ) {
                     arreter()
                     demarrer(vocabulaire, forcerSurLAppareil = true)
+                    return@dispatch_async
+                }
+                // Le modèle de langue a fait échouer l'écoute sans rien transcrire (fichiers purgés par
+                // iOS, modèle refusé) : il est écarté, et l'écoute reprend sans lui.
+                val refuse = modeleEnCours
+                if (erreur != null && refuse != null && transcription.isEmpty() && !cloture && !estSilence(erreur)) {
+                    ModeleLangueDictee.ecarter(refuse)
+                    arreter()
+                    demarrer(vocabulaire, forcerSurLAppareil = forcerSurLAppareil)
                     return@dispatch_async
                 }
                 if (erreur != null && transcription.isEmpty()) onErreur(message(erreur))
@@ -311,8 +337,11 @@ private class DicteeIos(
     }
 
     /** Message affichable. 203 « no speech » / 1110 « no match » : rien d'exploitable n'a été dit. */
+    private fun estSilence(erreur: NSError): Boolean =
+        erreur.domain == "kAFAssistantErrorDomain" && (erreur.code == 203L || erreur.code == 1110L)
+
     private fun message(erreur: NSError): String = when {
-        erreur.domain == "kAFAssistantErrorDomain" && (erreur.code == 203L || erreur.code == 1110L) -> "Aucune voix détectée — réessayez."
+        estSilence(erreur) -> "Aucune voix détectée — réessayez."
         erreur.domain == NSURLErrorDomain -> "Dictée : erreur réseau — connexion requise pour ce modèle vocal."
         else -> "Dictée interrompue : ${erreur.localizedDescription}"
     }
