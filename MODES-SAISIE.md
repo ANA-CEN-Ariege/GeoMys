@@ -1,6 +1,6 @@
 # Mode pro et mode simplifié : les différences
 
-État au 15 novembre 2026 (après la version 2.2.0-beta3, build 207).
+État au 15 novembre 2026 (version 2.2.0-beta4, build 208).
 
 **À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51.
 
