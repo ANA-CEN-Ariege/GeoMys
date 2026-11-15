@@ -363,7 +363,7 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
 
     /** « Tester la connexion ». Une saisie qui n'est pas une adresse est refusée sans rien enregistrer ;
      *  un autre serveur que celui enregistré demande d'abord confirmation, puisque l'enregistrer efface
-     *  les données de l'ancien (audit du 14 novembre 2026, M46 et M49). */
+     *  les données de l'ancien (audit du 14 novembre 2026, M46 et M49) — s'il en a laissé. */
     fun testerConnexion() {
         val adresse = normaliserAdresseServeur(url)
         if (adresse == null) {
@@ -373,8 +373,13 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
         val ancienne = normaliserAdresseServeur(config.urlServeur)
         if (ancienne != null && ancienne != adresse) {
             viewModelScope.launch {
-                val attente = services.envoisEnAttente()
-                changementServeur = ChangementServeur(ancienne, adresse, attente.saisies + attente.visites + attente.stations)
+                val attente = services.envoisEnAttente().let { it.saisies + it.visites + it.stations }
+                // Rien de chargé depuis l'ancienne adresse (première configuration, adresse corrigée
+                // après un test raté) et rien à envoyer : il n'y a rien à perdre, donc rien à
+                // confirmer (demande du 15 novembre 2026).
+                val charge = config.datasetsCacheJson.isNotEmpty() || config.listesCacheJson.isNotEmpty() ||
+                    config.observateursCacheJson.isNotEmpty() || withContext(Dispatchers.Default) { taxRef.aDesDonnees }
+                if (charge || attente > 0) changementServeur = ChangementServeur(ancienne, adresse, attente) else lancerTest()
             }
             return
         }

@@ -786,3 +786,7 @@ Demandes de l'utilisateur après essai sur les téléphones.
 
 Demande de l'utilisateur : améliorer ce bouton. Seul geste de l'accueil en mode simplifié, il est plus haut que les boutons du mode pro, avec un « + » et un libellé de 18 points (`BoutonDemarrerAndroid`, `BoutonDemarrerIos`). Estompé tant que la configuration n'est pas complète, il le dit dessous (`AIDE_CONFIGURATION`), et cette ligne ouvre les Paramètres. Le mode pro ne change pas.
 
+
+## 49. Changer de serveur sans rien à perdre : pas d'avertissement (15 novembre)
+
+Demande de l'utilisateur : l'alerte « Changer de serveur ? » ne doit pas paraître quand il n'y avait pas de serveur avant. Sans adresse enregistrée elle ne paraissait déjà pas ; elle paraissait encore après une première adresse seulement testée (test raté, adresse corrigée). `ParametresViewModel.testerConnexion` ne la pose plus que si l'ancienne adresse a laissé quelque chose : des données chargées (jeux de données, listes, observateurs, taxons) ou des saisies à envoyer. Sinon le test part directement. `ChangementServeurTest` : les deux cas.

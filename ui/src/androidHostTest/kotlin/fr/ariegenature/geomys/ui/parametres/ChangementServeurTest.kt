@@ -31,6 +31,7 @@ import fr.ariegenature.geomys.model.Sortie
 import fr.ariegenature.geomys.store.GeoNatureConfig
 import fr.ariegenature.geomys.store.TaxRefCache
 import fr.ariegenature.geomys.store.TaxRefEntry
+import fr.ariegenature.geomys.store.reinitialiserSelectionsOcctax
 import fr.ariegenature.geomys.ui.ServicesEssai
 import fr.ariegenature.geomys.ui.laisserFinirLeTravailDeFond
 import kotlinx.coroutines.Dispatchers
@@ -184,5 +185,31 @@ class ChangementServeurTest {
         assertEquals("https://exemple.test", config.urlServeur)
         assertEquals("5", config.idDataset)
         assertTrue(essai.services.taxRef.count > 0)
+    }
+
+    @Test
+    fun changer_d_adresse_sans_rien_de_charge_ne_demande_rien() {
+        val vm = vm()
+        // Une adresse enregistrée par un premier test, sans qu'aucune donnée n'ait été chargée.
+        config.reinitialiserSelectionsOcctax()
+        essai.services.taxRef.vider()
+        vm.changerUrl("https://autre.test")
+        vm.changerMotDePasse("p2")
+        vm.testerConnexion()
+        attendre { config.urlServeur == "https://autre.test" }
+        assertNull(vm.changementServeur)
+        assertEquals("p2", config.motDePasse)
+    }
+
+    @Test
+    fun sans_rien_de_charge_une_saisie_en_attente_demande_encore_confirmation() {
+        val vm = vm()
+        config.reinitialiserSelectionsOcctax()
+        essai.services.taxRef.vider()
+        runBlocking { essai.services.sortieStore.ajouter(Sortie(observations = listOf(Observation(espece = "Machaon", latitude = 42.9, longitude = 1.6)))) }
+        vm.changerUrl("https://autre.test")
+        vm.testerConnexion()
+        attendre { vm.changementServeur != null }
+        assertEquals("https://exemple.test", config.urlServeur)
     }
 }
