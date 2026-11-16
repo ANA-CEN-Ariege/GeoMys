@@ -141,7 +141,10 @@ class GeoNatureBrowse(
                 else -> null
             }
         }
-        return if (id > 0 && nom.isNotEmpty()) GeoNatureDataset(id, nom, idTaxaList, actif, modules) else null
+        val acteurs = (objet["cor_dataset_actor"] as? JsonArray).orEmpty()
+            .mapNotNull { acteur -> (acteur as? JsonObject)?.get("id_role").intOuNull()?.takeIf { it > 0 } }
+            .distinct()
+        return if (id > 0 && nom.isNotEmpty()) GeoNatureDataset(id, nom, idTaxaList, actif, modules, acteurs) else null
     }
 
     /** Télécharge la liste COMPLÈTE des habitats HABREF (sans `search_name` → tout le référentiel,

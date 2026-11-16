@@ -42,6 +42,34 @@ class ReglesSelectionOcctaxTest {
     }
 
     @Test
+    fun la_saisie_simplifiee_ne_propose_que_la_liste_de_saisie_d_occtax() {
+        val saisie = GeoNatureListe(100, "Saisie Occtax")
+        val oiseaux = GeoNatureListe(200, "Oiseaux")
+        val toutes = ListesProposees(listOf(oiseaux, saisie), imposee = false)
+        assertEquals(ListesProposees(listOf(saisie), imposee = false), ReglesSelectionOcctax.listesSimplifiees(toutes, idListeOcctax = 100))
+        // La liste de la configuration d'OccTax passe avant le nom.
+        assertEquals(ListesProposees(listOf(oiseaux), imposee = false), ReglesSelectionOcctax.listesSimplifiees(toutes, idListeOcctax = 200))
+        // Configuration muette : la liste se reconnaît à son nom.
+        val autreCasse = ListesProposees(listOf(oiseaux, GeoNatureListe(7, "Saisie OccTax")), imposee = false)
+        assertEquals(listOf(7), ReglesSelectionOcctax.listesSimplifiees(autreCasse, idListeOcctax = -1).listes.map { it.id })
+        // Introuvable : tout reste proposé. Imposée par le jeu de données : inchangée.
+        val sans = ListesProposees(listOf(oiseaux, GeoNatureListe(300, "Flore")), imposee = false)
+        assertEquals(sans, ReglesSelectionOcctax.listesSimplifiees(sans, idListeOcctax = 100))
+        val imposee = ListesProposees(listOf(oiseaux), imposee = true)
+        assertEquals(imposee, ReglesSelectionOcctax.listesSimplifiees(imposee, idListeOcctax = 100))
+    }
+
+    @Test
+    fun la_saisie_simplifiee_ne_propose_que_les_jeux_personnels_s_il_y_en_a() {
+        val personnel = GeoNatureDataset(7, "Jeu de données personnel de MARTIN Paul", moduleCodes = listOf("OCCTAX"), acteurs = listOf(8))
+        val autrui = GeoNatureDataset(9, "Jeu de données personnel de DURAND Anne", moduleCodes = listOf("OCCTAX"), acteurs = listOf(12))
+        assertEquals(listOf(personnel), ReglesSelectionOcctax.datasetsPersonnels(listOf(occtax, personnel, autrui), idRoleUtilisateur = 8))
+        // Aucun jeu personnel (compte créé par un administrateur, cache d'avant la règle) : tout reste.
+        assertEquals(listOf(occtax, autrui), ReglesSelectionOcctax.datasetsPersonnels(listOf(occtax, autrui), idRoleUtilisateur = 8))
+        assertEquals(listOf(occtax, personnel), ReglesSelectionOcctax.datasetsPersonnels(listOf(occtax, personnel), idRoleUtilisateur = 0), "utilisateur inconnu")
+    }
+
+    @Test
     fun libelles_nom_et_id() {
         assertEquals("Occtax (1)", ReglesSelectionOcctax.libelle(occtax))
     }

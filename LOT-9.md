@@ -843,3 +843,31 @@ Constat de l'utilisateur sur l'iPhone, en saisie multi-taxons : « Serin cini »
 - **Sons (`PhonetiqueFr`).** Un « e » accentué en fin de mot s'entend (« signé », « huppé », « cendré » ne sont plus « signe », « huppe », « cendre ») ; un « e » devant un « t », « d » ou « z » final muet s'entend (« Martinet », « pied », « nez »), pas devant le « s » du pluriel ; « -ier » final s'entend « ié » (« Épervier »). `IndexPhonetique.ecart` : un mot de deux sons reste proche du même mot suivi d'un son, pour que « huppe » amène encore le « Vanneau huppé ». Test : `IndexPhonetiqueTest.un_e_qui_s_entend_en_fin_de_mot_n_est_pas_muet`.
 - **Modèle de langue d'iOS** (iOS 17, la cible minimale de l'appli). Les `contextualStrings` sont limitées par Apple à cent expressions ; un modèle de langue sur mesure (`SFSpeechLanguageModel`) porte tous les noms. `nomsModeleDictee` : tous les noms proposables du périmètre (groupe, liste, mode), aucun au-delà de 5 000 (`MAX_NOMS_MODELE_DICTEE`). `ModeleLangueDictee` (iosMain) prépare le modèle en tâche de fond à l'ouverture de la saisie et à chaque changement de périmètre (`Dictee.preparer`), dans `Caches/modeles-dictee`, un par ensemble de noms. Les données d'entraînement (`SFCustomLanguageModelData`) n'existent qu'en Swift : `ExportModeleLangueIos` dans `iOSApp.swift`, posé dans `ModeleLangueDictee.exportateur`. Modèle prêt : l'écoute passe par la reconnaissance de l'appareil (seule à l'accepter), même en couverture. Écoute en échec avec le modèle : il est écarté jusqu'au prochain lancement et l'écoute reprend sans lui. Test : `VocabulaireDicteeTest.le_modele_de_langue_prend_tous_les_noms_ou_aucun`.
 - **Non vérifié.** L'effet du modèle de langue sur la reconnaissance ne se mesure que sur l'iPhone : à comparer par l'utilisateur. La première dictée après l'ouverture d'une liste jamais vue peut se faire sans modèle, le temps de sa préparation.
+
+## 55. Saisie simplifiée : seuls les jeux de données personnels de l'utilisateur (16 novembre)
+
+Demande : « dans le mode simplifié, restreindre les jeux de données au jeu de données personnel de l'utilisateur connecté ». GeoNature ne marque pas un jeu comme personnel : il en crée un à l'inscription d'un compte (`create_dataset_user`, si le serveur l'a prévu), dont l'utilisateur est acteur en personne (contact principal et producteur). C'est ce critère qui est retenu, pas le nom du jeu, qu'un administrateur peut changer.
+
+- **Chargement.** `GeoNatureDataset.acteurs` : les `id_role` de `cor_dataset_actor`, que `meta/datasets` renvoie toujours ; les acteurs qui sont des organismes ne comptent pas. Un cache d'avant cette règle n'a pas d'acteurs : rien n'est restreint jusqu'au prochain chargement, et aucun rechargement n'est imposé.
+- **Règle.** `ReglesSelectionOcctax.datasetsPersonnels` : parmi les jeux proposés (actifs, OCCTAX, créables), ceux dont l'utilisateur connecté est acteur ; s'il n'y en a aucun, tous, pour ne pas bloquer la saisie.
+- **Où.** Détails du relevé et détails communs (`DetailsReleveFormulaire.datasets(config, simplifie)`) et jeu de données par défaut des Paramètres. Un jeu déjà porté par un relevé est gardé.
+- **Paramètres.** Le menu change avec le mode, aussitôt. Le jeu déjà choisi se juge sur tout ce que le serveur propose : changer de mode ne l'efface pas. Un jeu personnel unique est choisi d'office si rien ne l'est, écart voulu avec la règle « rien n'est choisi d'office » du mode pro.
+- **Mode pro.** Inchangé.
+- Tests : `GeoNatureBrowseTest.datasets_les_acteurs_en_personne_sont_retenus_pas_les_organismes`, `ReglesSelectionOcctaxTest.la_saisie_simplifiee_ne_propose_que_les_jeux_personnels_s_il_y_en_a`, `DetailsReleveFormulaireTest.en_saisie_simplifiee_le_releve_ne_propose_que_les_jeux_personnels`, `JeuxPersonnelsTest`.
+
+## 56. Saisie simplifiée : la seule liste de taxons est celle de la saisie d'OccTax (16 novembre)
+
+Demande : « en mode simplifié, limiter les listes possibles à "Saisie OccTax" ».
+
+- **Règle.** `ReglesSelectionOcctax.listesSimplifiees` : la liste de la configuration d'OccTax du serveur (`OCCTAX.id_taxon_list`, « Saisie Occtax » dans les données de départ de GeoNature), sinon la liste qui porte ce nom (`NOM_LISTE_SAISIE_OCCTAX`, sans tenir compte de la casse) ; introuvable, toutes les listes restent proposées. Une liste imposée par le jeu de données l'emporte, comme en mode pro.
+- **Paramètres.** Le menu change avec le mode, aussitôt. La liste déjà choisie se juge sur toutes les listes : changer de mode ne l'efface pas. Seule au menu et rien de choisi : elle est choisie d'office, sans téléchargement lancé (la synchro charge toujours la liste de la configuration d'OccTax).
+- **Mode pro.** Inchangé.
+- Tests : `ReglesSelectionOcctaxTest.la_saisie_simplifiee_ne_propose_que_la_liste_de_saisie_d_occtax`, `JeuxPersonnelsTest.le_mode_simplifie_ne_propose_que_la_liste_de_saisie_d_occtax_et_la_choisit`, `une_liste_deja_choisie_n_est_pas_effacee_par_le_changement_de_mode`.
+
+## 57. Saisie simplifiée : Paramètres sans compteurs ni « Détails » (16 novembre)
+
+Demande : « en mode simplifié, dans les paramètres ne pas afficher les compteurs : Taxons, Nomenclatures, ... Et le bouton Détails ». `ParametresScreen` : en saisie simplifiée, les lignes du résumé du cache et le bouton « Détails » (taxons par listes) ne sont pas montrés, sur Android comme sur iOS. Restent la version du référentiel et « Vider le cache ». Mode pro inchangé.
+
+## 58. Saisie simplifiée : seul l'utilisateur connecté comme observateur par défaut (16 novembre)
+
+Demande : « en mode simplifié, dans les paramètres ne mettre que l'utilisateur connecté comme observateur par défaut possible ». `ReglesSelectionOcctax.observateursSimplifies` : le menu « Observateur par défaut » des Paramètres ne propose que l'utilisateur connecté ; s'il est inconnu, tous restent proposés. Un autre observateur déjà choisi se juge sur tous ceux du serveur et reste en place : changer de mode ne l'efface pas. Mode pro inchangé. Tests : `JeuxPersonnelsTest.le_mode_simplifie_ne_propose_que_l_utilisateur_connecte_comme_observateur`, `un_observateur_deja_choisi_n_est_pas_efface_par_le_changement_de_mode`.

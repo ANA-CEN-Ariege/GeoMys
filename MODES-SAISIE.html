@@ -99,7 +99,7 @@ footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--t
 <header>
   <h1>GeoMys : mode pro et mode simplifié</h1>
   <p>GeoMys propose deux façons de saisir. Le mode pro donne tout ce que GeoNature permet. Le mode simplifié ne garde que l'essentiel pour noter une espèce sur le terrain.</p>
-  <p class="etat">État au 15 novembre 2026, version 2.2.0-beta4.</p>
+  <p class="etat">État au 16 novembre 2026, version 2.2.0-beta5.</p>
   <nav aria-label="Rubriques">
     <a href="#choix">Choisir le mode</a>
     <a href="#accueil">Accueil</a>
@@ -169,9 +169,11 @@ footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--t
     <tbody>
       <tr><th>Observateurs</th><td>Une liste pour en ajouter, une croix pour en retirer</td><td>Affichés sans pouvoir en ajouter ni en retirer : c'est l'observateur par défaut des Paramètres</td></tr>
       <tr><th>Habitat</th><td>Recherche d'un habitat, si le serveur montre le champ</td><td class="non">Absent. Un habitat déjà porté par le relevé est conservé.</td></tr>
-      <tr><th>Jeu de données, dates, heures, commentaire…</th><td>Oui</td><td>Oui, identiques</td></tr>
+      <tr><th>Jeu de données</th><td>Tous ceux où vous pouvez saisir</td><td>Seulement vos jeux de données personnels, si vous en avez ; sinon tous</td></tr>
+      <tr><th>Dates, heures, commentaire…</th><td>Oui</td><td>Oui, identiques</td></tr>
     </tbody>
   </table></div>
+  <p class="note">Un jeu de données personnel est celui que GeoNature crée à l'inscription d'un compte, si le serveur l'a prévu. Sans jeu personnel, tous les jeux restent proposés. Après la mise à jour de l'appli, il faut recharger les données une fois pour que la règle s'applique.</p>
   <p class="note">Deux cas gardent le champ des observateurs du mode pro, pour que le relevé reste validable : un relevé sans aucun observateur, et un serveur qui demande les observateurs en texte libre.</p>
 </section>
 
@@ -249,11 +251,11 @@ footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--t
       <tr><th>Suivis (protocoles, droits, listes de taxons des protocoles)</th><td>Chargés</td><td class="non">Non chargés</td></tr>
       <tr><th>OccHab (jeux de données, habitats, stations)</th><td>Chargé</td><td class="non">Non chargé</td></tr>
       <tr><th>Référentiel des espèces</th><td>Listes d'OccTax et des protocoles</td><td>Listes d'OccTax seulement</td></tr>
-      <tr><th>Résumé du chargement</th><td>Compte aussi les protocoles et les stations OccHab</td><td>Ne les compte pas</td></tr>
+      <tr><th>Résumé du chargement</th><td>Compteurs (taxons, nomenclatures, listes, observateurs…) et bouton « Détails »</td><td class="non">Ni compteurs ni « Détails ». Restent la version du référentiel et « Vider le cache ».</td></tr>
     </tbody>
   </table></div>
   <p>Sont chargés dans les deux modes : jeux de données, listes d'espèces, observateurs, champs additionnels et configuration d'OccTax, habitats d'OccTax, nomenclatures, détection des modules du serveur.</p>
-  <p>Le reste des Paramètres (connexion, liste des serveurs, sélections par défaut) est identique.</p>
+  <p>Dans les Paramètres, le jeu de données par défaut suit la même règle qu'au relevé : en mode simplifié, seuls vos jeux personnels sont proposés, et un jeu personnel unique est choisi d'office si aucun ne l'est. La liste d'espèces par défaut est, en mode simplifié, la seule liste de la saisie d'OccTax (« Saisie Occtax »), choisie d'office si aucune ne l'est ; si le serveur ne l'a pas, toutes les listes restent proposées. L'observateur par défaut ne peut être, en mode simplifié, que vous-même (l'utilisateur connecté). Le reste (connexion, liste des serveurs) est identique.</p>
 </section>
 
 <section id="passage">
@@ -261,6 +263,7 @@ footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--t
   <ul class="liste">
     <li><strong>De pro vers simplifié.</strong> Rien n'est effacé. Les données des Suivis et d'OccHab restent sur le téléphone, et les visites ou stations en attente d'envoi restent accessibles par le menu.</li>
     <li><strong>De simplifié vers pro.</strong> Si les données ont été chargées en mode simplifié, Monitoring et OccHab restent masqués à l'accueil. Les Paramètres invitent alors à recharger les données ; la saisie multi-taxons reste utilisable d'ici là. Un rechargement en mode pro les fait revenir.</li>
+    <li><strong>Jeu de données, liste d'espèces et observateur par défaut.</strong> Ceux qui sont choisis le restent d'un mode à l'autre : seuls les menus changent.</li>
     <li><strong>Saisie faite dans un mode, rouverte dans l'autre.</strong> Elle s'ouvre sans perte : le mode simplifié ne modifie que les champs qu'il montre.</li>
   </ul>
 </section>

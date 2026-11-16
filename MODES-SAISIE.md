@@ -1,8 +1,8 @@
 # Mode pro et mode simplifié : les différences
 
-État au 15 novembre 2026 (version 2.2.0-beta4, build 208).
+État au 16 novembre 2026 (version 2.2.0-beta5, build 209).
 
-**À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51.
+**À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51 et 55 à 58.
 
 ## En bref
 
@@ -44,7 +44,10 @@ Ce sont les détails d'un relevé (bouton « Détails ») et les détails commun
 |---|---|---|
 | Observateurs | Liste pour en ajouter, croix pour en retirer | Montrés sans pouvoir en ajouter ni en retirer : l'observateur par défaut des Paramètres |
 | Habitat | Recherche d'un habitat, si le serveur montre le champ | Absent ; un habitat déjà porté par le relevé est gardé |
-| Autres champs (jeu de données, dates, heures, commentaire, etc.) | Oui | Oui, identiques |
+| Jeu de données | Tous ceux où l'utilisateur peut saisir | Seulement ses jeux de données personnels, s'il en a ; sinon tous |
+| Autres champs (dates, heures, commentaire, etc.) | Oui | Oui, identiques |
+
+Un jeu de données personnel est un jeu dont l'utilisateur connecté est acteur en personne (`cor_dataset_actor.id_role`) : GeoNature en crée un à l'inscription d'un compte, si le serveur l'a prévu. Un compte sans jeu personnel garde la liste complète, pour ne pas bloquer la saisie. Les acteurs sont lus au chargement des données : un téléphone chargé avant cette règle garde la liste complète jusqu'au prochain rechargement. Un jeu déjà porté par un relevé est gardé.
 
 Deux cas gardent le champ des observateurs du mode pro, pour que le relevé reste validable : un relevé sans aucun observateur, et un serveur qui demande les observateurs en texte libre.
 
@@ -101,16 +104,23 @@ La fiche n'a rien à valider : chaque volet validé et chaque média sont écrit
 | Suivis (modules, schémas, objets, droits, listes de taxons des protocoles) | Chargés | Non chargés |
 | OccHab (jeux, habitats, configuration, défauts, stations) | Chargé | Non chargé |
 | TaxRef | Listes d'OccTax et des protocoles | Listes d'OccTax seulement |
-| Résumé du chargement | Compte aussi les protocoles et les stations OccHab | Ne les compte pas |
+| Résumé du chargement | Compteurs (taxons, protocoles, nomenclatures, listes, observateurs, stations OccHab) et bouton « Détails » | Ni compteurs ni « Détails » ; restent la version du référentiel et « Vider le cache » |
 
 Chargés dans les deux modes : jeux de données, listes, observateurs, champs additionnels et configuration d'OccTax, habitats d'OccTax, nomenclatures, détection des modules.
 
-Le reste des Paramètres (connexion, liste des serveurs, sélections par défaut) est identique.
+| Jeu de données par défaut | Tous ceux où l'utilisateur peut saisir, aucun choisi d'office | Seulement ses jeux personnels, s'il en a ; un jeu personnel unique est choisi d'office si rien ne l'est |
+| Liste de taxons par défaut | Toutes les listes du serveur, aucune choisie d'office | Seulement la liste de la saisie d'OccTax (« Saisie Occtax »), choisie d'office si rien ne l'est ; introuvable, toutes |
+| Observateur par défaut | Tous les observateurs du serveur | Seulement l'utilisateur connecté |
+
+La liste de la saisie d'OccTax est celle de la configuration du module sur le serveur (`OCCTAX.id_taxon_list`), sinon la liste nommée « Saisie Occtax ». Dans les deux modes, un jeu de données qui impose sa liste l'emporte.
+
+Le reste des Paramètres (connexion, liste des serveurs) est identique.
 
 ## Passer d'un mode à l'autre
 
 - **Pro vers simplifié.** Rien n'est effacé : les caches des Suivis et d'OccHab restent sur le téléphone, et les visites ou stations en attente restent accessibles par le menu.
 - **Simplifié vers pro.** Si les données ont été chargées en mode simplifié, Monitoring et OccHab restent masqués à l'accueil, et le bandeau des Paramètres invite à recharger : « Données chargées pour la saisie simplifiée : rechargez-les pour retrouver Monitoring et OccHab. La saisie multi-taxons reste utilisable d'ici là. » Un rechargement en mode pro les rend.
+- **Jeu de données, liste de taxons et observateur par défaut.** Ceux qui sont choisis le restent d'un mode à l'autre, même hors de ce que le mode simplifié propose : seuls les menus changent.
 - **Saisies faites dans un mode, rouvertes dans l'autre.** Elles s'ouvrent sans perte : le mode simplifié ne modifie que les champs qu'il montre.
 
 ## Ce qui ne dépend pas du mode

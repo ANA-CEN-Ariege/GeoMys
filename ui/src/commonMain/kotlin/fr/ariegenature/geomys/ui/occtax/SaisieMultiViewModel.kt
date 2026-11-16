@@ -320,7 +320,8 @@ class SaisieMultiViewModel(
     /** « i » : les détails communs déjà réglés, sinon les défauts de la configuration. */
     fun ouvrirDetailsCommuns() {
         detailsCommuns = EtatDetailsReleve(
-            DetailsReleveFormulaire.communs(session.detailsCommuns, config), services.nomenclatures, viewModelScope, services.taxRef,
+            DetailsReleveFormulaire.communs(session.detailsCommuns, config, services.preferences.modeSaisie == ModeSaisie.SIMPLIFIE),
+            services.nomenclatures, viewModelScope, services.taxRef,
             simplifie = services.preferences.modeSaisie == ModeSaisie.SIMPLIFIE,
         ) { terme ->
             // Restreinte à `OCCTAX.CD_TYPO_HABITAT`, comme le web.

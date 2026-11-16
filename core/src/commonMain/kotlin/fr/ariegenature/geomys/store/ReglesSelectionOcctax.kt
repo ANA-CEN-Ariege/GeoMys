@@ -42,6 +42,16 @@ object ReglesSelectionOcctax {
     fun datasetsProposes(datasets: List<GeoNatureDataset>, creables: Set<Int>): List<GeoNatureDataset> =
         datasets.filter { it.actif && "OCCTAX" in it.moduleCodes && it.id in creables }
 
+    /** Propre au portage (demande du 16 novembre 2026) : en saisie simplifiée, seuls les jeux de
+     *  données PERSONNELS de l'utilisateur connecté sont proposés, ceux dont il est acteur en personne
+     *  (GeoNature en crée un à l'inscription d'un compte, `create_dataset_user`). S'il n'en a aucun
+     *  (compte créé par un administrateur, serveur sans cette option, cache d'avant cette règle), tous
+     *  les jeux restent proposés : la saisie ne se bloque pas. */
+    fun datasetsPersonnels(proposes: List<GeoNatureDataset>, idRoleUtilisateur: Int): List<GeoNatureDataset> {
+        if (idRoleUtilisateur <= 0) return proposes
+        return proposes.filter { idRoleUtilisateur in it.acteurs }.ifEmpty { proposes }
+    }
+
     /** Libellé d'un jeu de données dans le menu : « nom (id) ». */
     fun libelle(dataset: GeoNatureDataset): String = "${dataset.nom} (${dataset.id})"
 
@@ -63,6 +73,22 @@ object ReglesSelectionOcctax {
         return ListesProposees(listOf(liste), imposee = true)
     }
 
+    /** Propre au portage (demande du 16 novembre 2026) : en saisie simplifiée, la seule liste
+     *  proposée est celle de la saisie d'OccTax, « Saisie Occtax » dans GeoNature : la liste de la
+     *  configuration du module ([idListeOcctax], `OCCTAX.id_taxon_list`), sinon celle qui porte ce
+     *  nom. Introuvable, toutes les listes restent proposées. Une liste imposée par le jeu de données
+     *  l'emporte toujours. */
+    fun listesSimplifiees(proposees: ListesProposees, idListeOcctax: Int): ListesProposees {
+        if (proposees.imposee) return proposees
+        val liste = proposees.listes.firstOrNull { it.id == idListeOcctax }
+            ?: proposees.listes.firstOrNull { it.nom.trim().equals(NOM_LISTE_SAISIE_OCCTAX, ignoreCase = true) }
+            ?: return proposees
+        return ListesProposees(listOf(liste), imposee = false)
+    }
+
+    /** Le nom de la liste de saisie d'OccTax dans les données de départ de GeoNature. */
+    const val NOM_LISTE_SAISIE_OCCTAX = "Saisie Occtax"
+
     /** Liste à garder sélectionnée : celle de [idStocke] si elle existe encore parmi [toutes], sinon
      *  aucune. Jamais de liste choisie d'office, même unique. Une liste imposée par le jeu de données
      *  ne remplace pas ce choix : elle l'emporte seulement pour les relevés de ce jeu. */
@@ -81,6 +107,11 @@ object ReglesSelectionOcctax {
         if (idRoleConnecte <= 0 || nomConnecte.isBlank() || observateurs.any { it.idRole == idRoleConnecte }) return observateurs
         return observateurs + GeoNatureObservateur(idRoleConnecte, nomConnecte)
     }
+
+    /** Propre au portage (demande du 16 novembre 2026) : en saisie simplifiée, le seul observateur
+     *  par défaut possible est l'utilisateur connecté. S'il est inconnu, tous restent proposés. */
+    fun observateursSimplifies(proposes: List<GeoNatureObservateur>, idRoleConnecte: Int): List<GeoNatureObservateur> =
+        proposes.filter { it.idRole == idRoleConnecte }.ifEmpty { proposes }
 
     /** Observateur à montrer sélectionné : celui de [idStocke] s'il est encore proposé, sinon
      *  l'utilisateur CONNECTÉ ([idRoleConnecte]), y compris après un « Vider le cache » : le défaut

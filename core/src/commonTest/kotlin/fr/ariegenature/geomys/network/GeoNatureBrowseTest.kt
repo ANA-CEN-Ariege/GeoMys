@@ -141,6 +141,24 @@ class GeoNatureBrowseTest {
     }
 
     @Test
+    fun datasets_les_acteurs_en_personne_sont_retenus_pas_les_organismes() = runTest {
+        router(
+            "/api/meta/datasets" to {
+                json(
+                    """
+                    [{"id_dataset": 3, "dataset_name": "Alpha", "cor_dataset_actor": [
+                        {"id_cda": 1, "id_role": 8, "id_organism": null},
+                        {"id_cda": 2, "id_role": 8, "id_organism": null},
+                        {"id_cda": 3, "id_role": null, "id_organism": 4}
+                    ]}]
+                    """.trimIndent(),
+                )
+            },
+        )
+        assertEquals(listOf(GeoNatureDataset(3, "Alpha", acteurs = listOf(8))), browse.chargerDatasets(config))
+    }
+
+    @Test
     fun datasets_module_code_propage_dans_l_url() = runTest {
         router("/api/meta/datasets" to { json("[]") })
         browse.chargerDatasets(config, moduleCode = "OCCHAB")

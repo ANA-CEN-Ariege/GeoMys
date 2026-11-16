@@ -38,6 +38,10 @@ data class GeoNatureDataset(
     val idTaxaList: Int? = null,
     val actif: Boolean = true,
     val moduleCodes: List<String> = emptyList(),
+    /** Les utilisateurs inscrits EN PERSONNE comme acteurs du jeu (`cor_dataset_actor.id_role`), pas
+     *  les organismes : c'est ce qui désigne le jeu de données personnel d'un compte. Vide pour un
+     *  cache d'avant le 16 novembre 2026, jusqu'au prochain chargement. */
+    val acteurs: List<Int> = emptyList(),
 )
 
 @Serializable

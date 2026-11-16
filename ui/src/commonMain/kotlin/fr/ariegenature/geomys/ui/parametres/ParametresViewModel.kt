@@ -181,6 +181,12 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
         modeSaisie = mode
         // Retour au mode pro sur des données de la saisie simplifiée : le bandeau invite à recharger.
         bandeau = texteBandeauRechargement(config, taxRef, modePro = !simplifie)
+        // Les jeux de données proposés dépendent du mode (jeux personnels en saisie simplifiée).
+        restaurerCaches()
+        viewModelScope.launch {
+            majMessageListe()
+            majStatut()
+        }
     }
 
     // ─── Bandeau, statut, dialogue ───
@@ -561,9 +567,16 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
         val tous = listeDepuisJson(GeoNatureDataset.serializer(), config.datasetsCacheJson)
         if (tous.isNotEmpty()) {
             tousDatasets = tous
-            datasets = ReglesSelectionOcctax.datasetsProposes(tous, config.datasetsCreablesOcctax)
-            val valide = ReglesSelectionOcctax.datasetValide(config.idDataset, datasets)
+            val proposes = ReglesSelectionOcctax.datasetsProposes(tous, config.datasetsCreablesOcctax)
+            // Saisie simplifiée : seuls les jeux personnels de l'utilisateur sont au menu, s'il en a.
+            datasets = if (simplifie) ReglesSelectionOcctax.datasetsPersonnels(proposes, config.idRoleUtilisateur) else proposes
+            // Le jeu déjà choisi se juge sur tout ce que le serveur propose : passer d'un mode à
+            // l'autre ne l'efface pas.
+            var valide = ReglesSelectionOcctax.datasetValide(config.idDataset, proposes)
+            // Un seul jeu personnel et rien de choisi : c'est lui, l'amateur n'a pas à le chercher.
+            if (valide == null && simplifie && datasets.size == 1 && datasets.size < proposes.size) valide = datasets.single()
             if (valide != null) {
+                config.idDataset = valide.id.toString()
                 config.nomDataset = valide.nom
             } else if (config.idDataset.isNotEmpty() || config.nomDataset.isNotEmpty()) {
                 config.idDataset = ""
@@ -578,18 +591,28 @@ class ParametresViewModel(private val services: ServicesGeoNature) : ViewModel()
         }
         appliquerListes()
         val observateursCache = listeDepuisJson(GeoNatureObservateur.serializer(), config.observateursCacheJson)
-        observateurs = ReglesSelectionOcctax.observateursProposes(observateursCache, config.idRoleUtilisateur, config.nomUtilisateur)
-        if (observateursCache.isNotEmpty() && observateurs.none { it.idRole.toString() == config.observateurDefautId }) {
+        val proposes = ReglesSelectionOcctax.observateursProposes(observateursCache, config.idRoleUtilisateur, config.nomUtilisateur)
+        // Saisie simplifiée : seul l'utilisateur connecté est au menu.
+        observateurs = if (simplifie) ReglesSelectionOcctax.observateursSimplifies(proposes, config.idRoleUtilisateur) else proposes
+        // L'observateur déjà choisi se juge sur tous ceux du serveur : changer de mode ne l'efface pas.
+        if (observateursCache.isNotEmpty() && proposes.none { it.idRole.toString() == config.observateurDefautId }) {
             config.observateurDefautId = ""
             config.observateurDefautNom = ""
         }
-        observateurChoisi = ReglesSelectionOcctax.observateurChoisi(config.observateurDefautId, observateurs, config.idRoleUtilisateur)
+        observateurChoisi = ReglesSelectionOcctax.observateurChoisi(config.observateurDefautId, proposes, config.idRoleUtilisateur)
     }
 
     /** Les listes proposées pour le jeu choisi (celle qu'il impose, ou toutes) et la liste choisie. */
     private fun appliquerListes() {
-        listes = ReglesSelectionOcctax.listesProposees(toutesListes, datasetChoisi)
+        val proposees = ReglesSelectionOcctax.listesProposees(toutesListes, datasetChoisi)
+        // Saisie simplifiée : seule la liste de la saisie d'OccTax est au menu, si elle existe.
+        listes = if (simplifie) ReglesSelectionOcctax.listesSimplifiees(proposees, config.occtaxIdListeTaxons) else proposees
+        // La liste déjà choisie se juge sur toutes les listes : changer de mode ne l'efface pas.
         listeChoisie = ReglesSelectionOcctax.listeChoisie(config.taxaListeId, toutesListes)
+        // Elle est seule au menu et rien n'est choisi : c'est elle, l'amateur n'a pas à la chercher.
+        if (simplifie && listeChoisie == null && !listes.imposee && listes.listes.size == 1 && toutesListes.size > 1) {
+            listeChoisie = listes.listes.single().also { config.taxaListeId = it.id.toString() }
+        }
     }
 
     // ─── Statut ───

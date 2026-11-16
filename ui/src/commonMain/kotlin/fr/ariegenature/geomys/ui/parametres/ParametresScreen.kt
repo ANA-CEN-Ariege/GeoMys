@@ -266,7 +266,10 @@ private fun ColumnScope.SectionChargement(vm: ParametresViewModel) {
     vm.texteSynchro?.let { Text(it.texte, fontSize = 13.sp, color = couleur(it.nature), modifier = Modifier.margesAndroid(haut = 4.dp)) }
     if (!vm.resumeCacheVisible) return
     val compteurs = vm.compteurs
-    val lignes = buildList {
+    // Saisie simplifiée (demande du 16 novembre 2026) : ni compteurs ni « Détails », qui ne parlent
+    // pas à un amateur ; restent la version du référentiel et « Vider le cache ».
+    val simplifie = vm.simplifie
+    val lignes = if (simplifie) emptyList() else buildList {
         add("Taxons" to compteurs?.taxons)
         // Aucun protocole accessible : ligne masquée, comme la tuile « Monitoring » de l'accueil. Ni
         // protocoles ni stations en saisie simplifiée, qui ne les charge pas.
@@ -279,7 +282,7 @@ private fun ColumnScope.SectionChargement(vm: ParametresViewModel) {
     if (ios) {
         for ((libelle, valeur) in lignes) LigneCompteur(libelle, valeur)
         vm.versionTaxRef?.let { Text(it.texte, fontSize = 12.sp, color = couleur(it.nature)) }
-        Row(Modifier.fillMaxWidth()) {
+        if (!simplifie) Row(Modifier.fillMaxWidth()) {
             Spacer(Modifier.weight(1f))
             BoutonContour("Détails", vm::montrerTaxonsParListes, Modifier.width(140.dp), actif = compteurs?.detailsActif == true)
         }
@@ -287,7 +290,7 @@ private fun ColumnScope.SectionChargement(vm: ParametresViewModel) {
     } else {
         Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
             for ((libelle, valeur) in lignes) LigneCompteur(libelle, valeur)
-            BoutonContour(
+            if (!simplifie) BoutonContour(
                 "Détails", vm::montrerTaxonsParListes,
                 Modifier.align(Alignment.End).padding(top = 8.dp),
                 actif = compteurs?.detailsActif == true,

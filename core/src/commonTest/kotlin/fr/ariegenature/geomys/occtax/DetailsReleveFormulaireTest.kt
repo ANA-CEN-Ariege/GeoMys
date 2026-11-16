@@ -107,6 +107,23 @@ class DetailsReleveFormulaireTest {
     }
 
     @Test
+    fun en_saisie_simplifiee_le_releve_ne_propose_que_les_jeux_personnels() {
+        config.datasetsCacheJson = listeVersJson(
+            GeoNatureDataset.serializer(),
+            listOf(
+                GeoNatureDataset(1, "Opportuniste", moduleCodes = listOf("OCCTAX")),
+                GeoNatureDataset(6, "Personnel", moduleCodes = listOf("OCCTAX"), acteurs = listOf(8)),
+            ),
+        )
+        config.datasetsCreablesOcctax = setOf(1, 6)
+        config.idRoleUtilisateur = 8
+        assertEquals(listOf(6 to "Personnel"), DetailsReleveFormulaire.datasets(config, simplifie = true))
+        assertEquals(listOf(1 to "Opportuniste", 6 to "Personnel"), DetailsReleveFormulaire.datasets(config), "mode pro : tout")
+        config.idRoleUtilisateur = 9
+        assertEquals(listOf(1 to "Opportuniste", 6 to "Personnel"), DetailsReleveFormulaire.datasets(config, simplifie = true), "sans jeu personnel : tout")
+    }
+
+    @Test
     fun sans_observateur_porte_l_utilisateur_connecte_comme_le_web() {
         config.observateursCacheJson = listeVersJson(GeoNatureObservateur.serializer(), listOf(GeoNatureObservateur(7, "MARTIN Alice")))
         assertEquals(listOf(7 to "MARTIN Alice"), DetailsReleveFormulaire.observateurs(config))

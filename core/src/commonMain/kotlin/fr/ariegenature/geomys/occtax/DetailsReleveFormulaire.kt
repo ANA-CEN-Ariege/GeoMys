@@ -30,6 +30,7 @@ import fr.ariegenature.geomys.model.GeoNatureObservateur
 import fr.ariegenature.geomys.saisie.ChampsAdditionnels
 import fr.ariegenature.geomys.store.GeoNatureConfig
 import fr.ariegenature.geomys.store.ListeTaxons
+import fr.ariegenature.geomys.store.ReglesSelectionOcctax
 import fr.ariegenature.geomys.store.io.listeDepuisJson
 import kotlin.time.Instant
 import kotlinx.datetime.LocalDate
@@ -85,10 +86,12 @@ object DetailsReleveFormulaire {
     /** Jeux de données proposables, ceux du web (`active`, `module_code` et `create` OCCTAX) :
      *  actifs, rattachés à OCCTAX et créables ; sans liste des créables, aucun. Libellé : le nom
      *  seul, comme le web. */
-    fun datasets(config: GeoNatureConfig): List<Pair<Int, String>> = try {
-        val creables = config.datasetsCreablesOcctax
-        listeDepuisJson(GeoNatureDataset.serializer(), config.datasetsCacheJson)
-            .filter { it.actif && "OCCTAX" in it.moduleCodes && it.id in creables }
+    fun datasets(config: GeoNatureConfig, simplifie: Boolean = false): List<Pair<Int, String>> = try {
+        val proposes = ReglesSelectionOcctax.datasetsProposes(
+            listeDepuisJson(GeoNatureDataset.serializer(), config.datasetsCacheJson), config.datasetsCreablesOcctax,
+        )
+        // Saisie simplifiée : les jeux personnels de l'utilisateur, s'il en a.
+        (if (simplifie) ReglesSelectionOcctax.datasetsPersonnels(proposes, config.idRoleUtilisateur) else proposes)
             .map { it.id to it.nom }
     } catch (_: Exception) {
         emptyList()
@@ -238,9 +241,9 @@ object DetailsReleveFormulaire {
     fun observateursTexteDepart(config: GeoNatureConfig): String = config.nomObservateurParDefaut
 
     /** Les détails d'un relevé en cours (bouton « Détails »). */
-    fun pourReleve(releve: ReleveEnCours, config: GeoNatureConfig): DonneesDetailsReleve = DonneesDetailsReleve(
+    fun pourReleve(releve: ReleveEnCours, config: GeoNatureConfig, simplifie: Boolean = false): DonneesDetailsReleve = DonneesDetailsReleve(
         titre = "Détails du relevé",
-        datasets = datasets(config),
+        datasets = datasets(config, simplifie),
         idDataset = releve.idDatasetEffectif(),
         nomDataset = config.nomDataset.takeIf { it.isNotEmpty() },
         observateurs = observateurs(config),
@@ -268,9 +271,9 @@ object DetailsReleveFormulaire {
 
     /** Les détails COMMUNS de la saisie (bouton « i » de la carte) : les valeurs communes déjà
      *  réglées, ou les défauts de la configuration au premier usage. */
-    fun communs(communs: DetailsReleveResult?, config: GeoNatureConfig): DonneesDetailsReleve = DonneesDetailsReleve(
+    fun communs(communs: DetailsReleveResult?, config: GeoNatureConfig, simplifie: Boolean = false): DonneesDetailsReleve = DonneesDetailsReleve(
         titre = "Détails des relevés",
-        datasets = datasets(config),
+        datasets = datasets(config, simplifie),
         idDataset = communs?.idDataset ?: config.idDatasetParDefaut,
         nomDataset = config.nomDataset.takeIf { it.isNotEmpty() },
         observateurs = observateurs(config),
