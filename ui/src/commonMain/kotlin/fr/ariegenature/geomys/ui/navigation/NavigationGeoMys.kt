@@ -84,15 +84,12 @@ import fr.ariegenature.geomys.occtax.SaisieMono
 import fr.ariegenature.geomys.saisie.ChampsAdditionnels
 import fr.ariegenature.geomys.ui.occtax.CaracterisationScreen
 import fr.ariegenature.geomys.ui.occtax.CaracterisationViewModel
-import fr.ariegenature.geomys.ui.occtax.CommentaireEspeceScreen
-import fr.ariegenature.geomys.ui.occtax.CommentaireEspeceViewModel
 import fr.ariegenature.geomys.ui.occtax.DenombrementScreen
 import fr.ariegenature.geomys.ui.occtax.DenombrementViewModel
-import fr.ariegenature.geomys.ui.occtax.DetailsEspeceScreen
-import fr.ariegenature.geomys.ui.occtax.DetailsEspeceViewModel
 import fr.ariegenature.geomys.ui.occtax.DetailsReleveIntercalaireScreen
 import fr.ariegenature.geomys.ui.occtax.DetailsReleveIntercalaireViewModel
 import fr.ariegenature.geomys.ui.occtax.FicheEspeceScreen
+import fr.ariegenature.geomys.ui.occtax.FicheProScreen
 import fr.ariegenature.geomys.ui.occtax.FicheEspeceViewModel
 import fr.ariegenature.geomys.ui.occtax.ObservationsScreen
 import fr.ariegenature.geomys.ui.occtax.ObservationsViewModel
@@ -105,7 +102,6 @@ import fr.ariegenature.geomys.ui.occtax.SaisieMultiViewModel
 import fr.ariegenature.geomys.ui.occtax.SessionSaisieViewModel
 import fr.ariegenature.geomys.ui.occtax.SortieDetailScreen
 import fr.ariegenature.geomys.ui.occtax.SortieDetailViewModel
-import fr.ariegenature.geomys.ui.occtax.VoletEspece
 import fr.ariegenature.geomys.ui.parametres.ParametresScreen
 import fr.ariegenature.geomys.ui.parametres.ParametresViewModel
 import fr.ariegenature.geomys.ui.parametres.TaxonsListeScreen
@@ -192,28 +188,19 @@ data class RouteDetailsReleve(
     val mono: Boolean = false,
 )
 
-/** Caractérisation de l'espèce [index] du relevé ouvert ; [comportementSeul] : ouverte d'elle-même pour un
- *  oiseau nicheur ; [mono] : les réglages de la saisie mono-taxon ; [simplifie] : « Comportement » de la
- *  saisie simplifiée (avec [comportementSeul]). */
+/** Caractérisation de l'espèce de la saisie mono-taxon. */
 @Serializable
-data class RouteCaracterisation(val index: Int, val comportementSeul: Boolean = false, val mono: Boolean = false, val simplifie: Boolean = false)
+data object RouteCaracterisation
 
-/** Saisie simplifiée : la « Fiche de l'observation » [index] du relevé ouvert (Détails, Comportement,
- *  Commentaire, Photo, Audio). */
+/** La « Fiche de l'observation » [index] du relevé ouvert, qui porte tous ses champs : ceux du mode du
+ *  relevé (pro ou simplifié). [nidification] : en mode pro, ouverte d'elle-même pour un oiseau nicheur,
+ *  la section « Avancé » dépliée. */
 @Serializable
-data class RouteFicheEspece(val index: Int)
+data class RouteFicheEspece(val index: Int, val nidification: Boolean = false)
 
-/** Saisie simplifiée : « Détails » de l'espèce [index] du relevé ouvert. */
+/** Dénombrements de l'espèce de la saisie mono-taxon. */
 @Serializable
-data class RouteDetailsEspece(val index: Int)
-
-/** Saisie simplifiée : « Commentaire » de l'espèce [index] du relevé ouvert. */
-@Serializable
-data class RouteCommentaireEspece(val index: Int)
-
-/** Dénombrements de l'espèce [index] du relevé ouvert ; [mono] : les réglages de la saisie mono-taxon. */
-@Serializable
-data class RouteDenombrement(val index: Int, val mono: Boolean = false)
+data object RouteDenombrement
 
 /** Contenu d'une liste de taxons du cache (Paramètres › Détails). */
 @Serializable
@@ -308,16 +295,7 @@ private val DESTINATIONS_SAISIE = listOf(
     RouteCaracterisation::class,
     RouteDenombrement::class,
     RouteFicheEspece::class,
-    RouteDetailsEspece::class,
-    RouteCommentaireEspece::class,
 )
-
-/** La route d'un volet de la saisie simplifiée de l'espèce [index]. */
-private fun VoletEspece.route(index: Int): Any = when (this) {
-    VoletEspece.DETAILS -> RouteDetailsEspece(index)
-    VoletEspece.COMPORTEMENT -> RouteCaracterisation(index, comportementSeul = true, simplifie = true)
-    VoletEspece.COMMENTAIRE -> RouteCommentaireEspece(index)
-}
 
 /** Navigue seulement si l'écran [depuis] est au premier plan : un double toucher n'empile pas deux
  *  fois l'écran suivant (`naviguerSur` de GeoMys-Android). */
@@ -493,8 +471,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 while (sessionSaisie.session.sortieEnEditionId != sortie.id) withFrameNanos {}
                 val premiere = sortie.observations.first()
                 nav.navigate(RouteReleve(releveId = premiere.releveId, obsId = premiere.id.takeIf { premiere.releveId == null }))
-                if (ecranInitial == "caracterisation-essai") nav.navigate(RouteCaracterisation(0))
-                if (ecranInitial == "denombrement-essai") nav.navigate(RouteDenombrement(0))
+                if (ecranInitial == "caracterisation-essai" || ecranInitial == "denombrement-essai") nav.navigate(RouteFicheEspece(0))
             }
         }
         if (ecranInitial == "saisie-mono" || ecranInitial == "saisie-mono-carte") {
@@ -713,8 +690,8 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             SaisieMonoScreen(
                 vm,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
-                onCaracterisation = { nav.naviguerDepuis(entree, RouteCaracterisation(0, mono = true)) },
-                onDenombrement = { nav.naviguerDepuis(entree, RouteDenombrement(0, mono = true)) },
+                onCaracterisation = { nav.naviguerDepuis(entree, RouteCaracterisation) },
+                onDenombrement = { nav.naviguerDepuis(entree, RouteDenombrement) },
                 onEditerObservation = { id -> nav.naviguerDepuis(entree, RouteReleve(obsId = id)) },
                 onQuitter = { nav.popBackStack() },
             )
@@ -759,15 +736,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             SaisieReleveScreen(
                 vm,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
-                onCaracterisation = { index, seul -> nav.naviguerDepuis(entree, RouteCaracterisation(index, seul)) },
-                onDenombrement = { nav.naviguerDepuis(entree, RouteDenombrement(it)) },
-                onFicheEspece = { index, volet ->
-                    // L'écran de l'espèce, puis, d'office, un volet par-dessus : son ✓ ramène à l'écran.
-                    if (entree.lifecycle.currentState == Lifecycle.State.RESUMED) {
-                        nav.navigate(RouteFicheEspece(index))
-                        volet?.let { nav.navigate(it.route(index)) }
-                    }
-                },
+                onFicheEspece = { index, nidification -> nav.naviguerDepuis(entree, RouteFicheEspece(index, nidification)) },
                 onTermine = {
                     // Comme le drapeau que GeoMys-Android pose sur l'écran précédent : seule la carte
                     // multi-taxons repart en positionnement (pas la saisie mono, ni la liste).
@@ -778,54 +747,25 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 },
             )
         }
+        // Caractérisation et Dénombrement ne s'ouvrent plus qu'en saisie mono-taxon : en saisie
+        // multi-taxons, la fiche de l'observation porte leurs champs (16 novembre 2026).
         composable<RouteCaracterisation> { entree ->
-            val route = entree.toRoute<RouteCaracterisation>()
-            if (route.mono) {
-                val mono = saisieMonoOuverte(nav, entree, services, sessionSaisie)
-                val espece = remember(mono) { mono?.especeFormulaires() }
-                if (mono == null || espece == null) {
-                    LaunchedEffect(Unit) { nav.popBackStack() }
-                    return@composable
-                }
-                val vm = viewModel { CaracterisationViewModel(services, espece, comportementSeul = false, mono.saisie.idDatasetEffectif()) }
-                CaracterisationScreen(
-                    vm,
-                    sessionSaisie.session.typeSaisieLabel,
-                    onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
-                    onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
-                    onValide = { caracterisee ->
-                        mono.appliquerCaracterisation(caracterisee)
-                        nav.popBackStack()
-                    },
-                )
-                return@composable
-            }
-            val releve = releveOuvert(nav, entree, services, sessionSaisie)
-            val espece = remember(releve) { releve?.releve?.especes?.value?.getOrNull(route.index) }
-            if (releve == null || espece == null) {
+            val mono = saisieMonoOuverte(nav, entree, services, sessionSaisie)
+            val espece = remember(mono) { mono?.especeFormulaires() }
+            if (mono == null || espece == null) {
                 LaunchedEffect(Unit) { nav.popBackStack() }
                 return@composable
             }
-            val vm = viewModel { CaracterisationViewModel(services, espece, route.comportementSeul, releve.releve.idDatasetEffectif()) }
+            val vm = viewModel { CaracterisationViewModel(services, espece, comportementSeul = false, mono.saisie.idDatasetEffectif()) }
             CaracterisationScreen(
                 vm,
-                releve.typeSaisieLabel,
+                sessionSaisie.session.typeSaisieLabel,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
                 onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
                 onValide = { caracterisee ->
-                    // Ouverte sur le seul comportement, elle n'écrit que lui dans l'espèce courante : un
-                    // média rattaché entre-temps reste (audit du 14 novembre 2026, M50).
-                    releve.releve.modifier(route.index) { courante ->
-                        when {
-                            courante.vmId != espece.vmId -> courante
-                            route.comportementSeul -> courante.copy(comportement = caracterisee.comportement)
-                            else -> caracterisee
-                        }
-                    }
+                    mono.appliquerCaracterisation(caracterisee)
                     nav.popBackStack()
                 },
-                titre = if (route.simplifie) "Comportement" else "Caractérisation de l'occurrence",
-                sousTitre = if (route.simplifie) espece.espece else null,
             )
         }
         composable<RouteFicheEspece> { entree ->
@@ -836,6 +776,32 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 return@composable
             }
             val sousTitre = remember(releve) { releve.releve.especes.value.getOrNull(route.index)?.let(releve::nomScientifiqueSous) }
+            if (!releve.simplifie) {
+                // Mode pro : les dénombrements puis la caractérisation, avec leurs règles.
+                val espece = remember(releve) { releve.releve.especes.value.getOrNull(route.index) }
+                if (espece == null) {
+                    LaunchedEffect(Unit) { nav.popBackStack() }
+                    return@composable
+                }
+                val idDataset = releve.releve.idDatasetEffectif()
+                val denombrement = viewModel { DenombrementViewModel(services, espece, idDataset) }
+                val caracterisation = viewModel {
+                    CaracterisationViewModel(services, espece, comportementSeul = false, idDataset).also { if (route.nidification) it.avanceOuvert = true }
+                }
+                FicheProScreen(
+                    denombrement,
+                    caracterisation,
+                    releve.typeSaisieLabel,
+                    sousTitre = espece.espece + (sousTitre?.let { " ($it)" } ?: ""),
+                    onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                    onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
+                    onValide = { saisie ->
+                        releve.releve.modifier(route.index) { courante -> if (courante.vmId == espece.vmId) saisie else courante }
+                        nav.popBackStack()
+                    },
+                )
+                return@composable
+            }
             val vm = viewModel { FicheEspeceViewModel(services, releve.releve, route.index) }
             FicheEspeceScreen(
                 vm,
@@ -843,85 +809,23 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 sousTitre,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
                 onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
-                onVolet = { volet -> nav.naviguerDepuis(entree, volet.route(route.index)) },
-            )
-        }
-        composable<RouteDetailsEspece> { entree ->
-            val route = entree.toRoute<RouteDetailsEspece>()
-            val releve = releveOuvert(nav, entree, services, sessionSaisie)
-            val espece = remember(releve) { releve?.releve?.especes?.value?.getOrNull(route.index) }
-            if (releve == null || espece == null) {
-                LaunchedEffect(Unit) { nav.popBackStack() }
-                return@composable
-            }
-            val vm = viewModel { DetailsEspeceViewModel(services, espece, releve.releve.idDatasetEffectif()) }
-            DetailsEspeceScreen(
-                vm,
-                releve.typeSaisieLabel,
-                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
-                onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
-                onValide = { transformation ->
-                    releve.releve.modifier(route.index) { courante -> if (courante.vmId == espece.vmId) transformation(courante) else courante }
-                    nav.popBackStack()
-                },
-            )
-        }
-        composable<RouteCommentaireEspece> { entree ->
-            val route = entree.toRoute<RouteCommentaireEspece>()
-            val releve = releveOuvert(nav, entree, services, sessionSaisie)
-            val espece = remember(releve) { releve?.releve?.especes?.value?.getOrNull(route.index) }
-            if (releve == null || espece == null) {
-                LaunchedEffect(Unit) { nav.popBackStack() }
-                return@composable
-            }
-            val vm = viewModel { CommentaireEspeceViewModel(espece) }
-            CommentaireEspeceScreen(
-                vm,
-                releve.typeSaisieLabel,
-                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
-                onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
-                onValide = { transformation ->
-                    releve.releve.modifier(route.index) { courante -> if (courante.vmId == espece.vmId) transformation(courante) else courante }
-                    nav.popBackStack()
-                },
             )
         }
         composable<RouteDenombrement> { entree ->
-            val route = entree.toRoute<RouteDenombrement>()
-            if (route.mono) {
-                val mono = saisieMonoOuverte(nav, entree, services, sessionSaisie)
-                val espece = remember(mono) { mono?.especeFormulaires() }
-                if (mono == null || espece == null) {
-                    LaunchedEffect(Unit) { nav.popBackStack() }
-                    return@composable
-                }
-                val vm = viewModel { DenombrementViewModel(services, espece, mono.saisie.idDatasetEffectif()) }
-                DenombrementScreen(
-                    vm,
-                    sessionSaisie.session.typeSaisieLabel,
-                    onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
-                    onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
-                    onValide = { liste ->
-                        mono.appliquerDenombrements(liste)
-                        nav.popBackStack()
-                    },
-                )
-                return@composable
-            }
-            val releve = releveOuvert(nav, entree, services, sessionSaisie)
-            val espece = remember(releve) { releve?.releve?.especes?.value?.getOrNull(route.index) }
-            if (releve == null || espece == null) {
+            val mono = saisieMonoOuverte(nav, entree, services, sessionSaisie)
+            val espece = remember(mono) { mono?.especeFormulaires() }
+            if (mono == null || espece == null) {
                 LaunchedEffect(Unit) { nav.popBackStack() }
                 return@composable
             }
-            val vm = viewModel { DenombrementViewModel(services, espece, releve.releve.idDatasetEffectif()) }
+            val vm = viewModel { DenombrementViewModel(services, espece, mono.saisie.idDatasetEffectif()) }
             DenombrementScreen(
                 vm,
-                releve.typeSaisieLabel,
+                sessionSaisie.session.typeSaisieLabel,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
                 onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
                 onValide = { liste ->
-                    releve.releve.modifier(route.index) { it.avecDenombrements(liste) }
+                    mono.appliquerDenombrements(liste)
                     nav.popBackStack()
                 },
             )

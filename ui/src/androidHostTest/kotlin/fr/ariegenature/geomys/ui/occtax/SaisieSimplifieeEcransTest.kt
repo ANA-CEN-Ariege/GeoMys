@@ -47,6 +47,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.test.setMain
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -123,75 +124,133 @@ class SaisieSimplifieeEcransTest {
         val releve = releve(ModeSaisie.SIMPLIFIE)
         assertTrue(releve.simplifie)
         releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
-        assertEquals(EvenementReleve.FicheEspece(0, volet = null), releve.evenements.first())
+        assertEquals(EvenementReleve.FicheEspece(0), releve.evenements.first())
         // Ajoutée ensuite, une deuxième espèce ouvre aussi sa fiche.
         releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
-        assertEquals(EvenementReleve.FicheEspece(1, volet = null), releve.evenements.first())
+        assertEquals(EvenementReleve.FicheEspece(1), releve.evenements.first())
         releve.ouvrirFiche(0)
         assertEquals(EvenementReleve.FicheEspece(0), releve.evenements.first(), "le crayon : la fiche de l'observation")
     }
 
     @Test
-    fun un_champ_obligatoire_ouvre_details_par_dessus_l_ecran_de_l_espece() = runTest {
+    fun un_champ_obligatoire_n_ouvre_rien_d_autre_que_la_fiche_qui_le_porte() = runTest {
         champObligatoire()
         val releve = releve(ModeSaisie.SIMPLIFIE)
         releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
-        assertEquals(EvenementReleve.FicheEspece(0, VoletEspece.DETAILS), releve.evenements.first())
+        assertEquals(EvenementReleve.FicheEspece(0), releve.evenements.first())
+        assertNotNull(FicheEspeceViewModel(services, releve.releve, 0).additionnelsOccurrence)
     }
 
+    /** 16 novembre 2026 : en mode pro aussi, la fiche s'ouvre à chaque espèce ; elle réunit dénombrements
+     *  et caractérisation, écrits ensemble à son ✓. */
     @Test
-    fun en_mode_pro_rien_ne_change() = runTest {
-        champObligatoire()
+    fun en_mode_pro_la_fiche_reunit_denombrement_et_caracterisation() = runTest {
+        nomenclatures()
+        services.nomenclatures.setAll(
+            listOf("METH_OBS", "OBJ_DENBR").associateWith { listOf(NomValeur(90, "Vu", listOf(TaxrefRestriction("all", "all")))) } +
+                listOf("STADE_VIE" to (1 to "Inconnu"), "SEXE" to (5 to "Indéterminé"), "ETA_BIO" to (4 to "Vivant"))
+                    .associate { (code, v) -> code to listOf(NomValeur(v.first, v.second, listOf(TaxrefRestriction("all", "all")))) },
+        )
+        services.nomenclatures.setDefauts(mapOf("STADE_VIE" to "1", "SEXE" to "5", "ETA_BIO" to "4", "METH_OBS" to "90", "OBJ_DENBR" to "90"))
         val releve = releve(ModeSaisie.PRO)
         assertFalse(releve.simplifie)
         releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
-        assertEquals(EvenementReleve.Caracterisation(0, comportementSeul = false), releve.evenements.first())
+        assertEquals(EvenementReleve.FicheEspece(0), releve.evenements.first(), "la fiche s'ouvre à chaque espèce, comme en mode simplifié")
+        releve.ouvrirFiche(0)
+        assertEquals(EvenementReleve.FicheEspece(0), releve.evenements.first(), "le crayon : la fiche de l'observation")
+
+        champObligatoire()
+        releve.choisirSuggestion(SuggestionTaxon("Flambé", 54496))
+        assertEquals(EvenementReleve.FicheEspece(1), releve.evenements.first())
+
+        val espece = releve.releve.especes.value[1]
+        val denombrement = DenombrementViewModel(services, espece, 12)
+        val caracterisation = CaracterisationViewModel(services, espece, comportementSeul = false, idDataset = 12)
+        denombrement.saisirMin(denombrement.cartes[0], "3")
+        val (refusee, message) = validerFichePro(caracterisation, denombrement)
+        assertNull(refusee)
+        assertTrue(message.orEmpty().contains("Code LUF"), message)
+        caracterisation.additionnels!!.saisirTexte("code_luf", "7")
+        caracterisation.commentaire = "Sur un prunellier"
+        val (validee, _) = validerFichePro(caracterisation, denombrement)
+        val saisie = assertNotNull(validee)
+        assertEquals(3, saisie.nombre)
+        assertEquals("7", saisie.additionalFieldsOccurrence["code_luf"])
+        assertEquals("Sur un prunellier", saisie.notes)
+        assertEquals("90", saisie.techniqueObs, "la caractérisation complète du mode pro")
     }
 
+    /** 16 novembre 2026 : tous les champs sont sur la fiche, écrits à son ✓. */
     @Test
-    fun details_ecrit_l_espece_et_l_ecran_de_l_espece_le_resume() = runTest {
+    fun la_fiche_porte_tous_les_champs_et_les_ecrit_a_sa_validation() = runTest {
         nomenclatures()
         champObligatoire()
         val releve = releve(ModeSaisie.SIMPLIFIE)
         releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
         val fiche = FicheEspeceViewModel(services, releve.releve, 0)
-        val neuve = releve.releve.especes.value.single()
-        assertEquals("1 · Inconnu · Indéterminé · Vivant", fiche.resumeDetails(neuve), "jamais ouverte : les défauts du serveur")
-        assertEquals("Non renseigné", fiche.resumeComportement(neuve))
-        assertTrue(fiche.detailsIncomplets(neuve))
+        assertEquals(listOf("STADE_VIE", "SEXE", "ETA_BIO"), fiche.champsDetails.map { it.champ.code })
+        assertTrue(fiche.minVisible && fiche.maxVisible, "nombre min et nombre max")
+        assertEquals("1" to "1", fiche.min to fiche.max)
+        assertTrue(fiche.comportementVisible)
+        assertTrue(fiche.commentaireVisible, "comment_occ est montré par défaut, comme sur le web")
+        assertFalse(fiche.modifie())
 
-        val details = DetailsEspeceViewModel(services, neuve, 12)
-        assertEquals(listOf("STADE_VIE", "SEXE", "ETA_BIO"), details.champs.map { it.champ.code })
-        assertFalse(details.modifie())
-        details.saisirNombre("3")
-        details.positions["STADE_VIE"] = details.champs[0].position("2")
-        details.positions["SEXE"] = details.champs[1].position("3")
-        val (refusee, message) = details.valider()
-        assertNull(refusee, "le code LUF est obligatoire")
-        assertTrue(message.orEmpty().contains("Code LUF"), message)
-        details.additionnelsOccurrence!!.saisirTexte("code_luf", "7")
-        // Une photo rattachée pendant que « Détails » est ouvert : son ✓ ne l'écrase pas (M50).
-        fiche.ajouterMedias(listOf("file:///essai/pendant-details.jpg"))
-        val (transformation, _) = details.valider()
-        releve.releve.modifier(0) { transformation!!(it) }
+        // Le max suit le min tant qu'il n'est pas saisi à part.
+        fiche.saisirMin("3")
+        assertEquals("3", fiche.max)
+        fiche.ajusterMax(2)
+        fiche.ajusterMin(1)
+        assertEquals("4" to "5", fiche.min to fiche.max)
+        fiche.positions["STADE_VIE"] = fiche.champsDetails[0].position("2")
+        fiche.positions["SEXE"] = fiche.champsDetails[1].position("3")
+        fiche.positions["OCC_COMPORTEMENT"] = fiche.champComportement!!.position("12")
+        fiche.commentaire = "Sur une ombellifère "
+        assertTrue(fiche.modifie())
+        assertTrue(fiche.valider().orEmpty().contains("Code LUF"), "le code LUF est obligatoire")
+        assertEquals(1, releve.releve.especes.value.single().nombre, "refusée : rien n'est écrit")
+        fiche.additionnelsOccurrence!!.saisirTexte("code_luf", "7")
+        // Une photo rattachée pendant que la fiche est ouverte : son ✓ ne l'écrase pas (M50).
+        fiche.ajouterMedias(listOf("file:///essai/pendant-la-fiche.jpg"))
+        assertNull(fiche.valider())
 
         val apres = releve.releve.especes.value.single()
-        assertEquals(3, apres.nombre)
+        assertEquals(4, apres.nombre)
+        assertEquals(5, apres.nombreMax)
         assertEquals("2", apres.stadeVie)
         assertEquals("3", apres.sexe)
         assertEquals("4", apres.etaBio, "laissé au défaut : le défaut est retenu, comme en mode pro")
+        assertEquals("12", apres.comportement)
+        assertEquals("Sur une ombellifère", apres.notes)
         assertEquals("7", apres.additionalFieldsOccurrence["code_luf"])
-        assertEquals(listOf("file:///essai/pendant-details.jpg"), apres.mediaUrisCounting0, "la photo arrivée entre-temps reste")
-        assertEquals("", apres.techniqueObs, "hors des écrans simplifiés : rien n'est écrit")
-        assertEquals("3 · Adulte · Mâle · Vivant", fiche.resumeDetails(apres))
-        assertFalse(fiche.detailsIncomplets(apres))
-        // Enregistré au fil de l'eau : l'observation de la session porte les détails.
+        assertEquals(listOf("file:///essai/pendant-la-fiche.jpg"), apres.mediaUrisCounting0, "la photo arrivée entre-temps reste")
+        assertEquals("", apres.techniqueObs, "hors de la fiche : rien n'est écrit")
+        // Enregistré au fil de l'eau : l'observation de la session porte la fiche.
         val obs = releve.session.observations.value.single { it.releveId == releve.releve.releveId }
-        assertEquals(3, obs.nombre)
+        assertEquals(4, obs.nombre)
+        assertEquals(5, obs.nombreMax)
         assertEquals("2", obs.stadeVie)
+        assertEquals("Sur une ombellifère", obs.notes, "le commentaire de l'occurrence")
+        assertNull(obs.commentReleve, "pas celui du relevé")
     }
 
-    /** 14 novembre 2026 : pour une plante, ni sexe dans « Détails », ni bouton « Comportement ». */
+    @Test
+    fun un_maximum_sous_le_minimum_est_refuse_et_une_fiche_intacte_n_ecrit_rien() = runTest {
+        nomenclatures()
+        val releve = releve(ModeSaisie.SIMPLIFIE)
+        releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
+        val intacte = FicheEspeceViewModel(services, releve.releve, 0)
+        assertNull(intacte.valider())
+        assertEquals("", releve.releve.especes.value.single().etaBio, "jamais saisi : le serveur y mettra son défaut")
+
+        val fiche = FicheEspeceViewModel(services, releve.releve, 0)
+        fiche.saisirMin("5")
+        fiche.saisirMax("3")
+        assertEquals("Le dénombrement maximum ne peut pas être inférieur au dénombrement minimum", fiche.valider())
+        fiche.saisirMax("")
+        assertEquals("Renseignez le nombre max", fiche.valider())
+    }
+
+    /** 14 novembre 2026 : pour une plante, ni sexe, ni comportement. */
     @Test
     fun une_plante_n_a_ni_sexe_ni_comportement() = runTest {
         nomenclatures()
@@ -200,41 +259,16 @@ class SaisieSimplifieeEcransTest {
         releve.choisirSuggestion(SuggestionTaxon("Ortie dioïque", 128268))
         val ortie = releve.releve.especes.value.single()
         assertEquals(Taxon.PLANTE, ortie.taxon)
-        assertEquals(listOf("STADE_VIE", "ETA_BIO"), DetailsEspeceViewModel(services, ortie, 12).champs.map { it.champ.code })
         val fiche = FicheEspeceViewModel(services, releve.releve, 0)
+        assertEquals(listOf("STADE_VIE", "ETA_BIO"), fiche.champsDetails.map { it.champ.code })
         assertFalse(fiche.comportementVisible)
-        assertEquals("1 · Inconnu · Vivant", fiche.resumeDetails(ortie), "ni sexe dans le résumé")
 
         // Un insecte du même relevé garde tout.
         releve.choisirTaxon(Taxon.INSECTE)
         releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
-        val machaon = releve.releve.especes.value[1]
-        assertEquals(listOf("STADE_VIE", "SEXE", "ETA_BIO"), DetailsEspeceViewModel(services, machaon, 12).champs.map { it.champ.code })
-        assertTrue(FicheEspeceViewModel(services, releve.releve, 1).comportementVisible)
-    }
-
-    @Test
-    fun le_commentaire_s_ecrit_dans_l_observation_enregistree() = runTest {
-        val releve = releve(ModeSaisie.SIMPLIFIE)
-        releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
-        val fiche = FicheEspeceViewModel(services, releve.releve, 0)
-        assertTrue(fiche.commentaireVisible, "comment_occ est montré par défaut, comme sur le web")
-        assertEquals("Aucun", fiche.resumeCommentaire(releve.releve.especes.value.single()))
-
-        val commentaire = CommentaireEspeceViewModel(releve.releve.especes.value.single())
-        assertFalse(commentaire.modifie())
-        commentaire.texte = "Sur une ombellifère "
-        assertTrue(commentaire.modifie())
-        // Idem pour « Commentaire » : il n'écrit que le commentaire de l'espèce courante (M50).
-        fiche.ajouterMedias(listOf("file:///essai/pendant-commentaire.m4a"))
-        releve.releve.modifier(0, commentaire.valider())
-
-        val apres = releve.releve.especes.value.single()
-        assertEquals("Sur une ombellifère", fiche.resumeCommentaire(apres))
-        assertEquals(listOf("file:///essai/pendant-commentaire.m4a"), apres.mediaUrisCounting0)
-        val obs = releve.session.observations.value.single { it.releveId == releve.releve.releveId }
-        assertEquals("Sur une ombellifère", obs.notes, "le commentaire de l'occurrence")
-        assertNull(obs.commentReleve, "pas celui du relevé")
+        val machaon = FicheEspeceViewModel(services, releve.releve, 1)
+        assertEquals(listOf("STADE_VIE", "SEXE", "ETA_BIO"), machaon.champsDetails.map { it.champ.code })
+        assertTrue(machaon.comportementVisible)
     }
 
     @Test
@@ -325,17 +359,23 @@ class SaisieSimplifieeEcransTest {
         val fiche = FicheEspeceViewModel(services, releve.releve, merle)
         fun espece() = releve.releve.especes.value[merle]
         assertTrue(fiche.chantVisible)
-        assertFalse(fiche.chante(espece()))
+        assertFalse(fiche.chante)
 
+        // « Chant » choisit la valeur dans le champ « Comportement » ; le ✓ de la fiche l'écrit.
         fiche.basculerChant()
-        assertTrue(fiche.chante(espece()))
+        assertTrue(fiche.chante)
+        assertEquals(fiche.champComportement!!.position("12"), fiche.positions["OCC_COMPORTEMENT"])
+        assertEquals("", espece().comportement, "rien n'est écrit avant le ✓")
+        assertNull(fiche.valider())
         assertEquals("12", espece().comportement)
-        assertEquals("Chant", fiche.resumeComportement(espece()))
         val obs = releve.session.observations.value.single { it.releveId == releve.releve.releveId }
         assertEquals("12", obs.comportement, "le comportement de l'observation enregistrée")
 
-        fiche.basculerChant()
-        assertFalse(fiche.chante(espece()))
+        val rouverte = FicheEspeceViewModel(services, releve.releve, merle)
+        assertTrue(rouverte.chante)
+        rouverte.basculerChant()
+        assertFalse(rouverte.chante)
+        assertNull(rouverte.valider())
         assertEquals("", espece().comportement)
 
         // Un insecte garde « Comportement », sans « Chant ».
@@ -357,27 +397,33 @@ class SaisieSimplifieeEcransTest {
         val tous = listOf(TaxrefRestriction("all", "all"))
         services.nomenclatures.setAll(
             mapOf(
+                "STADE_VIE" to listOf(NomValeur(1, "Inconnu", tous)),
+                "SEXE" to listOf(NomValeur(5, "Indéterminé", tous)),
+                "ETA_BIO" to listOf(NomValeur(4, "Vivant", tous)),
                 "OCC_COMPORTEMENT" to listOf(
                     NomValeur(12, "Chant", tous, cd = "18"),
                     NomValeur(30, "2 - Mâle chanteur (ou cris de nidification) en période de reproduction", tous, cd = "CA2"),
                 ),
             ),
         )
+        services.nomenclatures.setDefauts(mapOf("STADE_VIE" to "1", "SEXE" to "5", "ETA_BIO" to "4"))
         val releve = releve(ModeSaisie.SIMPLIFIE)
         val merle = releve.releve.ajouter(Taxon.OISEAU, "Merle noir", 4117)
         fun espece() = releve.releve.especes.value[merle]
 
         val auPrintemps = FicheEspeceViewModel(services, releve.releve, merle) { true }
         auPrintemps.basculerChant()
+        assertTrue(auPrintemps.chante)
+        assertNull(auPrintemps.valider())
         assertEquals("30", espece().comportement)
-        assertTrue(auPrintemps.chante(espece()))
 
         // Hors période, la fiche reconnaît encore l'indice posé, et l'enlève ; puis pose le chant simple.
         val enHiver = FicheEspeceViewModel(services, releve.releve, merle) { false }
-        assertTrue(enHiver.chante(espece()))
+        assertTrue(enHiver.chante)
         enHiver.basculerChant()
-        assertEquals("", espece().comportement)
+        assertFalse(enHiver.chante)
         enHiver.basculerChant()
+        assertNull(enHiver.valider())
         assertEquals("12", espece().comportement)
 
         // Un serveur qui n'a que l'indice : pas de bouton hors période.

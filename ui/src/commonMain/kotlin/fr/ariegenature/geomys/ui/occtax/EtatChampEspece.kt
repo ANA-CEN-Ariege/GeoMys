@@ -190,15 +190,6 @@ class EtatChampEspece(
         recherche.relancer(texte)
     }
 
-    /** Ramène la palette sur [voulu] (ou le premier groupe chargé), sans le mémoriser. */
-    fun replacerGroupe(voulu: Taxon) {
-        val depart = groupes?.let { groupeDeDepart(voulu, it) } ?: voulu
-        if (depart == taxon) return
-        taxon = depart
-        rafraichirPropositions()
-        recherche.relancer(texte)
-    }
-
     /** Le texte survit aussi à la bascule ; un nom français affichera « Nom invalide » tant qu'il
      *  n'est pas remplacé. */
     fun basculerNomScientifique(actif: Boolean) {

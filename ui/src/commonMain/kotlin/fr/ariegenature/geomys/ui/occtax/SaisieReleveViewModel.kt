@@ -49,31 +49,14 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
-/** Les écrans de la saisie simplifiée d'une espèce, ouverts depuis son écran. */
-enum class VoletEspece {
-    /** Nombre, stade de vie, sexe et état biologique. */
-    DETAILS,
-
-    /** Le comportement de la caractérisation. */
-    COMPORTEMENT,
-
-    /** Le commentaire de l'occurrence. */
-    COMMENTAIRE,
-}
-
 /** Ce que l'écran du relevé doit faire une fois. */
 sealed interface EvenementReleve {
     data class Message(val texte: String) : EvenementReleve
 
-    /** Ouvrir la caractérisation de l'espèce [index] ; [comportementSeul] : ouverture automatique
-     *  (nidification), réduite au comportement. */
-    data class Caracterisation(val index: Int, val comportementSeul: Boolean) : EvenementReleve
-
-    data class Denombrement(val index: Int) : EvenementReleve
-
-    /** Saisie simplifiée : ouvrir la fiche de l'observation [index] (Détails, Comportement,
-     *  Commentaire, Photo, Audio), puis, par-dessus, [volet] s'il faut y passer d'office. */
-    data class FicheEspece(val index: Int, val volet: VoletEspece? = null) : EvenementReleve
+    /** Ouvrir la fiche de l'observation [index], qui porte tous ses champs, dans les deux modes
+     *  (demandes du 16 novembre 2026). [nidification] : en mode pro, ouverte d'elle-même pour un
+     *  oiseau nicheur, la section « Avancé », qui porte le comportement, est dépliée. */
+    data class FicheEspece(val index: Int, val nidification: Boolean = false) : EvenementReleve
 
     /** Le relevé est terminé : retour à l'écran précédent. */
     data object Termine : EvenementReleve
@@ -132,12 +115,13 @@ class SaisieReleveViewModel(
 
     private var dejaAffiche = false
 
-    /** À chaque affichage de l'écran (onViewCreated) : le relevé est enregistré ; au retour d'un
-     *  sous-écran, la palette revient au groupe de la première espèce, comme sous Android. Sans jeu
-     *  de données connu, le relevé commence par ses détails, comme le web : le jeu est obligatoire. */
+    /** À chaque affichage de l'écran (onViewCreated) : le relevé est enregistré. Au retour de la fiche
+     *  d'une espèce, la palette GARDE le groupe choisi (16 novembre 2026) : elle revenait au groupe de
+     *  la première espèce, comme sous Android, ce qui défaisait le choix à chaque espèce depuis que la
+     *  fiche s'ouvre après chacune. Sans jeu de données connu, le relevé commence par ses détails,
+     *  comme le web : le jeu est obligatoire. */
     fun afficher() {
         val premier = !dejaAffiche
-        if (!premier) champ.replacerGroupe(releve.especes.value.firstOrNull()?.taxon ?: Taxon.OISEAU)
         dejaAffiche = true
         releve.synchroniser()
         if (premier && (releve.idDatasetEffectif() == null || releve.dateAChoisir())) ouvrirDetails()
@@ -167,35 +151,11 @@ class SaisieReleveViewModel(
     private fun ajouter(nom: String, cdNom: Int?) {
         val index = releve.ajouter(taxon, nom, cdNom)
         champ.vider()
-        if (simplifie) {
-            ouvrirFicheApresAjout(index)
-            return
-        }
-        // Des champs additionnels obligatoires sans valeur par défaut : l'écran qui les porte s'ouvre
-        // d'office, comme le web montre le formulaire du taxon avant de l'enregistrer (21 octobre).
-        val requis = releve.requis()
-        when {
-            requis.occurrence.isNotEmpty() -> ouvrirCaracterisation(index)
-            requis.denombrement.isNotEmpty() -> ouvrirDenombrement(index)
-            else -> declencherCaracterisationSiNidification(index)
-        }
+        ouvrirFicheApresAjout(index)
     }
 
     /** Les champs additionnels obligatoires à remplir des espèces : leur ligne les montre en rouge. */
     fun requis(): RequisEspece = releve.requis()
-
-    /** Oiseaux seulement : une espèce en période de nidification ce mois-ci ouvre d'elle-même sa
-     *  caractérisation, réduite au comportement (indice de nidification) — si le serveur montre ce
-     *  champ (`behaviour`), sans quoi l'écran s'ouvrirait vide. */
-    private fun declencherCaracterisationSiNidification(index: Int) {
-        if (!comportementANidifier(index)) return
-        val cdNom = releve.especes.value.getOrNull(index)?.cdNom ?: return
-        viewModelScope.launch {
-            if (nidification.estEnPeriode(cdNom, moisCourant())) {
-                _evenements.send(EvenementReleve.Caracterisation(index, comportementSeul = true))
-            }
-        }
-    }
 
     /** L'espèce [index] est un oiseau dont le serveur montre le comportement : sa période de
      *  nidification décide de l'ouverture d'office du comportement. */
@@ -204,28 +164,23 @@ class SaisieReleveViewModel(
         return espece.taxon == Taxon.OISEAU && espece.cdNom != null && config.champFormVisible("behaviour")
     }
 
-    /** Saisie simplifiée : l'espèce ajoutée ouvre son écran. Par-dessus, d'office, comme en mode pro :
-     *  « Détails » s'il porte des champs additionnels obligatoires à remplir, sinon « Comportement »
-     *  pour un oiseau en période de nidification. La période est lue AVANT d'ouvrir l'écran : lue
-     *  après, l'événement attendrait le retour au relevé pour ouvrir le comportement. */
+    /** L'espèce ajoutée ouvre sa fiche, qui porte tous ses champs, dans les deux modes (mode simplifié
+     *  depuis le 14 novembre 2026, mode pro depuis le 16 : « la fiche de l'observation doit s'ouvrir
+     *  automatiquement à chaque saisie d'espèce comme pour le mode simplifié »). En mode pro, pour un
+     *  oiseau en période de nidification, la section « Avancé » est dépliée, pour que le comportement
+     *  (indice de nidification) soit sous les yeux ; la période est lue AVANT d'ouvrir la fiche. */
     private fun ouvrirFicheApresAjout(index: Int) {
-        val requis = releve.requis()
-        if (requis.occurrence.isNotEmpty() || requis.denombrement.isNotEmpty()) {
-            _evenements.trySend(EvenementReleve.FicheEspece(index, VoletEspece.DETAILS))
-            return
-        }
         val cdNom = releve.especes.value.getOrNull(index)?.cdNom
-        if (!comportementANidifier(index) || cdNom == null) {
+        if (simplifie || cdNom == null || !comportementANidifier(index)) {
             _evenements.trySend(EvenementReleve.FicheEspece(index))
             return
         }
         viewModelScope.launch {
-            val nicheur = nidification.estEnPeriode(cdNom, moisCourant())
-            _evenements.send(EvenementReleve.FicheEspece(index, if (nicheur) VoletEspece.COMPORTEMENT else null))
+            _evenements.send(EvenementReleve.FicheEspece(index, nidification = nidification.estEnPeriode(cdNom, moisCourant())))
         }
     }
 
-    /** Saisie simplifiée : le crayon d'une espèce, ou son nom, ouvre la fiche de l'observation. */
+    /** Le crayon d'une espèce, ou son nom, ouvre la fiche de l'observation, dans les deux modes. */
     fun ouvrirFiche(index: Int) {
         _evenements.trySend(EvenementReleve.FicheEspece(index))
     }
@@ -251,14 +206,6 @@ class SaisieReleveViewModel(
         suppressionDemandee = null
         val index = releve.especes.value.indexOfFirst { it.vmId == demandee.vmId }
         if (index >= 0) releve.supprimer(index)
-    }
-
-    fun ouvrirCaracterisation(index: Int) {
-        _evenements.trySend(EvenementReleve.Caracterisation(index, comportementSeul = false))
-    }
-
-    fun ouvrirDenombrement(index: Int) {
-        _evenements.trySend(EvenementReleve.Denombrement(index))
     }
 
     /** Le dialogue « Détails du relevé », s'il est ouvert. */

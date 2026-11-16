@@ -92,7 +92,6 @@ import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.ui.ressources.coche
 import fr.ariegenature.geomys.ui.ressources.ic_delete
 import fr.ariegenature.geomys.ui.ressources.ic_edit
-import fr.ariegenature.geomys.ui.ressources.ic_info
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import fr.ariegenature.geomys.ui.theme.FondGeoMys
 import org.jetbrains.compose.resources.DrawableResource
@@ -104,18 +103,15 @@ private const val TITRE = "Nouveau relevé"
 /** android.R.color.darker_gray : icônes des groupes non choisis. */
 private val GRIS_GROUPE = Color(0xFFAAAAAA)
 
-/** Le relevé en cours : groupe, espèces ajoutées une à une, ✓ pour le terminer. [onCaracterisation]
- *  et [onDenombrement] ouvrent les sous-écrans d'une espèce, « Détails » le dialogue des détails du
- *  relevé, [onTermine] revient à la carte. En saisie simplifiée, [onFicheEspece] ouvre la fiche de
- *  l'observation (puis un volet par-dessus). */
+/** Le relevé en cours : groupe, espèces ajoutées une à une, ✓ pour le terminer. [onFicheEspece] ouvre
+ *  la fiche de l'observation d'une espèce, « Détails » le dialogue des détails du relevé, [onTermine]
+ *  revient à la carte. */
 @Composable
 fun SaisieReleveScreen(
     vm: SaisieReleveViewModel,
     onAccueil: () -> Unit,
-    onCaracterisation: (index: Int, comportementSeul: Boolean) -> Unit,
-    onDenombrement: (index: Int) -> Unit,
     onTermine: () -> Unit,
-    onFicheEspece: (index: Int, volet: VoletEspece?) -> Unit = { _, _ -> },
+    onFicheEspece: (index: Int, nidification: Boolean) -> Unit = { _, _ -> },
 ) {
     val ios = estIos
     val toasts = LocalToasts.current
@@ -123,9 +119,7 @@ fun SaisieReleveScreen(
         vm.evenements.collect { evenement ->
             when (evenement) {
                 is EvenementReleve.Message -> toasts.afficher(evenement.texte)
-                is EvenementReleve.Caracterisation -> onCaracterisation(evenement.index, evenement.comportementSeul)
-                is EvenementReleve.Denombrement -> onDenombrement(evenement.index)
-                is EvenementReleve.FicheEspece -> onFicheEspece(evenement.index, evenement.volet)
+                is EvenementReleve.FicheEspece -> onFicheEspece(evenement.index, evenement.nidification)
                 EvenementReleve.Termine -> onTermine()
             }
         }
@@ -337,24 +331,23 @@ internal fun BoutonDetailsIos(onClick: () -> Unit) {
     }
 }
 
-/** Une espèce du relevé : icône du groupe, nom (et nom scientifique dessous), « × N » qui ouvre le
- *  dénombrement, « i » la caractérisation, et la corbeille. En saisie simplifiée (demande du
- *  14 novembre 2026), ni « × N » ni « i » : un crayon, et le nom lui-même, ouvrent la « Fiche de
- *  l'observation » ; le crayon est rouge si un champ obligatoire de Détails est vide.
- *  - Android : item_pending_obs (icône teintée du texte, compteur dans un disque blanc de 24 dp,
- *    « i » blanc de 28 dp, corbeille rouge de 24 dp, zones de 36 dp) ;
- *  - iOS : LigneEspeceView (icône teintée du groupe, pastilles blanches de 28 pt, corbeille SF).
- *  Un champ additionnel obligatoire vide ([requis]) : la barre rouge sur la ligne, et le « i » ou le
- *  « × N » qui y mène en rouge (21 octobre). */
+/** Une espèce du relevé : icône du groupe, nom (et nom scientifique dessous), un crayon et la
+ *  corbeille. Le crayon, et le nom lui-même, ouvrent la « Fiche de l'observation » : en saisie
+ *  simplifiée depuis le 14 novembre 2026, en mode pro depuis le 16 (à la place du « × N » qui ouvrait
+ *  le dénombrement et du « i » qui ouvrait la caractérisation, écart voulu avec GeoMys-Android et
+ *  GeoMys-IOS ; le nombre n'est plus lisible dans la liste).
+ *  - Android : item_pending_obs (icône teintée du texte, corbeille rouge de 24 dp, zones de 36 dp) ;
+ *  - iOS : LigneEspeceView (icône teintée du groupe, corbeille SF).
+ *  Un champ additionnel obligatoire vide ([requis]) : la barre rouge sur la ligne, et le crayon en
+ *  rouge (21 octobre). */
 @Composable
 private fun LigneEspece(espece: EspeceReleve, sci: String?, avertissements: List<String>, index: Int, vm: SaisieReleveViewModel, requis: RequisEspece) {
-    val simplifie = vm.simplifie
     val caracterisation = requis.caracterisationIncomplete(espece)
     val denombrement = requis.denombrementIncomplet(espece)
-    // En saisie simplifiée, Détails porte les champs obligatoires des deux écrans.
+    // La fiche porte les champs obligatoires de l'occurrence et du dénombrement.
     val incomplet = caracterisation || denombrement
-    // Le nom ouvre aussi la fiche, en saisie simplifiée.
-    val nomTouchable = if (simplifie) Modifier.clickable(onClickLabel = TITRE_FICHE_OBSERVATION) { vm.ouvrirFiche(index) } else Modifier
+    // Le nom ouvre aussi la fiche.
+    val nomTouchable = Modifier.clickable(onClickLabel = TITRE_FICHE_OBSERVATION) { vm.ouvrirFiche(index) }
     if (estIos) {
         Row(
             Modifier.barreChampObligatoire(caracterisation || denombrement).padding(4.dp),
@@ -367,13 +360,8 @@ private fun LigneEspece(espece: EspeceReleve, sci: String?, avertissements: List
                 if (sci != null) Text(sci, fontSize = 13.sp, fontStyle = FontStyle.Italic, color = CouleursGeoMys.blanc70, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 AvertissementProfil(avertissements, Modifier.padding(top = 2.dp))
             }
-            if (simplifie) {
-                BoutonIos({ vm.ouvrirFiche(index) }, Modifier.size(36.dp), opaciteAppui = 0.6f) {
-                    SymboleSf("square.and.pencil", 18f, listOf(if (incomplet) CouleursGeoMys.rougePastille else Color.White), description = TITRE_FICHE_OBSERVATION)
-                }
-            } else {
-                PastilleIos("× ${espece.total}", "Dénombrement", alerte = denombrement) { vm.ouvrirDenombrement(index) }
-                PastilleIos("i", "Caractérisation", alerte = caracterisation) { vm.ouvrirCaracterisation(index) }
+            BoutonIos({ vm.ouvrirFiche(index) }, Modifier.size(36.dp), opaciteAppui = 0.6f) {
+                SymboleSf("square.and.pencil", 18f, listOf(if (incomplet) CouleursGeoMys.rougePastille else Color.White), description = TITRE_FICHE_OBSERVATION)
             }
             BoutonIos({ vm.demanderSuppression(index) }, Modifier.size(36.dp), opaciteAppui = 0.6f) {
                 SymboleSf("trash", 18f, listOf(CouleursGeoMys.rougePastille), description = "Supprimer")
@@ -398,37 +386,8 @@ private fun LigneEspece(espece: EspeceReleve, sci: String?, avertissements: List
                 }
                 AvertissementProfil(avertissements, Modifier.padding(top = 2.dp))
             }
-            if (simplifie) {
-                BoutonLigneAndroid(Res.drawable.ic_edit, TITRE_FICHE_OBSERVATION, if (incomplet) CouleursGeoMys.holoRougeFonce else Color.White, marge = 6) { vm.ouvrirFiche(index) }
-            } else {
-                CompteurAndroid("× ${espece.total}", alerte = denombrement) { vm.ouvrirDenombrement(index) }
-                BoutonLigneAndroid(Res.drawable.ic_info, "Détails", if (caracterisation) CouleursGeoMys.holoRougeFonce else Color.White, marge = 4) { vm.ouvrirCaracterisation(index) }
-            }
+            BoutonLigneAndroid(Res.drawable.ic_edit, TITRE_FICHE_OBSERVATION, if (incomplet) CouleursGeoMys.holoRougeFonce else Color.White, marge = 6) { vm.ouvrirFiche(index) }
             BoutonLigneAndroid(Res.drawable.ic_delete, "Supprimer", CouleursGeoMys.holoRougeFonce, marge = 6) { vm.demanderSuppression(index) }
-        }
-    }
-}
-
-/** Compteur « × N » d'Android : texte gras de 11 sp dans un disque blanc de 24 dp (gris appuyé) ;
- *  rouge, texte blanc, quand il mène à un champ obligatoire vide ([alerte]). */
-@Composable
-private fun CompteurAndroid(texte: String, alerte: Boolean = false, onClick: () -> Unit) {
-    val interactions = remember { MutableInteractionSource() }
-    val appuye by interactions.collectIsPressedAsState()
-    Box(
-        Modifier
-            .padding(start = 4.dp)
-            .size(36.dp)
-            .clickable(interactions, indication = null, role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        val fond = when {
-            alerte -> CouleursGeoMys.holoRougeFonce
-            appuye -> Color(0xFFE0E0E0)
-            else -> Color.White
-        }
-        Box(Modifier.size(24.dp).background(fond, CircleShape), contentAlignment = Alignment.Center) {
-            Text(texte, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (alerte) Color.White else Color(0xFF212121), maxLines = 1)
         }
     }
 }
@@ -445,16 +404,5 @@ private fun BoutonLigneAndroid(icone: DrawableResource, description: String, tei
         contentAlignment = Alignment.Center,
     ) {
         Image(painterResource(icone), contentDescription = description, colorFilter = ColorFilter.tint(teinte), modifier = Modifier.fillMaxSize())
-    }
-}
-
-/** BoutonRondInline de GeoMys-IOS : disque blanc de 28 pt, texte gras de 12 pt gris très foncé ;
- *  rouge, texte blanc, quand il mène à un champ obligatoire vide ([alerte]). */
-@Composable
-private fun PastilleIos(texte: String, description: String, alerte: Boolean = false, onClick: () -> Unit) {
-    BoutonIos(onClick, Modifier.semantics { contentDescription = description }, opaciteAppui = 0.6f) {
-        Box(Modifier.size(28.dp).background(if (alerte) CouleursGeoMys.rougePastille else Color.White, CircleShape), contentAlignment = Alignment.Center) {
-            Text(texte, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (alerte) Color.White else Color(0xFF212121), maxLines = 1)
-        }
     }
 }

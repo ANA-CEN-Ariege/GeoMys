@@ -383,6 +383,25 @@ class ChampEspeceReglesTest {
         assertEquals(EvenementReleve.Message("Choisissez un jeu de données"), releve.evenements.first())
     }
 
+    /** 16 novembre 2026 : le groupe choisi reste celui de l'espèce suivante, même au retour de la fiche
+     *  (la palette revenait au groupe de la première espèce). */
+    @Test
+    fun le_groupe_choisi_est_garde_au_retour_de_la_fiche() = runTest {
+        services.ajouterTaxRefEssai()
+        services.preferences.memoiserTaxon(Taxon.INSECTE)
+        jeuParDefaut()
+        val session = vm { SessionSaisieViewModel(services) }
+        val releve = vm { SaisieReleveViewModel(services, session, OuvertureReleve(geometrie = GeometrieFinale("Point", null, 42.9, 1.6))) }
+        releve.afficher()
+        releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
+        releve.choisirTaxon(Taxon.PLANTE)
+        releve.choisirSuggestion(SuggestionTaxon("Ortie dioïque", 128268))
+        // Retour de la fiche de l'ortie : l'écran du relevé se réaffiche.
+        releve.afficher()
+        assertEquals(Taxon.PLANTE, releve.champ.taxon)
+        assertEquals(Taxon.PLANTE, services.preferences.dernierTaxon(), "et il sert au relevé suivant")
+    }
+
     @Test
     fun avec_un_jeu_par_defaut_le_releve_s_ouvre_sur_ses_especes() = runTest {
         services.ajouterTaxRefEssai()
@@ -425,7 +444,7 @@ class ChampEspeceReglesTest {
         val session = vm { SessionSaisieViewModel(services) }
         val releve = vm { SaisieReleveViewModel(services, session, OuvertureReleve(geometrie = GeometrieFinale("Point", null, 42.9, 1.6))) }
         releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
-        assertEquals(EvenementReleve.Caracterisation(0, comportementSeul = false), releve.evenements.first())
+        assertEquals(EvenementReleve.FicheEspece(0), releve.evenements.first(), "la fiche, qui porte le champ obligatoire")
         val requis = releve.requis()
         val espece = releve.releve.especes.value.single()
         assertTrue(requis.caracterisationIncomplete(espece), "le code LUF reste à remplir")

@@ -16,31 +16,38 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// Propre au portage : l'écran d'une espèce de la saisie multi-taxons simplifiée (demande du 14 novembre
-// 2026), qui mène à « Détails » et « Comportement » et ajoute photos et sons. Il ne garde rien : chaque
-// volet validé et chaque média ajouté ou retiré est écrit aussitôt dans le relevé, enregistré au fil de
-// l'eau.
+// Propre au portage : la fiche d'une espèce de la saisie multi-taxons simplifiée (demande du 14 novembre
+// 2026). Depuis le 16 novembre, c'est un seul formulaire : nombre min et max, stade de vie, sexe, état
+// biologique, comportement, commentaire, photos et sons, à la place des boutons « Détails »,
+// « Comportement » et « Commentaire » qui ouvraient chacun un écran. Les champs viennent du dénombrement
+// n° 0 et de la caractérisation ; les règles sont celles de ces deux écrans (occtax/FormulairesEspece),
+// le retour celui de occtax/SaisieSimplifiee. ✓ écrit les champs dans le relevé ; un média ajouté ou
+// retiré y est écrit aussitôt.
 
 package fr.ariegenature.geomys.ui.occtax
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import fr.ariegenature.geomys.ServicesGeoNature
+import fr.ariegenature.geomys.occtax.ChampNomenclature
+import fr.ariegenature.geomys.occtax.DetailsReleveFormulaire
 import fr.ariegenature.geomys.occtax.EspeceReleve
 import fr.ariegenature.geomys.occtax.FormulairesEspece
 import fr.ariegenature.geomys.occtax.ReleveEnCours
 import fr.ariegenature.geomys.occtax.SaisieSimplifiee
 import fr.ariegenature.geomys.saisie.ChampsTaxon
+import fr.ariegenature.geomys.saisie.EtatChampsAdditionnels
 import fr.ariegenature.geomys.store.NidificationOiseaux
 import fr.ariegenature.geomys.store.champFormVisible
 import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.util.moisCourant
 import kotlinx.coroutines.launch
 
-/** L'écran de l'espèce [index] du [releve]. */
+/** La fiche de l'espèce [index] du [releve]. */
 class FicheEspeceViewModel(
     private val services: ServicesGeoNature,
     val releve: ReleveEnCours,
@@ -55,27 +62,100 @@ class FicheEspeceViewModel(
     private val nomenclatures = services.nomenclatures
     private val formFields = config.formFieldsJson
 
-    /** Le groupe taxonomique de l'espèce, qui décide des champs qui ont un sens pour elle. */
-    private val groupe = releve.especes.value.getOrNull(index)?.let { ChampsTaxon.groupeTaxonomique(it.taxon, it.cdNom, services.taxRef) }
+    /** L'espèce telle qu'elle est à l'ouverture de la fiche ; null si elle n'est plus dans le relevé. */
+    private val ouverte: EspeceReleve? = releve.especes.value.getOrNull(index)
 
-    /** Les codes des champs de [liste] que le serveur montre et qui ont un sens pour l'espèce. */
-    private fun codesPertinents(liste: List<Pair<String, String>>): List<String> {
+    /** Le groupe taxonomique de l'espèce, qui décide des champs qui ont un sens pour elle et filtre
+     *  les valeurs proposées, comme sur le web. */
+    private val groupe = ouverte?.let { ChampsTaxon.groupeTaxonomique(it.taxon, it.cdNom, services.taxRef) }
+
+    private val denombrement = ouverte?.denombrements()?.first()
+
+    /** Les champs de [liste] que le serveur montre et qui ont un sens pour le groupe de l'espèce. */
+    private fun champs(liste: List<Pair<String, String>>): List<ChampNomenclature> {
         val g = groupe ?: return emptyList()
         return FormulairesEspece.champsVisibles(liste, formFields)
             .map { FormulairesEspece.champ(it, nomenclatures, g, config.nomenclaturesFiltreesParTaxon) }
             .filter { SaisieSimplifiee.pertinent(it, g, nomenclatures) }
-            .map { it.champ.code }
     }
 
-    private val nombreVisible = champFormVisible(formFields, SaisieSimplifiee.CLE_NOMBRE)
-    private val codesDetails = codesPertinents(SaisieSimplifiee.DETAILS_DENOMBREMENT + SaisieSimplifiee.DETAILS_OCCURRENCE)
+    private val champsDenombrement = champs(SaisieSimplifiee.DETAILS_DENOMBREMENT)
 
-    /** « Détails » : un de ses champs est montré par le serveur, ou un champ additionnel obligatoire. */
-    val detailsVisible: Boolean
-        get() = nombreVisible || codesDetails.isNotEmpty() || releve.requis().let { it.occurrence.isNotEmpty() || it.denombrement.isNotEmpty() }
+    /** Stade de vie, sexe, puis état biologique : ceux que le serveur montre, pour le groupe de
+     *  l'espèce (pas de sexe pour une plante). */
+    val champsDetails: List<ChampNomenclature> = champsDenombrement + champs(SaisieSimplifiee.DETAILS_OCCURRENCE)
 
-    /** « Comportement » : si le serveur montre ce champ, et pour un animal. */
-    val comportementVisible = codesPertinents(FormulairesEspece.OCC_COMPORTEMENT).isNotEmpty()
+    /** Le comportement : si le serveur montre ce champ, et pour un animal. */
+    val champComportement: ChampNomenclature? = champs(FormulairesEspece.OCC_COMPORTEMENT).firstOrNull()
+    val comportementVisible: Boolean get() = champComportement != null
+
+    private val tousLesChamps = champsDetails + listOfNotNull(champComportement)
+
+    // ─── Nombres ───
+
+    /** Le nombre min et le nombre max, si le serveur les montre (demande du 16 novembre 2026 : « pour
+     *  le nombre, remet min et max »). */
+    val minVisible = champFormVisible(formFields, SaisieSimplifiee.CLE_NOMBRE)
+    val maxVisible = champFormVisible(formFields, SaisieSimplifiee.CLE_NOMBRE_MAX)
+
+    var min by mutableStateOf(denombrement?.nombreMin?.toString() ?: "1")
+        private set
+    var max by mutableStateOf(denombrement?.nombreMax?.toString() ?: "1")
+        private set
+
+    /** Le max suit le min tant qu'il n'a pas été saisi à part, comme à l'écran Dénombrement. */
+    fun saisirMin(texte: String) {
+        max = FormulairesEspece.maxApresMin(min, texte, max)
+        min = texte
+    }
+
+    fun ajusterMin(delta: Int) = saisirMin(FormulairesEspece.ajuster(min, delta, FormulairesEspece.PLANCHER_MIN))
+
+    fun saisirMax(texte: String) {
+        max = texte
+    }
+
+    fun ajusterMax(delta: Int) {
+        max = FormulairesEspece.ajuster(max, delta, FormulairesEspece.plancherMax(min))
+    }
+
+    // ─── Nomenclatures ───
+
+    /** La valeur portée par l'espèce à l'ouverture pour [c]. */
+    private fun courant(c: ChampNomenclature): String {
+        val e = ouverte ?: return ""
+        val d = denombrement ?: return ""
+        return if (c in champsDenombrement) FormulairesEspece.valeurDenombrement(d, c.champ) else FormulairesEspece.valeurOccurrence(e, c.champ)
+    }
+
+    /** Position choisie de chaque champ, par code : la valeur de l'espèce, sinon le défaut du serveur. */
+    val positions = mutableStateMapOf<String, Int>().apply {
+        tousLesChamps.forEach { c -> put(c.champ.code, FormulairesEspece.positionInitiale(c, courant(c), nomenclatures)) }
+    }
+    private val positionsInitiales: Map<String, Int> = positions.toMap()
+
+    /** La valeur retenue de [c] : celle de la liste si elle a changé, sinon celle de l'espèce ou le
+     *  défaut du serveur. */
+    private fun retenue(c: ChampNomenclature): String {
+        val code = c.champ.code
+        return FormulairesEspece.valeurRetenue(c, courant(c), nomenclatures.defautPour(code), positionsInitiales[code] ?: 0, positions[code] ?: 0)
+    }
+
+    // ─── Champs additionnels obligatoires ───
+
+    private val requis = releve.requis()
+    private val observateurs = DetailsReleveFormulaire.observateurs(config)
+
+    /** Les champs additionnels obligatoires de l'occurrence et du dénombrement, montrés ici puisque les
+     *  écrans qui les portent ne s'ouvrent pas ; null s'il n'y en a pas. */
+    val additionnelsOccurrence: EtatChampsAdditionnels? = requis.occurrence.takeIf { it.isNotEmpty() && ouverte != null }?.let {
+        EtatChampsAdditionnels(it, ouverte?.additionalFieldsOccurrence.orEmpty(), observateurs, services.taxRef)
+    }
+    val additionnelsDenombrement: EtatChampsAdditionnels? = requis.denombrement.takeIf { it.isNotEmpty() && denombrement != null }?.let {
+        EtatChampsAdditionnels(it, denombrement?.additionalFields.orEmpty(), observateurs, services.taxRef)
+    }
+
+    // ─── Chant ───
 
     /** Les identifiants des valeurs de chant du serveur, si le bouton « Chant » a sa place : un oiseau,
      *  le comportement montré, et la valeur proposée pour ce taxon. « Chant », et l'indice de
@@ -84,11 +164,7 @@ class FicheEspeceViewModel(
     private val idMaleChanteur: String?
 
     init {
-        val g = groupe?.takeIf { comportementVisible && SaisieSimplifiee.estOiseau(it) }
-        val proposes = g?.let {
-            FormulairesEspece.champsVisibles(FormulairesEspece.OCC_COMPORTEMENT, formFields)
-                .flatMap { c -> FormulairesEspece.champ(c, nomenclatures, it, config.nomenclaturesFiltreesParTaxon).codes }
-        }.orEmpty()
+        val proposes = champComportement?.takeIf { groupe?.let(SaisieSimplifiee::estOiseau) == true }?.codes.orEmpty()
         val valeurs = nomenclatures.get("OCC_COMPORTEMENT")
         idChant = SaisieSimplifiee.valeurChant(valeurs)?.id?.toString()?.takeIf { it in proposes }
         idMaleChanteur = SaisieSimplifiee.valeurMaleChanteur(valeurs)?.id?.toString()?.takeIf { it in proposes }
@@ -98,7 +174,7 @@ class FicheEspeceViewModel(
     private var nicheur by mutableStateOf(false)
 
     init {
-        val cdNom = releve.especes.value.getOrNull(index)?.cdNom
+        val cdNom = ouverte?.cdNom
         if (idMaleChanteur != null && cdNom != null) viewModelScope.launch { nicheur = enPeriodeNidification(cdNom) }
     }
 
@@ -108,18 +184,32 @@ class FicheEspeceViewModel(
     /** « Chant » : pour un oiseau, si le serveur a une valeur de chant qui convient à la saison. */
     val chantVisible: Boolean get() = chantAPoser != null
 
-    /** Le comportement de l'espèce est une des valeurs de chant. */
-    fun chante(e: EspeceReleve): Boolean = e.comportement.isNotEmpty() && (e.comportement == idChant || e.comportement == idMaleChanteur)
+    /** Le comportement choisi dans la fiche, tel qu'il serait écrit. */
+    private val comportementChoisi: String get() = champComportement?.let(::retenue).orEmpty()
 
-    /** « Chant » : pose le chant (l'indice « Mâle chanteur » en période de nidification), ou l'enlève
-     *  s'il y est. */
+    /** Le comportement choisi est une des valeurs de chant. */
+    val chante: Boolean get() = comportementChoisi.let { it.isNotEmpty() && (it == idChant || it == idMaleChanteur) }
+
+    /** « Chant » : choisit le chant dans le champ « Comportement » (l'indice « Mâle chanteur » en
+     *  période de nidification), ou l'en retire s'il y est, pour revenir au défaut du serveur. Comme
+     *  les autres champs, il est écrit au ✓. */
     fun basculerChant() {
+        val champ = champComportement ?: return
         val id = chantAPoser ?: return
-        releve.modifier(index) { SaisieSimplifiee.basculerChant(it, id, setOfNotNull(idChant, idMaleChanteur)) }
+        val apres = SaisieSimplifiee.comportementApresChant(
+            comportementChoisi, id, setOfNotNull(idChant, idMaleChanteur), sansChant = nomenclatures.defautPour("OCC_COMPORTEMENT").orEmpty(),
+        )
+        positions[champ.champ.code] = champ.position(apres)
     }
 
-    /** « Commentaire » : si le serveur montre le commentaire de l'occurrence. */
+    // ─── Commentaire ───
+
+    /** Le commentaire de l'occurrence, si le serveur le montre. */
     val commentaireVisible = champFormVisible(formFields, SaisieSimplifiee.CLE_COMMENTAIRE)
+
+    var commentaire by mutableStateOf(ouverte?.notes.orEmpty())
+
+    // ─── Médias ───
 
     /** « Photo » et « Audio » : si le serveur active les médias (`OCCTAX.ENABLE_MEDIAS`). */
     val mediasVisibles = config.occtaxMediasActifs
@@ -130,47 +220,14 @@ class FicheEspeceViewModel(
     /** L'espèce dans [especes], la liste du relevé ; null si elle n'y est plus. */
     fun espece(especes: List<EspeceReleve>): EspeceReleve? = especes.getOrNull(index)
 
-    /** Un champ obligatoire de « Détails » est vide. */
-    fun detailsIncomplets(e: EspeceReleve): Boolean = releve.requis().let { it.caracterisationIncomplete(e) || it.denombrementIncomplet(e) }
-
-    /** Le libellé d'une nomenclature [code] de valeur [valeur] ; vide : celui du défaut du serveur,
-     *  la valeur qui sera enregistrée. */
-    private fun libelle(code: String, valeur: String?): String? {
-        val id = valeur?.takeIf { it.isNotEmpty() } ?: nomenclatures.defautPour(code) ?: return null
-        return nomenclatures.get(code).firstOrNull { it.id.toString() == id }?.libelle
-    }
-
-    /** Sous « Détails » : « 3 · Adulte · Mâle · Vivant ». */
-    fun resumeDetails(e: EspeceReleve): String {
-        val parties = buildList {
-            if (nombreVisible) add(e.nombre.toString() + (e.nombreMax?.let { " à $it" } ?: ""))
-            for (code in codesDetails) {
-                val valeur = when (code) {
-                    "STADE_VIE" -> e.stadeVie
-                    "SEXE" -> e.sexe
-                    "ETA_BIO" -> e.etaBio
-                    else -> null
-                }
-                libelle(code, valeur)?.let(::add)
-            }
-        }
-        return parties.joinToString(" · ")
-    }
-
-    /** Sous « Comportement » : le comportement choisi, ou « Non renseigné ». */
-    fun resumeComportement(e: EspeceReleve): String = libelle("OCC_COMPORTEMENT", e.comportement) ?: "Non renseigné"
-
-    /** Sous « Commentaire » : le commentaire, sur trois lignes au plus à l'écran, ou « Aucun ». */
-    fun resumeCommentaire(e: EspeceReleve): String = e.notes.trim().ifEmpty { "Aucun" }
-
+    /** Un média est écrit aussitôt dans le relevé, sans attendre le ✓ : la photo est déjà prise. */
     fun ajouterMedias(uris: List<String>) {
         releve.modifier(index) { SaisieSimplifiee.ajouterMedias(it, uris) }
     }
 
     /** Retire un média de l'espèce. Sa copie locale reste : une photo prise depuis la fiche n'existe
-     *  que là, d'autres observations d'une série peuvent la partager, et l'écran n'a pas de « Quitter
-     *  sans enregistrer » (audit du 14 novembre 2026, M51). Le balayage des médias orphelins l'efface
-     *  après 48 heures. */
+     *  que là, d'autres observations d'une série peuvent la partager (audit du 14 novembre 2026, M51).
+     *  Le balayage des médias orphelins l'efface après 48 heures. */
     fun retirerMedia(uri: String) {
         releve.modifier(index) { SaisieSimplifiee.retirerMedia(it, uri) }
     }
@@ -178,4 +235,42 @@ class FicheEspeceViewModel(
     /** L'observation est déjà sur le serveur : un média ajouté maintenant ne partirait jamais, la mise
      *  à jour d'une occurrence n'en portant pas (audit du 14 novembre 2026, M52). */
     fun mediasFiges(e: EspeceReleve): Boolean = releve.dejaTransmise(e)
+
+    // ─── ✓ ───
+
+    private fun valeurs(): List<Any?> =
+        listOf(min, max, positions.toMap(), commentaire, additionnelsOccurrence?.collecter(), additionnelsDenombrement?.collecter())
+
+    private val initiales = valeurs()
+
+    /** La fiche a changé depuis son ouverture (les médias, déjà écrits, ne comptent pas). */
+    fun modifie(): Boolean = valeurs() != initiales
+
+    /** ✓ : écrit la fiche dans l'espèce et rend null, ou rend le message d'un champ refusé (la fiche
+     *  reste). L'écriture part de l'espèce telle qu'elle est AU MOMENT du ✓, pas de celle de
+     *  l'ouverture : une photo rattachée entre-temps n'est pas écrasée (audit du 14 novembre 2026,
+     *  M50). Une fiche laissée telle quelle n'écrit rien : les champs jamais saisis restent vides, et
+     *  le serveur y met ses défauts. */
+    fun valider(): String? {
+        val nomenclaturesRetenues = tousLesChamps.associate { it.champ.code to retenue(it) }
+        SaisieSimplifiee.refusEffectifs(min.takeIf { minVisible }, max.takeIf { maxVisible })?.let { return it }
+        FormulairesEspece.manque(tousLesChamps, nomenclaturesRetenues)?.let { return it }
+        additionnelsOccurrence?.refus()?.let { return it }
+        additionnelsDenombrement?.refus()?.let { return it }
+        if (!modifie()) return null
+        val minSaisi = min.takeIf { minVisible }
+        val maxSaisi = max.takeIf { maxVisible }
+        val occurrence = additionnelsOccurrence?.collecter().orEmpty()
+        val comptage = additionnelsDenombrement?.collecter().orEmpty()
+        val texte = commentaire.takeIf { commentaireVisible }
+        val vmId = ouverte?.vmId
+        releve.modifier(index) { courante ->
+            if (courante.vmId != vmId) return@modifier courante
+            val details = SaisieSimplifiee.appliquerDetails(
+                courante, minSaisi ?: courante.nombre.toString(), nomenclaturesRetenues, occurrence, comptage, max = maxSaisi,
+            )
+            if (texte != null) SaisieSimplifiee.appliquerCommentaire(details, texte) else details
+        }
+        return null
+    }
 }

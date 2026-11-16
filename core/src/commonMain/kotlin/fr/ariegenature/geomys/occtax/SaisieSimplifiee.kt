@@ -17,11 +17,12 @@
  */
 
 // Propre au portage : la saisie multi-taxons simplifiée (demande du 14 novembre 2026). Une espèce
-// ajoutée ouvre un écran à cinq boutons : « Détails » (nombre, stade de vie, sexe du dénombrement,
-// état biologique de la caractérisation), « Comportement » (celui de la caractérisation),
-// « Commentaire » (celui de l'occurrence, ajouté le même jour), « Photo » et « Audio ». Ces champs, répartis autrement que dans les écrans Dénombrement et Caractérisation,
-// reviennent à leur place dans l'espèce ; les autres gardent leur valeur, le défaut du serveur pour une
-// espèce jamais ouverte.
+// ajoutée ouvre sa fiche, un seul formulaire depuis le 16 novembre (les boutons « Détails »,
+// « Comportement » et « Commentaire » ouvraient chacun un écran) : nombre min et max, stade de vie et
+// sexe du dénombrement, état biologique et comportement de la caractérisation, commentaire de
+// l'occurrence, « Photo » et « Audio ». Ces champs, répartis autrement que dans les écrans Dénombrement
+// et Caractérisation, reviennent à leur place dans l'espèce ; les autres gardent leur valeur, le défaut
+// du serveur pour une espèce jamais ouverte.
 
 package fr.ariegenature.geomys.occtax
 
@@ -37,8 +38,12 @@ object SaisieSimplifiee {
     /** « Détails » : la nomenclature de la caractérisation. */
     val DETAILS_OCCURRENCE = listOf("ETA_BIO" to "bio_condition")
 
-    /** La clé form_fields du nombre : celle du nombre min. */
+    /** Les clés form_fields des nombres min et max. */
     const val CLE_NOMBRE = "count_min"
+    const val CLE_NOMBRE_MAX = "count_max"
+
+    /** Les nomenclatures de la caractérisation que porte la fiche : état biologique et comportement. */
+    val FICHE_OCCURRENCE = DETAILS_OCCURRENCE + FormulairesEspece.OCC_COMPORTEMENT
 
     /** La clé form_fields du comportement : sans elle, pas de bouton « Comportement ». */
     const val CLE_COMPORTEMENT = "behaviour"
@@ -81,11 +86,11 @@ object SaisieSimplifiee {
     fun idChantAPoser(idChant: String?, idMaleChanteur: String?, nicheur: Boolean): String? =
         if (nicheur) idMaleChanteur ?: idChant else idChant
 
-    /** Bouton « Chant » (demande du 15 novembre 2026) : pose le comportement [aPoser], ou l'enlève si
-     *  l'espèce porte déjà une des valeurs de chant ([valeursChant]) ; un autre comportement est
-     *  remplacé. Rien d'autre ne change. */
-    fun basculerChant(espece: EspeceReleve, aPoser: String, valeursChant: Set<String> = setOf(aPoser)): EspeceReleve =
-        espece.copy(comportement = if (espece.comportement in valeursChant) "" else aPoser)
+    /** Bouton « Chant » (demande du 15 novembre 2026) : le comportement après un toucher. [aPoser] est
+     *  posé, ou enlevé ([sansChant], la valeur de repli) si le comportement [courant] est déjà une des
+     *  valeurs de chant ([valeursChant]) ; un autre comportement est remplacé. */
+    fun comportementApresChant(courant: String, aPoser: String, valeursChant: Set<String> = setOf(aPoser), sansChant: String = ""): String =
+        if (courant in valeursChant) sansChant else aPoser
 
     /** Le champ [champ] a sa place pour un taxon de [groupe] (demande du 14 novembre 2026 : « les champs
      *  présentés doivent être en adéquation avec ceux du groupe taxonomique », le sexe n'existant pas
@@ -99,21 +104,26 @@ object SaisieSimplifiee {
         return !champ.sansValeurs || nomenclatures.get(code).isEmpty()
     }
 
-    /** Le nombre de « Détails » au départ : le nombre min du dénombrement n° 0. */
-    fun nombreInitial(espece: EspeceReleve): String = espece.nombre.toString()
-
-    /** Le refus du nombre tapé, comme les effectifs du web (un entier positif, requis), ou null. */
-    fun refusNombre(texte: String): String? = when {
-        texte.isEmpty() -> "Renseignez le nombre"
-        !ENTIER.matches(texte) -> "Nombre entier attendu"
-        // Dix chiffres ou plus : illisible, il était enregistré comme 1 (audit du 14 novembre 2026, M54).
-        texte.toIntOrNull() == null -> "Nombre trop grand"
-        else -> null
+    /** Le refus des effectifs tapés dans la fiche, ou null. [min] ou [max] null : le serveur ne montre
+     *  pas ce nombre, et l'autre se contrôle seul. Les contrôles sont ceux du web
+     *  ([FormulairesEspece.refusEffectifs]) ; dix chiffres ou plus sont illisibles, ils étaient
+     *  enregistrés comme 1 (audit du 14 novembre 2026, M54). */
+    fun refusEffectifs(min: String?, max: String?): String? {
+        for (texte in listOfNotNull(min, max)) {
+            if (ENTIER.matches(texte) && texte.toIntOrNull() == null) return "Nombre trop grand"
+        }
+        return when {
+            min != null && max != null -> FormulairesEspece.refusEffectifs(min, max)
+            min != null -> FormulairesEspece.refusEffectifs(min, min)
+            max != null -> FormulairesEspece.refusEffectifs(max, max)?.replace("nombre min", "nombre max")
+            else -> null
+        }
     }
 
-    /** ✓ de « Détails » : le dénombrement n° 0 prend le [nombre] (minimum et maximum ; un maximum
-     *  saisi en mode pro reste tant que le nombre ne change pas), le stade de vie et le sexe ;
-     *  l'occurrence, l'état biologique. [nomenclatures] : code → valeur retenue des champs AFFICHÉS,
+    /** ✓ de la fiche : le dénombrement n° 0 prend le nombre min [nombre] et le nombre [max] (null : le
+     *  serveur ne montre pas le nombre max, qui suit alors le min ; un maximum saisi en mode pro
+     *  reste tant que le min ne change pas), le stade de vie et le sexe ; l'occurrence, l'état
+     *  biologique et le comportement. [nomenclatures] : code → valeur retenue des champs AFFICHÉS,
      *  un champ masqué garde la sienne. Les champs additionnels obligatoires montrés
      *  ([additionnelsOccurrence], [additionnelsDenombrement]) s'ajoutent aux valeurs déjà portées.
      *  Le reste de l'espèce ne change pas : objet et type du dénombrement, autres dénombrements,
@@ -124,10 +134,11 @@ object SaisieSimplifiee {
         nomenclatures: Map<String, String>,
         additionnelsOccurrence: Map<String, String> = emptyMap(),
         additionnelsDenombrement: Map<String, String> = emptyMap(),
+        max: String? = null,
     ): EspeceReleve {
         val c0 = espece.denombrements().first()
-        val (n, _) = FormulairesEspece.effectifs(nombre, nombre)
-        val max = if (n == c0.nombreMin) c0.nombreMax else n
+        val (n, saisi) = FormulairesEspece.effectifs(nombre, max ?: nombre)
+        val max = if (max != null) saisi else if (n == c0.nombreMin) c0.nombreMax else n
         val codesDenombrement = DETAILS_DENOMBREMENT.map { it.first }.toSet()
         val compte = FormulairesEspece.appliquerDenombrement(
             c0,
@@ -137,7 +148,7 @@ object SaisieSimplifiee {
             c0.additionalFields + additionnelsDenombrement,
         )
         val avecCompte = espece.avecDenombrements(listOf(compte) + espece.denombrementsAdditionnels)
-        val codesOccurrence = DETAILS_OCCURRENCE.map { it.first }.toSet()
+        val codesOccurrence = FICHE_OCCURRENCE.map { it.first }.toSet()
         return FormulairesEspece.appliquerCaracterisation(
             avecCompte,
             nomenclatures.filterKeys { it in codesOccurrence },
@@ -148,7 +159,7 @@ object SaisieSimplifiee {
         )
     }
 
-    /** ✓ de « Commentaire » : le commentaire de l'occurrence, celui que la caractérisation range sous
+    /** Le commentaire de la fiche : le commentaire de l'occurrence, celui que la caractérisation range sous
      *  « Avancé » en mode pro ; des espaces seuls n'en font pas un. */
     fun appliquerCommentaire(espece: EspeceReleve, texte: String): EspeceReleve = espece.copy(notes = texte.trim())
 

@@ -161,13 +161,29 @@ class SaisieSimplifieeTest {
     }
 
     @Test
-    fun le_nombre_est_un_entier_requis() {
-        assertEquals("Renseignez le nombre", SaisieSimplifiee.refusNombre(""))
-        assertEquals("Nombre entier attendu", SaisieSimplifiee.refusNombre("2,5"))
-        assertNull(SaisieSimplifiee.refusNombre("0"))
-        assertNull(SaisieSimplifiee.refusNombre("2147483647"))
-        assertEquals("Nombre trop grand", SaisieSimplifiee.refusNombre("99999999999"), "il était enregistré comme 1")
-        assertEquals("2", SaisieSimplifiee.nombreInitial(espece))
+    fun les_nombres_min_et_max_sont_des_entiers_requis() {
+        assertEquals("Renseignez le nombre min", SaisieSimplifiee.refusEffectifs("", "3"))
+        assertEquals("Renseignez le nombre max", SaisieSimplifiee.refusEffectifs("2", ""))
+        assertEquals("Nombre entier attendu", SaisieSimplifiee.refusEffectifs("2,5", "3"))
+        assertNull(SaisieSimplifiee.refusEffectifs("0", "2147483647"))
+        assertEquals("Nombre trop grand", SaisieSimplifiee.refusEffectifs("99999999999", "99999999999"), "il était enregistré comme 1")
+        assertEquals("Le dénombrement maximum ne peut pas être inférieur au dénombrement minimum", SaisieSimplifiee.refusEffectifs("5", "3"))
+        // Un seul des deux nombres montré par le serveur : il se contrôle seul.
+        assertNull(SaisieSimplifiee.refusEffectifs("4", null))
+        assertEquals("Renseignez le nombre min", SaisieSimplifiee.refusEffectifs("", null))
+        assertEquals("Renseignez le nombre max", SaisieSimplifiee.refusEffectifs(null, ""))
+        assertNull(SaisieSimplifiee.refusEffectifs(null, null))
+    }
+
+    /** 16 novembre 2026 : la fiche porte le nombre min et le nombre max, et le comportement. */
+    @Test
+    fun la_fiche_ecrit_le_minimum_le_maximum_et_le_comportement() {
+        val apres = SaisieSimplifiee.appliquerDetails(espece, "3", mapOf("OCC_COMPORTEMENT" to "c9"), max = "8")
+        assertEquals(3, apres.nombre)
+        assertEquals(8, apres.nombreMax)
+        assertEquals("c9", apres.comportement)
+        // Un maximum sous le minimum est relevé au minimum, comme à l'écran Dénombrement.
+        assertNull(SaisieSimplifiee.appliquerDetails(espece, "6", emptyMap(), max = "4").nombreMax, "max = min")
     }
 
     @Test
@@ -199,10 +215,9 @@ class SaisieSimplifieeTest {
         assertFalse(SaisieSimplifiee.estOiseau(GroupeTaxonomique("Animalia", "Insectes", null)))
 
         val espece = EspeceReleve(taxon = Taxon.OISEAU, espece = "Merle noir", cdNom = null, comportement = "40", notes = "posé sur un fil")
-        val chante = SaisieSimplifiee.basculerChant(espece, "41")
-        assertEquals("41", chante.comportement, "un autre comportement est remplacé")
-        assertEquals(espece.copy(comportement = "41"), chante, "rien d'autre ne change")
-        assertEquals("", SaisieSimplifiee.basculerChant(chante, "41").comportement)
+        assertEquals("41", SaisieSimplifiee.comportementApresChant(espece.comportement, "41"), "un autre comportement est remplacé")
+        assertEquals("", SaisieSimplifiee.comportementApresChant("41", "41"))
+        assertEquals("40", SaisieSimplifiee.comportementApresChant("41", "41", sansChant = "40"), "le repli : le défaut du serveur")
 
         // Codes atlas : l'indice « Mâle chanteur » en période de nidification seulement.
         val atlas = valeurs + NomValeur(50, "2 - Mâle chanteur", cd = "CA2")
@@ -213,6 +228,6 @@ class SaisieSimplifieeTest {
         assertEquals("41", SaisieSimplifiee.idChantAPoser("41", null, nicheur = true))
         assertNull(SaisieSimplifiee.idChantAPoser(null, "50", nicheur = false))
         // L'indice posé au printemps s'enlève même si le bouton poserait aujourd'hui le chant simple.
-        assertEquals("", SaisieSimplifiee.basculerChant(espece.copy(comportement = "50"), "41", setOf("41", "50")).comportement)
+        assertEquals("", SaisieSimplifiee.comportementApresChant("50", "41", setOf("41", "50")))
     }
 }

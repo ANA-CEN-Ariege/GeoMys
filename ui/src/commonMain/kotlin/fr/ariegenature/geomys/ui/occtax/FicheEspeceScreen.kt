@@ -16,9 +16,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-// Propre au portage : l'écran d'une espèce de la saisie multi-taxons simplifiée (14 novembre 2026), dans
-// le cadre des écrans Caractérisation et Dénombrement : « Détails », « Comportement », « Commentaire »,
-// « Photo » et « Audio », chacun avec ce qu'il porte déjà.
+// Propre au portage : la fiche d'une espèce de la saisie multi-taxons simplifiée (14 novembre 2026), dans
+// le cadre des écrans Caractérisation et Dénombrement. Depuis le 16 novembre, tous ses champs sont sur
+// la fiche elle-même : nombre min et max, stade de vie, sexe, état biologique, comportement (avec
+// « Chant » pour un oiseau), commentaire, « Photo » et « Audio ».
 
 package fr.ariegenature.geomys.ui.occtax
 
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,18 +39,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import fr.ariegenature.geomys.ui.composants.BoutonAlerte
 import fr.ariegenature.geomys.ui.composants.BoutonContour
 import fr.ariegenature.geomys.ui.composants.BoutonPlein
 import fr.ariegenature.geomys.ui.composants.BoutonVert
+import fr.ariegenature.geomys.ui.composants.ChampLibelle
+import fr.ariegenature.geomys.ui.composants.ChampTexteFormulaire
 import fr.ariegenature.geomys.ui.composants.DialogueActions
+import fr.ariegenature.geomys.ui.composants.DialogueGardeSortie
 import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.composants.rememberAjoutMedias
+import fr.ariegenature.geomys.ui.composants.rememberGardeSortie
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 
 /** Le nom de l'écran (demande du 14 novembre 2026 d'en proposer un), titre et libellé du crayon de la
@@ -56,7 +61,7 @@ import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 internal const val TITRE_FICHE_OBSERVATION = "Fiche de l'observation"
 
 /** Le bouton « Chant » de la fiche d'un oiseau (demande du 15 novembre 2026), et son libellé une fois
- *  le chant noté. */
+ *  le chant choisi. */
 internal const val CHANT = "♪ Chant"
 internal const val CHANT_COCHE = "✓ Chant"
 
@@ -64,7 +69,8 @@ internal const val CHANT_COCHE = "✓ Chant"
 internal const val MEDIAS_FIGES = "Observation déjà envoyée : une photo ou un son ajouté maintenant ne partirait pas."
 
 /** La fiche de l'observation : le nom de l'espèce sous le titre, et [sousTitre], son nom scientifique,
- *  s'il diffère ; [onVolet] ouvre « Détails », « Comportement » ou « Commentaire » ; ✓ et le retour ([onRetour]) reviennent au relevé, tout étant déjà enregistré. */
+ *  s'il diffère. ✓ écrit les champs dans le relevé et y revient ([onRetour]) ; le retour demande avant
+ *  d'abandonner une fiche modifiée. */
 @Composable
 fun FicheEspeceScreen(
     vm: FicheEspeceViewModel,
@@ -72,7 +78,6 @@ fun FicheEspeceScreen(
     sousTitre: String?,
     onAccueil: () -> Unit,
     onRetour: () -> Unit,
-    onVolet: (VoletEspece) -> Unit,
 ) {
     val ios = estIos
     val toasts = LocalToasts.current
@@ -86,50 +91,63 @@ fun FicheEspeceScreen(
     var mediaASupprimer by remember { mutableStateOf<String?>(null) }
     val medias = rememberAjoutMedias(vm.dossierMedias, onImportes = vm::ajouterMedias, onErreur = { toasts.afficher(it, true) })
     val secondaire = if (ios) CouleursGeoMys.blanc70 else MaterialTheme.colorScheme.onSurfaceVariant
+    val garde = rememberGardeSortie(vm::modifie, onRetour)
     EcranFormulaireEspece(
         titre = TITRE_FICHE_OBSERVATION,
         sousTitre = espece.espece + (sousTitre?.let { " ($it)" } ?: ""),
         typeSaisieLabel = typeSaisieLabel,
-        onAccueil = onAccueil,
-        onValider = onRetour,
+        onAccueil = { garde.demander(onAccueil) },
+        onValider = {
+            val refus = vm.valider()
+            if (refus == null) onRetour() else toasts.afficher(refus, true)
+        },
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            if (vm.detailsVisible) {
-                Volet("Détails", vm.resumeDetails(espece), secondaire) { onVolet(VoletEspece.DETAILS) }
-                if (vm.detailsIncomplets(espece)) {
-                    Text(
-                        "Des champs obligatoires sont à remplir",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (ios) CouleursGeoMys.rougePastille else CouleursGeoMys.holoRougeFonce,
-                    )
+        // Effectifs : « − » | champ | « ＋ », comme à l'écran Dénombrement.
+        if (vm.minVisible || vm.maxVisible) {
+            Row(Modifier.padding(top = if (ios) 0.dp else 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (vm.minVisible) Compteur("Nombre min", vm.min, vm::saisirMin, vm::ajusterMin, Modifier.weight(1f))
+                if (vm.maxVisible) Compteur("Nombre max", vm.max, vm::saisirMax, vm::ajusterMax, Modifier.weight(1f))
+            }
+        }
+        for (champ in vm.champsDetails) {
+            ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it })
+        }
+        vm.additionnelsOccurrence?.let { if (it.defsAffiches.isNotEmpty()) ChampsAdditionnelsVue(it) }
+        vm.additionnelsDenombrement?.let { if (it.defsAffiches.isNotEmpty()) ChampsAdditionnelsVue(it) }
+        vm.champComportement?.let { champ ->
+            ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it })
+            // Oiseau : « Chant » choisit ou retire ce comportement d'un toucher. Ce n'est pas un écran
+            // à ouvrir mais une coche : en contour tant que le chant n'est pas choisi, plein et vert
+            // une fois choisi (demande du 15 novembre 2026).
+            if (vm.chantVisible) {
+                val modifier = Modifier.fillMaxWidth().padding(top = if (ios) 0.dp else 8.dp)
+                if (vm.chante) BoutonVert(CHANT_COCHE, vm::basculerChant, modifier) else BoutonContour(CHANT, vm::basculerChant, modifier)
+            }
+        }
+        if (vm.commentaireVisible) {
+            ChampLibelle("Commentaire") {
+                ChampTexteFormulaire(
+                    vm.commentaire,
+                    { vm.commentaire = it },
+                    lignesMin = 3,
+                    uneLigne = false,
+                    clavier = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    indication = "Commentaire",
+                )
+            }
+        }
+        if (vm.mediasVisibles) {
+            Column(Modifier.padding(top = if (ios) 6.dp else 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val figes = vm.mediasFiges(espece)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    BoutonPlein("Photo", {
+                        // Sans appareil photo (simulateur), la galerie directement.
+                        if (medias.appareilPhoto) choixPhoto = true else medias.choisirPhotos()
+                    }, Modifier.weight(1f), actif = !figes)
+                    BoutonPlein("Audio", medias::choisirSons, Modifier.weight(1f), actif = !figes)
                 }
-            }
-            if (vm.comportementVisible) {
-                // Oiseau : « Chant » à côté, qui pose ou enlève ce comportement d'un toucher.
-                Volet(
-                    "Comportement",
-                    vm.resumeComportement(espece),
-                    secondaire,
-                    chant = if (vm.chantVisible) vm.chante(espece) to vm::basculerChant else null,
-                ) { onVolet(VoletEspece.COMPORTEMENT) }
-            }
-            if (vm.commentaireVisible) {
-                Volet("Commentaire", vm.resumeCommentaire(espece), secondaire) { onVolet(VoletEspece.COMMENTAIRE) }
-            }
-            if (vm.mediasVisibles) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val figes = vm.mediasFiges(espece)
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        BoutonPlein("Photo", {
-                            // Sans appareil photo (simulateur), la galerie directement.
-                            if (medias.appareilPhoto) choixPhoto = true else medias.choisirPhotos()
-                        }, Modifier.weight(1f), actif = !figes)
-                        BoutonPlein("Audio", medias::choisirSons, Modifier.weight(1f), actif = !figes)
-                    }
-                    if (figes) Text(MEDIAS_FIGES, fontSize = 13.sp, color = secondaire, modifier = Modifier.padding(horizontal = 4.dp))
-                    for (uri in espece.mediaUrisCounting0) LigneMedia(uri) { mediaASupprimer = uri }
-                }
+                if (figes) Text(MEDIAS_FIGES, fontSize = 13.sp, color = secondaire, modifier = Modifier.padding(horizontal = 4.dp))
+                for (uri in espece.mediaUrisCounting0) LigneMedia(uri) { mediaASupprimer = uri }
             }
         }
     }
@@ -144,31 +162,5 @@ fun FicheEspeceScreen(
         onFermer = { choixPhoto = false },
     )
     DialogueSuppressionMedia(mediaASupprimer, onConfirmer = { mediaASupprimer?.let(vm::retirerMedia) }, onFermer = { mediaASupprimer = null })
-}
-
-/** Un bouton de l'écran de l'espèce, et dessous ce qu'il porte déjà ; [chant] : le bouton « Chant » à sa
- *  droite (noté ?, action). Ce n'est pas un écran à ouvrir mais une coche : il se distingue des autres
- *  boutons (demande du 15 novembre 2026), en contour tant que le chant n'est pas noté, plein et vert
- *  une fois noté. */
-@Composable
-private fun Volet(
-    libelle: String,
-    resume: String,
-    couleur: androidx.compose.ui.graphics.Color,
-    chant: Pair<Boolean, () -> Unit>? = null,
-    onClick: () -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        if (chant == null) {
-            BoutonPlein(libelle, onClick, Modifier.fillMaxWidth())
-        } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                BoutonPlein(libelle, onClick, Modifier.weight(1f))
-                if (chant.first) BoutonVert(CHANT_COCHE, chant.second, Modifier.weight(1f)) else BoutonContour(CHANT, chant.second, Modifier.weight(1f))
-            }
-        }
-        if (resume.isNotEmpty()) {
-            Text(resume, fontSize = 13.sp, color = couleur, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 4.dp))
-        }
-    }
+    DialogueGardeSortie(garde, "Fiche non enregistrée")
 }

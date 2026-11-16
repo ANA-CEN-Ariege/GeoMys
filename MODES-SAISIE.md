@@ -1,8 +1,8 @@
 # Mode pro et mode simplifié : les différences
 
-État au 16 novembre 2026 (version 2.2.0-beta5, build 209).
+État au 16 novembre 2026 (version 2.2.0-beta6, build 210).
 
-**À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51 et 55 à 58.
+**À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51 et 55 à 62.
 
 ## En bref
 
@@ -10,7 +10,7 @@
 |---|---|---|
 | Public | Naturalistes habitués à GeoNature | Utilisateurs amateurs |
 | Modules | Saisie multi-taxons, saisie mono-taxon, Monitoring, OccHab | Saisie multi-taxons seulement |
-| Champs de l'observation | Tous ceux que le serveur montre | Nombre, stade de vie, sexe, état biologique, comportement, commentaire, photo, audio |
+| Champs de l'observation | Tous ceux que le serveur montre | Nombre min et max, stade de vie, sexe, état biologique, comportement, commentaire, photo, audio |
 | Données chargées | Tout | Seulement ce qui sert à la saisie multi-taxons |
 
 Le mode pro est le mode par défaut : sans choix, et après une mise à jour, rien ne change.
@@ -55,45 +55,50 @@ Deux cas gardent le champ des observateurs du mode pro, pour que le relevé rest
 
 | | Mode pro | Mode simplifié |
 |---|---|---|
-| Ce qui s'ouvre | Rien, sauf cas ci-dessous : on reste sur le relevé | La « Fiche de l'observation », à chaque espèce |
-| Champs additionnels obligatoires vides | La Caractérisation ou le Dénombrement s'ouvre d'office | « Détails » s'ouvre par-dessus la fiche |
-| Oiseau en période de nidification | La Caractérisation s'ouvre, réduite au comportement | « Comportement » s'ouvre par-dessus la fiche |
+| Ce qui s'ouvre | La « Fiche de l'observation », à chaque espèce | Identique |
+| Champs additionnels obligatoires vides | Rien de plus : ils sont sur la fiche | Identique |
+| Oiseau en période de nidification | La fiche s'ouvre avec la section « Avancé » (qui porte le comportement) dépliée | Rien de plus : le comportement et « Chant » sont sur la fiche |
 
 ### La ligne d'une espèce dans le relevé
 
 | | Mode pro | Mode simplifié |
 |---|---|---|
-| Boutons | « × N » (Dénombrement) et « i » (Caractérisation) | Un crayon, qui ouvre la fiche ; toucher le nom l'ouvre aussi |
-| Champ obligatoire vide | Le bouton de l'écran concerné est rouge | Le crayon est rouge |
-| Corbeille | Oui, avec confirmation | Oui, avec confirmation |
+| Boutons | Un crayon, qui ouvre la fiche ; toucher le nom l'ouvre aussi | Identique |
+| Champ obligatoire vide | Le crayon est rouge | Identique |
+| Corbeille | Oui, avec confirmation | Identique |
 
-### Les écrans de l'espèce
+Depuis le 16 novembre 2026, la ligne est la même dans les deux modes : en mode pro, le crayon remplace « × N » (Dénombrement) et « i » (Caractérisation). Le nombre n'est plus lisible dans la liste.
 
-**Mode pro**, comme le web de GeoNature :
+### La fiche de l'observation
+
+Dans les deux modes, un seul écran, « Fiche de l'observation », porte tous les champs de l'espèce ; son ✓ les contrôle et les écrit, et le retour demande avant d'abandonner une fiche modifiée. Les champs diffèrent.
+
+**Mode pro**, les champs du web de GeoNature, dans cet ordre (depuis le 16 novembre 2026 ; avant, deux écrans, Dénombrement et Caractérisation, qui ne servent plus qu'à la saisie mono-taxon) :
 
 - **Dénombrement** : objet et type du dénombrement, nombre min et nombre max, stade de vie, sexe, médias, champs additionnels ; plusieurs dénombrements par espèce.
 - **Caractérisation** : technique d'observation, état biologique ; sous « Plus de champs » : méthode de détermination, statut d'observation, naturalité, statut biologique, comportement, statut de la source, floutage, preuve d'existence, preuves numérique et non numérique, déterminateur, commentaire ; champs additionnels.
 
-**Mode simplifié**, la « Fiche de l'observation » et ses boutons :
+**Mode simplifié**, un choix réduit de champs (sur la fiche elle-même depuis le 16 novembre 2026 ; avant, des boutons « Détails », « Comportement » et « Commentaire » ouvraient chacun un écran) :
 
-| Bouton | Ce qu'il porte | Présent si |
+| Champ | Ce qu'il porte | Présent si |
 |---|---|---|
-| Détails | Nombre, stade de vie, sexe, état biologique, plus les champs additionnels obligatoires | Toujours |
+| Nombre min, Nombre max | Les effectifs du premier dénombrement ; le max suit le min tant qu'il n'est pas saisi à part | Le serveur montre `count_min`, `count_max` |
+| Stade de vie, Sexe, État biologique | Les listes du serveur pour l'espèce | Le serveur montre le champ ; le sexe pour un animal seulement |
+| Champs additionnels obligatoires | Ceux de l'occurrence et du dénombrement | Le serveur en a pour le jeu de données |
 | Comportement | Le comportement | Le serveur montre `behaviour` et l'espèce est un animal |
-| Chant (à droite de « Comportement ») | D'un toucher, pose un comportement de chant, ou l'enlève : l'indice « Mâle chanteur en période de reproduction » si l'espèce est en période de nidification et que le serveur a les codes atlas, sinon « Chant » | L'espèce est un oiseau et le serveur a la valeur qui convient |
+| Chant (sous « Comportement ») | D'un toucher, choisit un comportement de chant dans le champ, ou l'en retire : l'indice « Mâle chanteur en période de reproduction » si l'espèce est en période de nidification et que le serveur a les codes atlas, sinon « Chant » | L'espèce est un oiseau et le serveur a la valeur qui convient |
 | Commentaire | Le commentaire de l'observation | Le serveur montre `comment_occ` |
 | Photo | Appareil photo ou galerie | Le serveur active les médias |
 | Audio | Choix d'un fichier son | Le serveur active les médias |
 
-La fiche n'a rien à valider : chaque volet validé et chaque média sont écrits aussitôt dans le relevé.
+En mode simplifié, une photo ou un son est écrit aussitôt, sans attendre le ✓, et une fiche validée sans rien changer n'écrit rien. En mode pro, les médias s'écrivent au ✓ avec le reste, et le ✓ écrit toujours les valeurs affichées, défauts du serveur compris.
 
 ### Règles propres au mode simplifié
 
-- **Un seul nombre.** Il vaut pour le minimum et le maximum du premier dénombrement. Un maximum saisi en mode pro reste tant que le nombre ne change pas.
 - **Un seul dénombrement.** La fiche ne touche que le premier ; les autres, saisis en mode pro, sont conservés tels quels.
 - **Champs selon le groupe taxonomique.** Le sexe et le comportement ne sont proposés que pour un animal. Une nomenclature sans aucune valeur pour le taxon est masquée. En mode pro, tous les champs restent, comme sur le web.
 - **Champs non montrés.** Ils gardent leur valeur ; jamais saisis, ils restent vides et le serveur y met sa valeur par défaut (technique d'observation, objet du dénombrement, etc.).
-- **Champs additionnels facultatifs.** Ils ne sont pas proposés ; seuls les obligatoires le sont, dans « Détails ».
+- **Champs additionnels facultatifs.** Ils ne sont pas proposés ; seuls les obligatoires le sont, sur la fiche.
 - **Observation déjà envoyée.** « Photo » et « Audio » sont grisés, avec une phrase d'explication.
 
 ## Paramètres et chargement des données
@@ -125,4 +130,4 @@ Le reste des Paramètres (connexion, liste des serveurs) est identique.
 
 ## Ce qui ne dépend pas du mode
 
-Saisie mono-taxon, Monitoring et OccHab (absents du mode simplifié, inchangés en mode pro), Explorer, Maps Manager, carte et trace GPS, envoi des saisies, connexion au serveur.
+Saisie mono-taxon (qui garde ses écrans Dénombrement et Caractérisation), Monitoring et OccHab (absents du mode simplifié, inchangés en mode pro), Explorer, Maps Manager, carte et trace GPS, envoi des saisies, connexion au serveur.

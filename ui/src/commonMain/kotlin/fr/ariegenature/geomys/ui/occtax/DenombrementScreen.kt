@@ -89,16 +89,23 @@ import fr.ariegenature.geomys.ui.ressources.ic_menu_delete
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import org.jetbrains.compose.resources.painterResource
 
-/** Les dénombrements de l'espèce ; [onValide] reçoit la liste, le n° 0 en tête. */
+/** Ce que le bloc des dénombrements attend d'un sélecteur de médias ou d'une confirmation : à créer
+ *  par [rememberMediasDenombrement], et à passer à [ContenuDenombrement] puis à
+ *  [DialoguesDenombrement]. */
+internal class EtatMediasDenombrement(
+    val onPhoto: (index: Int) -> Unit,
+    val onAudio: (index: Int) -> Unit,
+    val choixPhoto: Boolean,
+    val fermerChoixPhoto: () -> Unit,
+    val prendrePhoto: () -> Unit,
+    val choisirPhotos: () -> Unit,
+    val mediaASupprimer: Pair<CarteDenombrement, String>?,
+    val demanderSuppression: (CarteDenombrement, String) -> Unit,
+    val fermerSuppression: () -> Unit,
+)
+
 @Composable
-fun DenombrementScreen(
-    vm: DenombrementViewModel,
-    typeSaisieLabel: String,
-    onAccueil: () -> Unit,
-    onRetour: () -> Unit,
-    onValide: (List<Denombrement>) -> Unit,
-) {
-    val ios = estIos
+internal fun rememberMediasDenombrement(vm: DenombrementViewModel): EtatMediasDenombrement {
     val toasts = LocalToasts.current
     // Le dénombrement qui attend le retour d'un sélecteur de médias (-1 : aucun).
     var cible by rememberSaveable { mutableIntStateOf(-1) }
@@ -109,6 +116,76 @@ fun DenombrementScreen(
         onImportes = { uris -> vm.ajouterMedias(cible, uris) },
         onErreur = { toasts.afficher(it, true) },
     )
+    return EtatMediasDenombrement(
+        onPhoto = { index ->
+            cible = index
+            // Sans appareil photo (simulateur), la galerie directement.
+            if (medias.appareilPhoto) choixPhoto = true else medias.choisirPhotos()
+        },
+        onAudio = { index ->
+            cible = index
+            medias.choisirSons()
+        },
+        choixPhoto = choixPhoto,
+        fermerChoixPhoto = { choixPhoto = false },
+        prendrePhoto = medias::prendrePhoto,
+        choisirPhotos = medias::choisirPhotos,
+        mediaASupprimer = mediaASupprimer,
+        demanderSuppression = { carte, uri -> mediaASupprimer = carte to uri },
+        fermerSuppression = { mediaASupprimer = null },
+    )
+}
+
+/** Les dénombrements de l'espèce, un cadre chacun, et « Ajouter un dénombrement » : le contenu de
+ *  l'écran Dénombrement (saisie mono-taxon) et de la fiche de l'observation (saisie multi-taxons). */
+@Composable
+internal fun ContenuDenombrement(vm: DenombrementViewModel, etat: EtatMediasDenombrement) {
+    vm.cartes.forEachIndexed { index, carte ->
+        CarteVue(
+            vm, carte, index,
+            onSupprimerMedia = { etat.demanderSuppression(carte, it) },
+            onPhoto = { etat.onPhoto(index) },
+            onAudio = { etat.onAudio(index) },
+        )
+    }
+    if (estIos) {
+        BoutonTexteJauneIos("＋ Ajouter un dénombrement", vm::ajouter)
+    } else {
+        BoutonTexte("＋ Ajouter un dénombrement", CouleursGeoMys.jauneClair, vm::ajouter, Modifier.fillMaxWidth().padding(top = 16.dp))
+    }
+}
+
+/** Les dialogues du bloc des dénombrements, à composer après le contenu de l'écran. */
+@Composable
+internal fun DialoguesDenombrement(vm: DenombrementViewModel, etat: EtatMediasDenombrement) {
+    DialogueActions(
+        visible = etat.choixPhoto,
+        titre = "Ajouter une photo",
+        actions = listOfNotNull(
+            BoutonAlerte("Prendre une photo") { etat.prendrePhoto() },
+            BoutonAlerte("Choisir dans la galerie") { etat.choisirPhotos() },
+            if (estIos) BoutonAlerte("Annuler", annulation = true) else null,
+        ),
+        onFermer = etat.fermerChoixPhoto,
+    )
+    DialogueSuppressionMedia(
+        etat.mediaASupprimer?.second,
+        onConfirmer = { etat.mediaASupprimer?.let { (carte, uri) -> vm.retirerMedia(carte, uri) } },
+        onFermer = etat.fermerSuppression,
+    )
+}
+
+/** Les dénombrements de l'espèce ; [onValide] reçoit la liste, le n° 0 en tête. */
+@Composable
+fun DenombrementScreen(
+    vm: DenombrementViewModel,
+    typeSaisieLabel: String,
+    onAccueil: () -> Unit,
+    onRetour: () -> Unit,
+    onValide: (List<Denombrement>) -> Unit,
+) {
+    val toasts = LocalToasts.current
+    val etat = rememberMediasDenombrement(vm)
     val garde = rememberGardeSortie(vm::modifie, onRetour)
     EcranFormulaireEspece(
         titre = "Dénombrement",
@@ -120,37 +197,9 @@ fun DenombrementScreen(
             if (liste != null) onValide(liste) else if (message != null) toasts.afficher(message, true)
         },
     ) {
-        vm.cartes.forEachIndexed { index, carte ->
-            CarteVue(vm, carte, index, onSupprimerMedia = { mediaASupprimer = carte to it }, onPhoto = {
-                cible = index
-                // Sans appareil photo (simulateur), la galerie directement.
-                if (medias.appareilPhoto) choixPhoto = true else medias.choisirPhotos()
-            }, onAudio = {
-                cible = index
-                medias.choisirSons()
-            })
-        }
-        if (ios) {
-            BoutonTexteJauneIos("＋ Ajouter un dénombrement", vm::ajouter)
-        } else {
-            BoutonTexte("＋ Ajouter un dénombrement", CouleursGeoMys.jauneClair, vm::ajouter, Modifier.fillMaxWidth().padding(top = 16.dp))
-        }
+        ContenuDenombrement(vm, etat)
     }
-    DialogueActions(
-        visible = choixPhoto,
-        titre = "Ajouter une photo",
-        actions = listOfNotNull(
-            BoutonAlerte("Prendre une photo") { medias.prendrePhoto() },
-            BoutonAlerte("Choisir dans la galerie") { medias.choisirPhotos() },
-            if (ios) BoutonAlerte("Annuler", annulation = true) else null,
-        ),
-        onFermer = { choixPhoto = false },
-    )
-    DialogueSuppressionMedia(
-        mediaASupprimer?.second,
-        onConfirmer = { mediaASupprimer?.let { (carte, uri) -> vm.retirerMedia(carte, uri) } },
-        onFermer = { mediaASupprimer = null },
-    )
+    DialoguesDenombrement(vm, etat)
     DialogueGardeSortie(garde, "Dénombrement non enregistré", onAbandon = vm::abandonner)
 }
 

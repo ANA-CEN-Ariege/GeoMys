@@ -55,8 +55,7 @@ private val BLEU_VARIANTE = Color(0xFF1565C0)
 /** Le bouton de la section avancée du web (`Advanced` du fr.json du cœur). */
 private const val LIBELLE_AVANCE = "Avancé"
 
-/** La caractérisation de l'occurrence ; [onValide] reçoit l'espèce caractérisée. [titre] et
- *  [sousTitre] : « Comportement » et le nom de l'espèce en saisie simplifiée. */
+/** La caractérisation de l'occurrence ; [onValide] reçoit l'espèce caractérisée. */
 @Composable
 fun CaracterisationScreen(
     vm: CaracterisationViewModel,
@@ -64,15 +63,12 @@ fun CaracterisationScreen(
     onAccueil: () -> Unit,
     onRetour: () -> Unit,
     onValide: (EspeceReleve) -> Unit,
-    titre: String = "Caractérisation de l'occurrence",
-    sousTitre: String? = null,
 ) {
-    val ios = estIos
     val toasts = LocalToasts.current
     val garde = rememberGardeSortie(vm::modifie, onRetour)
     EcranFormulaireEspece(
-        titre = titre,
-        sousTitre = sousTitre,
+        titre = "Caractérisation de l'occurrence",
+        sousTitre = null,
         typeSaisieLabel = typeSaisieLabel,
         onAccueil = { garde.demander(onAccueil) },
         onValider = {
@@ -80,66 +76,74 @@ fun CaracterisationScreen(
             if (espece != null) onValide(espece) else if (message != null) toasts.afficher(message, true)
         },
     ) {
-        for (champ in vm.basiques) {
-            ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it })
-        }
-        if (vm.aDesChampsAvances) {
-            // UN seul repli pour toute la section avancée, comme la gn-advanced-section du web : le
-            // même bouton « Avancé » à roue dentée l'ouvre et la ferme.
-            if (ios) {
-                Row(
-                    Modifier.clickable { vm.avanceOuvert = !vm.avanceOuvert },
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    SymboleSf("gearshape.fill", 13f, listOf(BLEU_VARIANTE))
-                    Text(LIBELLE_AVANCE, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = BLEU_VARIANTE)
-                }
-            } else {
-                Text(
-                    "⚙ $LIBELLE_AVANCE",
-                    fontSize = 13.sp,
-                    color = BLEU_LIEN,
-                    modifier = Modifier.padding(top = 12.dp).clickable { vm.avanceOuvert = !vm.avanceOuvert },
-                )
+        ContenuCaracterisation(vm)
+    }
+    DialogueGardeSortie(garde, "Caractérisation non enregistrée")
+}
+
+/** Les champs de la caractérisation : le contenu de l'écran Caractérisation (saisie mono-taxon) et de
+ *  la fiche de l'observation (saisie multi-taxons). */
+@Composable
+internal fun ContenuCaracterisation(vm: CaracterisationViewModel) {
+    val ios = estIos
+    for (champ in vm.basiques) {
+        ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it })
+    }
+    if (vm.aDesChampsAvances) {
+        // UN seul repli pour toute la section avancée, comme la gn-advanced-section du web : le
+        // même bouton « Avancé » à roue dentée l'ouvre et la ferme.
+        if (ios) {
+            Row(
+                Modifier.clickable { vm.avanceOuvert = !vm.avanceOuvert },
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SymboleSf("gearshape.fill", 13f, listOf(BLEU_VARIANTE))
+                Text(LIBELLE_AVANCE, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = BLEU_VARIANTE)
             }
-            if (vm.avanceOuvert) {
-                vm.determinateur?.let { valeur ->
-                    ChampLibelle("Déterminateur") {
-                        ChampTexteFormulaire(valeur, { vm.determinateur = it }, clavier = KeyboardOptions(capitalization = KeyboardCapitalization.Words))
-                    }
+        } else {
+            Text(
+                "⚙ $LIBELLE_AVANCE",
+                fontSize = 13.sp,
+                color = BLEU_LIEN,
+                modifier = Modifier.padding(top = 12.dp).clickable { vm.avanceOuvert = !vm.avanceOuvert },
+            )
+        }
+        if (vm.avanceOuvert) {
+            vm.determinateur?.let { valeur ->
+                ChampLibelle("Déterminateur") {
+                    ChampTexteFormulaire(valeur, { vm.determinateur = it }, clavier = KeyboardOptions(capitalization = KeyboardCapitalization.Words))
                 }
-                for (champ in vm.avances) {
-                    ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it })
-                }
-                // Les preuves, seulement quand la preuve d'existence vaut « Oui », comme le web.
-                if (vm.preuvesOuvertes) for ((cle, libelle, estUrl) in vm.preuves) {
-                    ChampLibelle(libelle) {
-                        ChampTexteFormulaire(
-                            vm.textesPreuves[cle].orEmpty(),
-                            { vm.textesPreuves[cle] = it },
-                            uneLigne = estUrl,
-                            clavier = if (estUrl) KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false, keyboardType = KeyboardType.Uri) else KeyboardOptions.Default,
-                        )
-                    }
-                }
-                // Le commentaire sans libellé, son invite seule, sur deux lignes, comme le web.
-                vm.commentaire?.let { valeur ->
+            }
+            for (champ in vm.avances) {
+                ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it })
+            }
+            // Les preuves, seulement quand la preuve d'existence vaut « Oui », comme le web.
+            if (vm.preuvesOuvertes) for ((cle, libelle, estUrl) in vm.preuves) {
+                ChampLibelle(libelle) {
                     ChampTexteFormulaire(
-                        valeur,
-                        { vm.commentaire = it },
-                        Modifier.padding(top = if (ios) 0.dp else 10.dp),
-                        lignesMin = 2,
-                        uneLigne = false,
-                        clavier = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                        indication = "Commentaire",
+                        vm.textesPreuves[cle].orEmpty(),
+                        { vm.textesPreuves[cle] = it },
+                        uneLigne = estUrl,
+                        clavier = if (estUrl) KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false, keyboardType = KeyboardType.Uri) else KeyboardOptions.Default,
                     )
                 }
             }
+            // Le commentaire sans libellé, son invite seule, sur deux lignes, comme le web.
+            vm.commentaire?.let { valeur ->
+                ChampTexteFormulaire(
+                    valeur,
+                    { vm.commentaire = it },
+                    Modifier.padding(top = if (ios) 0.dp else 10.dp),
+                    lignesMin = 2,
+                    uneLigne = false,
+                    clavier = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    indication = "Commentaire",
+                )
+            }
         }
-        // Les champs additionnels hors de la section avancée, sans titre, comme le web.
-        val additionnels = vm.additionnels
-        if (additionnels != null && additionnels.defsAffiches.isNotEmpty()) ChampsAdditionnelsVue(additionnels)
     }
-    DialogueGardeSortie(garde, if (sousTitre != null) "$titre non enregistré" else "Caractérisation non enregistrée")
+    // Les champs additionnels hors de la section avancée, sans titre, comme le web.
+    val additionnels = vm.additionnels
+    if (additionnels != null && additionnels.defsAffiches.isNotEmpty()) ChampsAdditionnelsVue(additionnels)
 }
