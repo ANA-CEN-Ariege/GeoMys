@@ -86,7 +86,7 @@ import org.jetbrains.compose.resources.painterResource
 /** Un écran de formulaire d'espèce : bandeau du flux ([typeSaisieLabel]), [titre] (et [sousTitre],
  *  le nom de l'espèce du dénombrement), [contenu] défilant, coche de validation ([onValider]) en
  *  haut à droite ; [valideEnBas] la remplace par un bouton flottant en bas au milieu (fiche de
- *  l'observation des deux modes, demandes du 17 novembre 2026). */
+ *  l'observation et détails du relevé de la saisie multi-taxons, demandes du 17 novembre 2026). */
 @Composable
 fun EcranFormulaireEspece(
     titre: String,
@@ -162,14 +162,14 @@ fun EcranFormulaireEspece(
 }
 
 /** La place laissée sous le dernier champ pour qu'il défile au-dessus du bouton flottant. */
-private val PLACE_BOUTON_FLOTTANT = 80.dp
+internal val PLACE_BOUTON_FLOTTANT = 80.dp
 
 /** Le bouton flottant de validation : la coche verte, ronde, de 56 dp, en relief, à 16 dp du bas. */
 @Composable
-private fun BoutonValiderFlottant(onValider: () -> Unit, modifier: Modifier = Modifier) {
+internal fun BoutonValiderFlottant(onValider: () -> Unit, modifier: Modifier = Modifier, description: String = "Valider") {
     Image(
         painterResource(Res.drawable.coche),
-        contentDescription = "Valider",
+        contentDescription = description,
         modifier = modifier
             .padding(bottom = 16.dp)
             .size(56.dp)
@@ -196,6 +196,7 @@ fun FormulaireEnEcranPlein(
     onAccueil: () -> Unit,
     onAnnuler: () -> Unit,
     onValider: () -> Unit,
+    valideEnBas: Boolean = false,
     contenu: @Composable ColumnScope.() -> Unit,
 ) {
     val ios = estIos
@@ -219,6 +220,7 @@ fun FormulaireEnEcranPlein(
                     }
                 },
                 onValider = onValider,
+                valideEnBas = valideEnBas,
                 contenu = contenu,
             )
         }

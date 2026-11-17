@@ -447,8 +447,9 @@ class EtatDetailsReleve(
 
 /** « Détails du relevé » (ou « Détails des relevés ») ouvert sur [etat], fermé si null : un écran
  *  plein, comme la caractérisation et le dénombrement (demande du 21 octobre). Le bandeau du flux
- *  ([typeSaisieLabel], la maison [onAccueil]), le titre, les champs qui défilent, la coche de
- *  validation en haut à droite. [onValider] reçoit les saisies acceptées ; un champ obligatoire vide
+ *  ([typeSaisieLabel], la maison [onAccueil]), le titre, les champs qui défilent, la validation :
+ *  un bouton flottant en bas au milieu (demandes du 17 novembre 2026), ou, sans [valideEnBas], la
+ *  coche en haut à droite que garde la saisie mono-taxon. [onValider] reçoit les saisies acceptées ; un champ obligatoire vide
  *  garde l'écran ouvert, avec un message. Le retour (bouton d'Android, balayage depuis le bord sous
  *  iOS) l'annule ([onAnnuler]), après « Quitter sans enregistrer ? » s'il a été modifié. */
 @Composable
@@ -458,6 +459,7 @@ fun EcranDetailsReleve(
     onAccueil: () -> Unit,
     onAnnuler: () -> Unit,
     onValider: (DetailsReleveResult) -> Unit,
+    valideEnBas: Boolean = true,
 ) {
     // Le dernier état reste dessiné pendant la fermeture animée.
     val dernier = remember { arrayOfNulls<EtatDetailsReleve>(1) }
@@ -476,6 +478,7 @@ fun EcranDetailsReleve(
             val (resultat, message) = e.valider()
             if (message != null) toasts.afficher(message, longue = true) else if (resultat != null) onValider(resultat)
         },
+        valideEnBas = valideEnBas,
     ) {
         if (estIos) ContenuIos(e) else ContenuAndroid(e)
     }

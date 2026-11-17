@@ -80,7 +80,6 @@ import fr.ariegenature.geomys.ui.composants.BoutonAlerte
 import fr.ariegenature.geomys.ui.composants.BoutonContour
 import fr.ariegenature.geomys.ui.composants.BoutonIos
 import fr.ariegenature.geomys.ui.composants.DialogueConfirmation
-import fr.ariegenature.geomys.ui.composants.HAUTEUR_BANDEAU_IOS
 import fr.ariegenature.geomys.ui.composants.Interrupteur
 import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.SymboleSf
@@ -89,7 +88,6 @@ import fr.ariegenature.geomys.ui.composants.barreChampObligatoire
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.composants.rememberDictee
 import fr.ariegenature.geomys.ui.ressources.Res
-import fr.ariegenature.geomys.ui.ressources.coche
 import fr.ariegenature.geomys.ui.ressources.ic_delete
 import fr.ariegenature.geomys.ui.ressources.ic_edit
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
@@ -181,12 +179,13 @@ fun SaisieReleveScreen(
                         for (index in especes.indices.reversed()) {
                             LigneEspece(especes[index], vm.nomScientifiqueSous(especes[index]), vm.avertissements(especes[index], profils), index, vm, requis)
                         }
+                        Spacer(Modifier.height(PLACE_BOUTON_FLOTTANT))
                     }
                 }
             }
-            BoutonIos(vm::terminer, Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(end = 12.dp).height(HAUTEUR_BANDEAU_IOS), opaciteAppui = 0.6f) {
-                SymboleSf("checkmark.circle.fill", 30f, listOf(Color.White, CouleursGeoMys.vert), description = "Terminer le relevé")
-            }
+            // « Terminer le relevé » en bouton flottant, en bas au milieu, à la place de la coche du
+            // coin (demandes du 17 novembre 2026, mode simplifié puis mode pro).
+            BoutonValiderFlottant(vm::terminer, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing), "Terminer le relevé")
         } else {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.ime))) {
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
@@ -228,18 +227,9 @@ fun SaisieReleveScreen(
                             LigneEspece(especes[index], vm.nomScientifiqueSous(especes[index]), vm.avertissements(especes[index], profils), index, vm, requis)
                         }
                     }
+                    Spacer(Modifier.height(PLACE_BOUTON_FLOTTANT))
                 }
-                // ✓ « Terminer le relevé » : zone de 48 dp, coche de 32 dp.
-                Image(
-                    painterResource(Res.drawable.coche),
-                    contentDescription = "Terminer le relevé",
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(8.dp)
-                        .size(48.dp)
-                        .clickable(onClick = vm::terminer)
-                        .padding(8.dp),
-                )
+                BoutonValiderFlottant(vm::terminer, Modifier.align(Alignment.BottomCenter), "Terminer le relevé")
             }
         }
         EcranDetailsReleve(vm.details, vm.typeSaisieLabel, onAccueil, vm::fermerDetails, vm::validerDetails)

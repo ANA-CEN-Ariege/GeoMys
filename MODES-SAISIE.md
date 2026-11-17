@@ -1,6 +1,6 @@
 # Mode pro et mode simplifié : les différences
 
-État au 17 novembre 2026 (version 2.2.0-beta7, build 211).
+État au 17 novembre 2026 (après la version 2.2.0-beta7, build 211).
 
 **À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51, 55 à 62 et 64.
 
@@ -46,6 +46,7 @@ Ce sont les détails d'un relevé (bouton « Détails ») et les détails commun
 | Habitat | Recherche d'un habitat, si le serveur montre le champ | Absent ; un habitat déjà porté par le relevé est gardé |
 | Jeu de données | Tous ceux où l'utilisateur peut saisir | Seulement ses jeux de données personnels, s'il en a ; sinon tous |
 | Autres champs (dates, heures, commentaire, etc.) | Oui | Oui, identiques |
+| Validation | Bouton rond ✓ flottant en bas au milieu de l'écran (depuis le 17 novembre 2026 ; avant, coche verte en haut à droite) | Identique |
 
 Un jeu de données personnel est un jeu dont l'utilisateur connecté est acteur en personne (`cor_dataset_actor.id_role`) : GeoNature en crée un à l'inscription d'un compte, si le serveur l'a prévu. Un compte sans jeu personnel garde la liste complète, pour ne pas bloquer la saisie. Les acteurs sont lus au chargement des données : un téléphone chargé avant cette règle garde la liste complète jusqu'au prochain rechargement. Un jeu déjà porté par un relevé est gardé.
 
@@ -66,12 +67,13 @@ Deux cas gardent le champ des observateurs du mode pro, pour que le relevé rest
 | Boutons | Un crayon, qui ouvre la fiche ; toucher le nom l'ouvre aussi | Identique |
 | Champ obligatoire vide | Le crayon est rouge | Identique |
 | Corbeille | Oui, avec confirmation | Identique |
+| « Terminer le relevé » (✓ de l'écran des espèces) | Bouton rond ✓ flottant en bas au milieu de l'écran (depuis le 17 novembre 2026 ; avant, coche verte en haut à droite) | Identique |
 
-Depuis le 16 novembre 2026, la ligne est la même dans les deux modes : en mode pro, le crayon remplace « × N » (Dénombrement) et « i » (Caractérisation). Le nombre n'est plus lisible dans la liste.
+Depuis le 16 novembre 2026, la ligne d'espèce est la même dans les deux modes : en mode pro, le crayon remplace « × N » (Dénombrement) et « i » (Caractérisation). Le nombre n'est plus lisible dans la liste.
 
 ### La fiche de l'observation
 
-Dans les deux modes, un seul écran, « Fiche de l'observation », porte tous les champs de l'espèce ; son ✓ les contrôle et les écrit, et le retour demande avant d'abandonner une fiche modifiée. Depuis le 17 novembre 2026, ce ✓ est un bouton rond flottant en bas au milieu de l'écran, dans les deux modes (avant, une coche en haut à droite, que gardent la saisie mono-taxon et les détails du relevé). Les champs diffèrent.
+Dans les deux modes, un seul écran, « Fiche de l'observation », porte tous les champs de l'espèce ; son ✓ les contrôle et les écrit, et le retour demande avant d'abandonner une fiche modifiée. Depuis le 17 novembre 2026, ce ✓ est un bouton rond flottant en bas au milieu de l'écran, dans les deux modes (avant, une coche en haut à droite, que garde la saisie mono-taxon). Les champs diffèrent.
 
 **Mode pro**, les champs du web de GeoNature, dans cet ordre (depuis le 16 novembre 2026 ; avant, deux écrans, Dénombrement et Caractérisation, qui ne servent plus qu'à la saisie mono-taxon) :
 
