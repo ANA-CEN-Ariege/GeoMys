@@ -796,8 +796,11 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                     onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
                     onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
                     onValide = { saisie ->
-                        releve.releve.modifier(route.index) { courante -> if (courante.vmId == espece.vmId) saisie else courante }
-                        nav.popBackStack()
+                        // Gardé comme onRetour : un second toucher ne quitte pas aussi le relevé.
+                        if (nav.currentBackStackEntry?.id == entree.id) {
+                            releve.releve.modifier(route.index) { courante -> if (courante.vmId == espece.vmId) saisie else courante }
+                            nav.popBackStack()
+                        }
                     },
                 )
                 return@composable

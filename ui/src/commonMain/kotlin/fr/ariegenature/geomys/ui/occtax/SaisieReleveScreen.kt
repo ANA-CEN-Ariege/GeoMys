@@ -94,6 +94,8 @@ import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import fr.ariegenature.geomys.ui.theme.FondGeoMys
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 
 /** Titre de l'écran (fragment_saisie_observation.xml, y compris quand on reprend un relevé). */
 private const val TITRE = "Nouveau relevé"
@@ -136,9 +138,15 @@ fun SaisieReleveScreen(
     val ligne by vm.recherche.ligne.collectAsState()
     val profils by vm.profils.collectAsState()
 
+    // « Terminer le relevé » est au même endroit que le ✓ de la fiche de l'observation : un second
+    // toucher parti trop vite au retour de la fiche terminait le relevé (retour à la carte signalé le
+    // 17 novembre 2026). Le bouton n'écoute qu'une fois l'écran posé.
+    val affichage = remember { TimeSource.Monotonic.markNow() }
+    val terminer = { if (affichage.elapsedNow() >= DELAI_AVANT_TERMINER) vm.terminer() }
+
     FondGeoMys {
         if (ios) {
-            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(bottom = PLACE_BOUTON_FLOTTANT)) {
                 BandeauNavigation(vm.typeSaisieLabel, onAccueil, titreIos = TITRE)
                 // 20 pt entre le bandeau, les groupes, « Nom scientifique » et le champ espèce, comme en
                 // saisie mono (demande du 19 octobre).
@@ -179,16 +187,15 @@ fun SaisieReleveScreen(
                         for (index in especes.indices.reversed()) {
                             LigneEspece(especes[index], vm.nomScientifiqueSous(especes[index]), vm.avertissements(especes[index], profils), index, vm, requis)
                         }
-                        Spacer(Modifier.height(PLACE_BOUTON_FLOTTANT))
                     }
                 }
             }
             // « Terminer le relevé » en bouton flottant, en bas au milieu, à la place de la coche du
             // coin (demandes du 17 novembre 2026, mode simplifié puis mode pro).
-            BoutonValiderFlottant(vm::terminer, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing), "Terminer le relevé")
+            BoutonValiderFlottant(terminer, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing), "Terminer le relevé")
         } else {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.ime))) {
-                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+                Column(Modifier.fillMaxSize().padding(bottom = PLACE_BOUTON_FLOTTANT).verticalScroll(rememberScrollState()).padding(16.dp)) {
                     BandeauNavigation(vm.typeSaisieLabel, onAccueil, Modifier.padding(bottom = 12.dp))
                     Text(TITRE, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 12.dp))
                     PaletteGroupes(vm.groupes, vm.taxon, vm::choisirTaxon, Modifier.padding(bottom = 12.dp))
@@ -227,9 +234,8 @@ fun SaisieReleveScreen(
                             LigneEspece(especes[index], vm.nomScientifiqueSous(especes[index]), vm.avertissements(especes[index], profils), index, vm, requis)
                         }
                     }
-                    Spacer(Modifier.height(PLACE_BOUTON_FLOTTANT))
                 }
-                BoutonValiderFlottant(vm::terminer, Modifier.align(Alignment.BottomCenter), "Terminer le relevé")
+                BoutonValiderFlottant(terminer, Modifier.align(Alignment.BottomCenter), "Terminer le relevé")
             }
         }
         EcranDetailsReleve(vm.details, vm.typeSaisieLabel, onAccueil, vm::fermerDetails, vm::validerDetails)
@@ -248,6 +254,9 @@ fun SaisieReleveScreen(
     // Un échec de l'enregistrement au fil de l'eau est signalé par la carte, au retour (comme sous
     // Android, où seuls TraceFragment et SaisieRapideFragment observent echecEcritureBrouillon).
 }
+
+/** Le temps pendant lequel « Terminer le relevé » n'écoute pas, à l'affichage de l'écran. */
+private val DELAI_AVANT_TERMINER = 700.milliseconds
 
 internal const val TITRE_SUPPRESSION_ESPECE = "Supprimer cette espèce ?"
 

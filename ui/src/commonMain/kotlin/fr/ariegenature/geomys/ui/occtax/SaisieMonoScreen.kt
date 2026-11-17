@@ -184,7 +184,7 @@ fun SaisieMonoScreen(
     FondGeoMys {
         if (vm.modeActif) EcranCarteMono(vm, onAccueil) else EcranReglages(vm, onAccueil)
 
-        EcranDetailsReleve(vm.details, vm.session.typeSaisieLabel, onAccueil, vm::fermerDetails, vm::validerDetails, valideEnBas = false)
+        EcranDetailsReleve(vm.details, vm.session.typeSaisieLabel, onAccueil, vm::fermerDetails, vm::validerDetails)
         DialogueObservationsIci(vm)
         DialogueChoixFond(vm.choixFondVisible, vm.fond, vm::choisirFond, vm::fermerChoixFond)
         DialogueActions(

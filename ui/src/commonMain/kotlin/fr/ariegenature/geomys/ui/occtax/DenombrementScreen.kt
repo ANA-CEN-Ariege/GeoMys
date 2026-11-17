@@ -196,6 +196,7 @@ fun DenombrementScreen(
             val (liste, message) = vm.valider()
             if (liste != null) onValide(liste) else if (message != null) toasts.afficher(message, true)
         },
+        valideEnBas = true,
     ) {
         ContenuDenombrement(vm, etat)
     }

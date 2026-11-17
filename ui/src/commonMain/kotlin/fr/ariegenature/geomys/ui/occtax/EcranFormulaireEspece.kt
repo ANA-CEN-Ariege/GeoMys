@@ -34,7 +34,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -85,8 +84,9 @@ import org.jetbrains.compose.resources.painterResource
 
 /** Un écran de formulaire d'espèce : bandeau du flux ([typeSaisieLabel]), [titre] (et [sousTitre],
  *  le nom de l'espèce du dénombrement), [contenu] défilant, coche de validation ([onValider]) en
- *  haut à droite ; [valideEnBas] la remplace par un bouton flottant en bas au milieu (fiche de
- *  l'observation et détails du relevé de la saisie multi-taxons, demandes du 17 novembre 2026). */
+ *  haut à droite ; [valideEnBas] la remplace par un bouton flottant en bas au milieu (tous les
+ *  écrans d'OccTax, demandes du 17 novembre 2026 ; les détails d'une station OccHab gardent la coche
+ *  du haut). */
 @Composable
 fun EcranFormulaireEspece(
     titre: String,
@@ -102,7 +102,7 @@ fun EcranFormulaireEspece(
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 BandeauNavigation(typeSaisieLabel, onAccueil, titreIos = titre)
                 Column(
-                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+                    Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     Column(Modifier.padding(end = if (valideEnBas) 0.dp else 44.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -110,19 +110,24 @@ fun EcranFormulaireEspece(
                         if (!sousTitre.isNullOrEmpty()) Text(sousTitre, fontSize = 14.sp, fontStyle = FontStyle.Italic, color = CouleursGeoMys.blanc70)
                     }
                     contenu()
-                    if (valideEnBas) Spacer(Modifier.height(PLACE_BOUTON_FLOTTANT))
                 }
+                // Sous iOS, le bouton n'est pas posé SUR les champs mais sous eux : une liste
+                // déroulante est un bouton d'UIKit placé au-dessus du canevas de Compose (MenuSysteme),
+                // et prenait le toucher destiné au bouton dessiné sur elle (signalé le 17 novembre 2026).
+                if (valideEnBas) BoutonValiderFlottant(onValider, Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp))
             }
-            if (valideEnBas) {
-                BoutonValiderFlottant(onValider, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing))
-            } else {
+            if (!valideEnBas) {
                 BoutonIos(onValider, Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(end = 12.dp).height(HAUTEUR_BANDEAU_IOS), opaciteAppui = 0.6f) {
                     SymboleSf("checkmark.circle.fill", 30f, listOf(Color.White, CouleursGeoMys.vert), description = "Valider")
                 }
             }
         } else {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.ime))) {
-                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+                // Avec le bouton du bas, la zone qui défile s'arrête au-dessus de lui : les champs ne
+                // passent pas derrière (demande du 17 novembre 2026, comme sous iOS).
+                Column(
+                    Modifier.fillMaxSize().padding(bottom = if (valideEnBas) PLACE_BOUTON_FLOTTANT else 0.dp).verticalScroll(rememberScrollState()).padding(16.dp),
+                ) {
                     BandeauNavigation(typeSaisieLabel, onAccueil, Modifier.padding(bottom = 12.dp))
                     Text(
                         titre,
@@ -140,7 +145,6 @@ fun EcranFormulaireEspece(
                         )
                     }
                     contenu()
-                    if (valideEnBas) Spacer(Modifier.height(PLACE_BOUTON_FLOTTANT))
                 }
                 if (valideEnBas) {
                     BoutonValiderFlottant(onValider, Modifier.align(Alignment.BottomCenter))
@@ -161,10 +165,11 @@ fun EcranFormulaireEspece(
     }
 }
 
-/** La place laissée sous le dernier champ pour qu'il défile au-dessus du bouton flottant. */
+/** La place du bouton du bas, sous la zone qui défile. */
 internal val PLACE_BOUTON_FLOTTANT = 80.dp
 
-/** Le bouton flottant de validation : la coche verte, ronde, de 56 dp, en relief, à 16 dp du bas. */
+/** Le bouton de validation du bas de l'écran : la coche verte, ronde, de 56 dp, en relief, à 16 dp du
+ *  bas, au milieu. Il n'est pas posé sur le contenu, qui s'arrête au-dessus de lui. */
 @Composable
 internal fun BoutonValiderFlottant(onValider: () -> Unit, modifier: Modifier = Modifier, description: String = "Valider") {
     Image(
