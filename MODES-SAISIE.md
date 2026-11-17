@@ -1,8 +1,8 @@
 # Mode pro et mode simplifié : les différences
 
-État au 16 novembre 2026 (version 2.2.0-beta6, build 210).
+État au 17 novembre 2026 (version 2.2.0-beta7, build 211).
 
-**À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51 et 55 à 62.
+**À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51, 55 à 62 et 64.
 
 ## En bref
 
@@ -71,7 +71,7 @@ Depuis le 16 novembre 2026, la ligne est la même dans les deux modes : en mode 
 
 ### La fiche de l'observation
 
-Dans les deux modes, un seul écran, « Fiche de l'observation », porte tous les champs de l'espèce ; son ✓ les contrôle et les écrit, et le retour demande avant d'abandonner une fiche modifiée. Les champs diffèrent.
+Dans les deux modes, un seul écran, « Fiche de l'observation », porte tous les champs de l'espèce ; son ✓ les contrôle et les écrit, et le retour demande avant d'abandonner une fiche modifiée. Depuis le 17 novembre 2026, ce ✓ est un bouton rond flottant en bas au milieu de l'écran, dans les deux modes (avant, une coche en haut à droite, que gardent la saisie mono-taxon et les détails du relevé). Les champs diffèrent.
 
 **Mode pro**, les champs du web de GeoNature, dans cet ordre (depuis le 16 novembre 2026 ; avant, deux écrans, Dénombrement et Caractérisation, qui ne servent plus qu'à la saisie mono-taxon) :
 

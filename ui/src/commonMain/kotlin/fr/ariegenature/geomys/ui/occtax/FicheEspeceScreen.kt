@@ -69,7 +69,7 @@ internal const val CHANT_COCHE = "✓ Chant"
 internal const val MEDIAS_FIGES = "Observation déjà envoyée : une photo ou un son ajouté maintenant ne partirait pas."
 
 /** La fiche de l'observation : le nom de l'espèce sous le titre, et [sousTitre], son nom scientifique,
- *  s'il diffère. ✓ écrit les champs dans le relevé et y revient ([onRetour]) ; le retour demande avant
+ *  s'il diffère. Le bouton flottant ✓, en bas au milieu, écrit les champs dans le relevé et y revient ([onRetour]) ; le retour demande avant
  *  d'abandonner une fiche modifiée. */
 @Composable
 fun FicheEspeceScreen(
@@ -101,6 +101,7 @@ fun FicheEspeceScreen(
             val refus = vm.valider()
             if (refus == null) onRetour() else toasts.afficher(refus, true)
         },
+        valideEnBas = true,
     ) {
         // Effectifs : « − » | champ | « ＋ », comme à l'écran Dénombrement.
         if (vm.minVisible || vm.maxVisible) {

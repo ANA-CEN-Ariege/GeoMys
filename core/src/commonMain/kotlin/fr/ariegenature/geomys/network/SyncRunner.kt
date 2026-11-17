@@ -129,6 +129,15 @@ class SyncRunner(
             // téléchargement validé). Seuls les caches MÉMOIRE (résolveurs) sont invalidés.
             monitoring.invaliderCaches()
 
+            // Serveur injoignable : rien ne sert de lancer les étapes une à une, chacune avec son délai
+            // et ses reprises (constat du 16 novembre 2026 : plus de dix minutes d'attente, serveur
+            // arrêté). Une sonde courte le dit tout de suite ; rien n'est touché sur le téléphone.
+            publier("Connexion au serveur…")
+            if (!browse.serveurRepond(config)) {
+                _etat.value = Etat(enCours = false, texte = "Échec", termine = true, succes = false, resume = SERVEUR_INJOIGNABLE)
+                return
+            }
+
             val echecs = mutableListOf<String>()
 
             // Étapes 1-4 en parallèle (indépendantes, rapides). Chaque lambda écrit son cache
@@ -411,7 +420,11 @@ class SyncRunner(
         if (_etat.value.termine) _etat.value = Etat(enCours = false, texte = "")
     }
 
-    private companion object {
+    companion object {
+        /** Le résumé d'un chargement que la sonde du serveur a arrêté avant toute étape. */
+        const val SERVEUR_INJOIGNABLE = "Le serveur ne répond pas : le chargement n'a pas été lancé.\n" +
+            "Les données déjà sur le téléphone sont conservées. Réessayez plus tard."
+
         /** Les Suivis sautés en saisie simplifiée : « Aucun… », qui n'est pas un échec. */
         const val SUIVIS_NON_CHARGES = "Aucun module : saisie simplifiée"
 

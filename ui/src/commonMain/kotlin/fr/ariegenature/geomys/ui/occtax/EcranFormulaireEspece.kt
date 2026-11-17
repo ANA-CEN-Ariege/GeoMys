@@ -34,6 +34,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -47,6 +48,7 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
@@ -54,6 +56,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontStyle
@@ -81,7 +85,8 @@ import org.jetbrains.compose.resources.painterResource
 
 /** Un écran de formulaire d'espèce : bandeau du flux ([typeSaisieLabel]), [titre] (et [sousTitre],
  *  le nom de l'espèce du dénombrement), [contenu] défilant, coche de validation ([onValider]) en
- *  haut à droite. */
+ *  haut à droite ; [valideEnBas] la remplace par un bouton flottant en bas au milieu (fiche de
+ *  l'observation des deux modes, demandes du 17 novembre 2026). */
 @Composable
 fun EcranFormulaireEspece(
     titre: String,
@@ -89,6 +94,7 @@ fun EcranFormulaireEspece(
     typeSaisieLabel: String,
     onAccueil: () -> Unit,
     onValider: () -> Unit,
+    valideEnBas: Boolean = false,
     contenu: @Composable ColumnScope.() -> Unit,
 ) {
     FondGeoMys {
@@ -99,15 +105,20 @@ fun EcranFormulaireEspece(
                     Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    Column(Modifier.padding(end = 44.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Column(Modifier.padding(end = if (valideEnBas) 0.dp else 44.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(titre, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         if (!sousTitre.isNullOrEmpty()) Text(sousTitre, fontSize = 14.sp, fontStyle = FontStyle.Italic, color = CouleursGeoMys.blanc70)
                     }
                     contenu()
+                    if (valideEnBas) Spacer(Modifier.height(PLACE_BOUTON_FLOTTANT))
                 }
             }
-            BoutonIos(onValider, Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(end = 12.dp).height(HAUTEUR_BANDEAU_IOS), opaciteAppui = 0.6f) {
-                SymboleSf("checkmark.circle.fill", 30f, listOf(Color.White, CouleursGeoMys.vert), description = "Valider")
+            if (valideEnBas) {
+                BoutonValiderFlottant(onValider, Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing))
+            } else {
+                BoutonIos(onValider, Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(end = 12.dp).height(HAUTEUR_BANDEAU_IOS), opaciteAppui = 0.6f) {
+                    SymboleSf("checkmark.circle.fill", 30f, listOf(Color.White, CouleursGeoMys.vert), description = "Valider")
+                }
             }
         } else {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.union(WindowInsets.ime))) {
@@ -117,7 +128,7 @@ fun EcranFormulaireEspece(
                         titre,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(end = 64.dp, bottom = if (sousTitre != null) 4.dp else 16.dp),
+                        modifier = Modifier.padding(end = if (valideEnBas) 0.dp else 64.dp, bottom = if (sousTitre != null) 4.dp else 16.dp),
                     )
                     if (sousTitre != null) {
                         Text(
@@ -129,20 +140,43 @@ fun EcranFormulaireEspece(
                         )
                     }
                     contenu()
+                    if (valideEnBas) Spacer(Modifier.height(PLACE_BOUTON_FLOTTANT))
                 }
-                // ImageButton de 32 dp à 16 dp du coin, ondulation sans bord.
-                Image(
-                    painterResource(Res.drawable.coche),
-                    contentDescription = "Valider",
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(16.dp)
-                        .size(32.dp)
-                        .clickable(remember { MutableInteractionSource() }, ripple(bounded = false), role = Role.Button, onClick = onValider),
-                )
+                if (valideEnBas) {
+                    BoutonValiderFlottant(onValider, Modifier.align(Alignment.BottomCenter))
+                } else {
+                    // ImageButton de 32 dp à 16 dp du coin, ondulation sans bord.
+                    Image(
+                        painterResource(Res.drawable.coche),
+                        contentDescription = "Valider",
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(16.dp)
+                            .size(32.dp)
+                            .clickable(remember { MutableInteractionSource() }, ripple(bounded = false), role = Role.Button, onClick = onValider),
+                    )
+                }
             }
         }
     }
+}
+
+/** La place laissée sous le dernier champ pour qu'il défile au-dessus du bouton flottant. */
+private val PLACE_BOUTON_FLOTTANT = 80.dp
+
+/** Le bouton flottant de validation : la coche verte, ronde, de 56 dp, en relief, à 16 dp du bas. */
+@Composable
+private fun BoutonValiderFlottant(onValider: () -> Unit, modifier: Modifier = Modifier) {
+    Image(
+        painterResource(Res.drawable.coche),
+        contentDescription = "Valider",
+        modifier = modifier
+            .padding(bottom = 16.dp)
+            .size(56.dp)
+            .shadow(6.dp, CircleShape)
+            .clip(CircleShape)
+            .clickable(role = Role.Button, onClick = onValider),
+    )
 }
 
 /** Un formulaire en écran plein posé sur l'écran qui l'ouvre, sans passer par la navigation : les

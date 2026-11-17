@@ -901,3 +901,24 @@ Signalé par l'utilisateur : « quand je choisis un groupe taxo, par exemple mam
 ## 62. Mode pro : la fiche de l'observation s'ouvre à chaque espèce (16 novembre)
 
 Demande, après essai de la fiche du mode pro (§ 60) : « dans le mode pro, la fiche de l'observation doit s'ouvrir automatiquement à chaque saisie d'espèce comme pour le mode simplifié ». `SaisieReleveViewModel.ouvrirFicheApresAjout` vaut pour les deux modes : chaque espèce ajoutée ouvre sa fiche. En mode pro, pour un oiseau en période de nidification, elle s'ouvre toujours avec la section « Avancé » dépliée. **Ce qui change pour le terrain** : on ne reste plus sur le relevé pour enchaîner les espèces, il faut valider (ou quitter) la fiche entre deux ; écart voulu avec GeoMys-Android. Tests : `SaisieSimplifieeEcransTest.en_mode_pro_la_fiche_reunit_denombrement_et_caracterisation`, `ChampEspeceReglesTest` (inchangé, la fiche s'ouvre).
+
+## 63. Serveur injoignable : le chargement des listes de taxons s'arrête tout de suite (16 novembre)
+
+Constat sur le Samsung, serveur de l'ANA arrêté : « Charger les données » durait six minutes. Chaque page de liste attendait le délai de connexion (30 s), était redemandée trois fois (§ 53), et cela pour chacune des dix listes.
+
+- `GeoNatureSync.sansReponseDAffilee` compte les demandes de pages restées sans aucune réponse (connexion impossible, délai dépassé), toutes listes confondues ; une réponse du serveur, même en erreur, remet le compte à zéro. À trois d'affilée (`SANS_REPONSE_AVANT_ABANDON`), le serveur est tenu pour injoignable : plus aucune page n'est demandée ni redemandée, et les listes restantes sont abandonnées.
+- Le résumé du chargement le dit : « Le serveur ne répond plus : le chargement des listes de taxons a été arrêté. Réessayez plus tard. » (`SERVEUR_INJOIGNABLE`). Le cache des taxons déjà sur le téléphone n'est pas touché quand rien n'a été reçu, comme avant.
+- Les reprises d'une page isolée en échec (§ 53) restent : un accroc du réseau au milieu d'une liste ne l'interrompt pas.
+- Test : `ListeIncompleteTest.un_serveur_injoignable_arrete_le_chargement_des_listes`.
+- **Sonde au début du chargement.** Après un premier essai sur le Samsung, le chargement ne s'arrêtait toujours pas : les listes de taxons étaient bien abandonnées en 30 s, mais les autres étapes (jeux de données, nomenclatures, etc.) attendaient chacune leur propre délai, avant et après. `SyncRunner.executer` commence donc par `GeoNatureBrowse.serveurRepond` (route publique `gn_commons/config`, délai de 8 s) : sans aucune réponse, le chargement n'est pas lancé, rien n'est touché sur le téléphone, et le résumé dit « Le serveur ne répond pas : le chargement n'a pas été lancé. Les données déjà sur le téléphone sont conservées. Réessayez plus tard. » (`SyncRunner.SERVEUR_INJOIGNABLE`). Une réponse, même en erreur, laisse le chargement se faire. Un serveur qui tombe en cours de chargement fait encore attendre les étapes restantes. Tests : `SyncRunnerTest.synchro_simplifiee_ne_charge_que_la_saisie_multi_taxons` (une seule demande, la sonde), et les deux tests « hors ligne » adaptés (le réseau y tombe juste après la sonde).
+- À surveiller : `SyncRunnerTest.synchro_simplifiee_ne_charge_que_la_saisie_multi_taxons` a échoué une fois pendant ce travail (cache des jeux de données vide), puis réussi deux fois de suite sans changement ; cause non cherchée.
+
+Le même jour, dans les Paramètres, l'explication du mode simplifié devient « Saisie multi-taxons seulement, allégée. » (demande de l'utilisateur ; elle détaillait les boutons de la fiche, disparus au § 59).
+
+## 64. La fiche de l'observation se valide par un bouton flottant en bas, dans les deux modes (17 novembre)
+
+Demande de l'utilisateur : dans la fiche de l'observation du mode simplifié, plus de coche verte en haut à droite, mais un bouton flottant en bas au milieu.
+
+- `EcranFormulaireEspece(…, valideEnBas)` : à `true`, la coche du coin disparaît (le titre reprend toute la largeur) et `BoutonValiderFlottant` (la même coche, ronde, 56 dp, en relief, à 16 dp du bas) est posé en bas au milieu, au-dessus du clavier. 80 dp sont laissés sous le dernier champ pour qu'il défile au-dessus du bouton.
+- `FicheEspeceScreen` (mode simplifié) le demande, puis `FicheProScreen` (mode pro), à la demande de l'utilisateur le même jour. La saisie mono-taxon (Dénombrement, Caractérisation) et les détails du relevé gardent la coche en haut à droite.
+- `MODES-SAISIE.md` et `.html` mis à jour.

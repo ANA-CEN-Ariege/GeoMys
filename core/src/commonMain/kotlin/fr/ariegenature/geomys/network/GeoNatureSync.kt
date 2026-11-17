@@ -99,16 +99,29 @@ class GeoNatureSync(
      *  incomplète et bloquer la saisie (demande du 15 novembre 2026). */
     internal var delaisReprisePage: List<Long> = listOf(1_000L, 3_000L)
 
+    /** Les demandes de pages restées SANS AUCUNE réponse du serveur (connexion impossible, délai
+     *  dépassé), d'affilée et toutes listes confondues, pendant le chargement en cours ; une réponse,
+     *  même en erreur, les remet à zéro. */
+    private val sansReponseDAffilee = atomic(0)
+
+    /** Le serveur ne répond plus du tout : le chargement des listes s'arrête là, au lieu de redemander
+     *  trois fois chaque page de chaque liste, 30 secondes à chaque fois (constat du 16 novembre 2026 :
+     *  six minutes d'attente, serveur arrêté). */
+    private val serveurInjoignable: Boolean get() = sansReponseDAffilee.value >= SANS_REPONSE_AVANT_ABANDON
+
     /** La page [page] de la liste [idListe], ou null si elle a échoué à chaque tentative (réseau,
-     *  délai dépassé, réponse autre que 200 ou illisible) ; la cause de chaque échec va au journal. */
+     *  délai dépassé, réponse autre que 200 ou illisible), ou si le serveur est injoignable ; la cause
+     *  de chaque échec va au journal. */
     private suspend fun pageDeListe(taxhubBase: String, idListe: Int, pageSize: Int, page: Int): JSONArray? {
         val tentatives = delaisReprisePage.size + 1
         for (tentative in 1..tentatives) {
+            if (serveurInjoignable) return null
             val cause = try {
                 val reponse = clients.get(
                     "$taxhubBase/api/taxref?orderby=cd_nom&fields=listes&id_liste=$idListe&limit=$pageSize&page=$page",
                     timeoutMs = 60000,
                 )
+                sansReponseDAffilee.value = 0
                 if (reponse.status.value == 200) {
                     reponse.bodyAsText().parserTableauJson("items", "data", "results")?.let { return it }
                     "réponse illisible"
@@ -118,9 +131,13 @@ class GeoNatureSync(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                if (sansReponseDAffilee.incrementAndGet() == SANS_REPONSE_AVANT_ABANDON) {
+                    Journal.w("GeoNatureSync", "serveur injoignable : le chargement des listes de taxons s'arrête")
+                }
                 e::class.simpleName + (e.message?.let { " : $it" } ?: "")
             }
             Journal.w("GeoNatureSync", "liste $idListe, page $page, tentative $tentative/$tentatives en échec ($cause)")
+            if (serveurInjoignable) return null
             delaisReprisePage.getOrNull(tentative - 1)?.let { delay(it) }
         }
         return null
@@ -306,6 +323,7 @@ class GeoNatureSync(
         // Téléchargement PARALLÈLE des listes (concurrence bornée) — c'est le poste le plus
         // lourd de la synchro. Chaque liste est récupérée indépendamment, sans état partagé.
         val semaphore = Semaphore(LISTES_EN_PARALLELE)
+        sansReponseDAffilee.value = 0
         val faites = atomic(0)
         val taxonsCumules = atomic(0)
         val resultats = coroutineScope {
@@ -395,7 +413,7 @@ class GeoNatureSync(
         }
 
         if (entrees.isEmpty()) {
-            return@withContext Pair(0, "Aucun taxon récupéré sur ${listesAFetcher.size} liste(s).")
+            return@withContext Pair(0, if (serveurInjoignable) SERVEUR_INJOIGNABLE else "Aucun taxon récupéré sur ${listesAFetcher.size} liste(s).")
         }
 
         // Rechargement validé (téléchargement non vide) : on repart d'un cache PROPRE juste avant
@@ -473,7 +491,8 @@ class GeoNatureSync(
         // réussi — sans quoi l'application refuserait des taxons réels en accusant l'utilisateur.
         taxRef.listesIncompletes = listesEnEchec.sorted()
         val msg = if (listesEnEchec.isNotEmpty())
-            "⚠ ${listesEnEchec.size} liste(s) non ou partiellement chargée(s) : ${listesEnEchec.joinToString(",")}"
+            "⚠ ${listesEnEchec.size} liste(s) non ou partiellement chargée(s) : ${listesEnEchec.joinToString(",")}" +
+                if (serveurInjoignable) "\n$SERVEUR_INJOIGNABLE" else ""
         else ""
         Pair(entrees.size, msg)
     }
@@ -804,6 +823,12 @@ class GeoNatureSync(
         /** Nombre de listes TaxRef téléchargées en parallèle (concurrence bornée pour ne pas
          *  saturer le serveur ni les sockets). C'est le levier principal de rapidité de la synchro. */
         private const val LISTES_EN_PARALLELE = 6
+
+        /** Demandes sans réponse d'affilée à partir desquelles le serveur est tenu pour injoignable. */
+        private const val SANS_REPONSE_AVANT_ABANDON = 3
+
+        /** Dit à l'utilisateur quand le chargement des listes s'arrête faute de serveur. */
+        const val SERVEUR_INJOIGNABLE = "Le serveur ne répond plus : le chargement des listes de taxons a été arrêté. Réessayez plus tard."
 
         internal fun construireIndexTaxon(
             groupe2: Map<Int, String>,

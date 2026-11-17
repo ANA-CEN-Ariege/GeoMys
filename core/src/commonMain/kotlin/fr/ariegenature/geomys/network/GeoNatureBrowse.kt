@@ -126,6 +126,18 @@ class GeoNatureBrowse(
             result.sortedWith(compareBy(comparateurFrancais()) { it.nom })
         }
 
+    /** Le serveur répond-il ? Une réponse suffit, même en erreur : seule l'absence de réponse
+     *  (connexion impossible, délai dépassé) dit qu'il est injoignable. Route publique, délai court :
+     *  c'est la sonde du début de « Charger les données ». */
+    suspend fun serveurRepond(config: GeoNatureConfig): Boolean = try {
+        clients.get("${config.urlServeur.trim().trimEnd('/')}/api/gn_commons/config", timeoutMs = DELAI_SONDE_MS)
+        true
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        false
+    }
+
     /** Un jeu de données de `meta/datasets` ; null s'il n'a pas d'id ou de nom. */
     private fun parseUnDataset(element: JsonElement): GeoNatureDataset? {
         val objet = element as? JsonObject ?: return null
@@ -451,6 +463,9 @@ class GeoNatureBrowse(
     }
 
     private companion object {
+        /** Le délai de la sonde [serveurRepond]. */
+        const val DELAI_SONDE_MS = 8_000L
+
         /** Clés sous lesquelles un serveur peut envelopper le tableau d'une réponse. */
         val CLES_TABLEAU = setOf("data", "items", "results")
 

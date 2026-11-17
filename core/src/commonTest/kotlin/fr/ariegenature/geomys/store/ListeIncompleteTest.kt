@@ -24,7 +24,9 @@
 package fr.ariegenature.geomys.store
 
 import fr.ariegenature.geomys.ServicesDeTest
+import fr.ariegenature.geomys.network.GeoNatureSync
 import fr.ariegenature.geomys.network.ServeurSimule.Companion.json
+import fr.ariegenature.geomys.network.ServeurSimule.Companion.panne
 import fr.ariegenature.geomys.network.ServeurSimule.Companion.statut
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -195,6 +197,34 @@ class ListeIncompleteTest {
         t.services.geoNatureSync.synchroniserTaxRef(cfg) { _, _, _ -> }
         assertEquals(listOf(100), taxRef.listesIncompletes)
         assertEquals(3, demandesPage2)
+    }
+
+    /** 16 novembre 2026 : serveur arrêté, le chargement insistait trois fois sur chaque liste, 30 s à
+     *  chaque fois. Sans aucune réponse, il s'arrête dès les premières demandes. */
+    @Test
+    fun un_serveur_injoignable_arrete_le_chargement_des_listes() = runTest {
+        val cfg = configValide()
+        cfg.urlServeur = t.serveur.base
+        cfg.listesCacheJson = """[{"id":100,"nom":"Saisie"},{"id":101,"nom":"A"},{"id":102,"nom":"B"},{"id":103,"nom":"C"}]"""
+        t.services.geoNatureSync.delaisReprisePage = listOf(0L, 0L)
+        val demandes = kotlinx.atomicfu.atomic(0)
+        t.serveur.router { chemin ->
+            when {
+                chemin.contains("/api/taxhub/api/taxref/version") -> json("""{"version":"19"}""")
+                chemin.contains("/api/taxhub/api/biblistes") ->
+                    json("""{"data":[{"id_liste":100,"nom_liste":"Saisie"},{"id_liste":101,"nom_liste":"A"},{"id_liste":102,"nom_liste":"B"},{"id_liste":103,"nom_liste":"C"}]}""")
+                chemin.contains("/api/taxhub/api/taxref") -> {
+                    demandes.incrementAndGet()
+                    panne()
+                }
+                else -> statut(404)
+            }
+        }
+        val (nombre, msg) = t.services.geoNatureSync.synchroniserTaxRef(cfg, protocolListIds = setOf(101, 102, 103)) { _, _, _ -> }
+        assertEquals(0, nombre)
+        assertEquals(GeoNatureSync.SERVEUR_INJOIGNABLE, msg)
+        // Quatre listes redemandées trois fois feraient douze demandes.
+        assertTrue(demandes.value <= 6, "${demandes.value} demandes")
     }
 
     // Garde non portée : parametres_n_ouvre_aucune_porte_derobee_vers_les_saisies lisait l'écran

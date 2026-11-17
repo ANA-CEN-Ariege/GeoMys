@@ -49,13 +49,8 @@ import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 /** Les choix du mode de saisie : libellé et explication. */
 private val MODES = listOf(
     Triple(ModeSaisie.PRO, "Pro", "Tous les modules et tous les champs de GeoNature."),
-    Triple(
-        ModeSaisie.SIMPLIFIE,
-        "Simplifié",
-        "Saisie multi-taxons seulement, allégée : après chaque espèce, une fiche propose Détails (nombre, " +
-            "stade de vie, sexe, état biologique), Comportement, Commentaire, Photo et Audio. Les autres " +
-            "champs gardent leur valeur par défaut. Seules les données de cette saisie sont chargées.",
-    ),
+    // Texte demandé le 16 novembre 2026 (il détaillait les boutons de la fiche, disparus depuis).
+    Triple(ModeSaisie.SIMPLIFIE, "Simplifié", "Saisie multi-taxons seulement, allégée."),
 )
 
 /** Le contenu de la carte « Mode de saisie » : un choix par mode. */

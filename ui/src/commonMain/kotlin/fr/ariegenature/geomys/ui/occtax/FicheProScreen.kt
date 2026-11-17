@@ -74,6 +74,7 @@ fun FicheProScreen(
             val (espece, message) = validerFichePro(caracterisation, denombrement)
             if (espece != null) onValide(espece) else if (message != null) toasts.afficher(message, true)
         },
+        valideEnBas = true,
     ) {
         ContenuDenombrement(denombrement, etat)
         Text(

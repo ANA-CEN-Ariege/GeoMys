@@ -21,6 +21,7 @@ package fr.ariegenature.geomys.network
 import fr.ariegenature.geomys.ServicesDeTest
 import fr.ariegenature.geomys.model.GeoNatureDataset
 import fr.ariegenature.geomys.network.ServeurSimule.Companion.panne
+import fr.ariegenature.geomys.network.ServeurSimule.Companion.statut
 import fr.ariegenature.geomys.store.GeoNatureConfig
 import fr.ariegenature.geomys.store.io.listeDepuisJson
 import kotlin.test.AfterTest
@@ -122,8 +123,13 @@ class SyncRunnerTest {
         assertFalse(s.config.donneesSimplifiees)
 
         // Données pro complètes, puis un chargement simplifié sans réseau : rien n'a été retiré.
+        val avantPanne = t.serveur.requetes.size
         t.serveur.router { panne() }
         s.synchro.executer(occtaxSeul = true)
+        // Serveur injoignable : la sonde arrête le chargement avant toute étape, et le dit.
+        assertEquals(SyncRunner.SERVEUR_INJOIGNABLE, s.synchro.etat.value.resume)
+        assertFalse(s.synchro.etat.value.succes)
+        assertEquals(1, t.serveur.requetes.size - avantPanne, "une seule demande : la sonde")
         s.synchro.accuserReception()
         assertFalse(s.config.donneesSimplifiees, "Monitoring et OccHab ont toujours leurs données")
 
@@ -156,7 +162,9 @@ class SyncRunnerTest {
 
         // Plus de réseau, mais la session du login précédent vaut encore 5 minutes : chaque étape
         // échoue à son tour, et le compte-rendu les énumère.
-        t.serveur.router { panne() }
+        // Le réseau tombe juste après la sonde du serveur, qui reçoit encore sa réponse.
+        var sonde = true
+        t.serveur.router { _ -> if (sonde) statut(404).also { sonde = false } else panne() }
         s.synchro.executer()
 
         val fin = s.synchro.etat.value
@@ -178,7 +186,9 @@ class SyncRunnerTest {
         // interrompu : UnknownHostException… », constaté sur l'A12 et l'iPhone le 18 octobre :
         // défaut n° 6 de l'inventaire). Corrigé : chaque étape échoue à son tour, comme avec une
         // session en cache.
-        t.serveur.router { panne() }
+        // Le réseau tombe juste après la sonde du serveur, qui reçoit encore sa réponse.
+        var sonde = true
+        t.serveur.router { _ -> if (sonde) statut(404).also { sonde = false } else panne() }
         t.redemarrer()
         s.synchro.executer()
 
