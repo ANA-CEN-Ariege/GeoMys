@@ -99,7 +99,7 @@ footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--t
 <header>
   <h1>GeoMys : mode pro et mode simplifié</h1>
   <p>GeoMys propose deux façons de saisir. Le mode pro donne tout ce que GeoNature permet. Le mode simplifié ne garde que l'essentiel pour noter une espèce sur le terrain.</p>
-  <p class="etat">État au 18 novembre 2026, version 2.2.0-beta9.</p>
+  <p class="etat">État au 18 novembre 2026, version 2.2.0-beta10.</p>
   <nav aria-label="Rubriques">
     <a href="#choix">Choisir le mode</a>
     <a href="#accueil">Accueil</a>
@@ -129,7 +129,7 @@ footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--t
       <p>Pour les utilisateurs amateurs.</p>
       <ul>
         <li>Saisie multi-taxons seulement</li>
-        <li>Nombre (et nombre max), comportement, sexe, stade de vie, état biologique, commentaire, photo, audio</li>
+        <li>Nombre (et nombre max), comportement, sexe, stade de vie, type d'observation, état biologique, commentaire, photo, audio</li>
         <li>Seules les données utiles à cette saisie sont chargées</li>
       </ul>
     </div>
@@ -225,7 +225,9 @@ footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--t
       <tr><th>Nombre, Nombre max</th><td>Le nombre d'individus. Un seul champ « Nombre » d'abord ; <span class="touche">＋ Nombre max</span> ouvre un second champ pour donner une fourchette (min et max). Tant qu'il est replié, le maximum suit le nombre saisi.</td><td>Le serveur montre ces champs</td></tr>
       <tr><th>Comportement</th><td>Le comportement de l'animal</td><td>Le serveur montre ce champ et l'espèce est un animal</td></tr>
       <tr><th>Chant</th><td>D'un toucher, choisit le chant dans « Comportement » ; d'un second, l'en retire. En période de nidification de l'espèce, c'est l'indice « Mâle chanteur en période de reproduction » qui est choisi, si le serveur a les codes atlas. Sinon, c'est « Chant ».<br><span class="touche">♪ Chant</span> non choisi, <span class="touche plein">✓ Chant</span> choisi.</td><td>L'espèce est un oiseau et le serveur a la valeur qui convient. Le bouton est sous « Comportement ».</td></tr>
-      <tr><th>Sexe, Stade de vie, État biologique</th><td>Les listes du serveur pour l'espèce</td><td>Le serveur montre le champ ; le sexe pour un animal seulement</td></tr>
+      <tr><th>Sexe, Stade de vie</th><td>Les listes du serveur pour l'espèce</td><td>Le serveur montre le champ ; le sexe pour un animal seulement</td></tr>
+      <tr><th>Type d'observation</th><td>C'est la « Technique d'observation » de GeoNature (vu, entendu…), sous un nom plus simple. La valeur par défaut du serveur est proposée.</td><td>Le serveur montre ce champ</td></tr>
+      <tr><th>État biologique</th><td>La liste du serveur pour l'espèce</td><td>Le serveur montre le champ</td></tr>
       <tr><th>Champs obligatoires du serveur</th><td>Les champs additionnels que le serveur exige</td><td>Le serveur en a pour le jeu de données</td></tr>
       <tr><th>Commentaire</th><td>Le commentaire de l'observation</td><td>Le serveur montre ce champ</td></tr>
       <tr><th>Photo</th><td>Appareil photo ou galerie</td><td>Le serveur accepte les médias</td></tr>
@@ -239,7 +241,7 @@ footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--t
   <ul class="liste">
     <li><strong>Un seul dénombrement.</strong> La fiche ne touche que le premier. Les autres, saisis en mode pro, sont conservés tels quels.</li>
     <li><strong>Champs selon l'espèce.</strong> Le sexe et le comportement ne sont proposés que pour un animal. Une liste qui n'a aucune valeur pour l'espèce est masquée. En mode pro, tous les champs restent, comme sur le web.</li>
-    <li><strong>Champs non montrés.</strong> Ils gardent leur valeur. S'ils n'ont jamais été saisis, ils partent vides et le serveur y met sa valeur par défaut (technique d'observation, objet du dénombrement, etc.).</li>
+    <li><strong>Champs non montrés.</strong> Ils gardent leur valeur. S'ils n'ont jamais été saisis, ils partent vides et le serveur y met sa valeur par défaut (statut d'observation, objet du dénombrement, etc.).</li>
     <li><strong>Champs additionnels facultatifs.</strong> Ils ne sont pas proposés. Seuls les obligatoires le sont, sur la fiche.</li>
     <li><strong>Observation déjà envoyée.</strong> « Photo » et « Audio » sont grisés, avec une phrase d'explication.</li>
   </ul>

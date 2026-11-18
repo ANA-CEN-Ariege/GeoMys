@@ -1,6 +1,6 @@
 # Mode pro et mode simplifié : les différences
 
-État au 18 novembre 2026 (version 2.2.0-beta9, build 213).
+État au 18 novembre 2026 (version 2.2.0-beta10, build 214).
 
 **À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51, 55 à 62, 64 et 65.
 
@@ -10,7 +10,7 @@
 |---|---|---|
 | Public | Naturalistes habitués à GeoNature | Utilisateurs amateurs |
 | Modules | Saisie multi-taxons, saisie mono-taxon, Monitoring, OccHab | Saisie multi-taxons seulement |
-| Champs de l'observation | Tous ceux que le serveur montre | Nombre (et nombre max), comportement, sexe, stade de vie, état biologique, commentaire, photo, audio |
+| Champs de l'observation | Tous ceux que le serveur montre | Nombre (et nombre max), comportement, sexe, stade de vie, type d'observation, état biologique, commentaire, photo, audio |
 | Données chargées | Tout | Seulement ce qui sert à la saisie multi-taxons |
 
 Le mode pro est le mode par défaut : sans choix, et après une mise à jour, rien ne change.
@@ -87,7 +87,9 @@ Dans les deux modes, un seul écran, « Fiche de l'observation », porte tous le
 | Nombre, Nombre max | Les effectifs du premier dénombrement. Un seul champ « Nombre » d'abord, sur la moitié de la largeur ; « ＋ Nombre max » déplie le max (« Nombre » devient « Nombre min »), déjà déplié s'il diffère du min. Replié, le max suit le min (depuis le 18 novembre 2026) | Le serveur montre `count_min`, `count_max` |
 | Comportement | Le comportement | Le serveur montre `behaviour` et l'espèce est un animal |
 | Chant (sous « Comportement ») | D'un toucher, choisit un comportement de chant dans le champ, ou l'en retire : l'indice « Mâle chanteur en période de reproduction » si l'espèce est en période de nidification et que le serveur a les codes atlas, sinon « Chant » | L'espèce est un oiseau et le serveur a la valeur qui convient |
-| Sexe, Stade de vie, État biologique | Les listes du serveur pour l'espèce | Le serveur montre le champ ; le sexe pour un animal seulement |
+| Sexe, Stade de vie | Les listes du serveur pour l'espèce | Le serveur montre le champ ; le sexe pour un animal seulement |
+| Type d'observation | La « Technique d'observation » de GeoNature (`METH_OBS`), sous un autre libellé ; valeurs, défaut du serveur et envoi inchangés (depuis le 18 novembre 2026) | Le serveur montre `obs_tech` |
+| État biologique | La liste du serveur pour l'espèce | Le serveur montre le champ |
 | Champs additionnels obligatoires | Ceux de l'occurrence et du dénombrement | Le serveur en a pour le jeu de données |
 | Commentaire | Le commentaire de l'observation | Le serveur montre `comment_occ` |
 | Photo | Appareil photo ou galerie | Le serveur active les médias |
@@ -99,7 +101,7 @@ En mode simplifié, une photo ou un son est écrit aussitôt, sans attendre le �
 
 - **Un seul dénombrement.** La fiche ne touche que le premier ; les autres, saisis en mode pro, sont conservés tels quels.
 - **Champs selon le groupe taxonomique.** Le sexe et le comportement ne sont proposés que pour un animal. Une nomenclature sans aucune valeur pour le taxon est masquée. En mode pro, tous les champs restent, comme sur le web.
-- **Champs non montrés.** Ils gardent leur valeur ; jamais saisis, ils restent vides et le serveur y met sa valeur par défaut (technique d'observation, objet du dénombrement, etc.).
+- **Champs non montrés.** Ils gardent leur valeur ; jamais saisis, ils restent vides et le serveur y met sa valeur par défaut (statut d'observation, objet du dénombrement, etc.).
 - **Champs additionnels facultatifs.** Ils ne sont pas proposés ; seuls les obligatoires le sont, sur la fiche.
 - **Observation déjà envoyée.** « Photo » et « Audio » sont grisés, avec une phrase d'explication.
 

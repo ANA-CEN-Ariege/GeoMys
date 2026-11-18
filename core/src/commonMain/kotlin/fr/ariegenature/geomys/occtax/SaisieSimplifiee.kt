@@ -35,14 +35,21 @@ object SaisieSimplifiee {
     /** « Détails » : les nomenclatures du dénombrement n° 0 (code, clé form_fields). */
     val DETAILS_DENOMBREMENT = listOf("SEXE" to "sex", "STADE_VIE" to "life_stage")
 
-    /** « Détails » : la nomenclature de la caractérisation. */
-    val DETAILS_OCCURRENCE = listOf("ETA_BIO" to "bio_condition")
+    /** « Détails » : les nomenclatures de la caractérisation. La technique d'observation y est depuis
+     *  le 18 novembre 2026 (demande de l'utilisateur), sous le nom [LIBELLE_TYPE_OBSERVATION]. */
+    val DETAILS_OCCURRENCE = listOf("METH_OBS" to "obs_tech", "ETA_BIO" to "bio_condition")
+
+    /** Le nom de la technique d'observation (`METH_OBS`) en mode simplifié. */
+    const val CODE_TYPE_OBSERVATION = "METH_OBS"
+    const val LIBELLE_TYPE_OBSERVATION = "Type d'observation"
+    const val MANQUE_TYPE_OBSERVATION = "Veuillez indiquer le type d'observation"
 
     /** Les clés form_fields des nombres min et max. */
     const val CLE_NOMBRE = "count_min"
     const val CLE_NOMBRE_MAX = "count_max"
 
-    /** Les nomenclatures de la caractérisation que porte la fiche : état biologique et comportement. */
+    /** Les nomenclatures de la caractérisation que porte la fiche : technique d'observation, état
+     *  biologique et comportement. */
     val FICHE_OCCURRENCE = DETAILS_OCCURRENCE + FormulairesEspece.OCC_COMPORTEMENT
 
     /** La clé form_fields du comportement : sans elle, pas de bouton « Comportement ». */

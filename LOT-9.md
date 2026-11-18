@@ -938,3 +938,12 @@ Les deux points laissés ouverts au § 64 sont vérifiés par l'utilisateur le 1
 Le même jour, « Nombre max » est replié par défaut sur cette fiche (demande de l'utilisateur, pour un champ nombre plus discret) : un seul champ « Nombre » sur la moitié de la largeur, et le lien « ＋ Nombre max » (`DEPLIER_MAX`) à sa droite, qui déplie le max ; « Nombre » se lit alors « Nombre min ». `FicheEspeceViewModel.maxDeplie` : déplié d'office si le max diffère du min, ou si le serveur ne montre pas le min. Replié, le max suit le min, et il part comme avant.
 
 Le même jour encore, « Sexe » passe au-dessus de « Stade de vie » sur cette fiche (`SaisieSimplifiee.DETAILS_DENOMBREMENT`). Ordre de la fiche simplifiée : nombre, comportement et « Chant », sexe, stade de vie, état biologique, champs additionnels obligatoires, commentaire, photo et audio.
+
+## 66. Mode simplifié : la technique d'observation sur la fiche, nommée « Type d'observation » (18 novembre)
+
+Demande de l'utilisateur : ajouter « Technique d'observation » sous « Stade de vie » sur la fiche du mode simplifié, sous le libellé « Type d'observation ». Le nom de GeoNature reste « Technique d'observation » : seul le libellé de cette fiche change.
+
+- `SaisieSimplifiee.DETAILS_OCCURRENCE` = `METH_OBS` (`obs_tech`) puis `ETA_BIO` ; `FICHE_OCCURRENCE` le reprend, donc la valeur est écrite par `appliquerDetails`. Ordre de la fiche : nombre, comportement et « Chant », sexe, stade de vie, type d'observation, état biologique, etc.
+- `FicheEspeceViewModel.champs` donne au champ le libellé `LIBELLE_TYPE_OBSERVATION` ; vide, le refus est `MANQUE_TYPE_OBSERVATION` (« Veuillez indiquer le type d'observation ») au lieu du message du web. Le registre (`OcctaxFieldsConfig`), le mode pro et la saisie mono-taxon gardent « Technique d'observation ».
+- Comme sur le web, le champ est obligatoire : il s'ouvre sur le défaut du serveur. Avant, jamais montré, il partait vide et le serveur y mettait ce même défaut. Une fiche validée sans rien changer n'écrit toujours rien.
+- Tests de `SaisieSimplifieeEcransTest` adaptés (ordre des champs, `METH_OBS` dans les jeux d'essai, valeur écrite).

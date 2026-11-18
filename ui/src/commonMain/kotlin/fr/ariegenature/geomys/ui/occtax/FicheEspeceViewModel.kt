@@ -75,14 +75,18 @@ class FicheEspeceViewModel(
     private fun champs(liste: List<Pair<String, String>>): List<ChampNomenclature> {
         val g = groupe ?: return emptyList()
         return FormulairesEspece.champsVisibles(liste, formFields)
-            .map { FormulairesEspece.champ(it, nomenclatures, g, config.nomenclaturesFiltreesParTaxon) }
+            .map {
+                // La technique d'observation se nomme « Type d'observation » en mode simplifié.
+                val libelle = if (it.code == SaisieSimplifiee.CODE_TYPE_OBSERVATION) SaisieSimplifiee.LIBELLE_TYPE_OBSERVATION else it.label
+                FormulairesEspece.champ(it, nomenclatures, g, config.nomenclaturesFiltreesParTaxon, libelle)
+            }
             .filter { SaisieSimplifiee.pertinent(it, g, nomenclatures) }
     }
 
     private val champsDenombrement = champs(SaisieSimplifiee.DETAILS_DENOMBREMENT)
 
-    /** Sexe, stade de vie (dans cet ordre depuis le 18 novembre 2026), puis état biologique : ceux que le serveur montre, pour le groupe de
-     *  l'espèce (pas de sexe pour une plante). */
+    /** Sexe, stade de vie (dans cet ordre depuis le 18 novembre 2026), type d'observation, puis état
+     *  biologique : ceux que le serveur montre, pour le groupe de l'espèce (pas de sexe pour une plante). */
     val champsDetails: List<ChampNomenclature> = champsDenombrement + champs(SaisieSimplifiee.DETAILS_OCCURRENCE)
 
     /** Le comportement : si le serveur montre ce champ, et pour un animal. */
@@ -263,7 +267,12 @@ class FicheEspeceViewModel(
     fun valider(): String? {
         val nomenclaturesRetenues = tousLesChamps.associate { it.champ.code to retenue(it) }
         SaisieSimplifiee.refusEffectifs(min.takeIf { minVisible }, max.takeIf { maxVisible })?.let { return it }
-        FormulairesEspece.manque(tousLesChamps, nomenclaturesRetenues)?.let { return it }
+        FormulairesEspece.manque(tousLesChamps, nomenclaturesRetenues)?.let { message ->
+            val typeVide = nomenclaturesRetenues[SaisieSimplifiee.CODE_TYPE_OBSERVATION].isNullOrEmpty()
+            val premier = tousLesChamps.firstOrNull { it.obligatoire && nomenclaturesRetenues[it.champ.code].isNullOrEmpty() }
+            // Le message du web parle de « technique d'observation » : ici, le champ a un autre nom.
+            return if (typeVide && premier?.champ?.code == SaisieSimplifiee.CODE_TYPE_OBSERVATION && !premier.sansValeurs) SaisieSimplifiee.MANQUE_TYPE_OBSERVATION else message
+        }
         additionnelsOccurrence?.refus()?.let { return it }
         additionnelsDenombrement?.refus()?.let { return it }
         if (!modifie()) return null

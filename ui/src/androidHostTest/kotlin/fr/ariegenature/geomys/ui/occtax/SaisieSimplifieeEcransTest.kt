@@ -113,10 +113,11 @@ class SaisieSimplifieeEcransTest {
                 "STADE_VIE" to listOf(v(1, "Inconnu"), v(2, "Adulte")),
                 "SEXE" to listOf(v(5, "Indéterminé"), v(3, "Mâle")),
                 "ETA_BIO" to listOf(v(4, "Vivant"), v(6, "Mort")),
+                "METH_OBS" to listOf(v(7, "Vu"), v(8, "Entendu")),
                 "OCC_COMPORTEMENT" to listOf(v(12, "Chant")),
             ),
         )
-        services.nomenclatures.setDefauts(mapOf("STADE_VIE" to "1", "SEXE" to "5", "ETA_BIO" to "4"))
+        services.nomenclatures.setDefauts(mapOf("STADE_VIE" to "1", "SEXE" to "5", "ETA_BIO" to "4", "METH_OBS" to "7"))
     }
 
     @Test
@@ -188,7 +189,7 @@ class SaisieSimplifieeEcransTest {
         val releve = releve(ModeSaisie.SIMPLIFIE)
         releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
         val fiche = FicheEspeceViewModel(services, releve.releve, 0)
-        assertEquals(listOf("SEXE", "STADE_VIE", "ETA_BIO"), fiche.champsDetails.map { it.champ.code })
+        assertEquals(listOf("SEXE", "STADE_VIE", "METH_OBS", "ETA_BIO"), fiche.champsDetails.map { it.champ.code })
         assertTrue(fiche.minVisible && fiche.maxVisible, "nombre min et nombre max")
         assertEquals("1" to "1", fiche.min to fiche.max)
         assertTrue(fiche.comportementVisible)
@@ -223,7 +224,8 @@ class SaisieSimplifieeEcransTest {
         assertEquals("Sur une ombellifère", apres.notes)
         assertEquals("7", apres.additionalFieldsOccurrence["code_luf"])
         assertEquals(listOf("file:///essai/pendant-la-fiche.jpg"), apres.mediaUrisCounting0, "la photo arrivée entre-temps reste")
-        assertEquals("", apres.techniqueObs, "hors de la fiche : rien n'est écrit")
+        assertEquals("7", apres.techniqueObs, "la technique d'observation est sur la fiche depuis le 18 novembre : le défaut du serveur est écrit")
+        assertEquals("", apres.statutObs, "hors de la fiche : rien n'est écrit")
         // Enregistré au fil de l'eau : l'observation de la session porte la fiche.
         val obs = releve.session.observations.value.single { it.releveId == releve.releve.releveId }
         assertEquals(4, obs.nombre)
@@ -260,14 +262,14 @@ class SaisieSimplifieeEcransTest {
         val ortie = releve.releve.especes.value.single()
         assertEquals(Taxon.PLANTE, ortie.taxon)
         val fiche = FicheEspeceViewModel(services, releve.releve, 0)
-        assertEquals(listOf("STADE_VIE", "ETA_BIO"), fiche.champsDetails.map { it.champ.code })
+        assertEquals(listOf("STADE_VIE", "METH_OBS", "ETA_BIO"), fiche.champsDetails.map { it.champ.code })
         assertFalse(fiche.comportementVisible)
 
         // Un insecte du même relevé garde tout.
         releve.choisirTaxon(Taxon.INSECTE)
         releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
         val machaon = FicheEspeceViewModel(services, releve.releve, 1)
-        assertEquals(listOf("SEXE", "STADE_VIE", "ETA_BIO"), machaon.champsDetails.map { it.champ.code })
+        assertEquals(listOf("SEXE", "STADE_VIE", "METH_OBS", "ETA_BIO"), machaon.champsDetails.map { it.champ.code })
         assertTrue(machaon.comportementVisible)
     }
 
@@ -400,13 +402,14 @@ class SaisieSimplifieeEcransTest {
                 "STADE_VIE" to listOf(NomValeur(1, "Inconnu", tous)),
                 "SEXE" to listOf(NomValeur(5, "Indéterminé", tous)),
                 "ETA_BIO" to listOf(NomValeur(4, "Vivant", tous)),
+                "METH_OBS" to listOf(NomValeur(7, "Vu", tous)),
                 "OCC_COMPORTEMENT" to listOf(
                     NomValeur(12, "Chant", tous, cd = "18"),
                     NomValeur(30, "2 - Mâle chanteur (ou cris de nidification) en période de reproduction", tous, cd = "CA2"),
                 ),
             ),
         )
-        services.nomenclatures.setDefauts(mapOf("STADE_VIE" to "1", "SEXE" to "5", "ETA_BIO" to "4"))
+        services.nomenclatures.setDefauts(mapOf("STADE_VIE" to "1", "SEXE" to "5", "ETA_BIO" to "4", "METH_OBS" to "7"))
         val releve = releve(ModeSaisie.SIMPLIFIE)
         val merle = releve.releve.ajouter(Taxon.OISEAU, "Merle noir", 4117)
         fun espece() = releve.releve.especes.value[merle]
