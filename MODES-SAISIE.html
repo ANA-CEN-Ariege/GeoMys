@@ -99,7 +99,7 @@ footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--t
 <header>
   <h1>GeoMys : mode pro et mode simplifié</h1>
   <p>GeoMys propose deux façons de saisir. Le mode pro donne tout ce que GeoNature permet. Le mode simplifié ne garde que l'essentiel pour noter une espèce sur le terrain.</p>
-  <p class="etat">État au 17 novembre 2026, version 2.2.0-beta8.</p>
+  <p class="etat">État au 18 novembre 2026, version 2.2.0-beta9.</p>
   <nav aria-label="Rubriques">
     <a href="#choix">Choisir le mode</a>
     <a href="#accueil">Accueil</a>
@@ -129,7 +129,7 @@ footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--t
       <p>Pour les utilisateurs amateurs.</p>
       <ul>
         <li>Saisie multi-taxons seulement</li>
-        <li>Nombre min et max, stade de vie, sexe, état biologique, comportement, commentaire, photo, audio</li>
+        <li>Nombre (et nombre max), comportement, sexe, stade de vie, état biologique, commentaire, photo, audio</li>
         <li>Seules les données utiles à cette saisie sont chargées</li>
       </ul>
     </div>
@@ -222,11 +222,11 @@ footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--t
   <div class="cadre"><table>
     <thead><tr><th>Champ</th><th class="simple">Ce qu'il porte</th><th class="simple">Présent si</th></tr></thead>
     <tbody>
-      <tr><th>Nombre min, Nombre max</th><td>Le nombre d'individus, en fourchette. Le maximum suit le minimum tant que vous ne le changez pas.</td><td>Le serveur montre ces champs</td></tr>
-      <tr><th>Stade de vie, Sexe, État biologique</th><td>Les listes du serveur pour l'espèce</td><td>Le serveur montre le champ ; le sexe pour un animal seulement</td></tr>
-      <tr><th>Champs obligatoires du serveur</th><td>Les champs additionnels que le serveur exige</td><td>Le serveur en a pour le jeu de données</td></tr>
+      <tr><th>Nombre, Nombre max</th><td>Le nombre d'individus. Un seul champ « Nombre » d'abord ; <span class="touche">＋ Nombre max</span> ouvre un second champ pour donner une fourchette (min et max). Tant qu'il est replié, le maximum suit le nombre saisi.</td><td>Le serveur montre ces champs</td></tr>
       <tr><th>Comportement</th><td>Le comportement de l'animal</td><td>Le serveur montre ce champ et l'espèce est un animal</td></tr>
       <tr><th>Chant</th><td>D'un toucher, choisit le chant dans « Comportement » ; d'un second, l'en retire. En période de nidification de l'espèce, c'est l'indice « Mâle chanteur en période de reproduction » qui est choisi, si le serveur a les codes atlas. Sinon, c'est « Chant ».<br><span class="touche">♪ Chant</span> non choisi, <span class="touche plein">✓ Chant</span> choisi.</td><td>L'espèce est un oiseau et le serveur a la valeur qui convient. Le bouton est sous « Comportement ».</td></tr>
+      <tr><th>Sexe, Stade de vie, État biologique</th><td>Les listes du serveur pour l'espèce</td><td>Le serveur montre le champ ; le sexe pour un animal seulement</td></tr>
+      <tr><th>Champs obligatoires du serveur</th><td>Les champs additionnels que le serveur exige</td><td>Le serveur en a pour le jeu de données</td></tr>
       <tr><th>Commentaire</th><td>Le commentaire de l'observation</td><td>Le serveur montre ce champ</td></tr>
       <tr><th>Photo</th><td>Appareil photo ou galerie</td><td>Le serveur accepte les médias</td></tr>
       <tr><th>Audio</th><td>Choix d'un fichier son</td><td>Le serveur accepte les médias</td></tr>

@@ -81,7 +81,7 @@ class FicheEspeceViewModel(
 
     private val champsDenombrement = champs(SaisieSimplifiee.DETAILS_DENOMBREMENT)
 
-    /** Stade de vie, sexe, puis état biologique : ceux que le serveur montre, pour le groupe de
+    /** Sexe, stade de vie (dans cet ordre depuis le 18 novembre 2026), puis état biologique : ceux que le serveur montre, pour le groupe de
      *  l'espèce (pas de sexe pour une plante). */
     val champsDetails: List<ChampNomenclature> = champsDenombrement + champs(SaisieSimplifiee.DETAILS_OCCURRENCE)
 
@@ -102,6 +102,15 @@ class FicheEspeceViewModel(
         private set
     var max by mutableStateOf(denombrement?.nombreMax?.toString() ?: "1")
         private set
+
+    /** « Nombre max » est replié tant qu'il vaut le min (demande du 18 novembre 2026) : un seul champ
+     *  « Nombre », et un lien pour le déplier. Replié, il suit le min. Sans champ min, il est montré. */
+    var maxDeplie by mutableStateOf(maxVisible && (!minVisible || min != max))
+        private set
+
+    fun deplierMax() {
+        maxDeplie = true
+    }
 
     /** Le max suit le min tant qu'il n'a pas été saisi à part, comme à l'écran Dénombrement. */
     fun saisirMin(texte: String) {

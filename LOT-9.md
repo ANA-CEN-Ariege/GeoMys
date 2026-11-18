@@ -928,3 +928,13 @@ Demande de l'utilisateur : dans la fiche de l'observation du mode simplifié, pl
 - **Saisie mono-taxon** (demande du même jour) : Caractérisation, Dénombrement et détails prennent le même bouton du bas. Seuls les détails d'une station OccHab gardent la coche en haut à droite. Ce point remplace ce qui est dit plus haut de la saisie mono-taxon.
 - À surveiller : `ChangementServeurTest.une_recherche_dans_la_liste_n_est_jamais_enregistree_comme_serveur` a échoué une fois, puis réussi trois fois de suite sans changement.
 - `MODES-SAISIE.md` et `.html` mis à jour.
+
+## 65. Mode simplifié : le comportement et « Chant » sous les nombres (18 novembre)
+
+Demande de l'utilisateur : sur la fiche de l'observation, le champ « Comportement » et le bouton « Chant » remontent juste sous « Nombre min » et « Nombre max », avant le stade de vie, le sexe et l'état biologique (`FicheEspeceScreen`). Seul l'ordre d'affichage change. La fiche du mode pro garde l'ordre du web (comportement sous « Plus de champs »).
+
+Les deux points laissés ouverts au § 64 sont vérifiés par l'utilisateur le 17 novembre : plus de retour involontaire à la carte sous Android, et pas de toucher détourné par les listes de suggestions sous iOS.
+
+Le même jour, « Nombre max » est replié par défaut sur cette fiche (demande de l'utilisateur, pour un champ nombre plus discret) : un seul champ « Nombre » sur la moitié de la largeur, et le lien « ＋ Nombre max » (`DEPLIER_MAX`) à sa droite, qui déplie le max ; « Nombre » se lit alors « Nombre min ». `FicheEspeceViewModel.maxDeplie` : déplié d'office si le max diffère du min, ou si le serveur ne montre pas le min. Replié, le max suit le min, et il part comme avant.
+
+Le même jour encore, « Sexe » passe au-dessus de « Stade de vie » sur cette fiche (`SaisieSimplifiee.DETAILS_DENOMBREMENT`). Ordre de la fiche simplifiée : nombre, comportement et « Chant », sexe, stade de vie, état biologique, champs additionnels obligatoires, commentaire, photo et audio.

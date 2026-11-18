@@ -188,7 +188,7 @@ class SaisieSimplifieeEcransTest {
         val releve = releve(ModeSaisie.SIMPLIFIE)
         releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
         val fiche = FicheEspeceViewModel(services, releve.releve, 0)
-        assertEquals(listOf("STADE_VIE", "SEXE", "ETA_BIO"), fiche.champsDetails.map { it.champ.code })
+        assertEquals(listOf("SEXE", "STADE_VIE", "ETA_BIO"), fiche.champsDetails.map { it.champ.code })
         assertTrue(fiche.minVisible && fiche.maxVisible, "nombre min et nombre max")
         assertEquals("1" to "1", fiche.min to fiche.max)
         assertTrue(fiche.comportementVisible)
@@ -201,8 +201,8 @@ class SaisieSimplifieeEcransTest {
         fiche.ajusterMax(2)
         fiche.ajusterMin(1)
         assertEquals("4" to "5", fiche.min to fiche.max)
-        fiche.positions["STADE_VIE"] = fiche.champsDetails[0].position("2")
-        fiche.positions["SEXE"] = fiche.champsDetails[1].position("3")
+        fiche.positions["STADE_VIE"] = fiche.champsDetails[1].position("2")
+        fiche.positions["SEXE"] = fiche.champsDetails[0].position("3")
         fiche.positions["OCC_COMPORTEMENT"] = fiche.champComportement!!.position("12")
         fiche.commentaire = "Sur une ombellifère "
         assertTrue(fiche.modifie())
@@ -267,7 +267,7 @@ class SaisieSimplifieeEcransTest {
         releve.choisirTaxon(Taxon.INSECTE)
         releve.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
         val machaon = FicheEspeceViewModel(services, releve.releve, 1)
-        assertEquals(listOf("STADE_VIE", "SEXE", "ETA_BIO"), machaon.champsDetails.map { it.champ.code })
+        assertEquals(listOf("SEXE", "STADE_VIE", "ETA_BIO"), machaon.champsDetails.map { it.champ.code })
         assertTrue(machaon.comportementVisible)
     }
 

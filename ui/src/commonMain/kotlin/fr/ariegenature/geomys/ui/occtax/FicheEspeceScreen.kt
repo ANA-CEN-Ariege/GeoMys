@@ -23,7 +23,11 @@
 
 package fr.ariegenature.geomys.ui.occtax
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,7 +42,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,6 +70,9 @@ internal const val TITRE_FICHE_OBSERVATION = "Fiche de l'observation"
  *  le chant choisi. */
 internal const val CHANT = "♪ Chant"
 internal const val CHANT_COCHE = "✓ Chant"
+
+/** Le lien qui déplie « Nombre max », replié par défaut. */
+internal const val DEPLIER_MAX = "＋ Nombre max"
 
 /** Sous « Photo » et « Audio » d'une observation déjà sur le serveur. */
 internal const val MEDIAS_FIGES = "Observation déjà envoyée : une photo ou un son ajouté maintenant ne partirait pas."
@@ -105,16 +114,30 @@ fun FicheEspeceScreen(
     ) {
         // Effectifs : « − » | champ | « ＋ », comme à l'écran Dénombrement.
         if (vm.minVisible || vm.maxVisible) {
-            Row(Modifier.padding(top = if (ios) 0.dp else 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (vm.minVisible) Compteur("Nombre min", vm.min, vm::saisirMin, vm::ajusterMin, Modifier.weight(1f))
-                if (vm.maxVisible) Compteur("Nombre max", vm.max, vm::saisirMax, vm::ajusterMax, Modifier.weight(1f))
+            // « Nombre max » replié par défaut : un seul champ « Nombre », sur la moitié de la
+            // largeur, et un lien discret pour déplier le max (demande du 18 novembre 2026).
+            val replie = vm.maxVisible && !vm.maxDeplie
+            Row(
+                Modifier.padding(top = if (ios) 0.dp else 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                if (vm.minVisible) Compteur(if (vm.maxDeplie) "Nombre min" else "Nombre", vm.min, vm::saisirMin, vm::ajusterMin, Modifier.weight(1f))
+                when {
+                    replie -> Box(Modifier.weight(1f).defaultMinSize(minHeight = 40.dp), contentAlignment = Alignment.CenterStart) {
+                        Text(
+                            DEPLIER_MAX,
+                            fontSize = 13.sp,
+                            color = if (ios) CouleursGeoMys.jauneClair else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable(role = Role.Button, onClick = vm::deplierMax).padding(vertical = 8.dp),
+                        )
+                    }
+                    vm.maxVisible -> Compteur("Nombre max", vm.max, vm::saisirMax, vm::ajusterMax, Modifier.weight(1f))
+                    else -> Spacer(Modifier.weight(1f))
+                }
             }
         }
-        for (champ in vm.champsDetails) {
-            ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it })
-        }
-        vm.additionnelsOccurrence?.let { if (it.defsAffiches.isNotEmpty()) ChampsAdditionnelsVue(it) }
-        vm.additionnelsDenombrement?.let { if (it.defsAffiches.isNotEmpty()) ChampsAdditionnelsVue(it) }
+        // Le comportement et « Chant » juste sous les effectifs (demande du 18 novembre 2026).
         vm.champComportement?.let { champ ->
             ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it })
             // Oiseau : « Chant » choisit ou retire ce comportement d'un toucher. Ce n'est pas un écran
@@ -125,6 +148,11 @@ fun FicheEspeceScreen(
                 if (vm.chante) BoutonVert(CHANT_COCHE, vm::basculerChant, modifier) else BoutonContour(CHANT, vm::basculerChant, modifier)
             }
         }
+        for (champ in vm.champsDetails) {
+            ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it })
+        }
+        vm.additionnelsOccurrence?.let { if (it.defsAffiches.isNotEmpty()) ChampsAdditionnelsVue(it) }
+        vm.additionnelsDenombrement?.let { if (it.defsAffiches.isNotEmpty()) ChampsAdditionnelsVue(it) }
         if (vm.commentaireVisible) {
             ChampLibelle("Commentaire") {
                 ChampTexteFormulaire(

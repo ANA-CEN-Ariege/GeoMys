@@ -33,7 +33,7 @@ import fr.ariegenature.geomys.store.NomValeur
 object SaisieSimplifiee {
 
     /** « Détails » : les nomenclatures du dénombrement n° 0 (code, clé form_fields). */
-    val DETAILS_DENOMBREMENT = listOf("STADE_VIE" to "life_stage", "SEXE" to "sex")
+    val DETAILS_DENOMBREMENT = listOf("SEXE" to "sex", "STADE_VIE" to "life_stage")
 
     /** « Détails » : la nomenclature de la caractérisation. */
     val DETAILS_OCCURRENCE = listOf("ETA_BIO" to "bio_condition")

@@ -1,8 +1,8 @@
 # Mode pro et mode simplifié : les différences
 
-État au 17 novembre 2026 (version 2.2.0-beta8, build 212).
+État au 18 novembre 2026 (version 2.2.0-beta9, build 213).
 
-**À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51, 55 à 62 et 64.
+**À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51, 55 à 62, 64 et 65.
 
 ## En bref
 
@@ -10,7 +10,7 @@
 |---|---|---|
 | Public | Naturalistes habitués à GeoNature | Utilisateurs amateurs |
 | Modules | Saisie multi-taxons, saisie mono-taxon, Monitoring, OccHab | Saisie multi-taxons seulement |
-| Champs de l'observation | Tous ceux que le serveur montre | Nombre min et max, stade de vie, sexe, état biologique, comportement, commentaire, photo, audio |
+| Champs de l'observation | Tous ceux que le serveur montre | Nombre (et nombre max), comportement, sexe, stade de vie, état biologique, commentaire, photo, audio |
 | Données chargées | Tout | Seulement ce qui sert à la saisie multi-taxons |
 
 Le mode pro est le mode par défaut : sans choix, et après une mise à jour, rien ne change.
@@ -80,15 +80,15 @@ Dans les deux modes, un seul écran, « Fiche de l'observation », porte tous le
 - **Dénombrement** : objet et type du dénombrement, nombre min et nombre max, stade de vie, sexe, médias, champs additionnels ; plusieurs dénombrements par espèce.
 - **Caractérisation** : technique d'observation, état biologique ; sous « Plus de champs » : méthode de détermination, statut d'observation, naturalité, statut biologique, comportement, statut de la source, floutage, preuve d'existence, preuves numérique et non numérique, déterminateur, commentaire ; champs additionnels.
 
-**Mode simplifié**, un choix réduit de champs (sur la fiche elle-même depuis le 16 novembre 2026 ; avant, des boutons « Détails », « Comportement » et « Commentaire » ouvraient chacun un écran) :
+**Mode simplifié**, un choix réduit de champs, dans cet ordre (le comportement et « Chant » juste sous les nombres depuis le 18 novembre 2026 ; sur la fiche elle-même depuis le 16 novembre 2026 ; avant, des boutons « Détails », « Comportement » et « Commentaire » ouvraient chacun un écran) :
 
 | Champ | Ce qu'il porte | Présent si |
 |---|---|---|
-| Nombre min, Nombre max | Les effectifs du premier dénombrement ; le max suit le min tant qu'il n'est pas saisi à part | Le serveur montre `count_min`, `count_max` |
-| Stade de vie, Sexe, État biologique | Les listes du serveur pour l'espèce | Le serveur montre le champ ; le sexe pour un animal seulement |
-| Champs additionnels obligatoires | Ceux de l'occurrence et du dénombrement | Le serveur en a pour le jeu de données |
+| Nombre, Nombre max | Les effectifs du premier dénombrement. Un seul champ « Nombre » d'abord, sur la moitié de la largeur ; « ＋ Nombre max » déplie le max (« Nombre » devient « Nombre min »), déjà déplié s'il diffère du min. Replié, le max suit le min (depuis le 18 novembre 2026) | Le serveur montre `count_min`, `count_max` |
 | Comportement | Le comportement | Le serveur montre `behaviour` et l'espèce est un animal |
 | Chant (sous « Comportement ») | D'un toucher, choisit un comportement de chant dans le champ, ou l'en retire : l'indice « Mâle chanteur en période de reproduction » si l'espèce est en période de nidification et que le serveur a les codes atlas, sinon « Chant » | L'espèce est un oiseau et le serveur a la valeur qui convient |
+| Sexe, Stade de vie, État biologique | Les listes du serveur pour l'espèce | Le serveur montre le champ ; le sexe pour un animal seulement |
+| Champs additionnels obligatoires | Ceux de l'occurrence et du dénombrement | Le serveur en a pour le jeu de données |
 | Commentaire | Le commentaire de l'observation | Le serveur montre `comment_occ` |
 | Photo | Appareil photo ou galerie | Le serveur active les médias |
 | Audio | Choix d'un fichier son | Le serveur active les médias |
