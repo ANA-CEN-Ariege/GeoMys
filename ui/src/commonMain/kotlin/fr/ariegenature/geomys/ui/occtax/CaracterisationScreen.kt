@@ -21,6 +21,17 @@
 
 package fr.ariegenature.geomys.ui.occtax
 
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -103,12 +114,28 @@ internal fun EnTeteCaracterisation(vm: CaracterisationViewModel) {
 @Composable
 internal fun SuiteCaracterisation(vm: CaracterisationViewModel) {
     val ios = estIos
+    // Déplier « Avancé » amène son titre en haut de l'écran (demande du 19 novembre 2026) : on demande
+    // à voir, depuis le titre, une zone haute comme la fenêtre ; le défilement l'aligne donc sur son
+    // haut. Deux images d'attente : les champs dépliés doivent être mesurés avant de défiler.
+    val versLeHaut = remember { BringIntoViewRequester() }
+    val hauteurFenetre = LocalWindowInfo.current.containerSize.height.toFloat()
+    val marge = with(LocalDensity.current) { 8.dp.toPx() }
+    var depliages by remember { mutableStateOf(0) }
+    LaunchedEffect(depliages) {
+        if (depliages == 0) return@LaunchedEffect
+        repeat(2) { withFrameNanos { } }
+        versLeHaut.bringIntoView(Rect(0f, -marge, 1f, hauteurFenetre))
+    }
+    val basculer = {
+        vm.avanceOuvert = !vm.avanceOuvert
+        if (vm.avanceOuvert) depliages++
+    }
     if (vm.aDesChampsAvances) {
         // UN seul repli pour toute la section avancée, comme la gn-advanced-section du web : le
         // même bouton « Avancé » à roue dentée l'ouvre et la ferme.
         if (ios) {
             Row(
-                Modifier.clickable { vm.avanceOuvert = !vm.avanceOuvert },
+                Modifier.bringIntoViewRequester(versLeHaut).clickable(onClick = basculer),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -120,7 +147,7 @@ internal fun SuiteCaracterisation(vm: CaracterisationViewModel) {
                 "⚙ $LIBELLE_AVANCE",
                 fontSize = 13.sp,
                 color = BLEU_LIEN,
-                modifier = Modifier.padding(top = 12.dp).clickable { vm.avanceOuvert = !vm.avanceOuvert },
+                modifier = Modifier.padding(top = 12.dp).bringIntoViewRequester(versLeHaut).clickable(onClick = basculer),
             )
         }
         if (vm.avanceOuvert) {
