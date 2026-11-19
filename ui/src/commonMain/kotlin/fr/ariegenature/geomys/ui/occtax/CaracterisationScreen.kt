@@ -87,9 +87,8 @@ fun CaracterisationScreen(
 @Composable
 internal fun ContenuCaracterisation(vm: CaracterisationViewModel) {
     val ios = estIos
-    for (champ in vm.basiques) {
-        ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it })
-    }
+    // Technique d'observation et état biologique côte à côte (demande du 19 novembre 2026).
+    ChampsNomenclatureEnColonnes(vm.basiques, { vm.positions[it.champ.code] ?: 0 }) { champ, choix -> vm.positions[champ.champ.code] = choix }
     if (vm.aDesChampsAvances) {
         // UN seul repli pour toute la section avancée, comme la gn-advanced-section du web : le
         // même bouton « Avancé » à roue dentée l'ouvre et la ferme.

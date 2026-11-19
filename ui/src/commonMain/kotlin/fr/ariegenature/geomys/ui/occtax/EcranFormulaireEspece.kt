@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -242,6 +243,23 @@ fun ChampNomenclatureVue(champ: ChampNomenclature, position: Int, onChoix: (Int)
     ChampLibelle(champ.libelle, modifier) {
         Box(Modifier.fillMaxWidth().barreChampObligatoire(champ.obligatoire && position == 0)) {
             ListeDeroulante(champ.libelles.drop(1), position - 1, { onChoix(it + 1) }, invite = champ.libelle, onEffacer = { onChoix(0) })
+        }
+    }
+}
+
+/** Des champs de nomenclature sur deux colonnes, deux par ligne (demande du 19 novembre 2026 : objet
+ *  et type du dénombrement, technique d'observation et état biologique) ; un champ seul, ou le dernier
+ *  d'un nombre impair, garde toute la largeur. Les listes sont alignées par le bas : un libellé sur
+ *  deux lignes ne décale pas sa voisine. */
+@Composable
+internal fun ChampsNomenclatureEnColonnes(champs: List<ChampNomenclature>, position: (ChampNomenclature) -> Int, onChoix: (ChampNomenclature, Int) -> Unit) {
+    for (ligne in champs.chunked(2)) {
+        if (ligne.size == 1) {
+            ChampNomenclatureVue(ligne[0], position(ligne[0]), { onChoix(ligne[0], it) })
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Bottom) {
+                for (champ in ligne) ChampNomenclatureVue(champ, position(champ), { onChoix(champ, it) }, Modifier.weight(1f))
+            }
         }
     }
 }

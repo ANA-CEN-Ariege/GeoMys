@@ -229,9 +229,8 @@ private fun CarteVue(vm: DenombrementViewModel, carte: CarteDenombrement, index:
         }
         // L'ordre du web (counting.component.html) : objet et type, effectifs, stade et sexe, champs
         // additionnels, médias.
-        for (champ in vm.champsAvantEffectifs) {
-            ChampNomenclatureVue(champ, carte.positions[champ.champ.code] ?: 0, { carte.positions[champ.champ.code] = it })
-        }
+        // Objet et type côte à côte (demande du 19 novembre 2026).
+        ChampsNomenclatureEnColonnes(vm.champsAvantEffectifs, { carte.positions[it.champ.code] ?: 0 }) { champ, choix -> carte.positions[champ.champ.code] = choix }
         // Effectifs : « − » | champ | « ＋ ».
         if (vm.minVisible || vm.maxVisible) {
             Row(Modifier.padding(top = if (ios) 0.dp else 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -243,9 +242,8 @@ private fun CarteVue(vm: DenombrementViewModel, carte: CarteDenombrement, index:
                 }
             }
         }
-        for (champ in vm.champsApresEffectifs) {
-            ChampNomenclatureVue(champ, carte.positions[champ.champ.code] ?: 0, { carte.positions[champ.champ.code] = it })
-        }
+        // Stade de vie et sexe côte à côte aussi (demande du 19 novembre 2026).
+        ChampsNomenclatureEnColonnes(vm.champsApresEffectifs, { carte.positions[it.champ.code] ?: 0 }) { champ, choix -> carte.positions[champ.champ.code] = choix }
         if (carte.additionnels.defsAffiches.isNotEmpty()) ChampsAdditionnelsVue(carte.additionnels)
         // Le bloc Médias, si le serveur l'active (`OCCTAX.ENABLE_MEDIAS`).
         if (vm.mediasVisibles) ChampLibelle("Médias", margeHautAndroid = 10, tailleAndroid = 12) {

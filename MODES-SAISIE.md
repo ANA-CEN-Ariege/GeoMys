@@ -1,6 +1,6 @@
 # Mode pro et mode simplifié : les différences
 
-État au 18 novembre 2026 (version 2.2.0-beta10, build 214).
+État au 19 novembre 2026 (version 2.2.0-beta11, build 215).
 
 **À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51, 55 à 62, 64 et 65.
 
@@ -75,7 +75,7 @@ Depuis le 16 novembre 2026, la ligne d'espèce est la même dans les deux modes 
 
 Dans les deux modes, un seul écran, « Fiche de l'observation », porte tous les champs de l'espèce ; son ✓ les contrôle et les écrit, et le retour demande avant d'abandonner une fiche modifiée. Depuis le 17 novembre 2026, ce ✓ est un bouton rond en bas au milieu de l'écran, sous les champs, dans les deux modes (avant, une coche en haut à droite). Les champs diffèrent.
 
-**Mode pro**, les champs du web de GeoNature, dans cet ordre (depuis le 16 novembre 2026 ; avant, deux écrans, Dénombrement et Caractérisation, qui ne servent plus qu'à la saisie mono-taxon) :
+**Mode pro**, les champs du web de GeoNature, dans cet ordre ; depuis le 19 novembre 2026, l'objet et le type du dénombrement sont côte à côte, comme le stade de vie et le sexe, et comme la technique d'observation et l'état biologique (depuis le 16 novembre 2026 ; avant, deux écrans, Dénombrement et Caractérisation, qui ne servent plus qu'à la saisie mono-taxon) :
 
 - **Dénombrement** : objet et type du dénombrement, nombre min et nombre max, stade de vie, sexe, médias, champs additionnels ; plusieurs dénombrements par espèce.
 - **Caractérisation** : technique d'observation, état biologique ; sous « Plus de champs » : méthode de détermination, statut d'observation, naturalité, statut biologique, comportement, statut de la source, floutage, preuve d'existence, preuves numérique et non numérique, déterminateur, commentaire ; champs additionnels.

@@ -947,3 +947,9 @@ Demande de l'utilisateur : ajouter « Technique d'observation » sous « Stade d
 - `FicheEspeceViewModel.champs` donne au champ le libellé `LIBELLE_TYPE_OBSERVATION` ; vide, le refus est `MANQUE_TYPE_OBSERVATION` (« Veuillez indiquer le type d'observation ») au lieu du message du web. Le registre (`OcctaxFieldsConfig`), le mode pro et la saisie mono-taxon gardent « Technique d'observation ».
 - Comme sur le web, le champ est obligatoire : il s'ouvre sur le défaut du serveur. Avant, jamais montré, il partait vide et le serveur y mettait ce même défaut. Une fiche validée sans rien changer n'écrit toujours rien.
 - Tests de `SaisieSimplifieeEcransTest` adaptés (ordre des champs, `METH_OBS` dans les jeux d'essai, valeur écrite).
+
+## 67. Mode pro : objet et type du dénombrement, technique d'observation et état biologique sur deux colonnes (19 novembre)
+
+Demande de l'utilisateur. `ChampsNomenclatureEnColonnes` (`EcranFormulaireEspece.kt`) pose les champs deux par ligne, alignés par le bas ; un champ seul garde toute la largeur (serveur qui n'en montre qu'un). Il sert à `ContenuDenombrement` (objet et type, dans chaque dénombrement) et à `ContenuCaracterisation` (technique d'observation et état biologique) : la fiche de l'observation du mode pro, et les écrans Dénombrement et Caractérisation de la saisie mono-taxon, qui partagent ces contenus. Ordre, valeurs et contrôles inchangés. La fiche du mode simplifié n'est pas touchée.
+
+Le même jour, le stade de vie et le sexe (`champsApresEffectifs`) passent aussi sur deux colonnes, dans chaque dénombrement.
