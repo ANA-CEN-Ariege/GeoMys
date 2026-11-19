@@ -1,6 +1,6 @@
 # Mode pro et mode simplifié : les différences
 
-État au 19 novembre 2026 (version 2.2.0-beta14, build 218).
+État au 19 novembre 2026 (version 2.2.0-beta15, build 219).
 
 **À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51, 55 à 62, 64 et 65.
 
@@ -97,6 +97,8 @@ En saisie mono-taxon, l'écran Caractérisation commence par les mêmes deux lig
 | Commentaire | Le commentaire de l'observation | Le serveur montre `comment_occ` |
 | Photo | Appareil photo ou galerie | Le serveur active les médias |
 | Audio | Choix d'un fichier son | Le serveur active les médias |
+
+Dans les deux modes, et en saisie mono-taxon (Caractérisation, Dénombrement), les listes de nomenclature de la fiche n'ont plus de croix rouge pour vider le choix (depuis le 19 novembre 2026) : un choix se change, il ne se vide plus. Les champs additionnels et les détails du relevé gardent la leur.
 
 En mode simplifié, une photo ou un son est écrit aussitôt, sans attendre le ✓, et une fiche validée sans rien changer n'écrit rien. En mode pro, les médias s'écrivent au ✓ avec le reste, et le ✓ écrit toujours les valeurs affichées, défauts du serveur compris.
 

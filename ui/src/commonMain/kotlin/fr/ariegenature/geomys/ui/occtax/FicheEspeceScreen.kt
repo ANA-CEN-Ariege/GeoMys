@@ -139,7 +139,7 @@ fun FicheEspeceScreen(
         }
         // Le comportement et « Chant » juste sous les effectifs (demande du 18 novembre 2026).
         vm.champComportement?.let { champ ->
-            ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it })
+            ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it }, effacable = false)
             // Oiseau : « Chant » choisit ou retire ce comportement d'un toucher. Ce n'est pas un écran
             // à ouvrir mais une coche : en contour tant que le chant n'est pas choisi, plein et vert
             // une fois choisi (demande du 15 novembre 2026).
@@ -149,7 +149,7 @@ fun FicheEspeceScreen(
             }
         }
         for (champ in vm.champsDetails) {
-            ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it })
+            ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it }, effacable = false)
         }
         vm.additionnelsOccurrence?.let { if (it.defsAffiches.isNotEmpty()) ChampsAdditionnelsVue(it) }
         vm.additionnelsDenombrement?.let { if (it.defsAffiches.isNotEmpty()) ChampsAdditionnelsVue(it) }

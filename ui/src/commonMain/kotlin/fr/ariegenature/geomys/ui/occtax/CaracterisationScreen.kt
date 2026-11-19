@@ -158,7 +158,7 @@ internal fun SuiteCaracterisation(vm: CaracterisationViewModel) {
                 }
             }
             for (champ in vm.avances) {
-                ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it })
+                ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it }, effacable = false)
             }
             // Les preuves, seulement quand la preuve d'existence vaut « Oui », comme le web.
             if (vm.preuvesOuvertes) for ((cle, libelle, estUrl) in vm.preuves) {

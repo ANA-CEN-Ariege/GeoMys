@@ -969,3 +969,11 @@ Demande de l'utilisateur. **Écart voulu avec le web**, qui range le comportemen
 Demande de l'utilisateur. Dans `SuiteCaracterisation`, un toucher qui déplie « Avancé » fait défiler l'écran pour que le titre de la section arrive en haut (`BringIntoViewRequester` sur le titre, avec une zone demandée haute comme la fenêtre, 8 dp de marge au-dessus). Replier ne fait rien défiler, pas plus qu'une section ouverte d'office par la configuration du serveur. Vaut pour la fiche de l'observation du mode pro et pour l'écran Caractérisation de la saisie mono-taxon. Quand il y a trop peu de champs sous le titre pour remplir l'écran, le défilement s'arrête en bas du formulaire.
 
 Le même jour, à la demande de l'utilisateur : le titre « Caractérisation » disparaît de la fiche de l'observation du mode pro, et la section « Avancé » se nomme « Plus de détails » (`LIBELLE_AVANCE`), en 14 sp, la taille qu'avait ce titre. Le nouveau nom vaut aussi pour l'écran Caractérisation de la saisie mono-taxon. Dans le code et ce journal, « Avancé » désigne toujours cette section.
+
+## 70. Fiches d'observation : plus de croix rouge sur les listes (19 novembre)
+
+Demande de l'utilisateur : supprimer les croix rouges qui réinitialisent les champs, dans les fiches d'observation seulement. **Écart voulu avec le web**, dont les listes de nomenclature portent une croix.
+
+- `ChampNomenclatureVue(…, effacable = true)` : sans `effacable`, pas de `onEffacer`, donc pas de croix. La fiche du mode simplifié, la fiche du mode pro et les écrans Caractérisation et Dénombrement de la saisie mono-taxon passent `effacable = false` (`ChampsNomenclatureEnColonnes` aussi).
+- Ce qui disparaît : sur ces écrans, un choix fait dans une liste de nomenclature se change mais ne se vide plus.
+- Inchangés : les détails du relevé (type de regroupement, etc.), les champs additionnels, y compris ceux des fiches, OccHab et les Suivis gardent leur croix.

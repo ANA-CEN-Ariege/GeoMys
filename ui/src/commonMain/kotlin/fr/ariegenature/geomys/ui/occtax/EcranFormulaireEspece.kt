@@ -237,12 +237,14 @@ fun FormulaireEnEcranPlein(
 /** Un champ de nomenclature : son libellé et sa liste déroulante (buildField d'OcctaxFieldsRenderer,
  *  NomenclaturePicker de GeoMys-IOS). Comme le `pnx-nomenclature` du web, la liste n'a pas
  *  d'entrée vide : le libellé du champ en invite, une croix pour vider le choix (position 0) ; une
- *  liste obligatoire vide porte la barre rouge, la bordure rouge du web. */
+ *  liste obligatoire vide porte la barre rouge, la bordure rouge du web. Sans [effacable], pas de
+ *  croix : les fiches d'observation n'en montrent plus (demande du 19 novembre 2026), un choix s'y
+ *  change mais ne s'y vide plus ; les détails du relevé gardent la leur. */
 @Composable
-fun ChampNomenclatureVue(champ: ChampNomenclature, position: Int, onChoix: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun ChampNomenclatureVue(champ: ChampNomenclature, position: Int, onChoix: (Int) -> Unit, modifier: Modifier = Modifier, effacable: Boolean = true) {
     ChampLibelle(champ.libelle, modifier) {
         Box(Modifier.fillMaxWidth().barreChampObligatoire(champ.obligatoire && position == 0)) {
-            ListeDeroulante(champ.libelles.drop(1), position - 1, { onChoix(it + 1) }, invite = champ.libelle, onEffacer = { onChoix(0) })
+            ListeDeroulante(champ.libelles.drop(1), position - 1, { onChoix(it + 1) }, invite = champ.libelle, onEffacer = if (effacable) ({ onChoix(0) }) else null)
         }
     }
 }
@@ -255,10 +257,10 @@ fun ChampNomenclatureVue(champ: ChampNomenclature, position: Int, onChoix: (Int)
 internal fun ChampsNomenclatureEnColonnes(champs: List<ChampNomenclature>, position: (ChampNomenclature) -> Int, onChoix: (ChampNomenclature, Int) -> Unit) {
     for (ligne in champs.chunked(2)) {
         if (ligne.size == 1) {
-            ChampNomenclatureVue(ligne[0], position(ligne[0]), { onChoix(ligne[0], it) })
+            ChampNomenclatureVue(ligne[0], position(ligne[0]), { onChoix(ligne[0], it) }, effacable = false)
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Bottom) {
-                for (champ in ligne) ChampNomenclatureVue(champ, position(champ), { onChoix(champ, it) }, Modifier.weight(1f))
+                for (champ in ligne) ChampNomenclatureVue(champ, position(champ), { onChoix(champ, it) }, Modifier.weight(1f), effacable = false)
             }
         }
     }
