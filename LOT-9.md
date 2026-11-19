@@ -953,3 +953,13 @@ Demande de l'utilisateur : ajouter « Technique d'observation » sous « Stade d
 Demande de l'utilisateur. `ChampsNomenclatureEnColonnes` (`EcranFormulaireEspece.kt`) pose les champs deux par ligne, alignés par le bas ; un champ seul garde toute la largeur (serveur qui n'en montre qu'un). Il sert à `ContenuDenombrement` (objet et type, dans chaque dénombrement) et à `ContenuCaracterisation` (technique d'observation et état biologique) : la fiche de l'observation du mode pro, et les écrans Dénombrement et Caractérisation de la saisie mono-taxon, qui partagent ces contenus. Ordre, valeurs et contrôles inchangés. La fiche du mode simplifié n'est pas touchée.
 
 Le même jour, le stade de vie et le sexe (`champsApresEffectifs`) passent aussi sur deux colonnes, dans chaque dénombrement.
+
+## 68. Mode pro : comportement et statut biologique en tête, technique d'observation et état biologique avant les dénombrements (19 novembre)
+
+Demande de l'utilisateur. **Écart voulu avec le web**, qui range le comportement et le statut biologique sous « Plus de champs » et place la caractérisation après les dénombrements. Rien d'autre ne change (valeurs, contrôles, envoi).
+
+- `FormulairesEspece.OCC_EN_TETE` (`OCC_COMPORTEMENT`, `STATUT_BIO`) ; `CaracterisationViewModel.enTete` les sort de `avances`.
+- `EnTeteCaracterisation` : première ligne, comportement et statut biologique ; deuxième ligne, technique d'observation et état biologique (deux colonnes, § 67). `SuiteCaracterisation` : la section « Avancé » et les champs additionnels. `ContenuCaracterisation` = les deux, pour l'écran Caractérisation de la saisie mono-taxon.
+- `FicheProScreen` : en-tête, puis dénombrements, puis le titre « Caractérisation » et la suite s'il reste quelque chose à y montrer.
+- Oiseau nicheur : la fiche n'ouvre plus « Avancé » d'office (`RouteFicheEspece.nidification` ne sert plus), le comportement étant en tête.
+- Interprétation de « sur la première ligne » retenue : la première ligne de la fiche. À inverser avec la ligne technique / état biologique si l'utilisateur l'entendait autrement.

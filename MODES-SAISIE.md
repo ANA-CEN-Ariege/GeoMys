@@ -1,6 +1,6 @@
 # Mode pro et mode simplifié : les différences
 
-État au 19 novembre 2026 (version 2.2.0-beta11, build 215).
+État au 19 novembre 2026 (version 2.2.0-beta12, build 216).
 
 **À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51, 55 à 62, 64 et 65.
 
@@ -58,7 +58,7 @@ Deux cas gardent le champ des observateurs du mode pro, pour que le relevé rest
 |---|---|---|
 | Ce qui s'ouvre | La « Fiche de l'observation », à chaque espèce | Identique |
 | Champs additionnels obligatoires vides | Rien de plus : ils sont sur la fiche | Identique |
-| Oiseau en période de nidification | La fiche s'ouvre avec la section « Avancé » (qui porte le comportement) dépliée | Rien de plus : le comportement et « Chant » sont sur la fiche |
+| Oiseau en période de nidification | Rien de plus : le comportement est en tête de la fiche (depuis le 19 novembre 2026 ; avant, la section « Avancé », qui le portait, s'ouvrait dépliée) | Rien de plus : le comportement et « Chant » sont sur la fiche |
 
 ### La ligne d'une espèce dans le relevé
 
@@ -75,10 +75,13 @@ Depuis le 16 novembre 2026, la ligne d'espèce est la même dans les deux modes 
 
 Dans les deux modes, un seul écran, « Fiche de l'observation », porte tous les champs de l'espèce ; son ✓ les contrôle et les écrit, et le retour demande avant d'abandonner une fiche modifiée. Depuis le 17 novembre 2026, ce ✓ est un bouton rond en bas au milieu de l'écran, sous les champs, dans les deux modes (avant, une coche en haut à droite). Les champs diffèrent.
 
-**Mode pro**, les champs du web de GeoNature, dans cet ordre ; depuis le 19 novembre 2026, l'objet et le type du dénombrement sont côte à côte, comme le stade de vie et le sexe, et comme la technique d'observation et l'état biologique (depuis le 16 novembre 2026 ; avant, deux écrans, Dénombrement et Caractérisation, qui ne servent plus qu'à la saisie mono-taxon) :
+**Mode pro**, les champs du web de GeoNature (un seul écran depuis le 16 novembre 2026 ; avant, deux écrans, Dénombrement et Caractérisation, qui ne servent plus qu'à la saisie mono-taxon). Depuis le 19 novembre 2026, l'ordre s'écarte du web à la demande de l'utilisateur, et les champs vont par deux sur deux colonnes :
 
-- **Dénombrement** : objet et type du dénombrement, nombre min et nombre max, stade de vie, sexe, médias, champs additionnels ; plusieurs dénombrements par espèce.
-- **Caractérisation** : technique d'observation, état biologique ; sous « Plus de champs » : méthode de détermination, statut d'observation, naturalité, statut biologique, comportement, statut de la source, floutage, preuve d'existence, preuves numérique et non numérique, déterminateur, commentaire ; champs additionnels.
+- **En tête** : comportement et statut biologique (que le web range sous « Plus de champs »), puis technique d'observation et état biologique.
+- **Dénombrement** : objet et type du dénombrement, nombre min et nombre max, stade de vie et sexe, médias, champs additionnels ; plusieurs dénombrements par espèce.
+- **Caractérisation**, le reste, sous « Avancé » : déterminateur, méthode de détermination, statut d'observation, naturalité, statut de la source, floutage, preuve d'existence, preuves numérique et non numérique, commentaire ; puis les champs additionnels.
+
+En saisie mono-taxon, l'écran Caractérisation commence par les mêmes deux lignes (comportement et statut biologique, technique d'observation et état biologique).
 
 **Mode simplifié**, un choix réduit de champs, dans cet ordre (le comportement et « Chant » juste sous les nombres depuis le 18 novembre 2026 ; sur la fiche elle-même depuis le 16 novembre 2026 ; avant, des boutons « Détails », « Comportement » et « Commentaire » ouvraient chacun un écran) :
 

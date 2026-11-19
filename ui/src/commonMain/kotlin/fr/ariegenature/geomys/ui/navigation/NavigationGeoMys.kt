@@ -193,8 +193,8 @@ data class RouteDetailsReleve(
 data object RouteCaracterisation
 
 /** La « Fiche de l'observation » [index] du relevé ouvert, qui porte tous ses champs : ceux du mode du
- *  relevé (pro ou simplifié). [nidification] : en mode pro, ouverte d'elle-même pour un oiseau nicheur,
- *  la section « Avancé » dépliée. */
+ *  relevé (pro ou simplifié). [nidification] : ouverte d'elle-même pour un oiseau nicheur ; ne change
+ *  plus rien depuis que le comportement est en tête de la fiche du mode pro (19 novembre 2026). */
 @Serializable
 data class RouteFicheEspece(val index: Int, val nidification: Boolean = false)
 
@@ -786,7 +786,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 val idDataset = releve.releve.idDatasetEffectif()
                 val denombrement = viewModel { DenombrementViewModel(services, espece, idDataset) }
                 val caracterisation = viewModel {
-                    CaracterisationViewModel(services, espece, comportementSeul = false, idDataset).also { if (route.nidification) it.avanceOuvert = true }
+                    CaracterisationViewModel(services, espece, comportementSeul = false, idDataset)
                 }
                 FicheProScreen(
                     denombrement,

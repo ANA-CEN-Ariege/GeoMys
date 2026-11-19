@@ -66,6 +66,10 @@ object FormulairesEspece {
     /** Caractérisation ouverte d'elle-même (nidification) : le seul comportement. */
     val OCC_COMPORTEMENT = listOf("OCC_COMPORTEMENT" to "behaviour")
 
+    /** Ceux de [OCC_AVANCES] que l'appli sort de la section « Avancé » pour les montrer en tête, sur
+     *  une ligne, dans cet ordre (demande du 19 novembre 2026 ; écart voulu avec le web). */
+    val OCC_EN_TETE = listOf("OCC_COMPORTEMENT", "STATUT_BIO")
+
     /** Caractérisation : les nomenclatures de la section « Plus de champs », dans l'ordre du web. */
     val OCC_AVANCES = listOf(
         "METH_DETERMIN" to "determination_method",

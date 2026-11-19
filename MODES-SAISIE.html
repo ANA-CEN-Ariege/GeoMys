@@ -99,7 +99,7 @@ footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--t
 <header>
   <h1>GeoMys : mode pro et mode simplifié</h1>
   <p>GeoMys propose deux façons de saisir. Le mode pro donne tout ce que GeoNature permet. Le mode simplifié ne garde que l'essentiel pour noter une espèce sur le terrain.</p>
-  <p class="etat">État au 19 novembre 2026, version 2.2.0-beta11.</p>
+  <p class="etat">État au 19 novembre 2026, version 2.2.0-beta12.</p>
   <nav aria-label="Rubriques">
     <a href="#choix">Choisir le mode</a>
     <a href="#accueil">Accueil</a>
@@ -188,7 +188,7 @@ footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--t
       <tbody>
         <tr><th>Ce qui s'ouvre</th><td>La « Fiche de l'observation », à chaque espèce</td><td>Identique</td></tr>
         <tr><th>Champ obligatoire resté vide</th><td>Rien de plus : il est sur la fiche</td><td>Identique</td></tr>
-        <tr><th>Oiseau en période de nidification</th><td>La fiche s'ouvre avec la partie « Avancé » (où se trouve le comportement) dépliée</td><td>Rien de plus : le comportement et « Chant » sont sur la fiche</td></tr>
+        <tr><th>Oiseau en période de nidification</th><td>Rien de plus : le comportement est en tête de la fiche</td><td>Rien de plus : le comportement et « Chant » sont sur la fiche</td></tr>
       </tbody>
     </table></div>
   </div>
@@ -208,10 +208,11 @@ footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--t
 
   <div class="sous">
     <h3>La fiche de l'observation en mode pro</h3>
-    <p>Un seul écran, ouvert par le crayon, porte tous les champs du formulaire web de GeoNature, dans cet ordre. Le bouton rond <span class="touche">✓</span>, en bas au milieu de l'écran, les enregistre.</p>
+    <p>Un seul écran, ouvert par le crayon, porte tous les champs du formulaire web de GeoNature, deux par ligne, dans cet ordre. Le bouton rond <span class="touche">✓</span>, en bas au milieu de l'écran, les enregistre.</p>
     <ul class="liste">
-      <li><strong>Dénombrement.</strong> Objet et type du dénombrement, nombre minimum et maximum, stade de vie, sexe, médias, champs additionnels. Plusieurs dénombrements possibles par espèce.</li>
-      <li><strong>Caractérisation.</strong> Technique d'observation et état biologique. Sous « Plus de champs » : méthode de détermination, statut d'observation, naturalité, statut biologique, comportement, statut de la source, floutage, preuve d'existence, preuves numérique et non numérique, déterminateur, commentaire. Puis les champs additionnels.</li>
+      <li><strong>En tête.</strong> Comportement et statut biologique, puis technique d'observation et état biologique.</li>
+      <li><strong>Dénombrement.</strong> Objet et type du dénombrement, nombre minimum et maximum, stade de vie et sexe, médias, champs additionnels. Plusieurs dénombrements possibles par espèce.</li>
+      <li><strong>Caractérisation.</strong> Sous « Avancé » : déterminateur, méthode de détermination, statut d'observation, naturalité, statut de la source, floutage, preuve d'existence, preuves numérique et non numérique, commentaire. Puis les champs additionnels.</li>
     </ul>
   </div>
 </section>

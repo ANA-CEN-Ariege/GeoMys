@@ -63,13 +63,21 @@ class CaracterisationViewModel(
     /** Les champs toujours visibles (le comportement seul en mode nidification). */
     val basiques = champs(if (comportementSeul) FormulairesEspece.OCC_COMPORTEMENT else FormulairesEspece.OCC_BASIQUES)
 
+    private val plusDeChamps = if (comportementSeul) emptyList() else champs(FormulairesEspece.OCC_AVANCES)
+
+    /** Le comportement et le statut biologique, montrés en tête, hors de la section « Avancé » où le
+     *  web les range (demande du 19 novembre 2026). */
+    val enTete = FormulairesEspece.OCC_EN_TETE.mapNotNull { code -> plusDeChamps.firstOrNull { it.champ.code == code } }
+
     /** Les nomenclatures de la section « Avancé ». */
-    val avances = if (comportementSeul) emptyList() else champs(FormulairesEspece.OCC_AVANCES)
+    val avances = plusDeChamps - enTete.toSet()
+
+    private val tous = basiques + enTete + avances
 
     /** Position choisie de chaque champ, par code. Pas de report d'une espèce à l'autre : la valeur de
      *  l'espèce, sinon le défaut du serveur. */
     val positions = mutableStateMapOf<String, Int>().apply {
-        (basiques + avances).forEach { c ->
+        tous.forEach { c ->
             put(c.champ.code, FormulairesEspece.positionInitiale(c, FormulairesEspece.valeurOccurrence(espece, c.champ), nomenclatures))
         }
     }
@@ -79,7 +87,7 @@ class CaracterisationViewModel(
     private val positionsInitiales: Map<String, Int> = positions.toMap()
 
     /** La valeur retenue de chaque champ affiché, par code. */
-    private fun valeursRetenues(): Map<String, String> = (basiques + avances).associate { c ->
+    private fun valeursRetenues(): Map<String, String> = tous.associate { c ->
         val code = c.champ.code
         code to FormulairesEspece.valeurRetenue(
             c, FormulairesEspece.valeurOccurrence(espece, c.champ), nomenclatures.defautPour(code), positionsInitiales[code] ?: 0, positions[code] ?: 0,
@@ -104,7 +112,7 @@ class CaracterisationViewModel(
      *  comme sur le web, qui en exige une et veut une adresse pour la preuve numérique. */
     val preuvesOuvertes: Boolean
         get() {
-            val champ = (basiques + avances).firstOrNull { it.champ.code == "PREUVE_EXIST" }
+            val champ = tous.firstOrNull { it.champ.code == "PREUVE_EXIST" }
             val valeur = if (champ != null) {
                 FormulairesEspece.valeurRetenue(
                     champ, espece.preuveExist, nomenclatures.defautPour("PREUVE_EXIST"), positionsInitiales["PREUVE_EXIST"] ?: 0, positions["PREUVE_EXIST"] ?: 0,

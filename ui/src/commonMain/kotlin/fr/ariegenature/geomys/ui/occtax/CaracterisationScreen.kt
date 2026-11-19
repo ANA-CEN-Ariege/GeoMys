@@ -86,9 +86,23 @@ fun CaracterisationScreen(
  *  la fiche de l'observation (saisie multi-taxons). */
 @Composable
 internal fun ContenuCaracterisation(vm: CaracterisationViewModel) {
-    val ios = estIos
-    // Technique d'observation et état biologique côte à côte (demande du 19 novembre 2026).
+    EnTeteCaracterisation(vm)
+    SuiteCaracterisation(vm)
+}
+
+/** Le haut de la caractérisation, sur deux colonnes (demandes du 19 novembre 2026) : le comportement
+ *  et le statut biologique, sortis de la section « Avancé », puis la technique d'observation et l'état
+ *  biologique. La fiche de l'observation du mode pro le pose avant les dénombrements. */
+@Composable
+internal fun EnTeteCaracterisation(vm: CaracterisationViewModel) {
+    ChampsNomenclatureEnColonnes(vm.enTete, { vm.positions[it.champ.code] ?: 0 }) { champ, choix -> vm.positions[champ.champ.code] = choix }
     ChampsNomenclatureEnColonnes(vm.basiques, { vm.positions[it.champ.code] ?: 0 }) { champ, choix -> vm.positions[champ.champ.code] = choix }
+}
+
+/** Le reste de la caractérisation : la section « Avancé » et les champs additionnels. */
+@Composable
+internal fun SuiteCaracterisation(vm: CaracterisationViewModel) {
+    val ios = estIos
     if (vm.aDesChampsAvances) {
         // UN seul repli pour toute la section avancée, comme la gn-advanced-section du web : le
         // même bouton « Avancé » à roue dentée l'ouvre et la ferme.

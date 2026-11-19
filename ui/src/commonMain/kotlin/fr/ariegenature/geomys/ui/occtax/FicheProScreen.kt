@@ -76,15 +76,20 @@ fun FicheProScreen(
         },
         valideEnBas = true,
     ) {
+        // Le comportement et le statut biologique, la technique d'observation et l'état biologique
+        // avant les dénombrements (demande du 19 novembre 2026) ; le reste de la caractérisation après.
+        EnTeteCaracterisation(caracterisation)
         ContenuDenombrement(denombrement, etat)
-        Text(
-            "Caractérisation",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (ios) Color.White else Color.Unspecified,
-            modifier = Modifier.padding(top = if (ios) 6.dp else 20.dp),
-        )
-        ContenuCaracterisation(caracterisation)
+        if (caracterisation.aDesChampsAvances || caracterisation.additionnels?.defsAffiches?.isNotEmpty() == true) {
+            Text(
+                "Caractérisation",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (ios) Color.White else Color.Unspecified,
+                modifier = Modifier.padding(top = if (ios) 6.dp else 20.dp),
+            )
+            SuiteCaracterisation(caracterisation)
+        }
     }
     DialoguesDenombrement(denombrement, etat)
     DialogueGardeSortie(garde, "Fiche non enregistrée", onAbandon = denombrement::abandonner)
