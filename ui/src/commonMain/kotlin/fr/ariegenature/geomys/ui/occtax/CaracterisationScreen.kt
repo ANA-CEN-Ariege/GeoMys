@@ -64,7 +64,8 @@ private val BLEU_LIEN = Color(0xFF0099CC)
 private val BLEU_VARIANTE = Color(0xFF1565C0)
 
 /** Le bouton de la section avancée du web (`Advanced` du fr.json du cœur). */
-private const val LIBELLE_AVANCE = "Avancé"
+/** Le titre de la section avancée (« Avancé » sur le web et jusqu'au 19 novembre 2026). */
+private const val LIBELLE_AVANCE = "Plus de détails"
 
 /** La caractérisation de l'occurrence ; [onValide] reçoit l'espèce caractérisée. */
 @Composable
@@ -139,13 +140,13 @@ internal fun SuiteCaracterisation(vm: CaracterisationViewModel) {
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                SymboleSf("gearshape.fill", 13f, listOf(BLEU_VARIANTE))
-                Text(LIBELLE_AVANCE, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = BLEU_VARIANTE)
+                SymboleSf("gearshape.fill", 14f, listOf(BLEU_VARIANTE))
+                Text(LIBELLE_AVANCE, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = BLEU_VARIANTE)
             }
         } else {
             Text(
                 "⚙ $LIBELLE_AVANCE",
-                fontSize = 13.sp,
+                fontSize = 14.sp,
                 color = BLEU_LIEN,
                 modifier = Modifier.padding(top = 12.dp).bringIntoViewRequester(versLeHaut).clickable(onClick = basculer),
             )

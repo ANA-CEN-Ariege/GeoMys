@@ -1,6 +1,6 @@
 # Mode pro et mode simplifié : les différences
 
-État au 19 novembre 2026 (version 2.2.0-beta13, build 217).
+État au 19 novembre 2026 (version 2.2.0-beta14, build 218).
 
 **À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51, 55 à 62, 64 et 65.
 
@@ -79,7 +79,7 @@ Dans les deux modes, un seul écran, « Fiche de l'observation », porte tous le
 
 - **En tête** : comportement et statut biologique (que le web range sous « Plus de champs »), puis technique d'observation et état biologique.
 - **Dénombrement** : objet et type du dénombrement, nombre min et nombre max, stade de vie et sexe, médias, champs additionnels ; plusieurs dénombrements par espèce.
-- **Caractérisation**, le reste, sous « Avancé » : déterminateur, méthode de détermination, statut d'observation, naturalité, statut de la source, floutage, preuve d'existence, preuves numérique et non numérique, commentaire ; puis les champs additionnels.
+- **« Plus de détails »** (la section « Avancé » du web, repliée) : déterminateur, méthode de détermination, statut d'observation, naturalité, statut de la source, floutage, preuve d'existence, preuves numérique et non numérique, commentaire ; puis les champs additionnels.
 
 En saisie mono-taxon, l'écran Caractérisation commence par les mêmes deux lignes (comportement et statut biologique, technique d'observation et état biologique).
 

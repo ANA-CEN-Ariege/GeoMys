@@ -967,3 +967,5 @@ Demande de l'utilisateur. **Écart voulu avec le web**, qui range le comportemen
 ## 69. Déplier « Avancé » amène la section en haut de l'écran (19 novembre)
 
 Demande de l'utilisateur. Dans `SuiteCaracterisation`, un toucher qui déplie « Avancé » fait défiler l'écran pour que le titre de la section arrive en haut (`BringIntoViewRequester` sur le titre, avec une zone demandée haute comme la fenêtre, 8 dp de marge au-dessus). Replier ne fait rien défiler, pas plus qu'une section ouverte d'office par la configuration du serveur. Vaut pour la fiche de l'observation du mode pro et pour l'écran Caractérisation de la saisie mono-taxon. Quand il y a trop peu de champs sous le titre pour remplir l'écran, le défilement s'arrête en bas du formulaire.
+
+Le même jour, à la demande de l'utilisateur : le titre « Caractérisation » disparaît de la fiche de l'observation du mode pro, et la section « Avancé » se nomme « Plus de détails » (`LIBELLE_AVANCE`), en 14 sp, la taille qu'avait ce titre. Le nouveau nom vaut aussi pour l'écran Caractérisation de la saisie mono-taxon. Dans le code et ce journal, « Avancé » désigne toujours cette section.
