@@ -32,7 +32,8 @@ android {
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
         }
-        // Les paramètres de lancement des essais (MainActivity) : versions de test seulement.
+        // Les paramètres de lancement des essais (MainActivity) et le serveur de tests de l'ANA dans la
+        // liste des serveurs (InfosApp.versionDeTest) : versions de test seulement.
         buildConfigField("boolean", "ESSAIS", "true")
     }
     buildFeatures {

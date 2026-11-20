@@ -27,6 +27,8 @@ import platform.Foundation.NSBundle
 import platform.Foundation.NSProcessInfo
 import platform.UIKit.UIDevice
 import platform.UIKit.UIViewController
+import kotlin.experimental.ExperimentalNativeApi
+import kotlin.native.Platform
 
 /** Point d'entrée iOS, appelé par ContentView.swift (iosApp). La vue Compose n'est pas opaque : les
  *  contrôles UIKit intégrés (l'interrupteur de l'accueil) sont placés sous le canevas, dans une
@@ -49,6 +51,9 @@ private fun parametresLancement(): Map<String, String> {
         .associate { (cle, valeur) -> cle.removePrefix("-") to valeur }
 }
 
+/** [InfosApp.versionDeTest] : le framework Kotlin est construit en debug pour la configuration Debug
+ *  de Xcode (`embedAndSignAppleFrameworkForXcode`), en release pour une version publiée. */
+@OptIn(ExperimentalNativeApi::class)
 private fun infosIos(): InfosApp {
     val version = NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleShortVersionString") as? String
     val appareil = UIDevice.currentDevice
@@ -57,5 +62,6 @@ private fun infosIos(): InfosApp {
         nom = nom ?: "GeoMys",
         version = version ?: "?",
         plateforme = "${appareil.systemName} ${appareil.systemVersion}",
+        versionDeTest = Platform.isDebugBinary,
     )
 }

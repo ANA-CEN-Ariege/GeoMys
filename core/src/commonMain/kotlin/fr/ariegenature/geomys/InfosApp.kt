@@ -20,9 +20,12 @@ package fr.ariegenature.geomys
 
 /** Nom, version de l'application et système d'exploitation, fournis par le point d'entrée de chaque
  *  plateforme (MainActivity sur Android, MainViewController sur iOS) : le code commun n'a ainsi
- *  besoin ni de `Context` ni de `NSBundle`. [nom] : celui de l'icône, « GeoMys ». */
+ *  besoin ni de `Context` ni de `NSBundle`. [nom] : celui de l'icône, « GeoMys ».
+ *  [versionDeTest] : vrai dans les versions de test (debug et mesure sous Android, configuration
+ *  Debug sous iOS), jamais dans une release ; le serveur de tests de l'ANA n'est proposé que là. */
 data class InfosApp(
     val nom: String,
     val version: String,
     val plateforme: String,
+    val versionDeTest: Boolean = false,
 )

@@ -514,6 +514,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 onFermer = { nav.popBackStack() },
                 onTaxonsListe = { id, nom -> nav.navigate(RouteTaxonsListe(id, nom)) },
                 defilerEnBas = ecranInitial == "parametres-selections",
+                versionDeTest = infos.versionDeTest,
             )
         }
         composable<RouteTaxonsListe> { entree ->

@@ -105,9 +105,10 @@ private fun couleur(nature: NatureMessage): Color {
 
 /** Écran Paramètres : connexion au serveur, chargement des données, sélections par défaut. On ne
  *  le quitte que par la coche (ou Retour sous Android), et seulement une fois la configuration
- *  complète. [defilerEnBas] : ouvert au bas de l'écran (essais, `-ecran parametres-selections`). */
+ *  complète. [defilerEnBas] : ouvert au bas de l'écran (essais, `-ecran parametres-selections`).
+ *  [versionDeTest] : la liste des serveurs propose aussi ceux des tests ([fr.ariegenature.geomys.InfosApp.versionDeTest]). */
 @Composable
-fun ParametresScreen(vm: ParametresViewModel, onFermer: () -> Unit, onTaxonsListe: (Int, String) -> Unit, defilerEnBas: Boolean = false) {
+fun ParametresScreen(vm: ParametresViewModel, onFermer: () -> Unit, onTaxonsListe: (Int, String) -> Unit, defilerEnBas: Boolean = false, versionDeTest: Boolean = false) {
     val toasts = LocalToasts.current
     val demanderNotifications = rememberDemandeNotifications()
     LaunchedEffect(vm) {
@@ -148,7 +149,7 @@ fun ParametresScreen(vm: ParametresViewModel, onFermer: () -> Unit, onTaxonsList
             )
             vm.bandeau?.let { BandeauAvertissement(it) }
             CarteSection("Mode de saisie", Modifier.margesAndroid(bas = 16.dp)) { ChoixModeSaisie(vm.modeSaisie, vm::choisirMode) }
-            CarteSection("Connexion au serveur", Modifier.margesAndroid(bas = 16.dp)) { SectionConnexion(vm) }
+            CarteSection("Connexion au serveur", Modifier.margesAndroid(bas = 16.dp)) { SectionConnexion(vm, versionDeTest) }
             if (vm.sectionChargerVisible) {
                 CarteSection("Chargement des données", Modifier.margesAndroid(bas = 16.dp)) { SectionChargement(vm) }
             }
@@ -196,10 +197,10 @@ fun ParametresScreen(vm: ParametresViewModel, onFermer: () -> Unit, onTaxonsList
 // ─── Boîte 1 : connexion au serveur ───
 
 @Composable
-private fun ColumnScope.SectionConnexion(vm: ParametresViewModel) {
+private fun ColumnScope.SectionConnexion(vm: ParametresViewModel, versionDeTest: Boolean) {
     val ios = estIos
     if (ios) {
-        ChampServeur(vm.url, vm::changerUrl)
+        ChampServeur(vm.url, vm::changerUrl, versionDeTest = versionDeTest)
         // iOS refuse le trafic en clair (ATS) et l'appli ne demande aucune dérogation : une
         // instance en http:// reste injoignable. Texte de GeoMys-IOS.
         if (vm.urlEnClair) {
@@ -214,6 +215,7 @@ private fun ColumnScope.SectionConnexion(vm: ParametresViewModel) {
             vm.url, vm::changerUrl,
             aide = if (vm.urlEnClair) "⚠ Connexion NON chiffrée (http) : votre mot de passe transite en clair. Préférez https://." else null,
             couleurAide = CouleursGeoMys.avertissement,
+            versionDeTest = versionDeTest,
         )
     }
     // Le reste attend un serveur : identifiant, mot de passe, « Tester la connexion » et son résultat.

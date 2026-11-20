@@ -93,19 +93,26 @@ private const val INVITE = "Choisir dans la liste ou saisir une URL"
  *  - Android : le champ URL d'avant (TextInputLayout OutlinedBox, [aide] dessous), sa liste celle
  *    d'un AutoCompleteTextView ([PopupListeAndroid]).
  *  - iOS : le champ de `ChampTexteSaisie`, la liste dessous, dans la page, tant qu'il a le focus ou
- *    que le chevron l'ouvre ; l'avertissement http est affiché par l'écran. */
+ *    que le chevron l'ouvre ; l'avertissement http est affiché par l'écran.
+ *  [versionDeTest] : la liste propose aussi les serveurs des tests, jamais dans une release. */
 @Composable
-internal fun ChampServeur(valeur: String, onChange: (String) -> Unit, aide: String? = null, couleurAide: Color = Color.Unspecified) {
-    if (estIos) ChampServeurIos(valeur, onChange) else ChampServeurAndroid(valeur, onChange, aide, couleurAide)
+internal fun ChampServeur(
+    valeur: String,
+    onChange: (String) -> Unit,
+    aide: String? = null,
+    couleurAide: Color = Color.Unspecified,
+    versionDeTest: Boolean = false,
+) {
+    if (estIos) ChampServeurIos(valeur, onChange, versionDeTest) else ChampServeurAndroid(valeur, onChange, aide, couleurAide, versionDeTest)
 }
 
 @Composable
-private fun ChampServeurAndroid(valeur: String, onChange: (String) -> Unit, aide: String?, couleurAide: Color) {
+private fun ChampServeurAndroid(valeur: String, onChange: (String) -> Unit, aide: String?, couleurAide: Color, versionDeTest: Boolean) {
     val focus = LocalFocusManager.current
     var ouvert by remember { mutableStateOf(false) }
     var filtre by remember { mutableStateOf("") }
     var ancre by remember { mutableStateOf<Rect?>(null) }
-    val proposes = remember(filtre) { ServeursGeoNature.filtrer(filtre) }
+    val proposes = remember(filtre, versionDeTest) { ServeursGeoNature.filtrer(filtre, versionDeTest) }
     val interactions = remember { MutableInteractionSource() }
     LaunchedEffect(interactions) {
         interactions.interactions.collect {
@@ -169,7 +176,7 @@ private fun ChampServeurAndroid(valeur: String, onChange: (String) -> Unit, aide
 }
 
 @Composable
-private fun ChampServeurIos(valeur: String, onChange: (String) -> Unit) {
+private fun ChampServeurIos(valeur: String, onChange: (String) -> Unit, versionDeTest: Boolean) {
     val focus = LocalFocusManager.current
     var ouvert by remember { mutableStateOf(false) }
     var filtre by remember { mutableStateOf("") }
@@ -213,7 +220,7 @@ private fun ChampServeurIos(valeur: String, onChange: (String) -> Unit) {
                 SymboleSf(if (ouvert) "chevron.up" else "chevron.down", 13f, listOf(CouleursGeoMys.blanc70), graisse = GraisseSymbole.DEMI_GRASSE)
             }
         }
-        val proposes = ServeursGeoNature.filtrer(filtre)
+        val proposes = ServeursGeoNature.filtrer(filtre, versionDeTest)
         if (ouvert && proposes.isNotEmpty()) {
             val forme = RoundedCornerShape(10.dp)
             LazyColumn(

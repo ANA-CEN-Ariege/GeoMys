@@ -1019,3 +1019,14 @@ Demande de l'utilisateur : « mets le mode simplifié par défaut lors d'une nou
 - `ServicesGeoNature.fixerModeSaisieInitial()` : « déjà utilisée » = une adresse de serveur enregistrée (`gn_url`), que seul le choix d'un serveur écrit et que « Vider le cache » garde ; GeoMys-Android l'enregistrait sous le même nom, relu sur place. Appelée par les fabriques `servicesGeoNature` d'Android et d'iOS, juste après la construction des services, avant toute lecture du mode ; pas dans le constructeur, pour que les tests partent toujours du mode pro.
 - Une nouvelle installation charge donc d'abord les données de la saisie simplifiée (OccTax seulement) ; passer en pro affiche le bandeau qui invite à recharger (§ 43, « Retour au mode pro »).
 - Test `au_demarrage_une_nouvelle_installation_passe_en_mode_simplifie` (installation neuve, redémarrage avec un serveur, mise à jour d'une appli configurée, mode déjà choisi).
+
+## 76. Liste des serveurs : deux retirés, un renommé, le serveur de tests de l'ANA réservé aux versions de test (20 novembre)
+
+Demande de l'utilisateur, après la première publication de la 2.2.0 (build 222) : retirer deux serveurs de la liste du champ « Serveur GeoNature » (§ 42), en renommer un, et ne garder le serveur de tests de l'ANA que pour les tests : il ne doit pas apparaître dans les releases.
+
+- **La liste** (`ServeursGeoNature.tous`) : deux serveurs repris de BiodiVisio en moins ; le serveur renommé est rangé à sa place alphabétique. Elle compte vingt serveurs, dix-neuf dans une release.
+- **Serveur de tests** : `ServeurGeoNature.testsSeulement` le marque. `ServeursGeoNature.proposes(versionDeTest)` l'écarte hors version de test, comme `filtrer(saisie, versionDeTest)`, dont le défaut est celui d'une release.
+- **Version de test** : `InfosApp.versionDeTest`, donné par le point d'entrée de chaque plateforme. Sous Android, c'est `BuildConfig.ESSAIS` : vrai en debug et en mesure, faux en release, comme pour les paramètres de lancement des essais. Sous iOS, c'est `Platform.isDebugBinary` : le framework Kotlin est construit en debug pour la configuration Debug de Xcode. `NavigationGeoMys` le passe à `ParametresScreen`, qui le passe à `ChampServeur`.
+- **Adresse déjà enregistrée** : elle ne change pas. Une release déjà réglée sur le serveur de tests le garde ; il n'est seulement plus proposé dans la liste.
+- **Publication** : à la demande de l'utilisateur, la 2.2.0 est republiée le même jour en build 223 avec cette liste. La build 222, publiée plus tôt, proposait encore l'ancienne.
+- Tests : `ServeursGeoNatureTest.le_serveur_de_tests_n_est_propose_que_dans_une_version_de_test` (marque, liste d'une release, filtre par défaut, filtre d'une version de test) et `le_serveur_renomme_suit_l_ordre_alphabetique` ; les autres cas suivent la nouvelle liste.

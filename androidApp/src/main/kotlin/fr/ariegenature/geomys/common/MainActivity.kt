@@ -48,6 +48,7 @@ class MainActivity : ComponentActivity() {
             nom = getString(R.string.app_name),
             version = packageManager.getPackageInfo(packageName, 0).versionName ?: "?",
             plateforme = "Android ${Build.VERSION.RELEASE}",
+            versionDeTest = BuildConfig.ESSAIS,
         )
         createNotificationChannel()
         ConfigurationCarte.initialiser(infos)
