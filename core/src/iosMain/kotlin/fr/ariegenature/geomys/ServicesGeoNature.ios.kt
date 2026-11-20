@@ -38,7 +38,7 @@ private val services: ServicesGeoNature by lazy {
             positions = SourcePositionsIos(),
             suiviGps = SuiviGpsDirect,
         ),
-    )
+    ).also { it.fixerModeSaisieInitial() }
 }
 
 /** Les services de l'appli, créés au premier appel puis partagés par tout le processus. */

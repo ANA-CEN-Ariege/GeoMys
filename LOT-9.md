@@ -1010,3 +1010,12 @@ Demande de l'utilisateur : « remplace le titre par "Observation : " suivi sur l
 - Le bandeau garde « 🏠 › Saisie multi-taxons › Fiche de l'observation » (§ 72) : `EcranFormulaireEspece(…, titreBandeau)` remplace `titreDansBandeau` et sépare le dernier niveau du bandeau du titre. Le crayon de la liste garde son libellé « Fiche de l'observation ».
 - Ce qui disparaît : le nom scientifique sous le titre de la fiche. Il reste sous l'espèce dans la liste du relevé (`nomScientifiqueSous`).
 - Test `le_titre_de_la_fiche_porte_le_nom_francais_sinon_le_latin` (nom français choisi, nom latin choisi d'une espèce qui a un nom français, espèce sans nom français).
+
+## 75. Une nouvelle installation démarre en mode simplifié (20 novembre)
+
+Demande de l'utilisateur : « mets le mode simplifié par défaut lors d'une nouvelle installation ». Jusqu'ici, `PreferencesGeoMys.modeSaisie` valait `PRO` tant que rien n'était choisi (§ 43), pour qu'une mise à jour ne change rien. Changer ce défaut aurait fait passer en simplifié, à la mise à jour, tous ceux qui n'avaient jamais touché au choix.
+
+- `PreferencesGeoMys.fixerModeInitial(dejaUtilisee)` : si aucun mode n'est enregistré, enregistre `SIMPLIFIE`, ou `PRO` pour une appli déjà utilisée. Un mode enregistré, même illisible, ne bouge pas. Le défaut de la lecture reste `PRO` (tests).
+- `ServicesGeoNature.fixerModeSaisieInitial()` : « déjà utilisée » = une adresse de serveur enregistrée (`gn_url`), que seul le choix d'un serveur écrit et que « Vider le cache » garde ; GeoMys-Android l'enregistrait sous le même nom, relu sur place. Appelée par les fabriques `servicesGeoNature` d'Android et d'iOS, juste après la construction des services, avant toute lecture du mode ; pas dans le constructeur, pour que les tests partent toujours du mode pro.
+- Une nouvelle installation charge donc d'abord les données de la saisie simplifiée (OccTax seulement) ; passer en pro affiche le bandeau qui invite à recharger (§ 43, « Retour au mode pro »).
+- Test `au_demarrage_une_nouvelle_installation_passe_en_mode_simplifie` (installation neuve, redémarrage avec un serveur, mise à jour d'une appli configurée, mode déjà choisi).

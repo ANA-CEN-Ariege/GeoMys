@@ -84,6 +84,12 @@ class ServicesGeoNature(val socle: Socle) {
     val config = GeoNatureConfig(socle.reglages.reglages("gn_config"), socle.coffre)
     val preferences = PreferencesGeoMys(socle.reglages.reglages("GeoMys_prefs"))
 
+    /** Au démarrage de l'appli, par les fabriques des plateformes : une nouvelle installation prend le
+     *  mode de saisie simplifié (demande du 20 novembre 2026). Une appli déjà utilisée (un serveur
+     *  configuré, y compris par GeoMys-Android, dont les réglages sont relus sur place) garde le mode
+     *  pro qu'elle avait par défaut. Pas à la construction : les tests partent du mode pro. */
+    fun fixerModeSaisieInitial() = preferences.fixerModeInitial(dejaUtilisee = config.urlServeur.isNotBlank())
+
     init {
         // Le jeton et les cookies ne partent que vers ce serveur.
         clients.origineInstance = { config.urlServeur.takeIf { it.isNotBlank() } }

@@ -46,5 +46,8 @@ fun servicesGeoNature(context: Context, executionLongue: ExecutionLongue, suiviG
                 positions = SourcePositionsAndroid(context),
                 suiviGps = suiviGps,
             ),
-        ).also { services = it }
+        ).also {
+            it.fixerModeSaisieInitial()
+            services = it
+        }
     }

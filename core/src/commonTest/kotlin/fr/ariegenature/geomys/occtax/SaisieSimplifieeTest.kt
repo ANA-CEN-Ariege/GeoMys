@@ -204,6 +204,33 @@ class SaisieSimplifieeTest {
         assertEquals(ModeSaisie.PRO, PreferencesGeoMys(reglages).modeSaisie)
     }
 
+    /** 20 novembre 2026 : au démarrage, une nouvelle installation passe en mode simplifié ; une appli
+     *  qui a déjà un serveur (mise à jour, ou GeoMys-Android relu sur place) garde le mode pro ; un
+     *  mode enregistré ne bouge plus. */
+    @Test
+    fun au_demarrage_une_nouvelle_installation_passe_en_mode_simplifie() {
+        t.services.fixerModeSaisieInitial()
+        assertEquals(ModeSaisie.SIMPLIFIE, t.services.preferences.modeSaisie, "nouvelle installation")
+        t.services.config.urlServeur = "https://geonature.exemple.org"
+        t.redemarrer()
+        t.services.fixerModeSaisieInitial()
+        assertEquals(ModeSaisie.SIMPLIFIE, t.services.preferences.modeSaisie, "enregistré une fois pour toutes")
+
+        val miseAJour = ServicesDeTest()
+        try {
+            miseAJour.services.config.urlServeur = "https://geonature.exemple.org"
+            miseAJour.redemarrer()
+            miseAJour.services.fixerModeSaisieInitial()
+            assertEquals(ModeSaisie.PRO, miseAJour.services.preferences.modeSaisie, "une mise à jour ne change rien")
+        } finally {
+            miseAJour.nettoyer()
+        }
+
+        val choisi = MapSettings().apply { putString("mode_saisie", "PRO") }
+        PreferencesGeoMys(choisi).fixerModeInitial(dejaUtilisee = false)
+        assertEquals(ModeSaisie.PRO, PreferencesGeoMys(choisi).modeSaisie, "un mode choisi reste")
+    }
+
     /** 15 novembre 2026 : le bouton « Chant » des oiseaux. */
     @Test
     fun le_chant_est_reconnu_par_son_code_et_bascule_le_comportement() {

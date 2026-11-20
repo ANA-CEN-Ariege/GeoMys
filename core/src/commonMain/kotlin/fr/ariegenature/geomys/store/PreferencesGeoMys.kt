@@ -65,13 +65,22 @@ class PreferencesGeoMys(private val prefs: Settings) {
             if (value == null) prefs.remove(CLE_FOND) else prefs.putString(CLE_FOND, value)
         }
 
-    /** Le mode de saisie (`mode_saisie`) : [ModeSaisie.PRO] tant que rien n'est choisi, pour qu'une
-     *  mise à jour ne change rien. */
+    /** Le mode de saisie (`mode_saisie`), enregistré au premier démarrage par [fixerModeInitial] ;
+     *  sans lui (tests), [ModeSaisie.PRO], le défaut d'avant le 20 novembre 2026. */
     var modeSaisie: ModeSaisie
         get() = prefs.getStringOrNull(CLE_MODE)?.let { nom -> ModeSaisie.entries.firstOrNull { it.name == nom } } ?: ModeSaisie.PRO
         set(value) {
             prefs.putString(CLE_MODE, value.name)
         }
+
+    /** Au démarrage, si aucun mode n'est enregistré : le mode simplifié pour une nouvelle
+     *  installation (demande du 20 novembre 2026), le mode pro pour une appli [dejaUtilisee], qui
+     *  l'avait par défaut, pour qu'une mise à jour ne change rien. Le mode est alors enregistré : il
+     *  ne change plus que par les Paramètres. */
+    fun fixerModeInitial(dejaUtilisee: Boolean) {
+        if (prefs.getStringOrNull(CLE_MODE) != null) return
+        modeSaisie = if (dejaUtilisee) ModeSaisie.PRO else ModeSaisie.SIMPLIFIE
+    }
 
     private companion object {
         const val CLE_MODE = "mode_saisie"

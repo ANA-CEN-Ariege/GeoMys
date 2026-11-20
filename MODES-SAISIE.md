@@ -1,6 +1,6 @@
 # Mode pro et mode simplifié : les différences
 
-État au 20 novembre 2026 (version 2.2.0-beta16, build 220).
+État au 20 novembre 2026 (version 2.2.0-beta17, build 221).
 
 **À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51, 55 à 62, 64 et 65.
 
@@ -13,7 +13,7 @@
 | Champs de l'observation | Tous ceux que le serveur montre | Nombre (et nombre max), comportement, sexe, stade de vie, type d'observation, état biologique, commentaire, photo, audio |
 | Données chargées | Tout | Seulement ce qui sert à la saisie multi-taxons |
 
-Le mode pro est le mode par défaut : sans choix, et après une mise à jour, rien ne change.
+Depuis le 20 novembre 2026, une nouvelle installation démarre en mode simplifié. Une appli déjà utilisée (un serveur configuré, y compris par GeoMys-Android) garde à la mise à jour le mode pro qu'elle avait par défaut ; un mode choisi reste. Le mode est enregistré au premier démarrage, puis ne change que par les Paramètres.
 
 ## Le choix du mode
 
