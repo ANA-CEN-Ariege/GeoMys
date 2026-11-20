@@ -977,3 +977,36 @@ Demande de l'utilisateur : supprimer les croix rouges qui réinitialisent les ch
 - `ChampNomenclatureVue(…, effacable = true)` : sans `effacable`, pas de `onEffacer`, donc pas de croix. La fiche du mode simplifié, la fiche du mode pro et les écrans Caractérisation et Dénombrement de la saisie mono-taxon passent `effacable = false` (`ChampsNomenclatureEnColonnes` aussi).
 - Ce qui disparaît : sur ces écrans, un choix fait dans une liste de nomenclature se change mais ne se vide plus.
 - Inchangés : les détails du relevé (type de regroupement, etc.), les champs additionnels, y compris ceux des fiches, OccHab et les Suivis gardent leur croix.
+
+## 71. Détails du relevé : plus de croix sur le jeu de données (20 novembre)
+
+Demande de l'utilisateur. **Écart voulu avec le web**, dont le champ jeu de données d'OccTax se vide par sa croix (`pnx-datasets`, `clearable` vrai par défaut).
+
+- `EcranDetailsReleve` ne passe plus de `onEffacer` à `DeroulantAndroid` ni à `LignesRechercheIos` ; `EtatDetailsReleve.effacerDataset` est retiré. Le jeu se change toujours en touchant le champ (liste ou champ à filtre), dans les deux modes, en saisie multi-taxons comme mono-taxon, et pour les détails communs (bouton « i » de la carte).
+- Ce qui disparaît : vider le jeu de données choisi. Un relevé peut encore s'ouvrir sans jeu (aucun par défaut) : la barre rouge et le refus « Choisissez un jeu de données » restent. Test `le_jeu_de_donnees_efface_bloque_comme_sur_le_web` devenu `sans_jeu_de_donnees_le_releve_est_refuse_comme_sur_le_web`.
+- Inchangés : les autres croix des détails du relevé (type de regroupement, observateurs, etc.), les détails de station OccHab et les Suivis gardent leur croix sur le jeu de données.
+
+## 72. Fiche de l'observation : le titre en dernier niveau du bandeau sous Android aussi (20 novembre)
+
+Demande de l'utilisateur : sur le Galaxy A12, le bandeau de navigation de la fiche s'arrêtait à « 🏠 › Saisie multi-taxons », sans « Fiche de l'observation ». Sous iOS, le bandeau a toujours fini par le titre de l'écran (`titreIos`, comme le `FilAriane` de GeoMys-IOS) ; sous Android, il ne portait que le type de saisie, comme `appliquerBandeauNavigation` de GeoMys-Android. Aucun chemin Android n'ajoutait le titre : un autre Samsung qui, d'après l'utilisateur, montrait les trois niveaux avec la même version reste inexpliqué.
+
+- `BandeauNavigation(…, titreAndroid)` : le dernier niveau sous Android ; `EcranFormulaireEspece(…, titreDansBandeau)` le lui passe. Les fiches des deux modes (`FicheEspeceScreen`, `FicheProScreen`) le demandent : « 🏠 › Saisie multi-taxons › Fiche de l'observation » sous Android comme sous iOS. Le titre affiché sous le bandeau ne change pas.
+- Les autres écrans gardent sous Android le bandeau à deux niveaux (relevé, détails du relevé, liste des observations, Caractérisation et Dénombrement de la saisie mono-taxon, détails d'une station OccHab).
+
+## 73. Fiche du mode simplifié : sexe, stade de vie, type d'observation et état biologique sur deux colonnes (20 novembre)
+
+Demande de l'utilisateur : « dans le mode simplifié, mets également les champs Sexe, Stade de vie, Type d'observation et État biologique sur 2 colonnes », comme la fiche du mode pro depuis le 19 novembre (§ 67, `ChampsNomenclatureEnColonnes`).
+
+- `FicheEspeceScreen` passe `champsDetails` (sexe, stade de vie, type d'observation, état biologique : ceux que le serveur montre et qui ont un sens pour le groupe) à `ChampsNomenclatureEnColonnes`, sans croix comme avant. Deux par ligne : sexe et stade de vie, puis type d'observation et état biologique.
+- Un champ absent décale les suivants, comme en mode pro : pour une plante (pas de sexe), stade de vie et type d'observation, puis l'état biologique sur toute la largeur. Le comportement et « Chant » restent sur toute la largeur, sous les nombres.
+- Rien ne change dans le ViewModel ni dans l'ordre des champs ; `MODES-SAISIE.md` et `MODES-SAISIE.html` le disent.
+
+## 74. Fiche de l'observation : titre « Observation : » et le nom français de l'espèce (20 novembre)
+
+Demande de l'utilisateur : « remplace le titre par "Observation : " suivi sur la même ligne du nom français seul, ou si pas de nom français, le nom latin ». Dans les deux modes, la fiche était titrée « Fiche de l'observation », avec dessous, en italique, le nom de l'espèce et son nom scientifique entre parenthèses.
+
+- `titreFicheObservation(nom)` = « Observation : nom », sans sous-titre. Le nom vient de `SaisieReleveViewModel.nomFrancaisOuLatin` : le nom choisi s'il n'est pas le nom scientifique de l'espèce (un nom français) ; choisie par son nom latin (interrupteur « noms scientifiques »), l'espèce prend le premier de ses noms français dans TaxRef, son nom usuel ; sans nom français, son nom latin.
+- Le premier nom français vient de `vernsParCdNom` (ordre de TaxRef), que `EtatChampEspece` lit avec les entrées, hors du fil de l'interface (`nomsFrancais`, la map déjà en mémoire) : le cache principal, une `HashMap`, ne garde pas l'ordre des noms, et relire l'index sur le fil de l'interface pouvait figer l'écran. Tant que ces noms ne sont pas lus, le titre porte le nom choisi, puis suit (état lu à la composition, plus de `remember`).
+- Le bandeau garde « 🏠 › Saisie multi-taxons › Fiche de l'observation » (§ 72) : `EcranFormulaireEspece(…, titreBandeau)` remplace `titreDansBandeau` et sépare le dernier niveau du bandeau du titre. Le crayon de la liste garde son libellé « Fiche de l'observation ».
+- Ce qui disparaît : le nom scientifique sous le titre de la fiche. Il reste sous l'espèce dans la liste du relevé (`nomScientifiqueSous`).
+- Test `le_titre_de_la_fiche_porte_le_nom_francais_sinon_le_latin` (nom français choisi, nom latin choisi d'une espèce qui a un nom français, espèce sans nom français).

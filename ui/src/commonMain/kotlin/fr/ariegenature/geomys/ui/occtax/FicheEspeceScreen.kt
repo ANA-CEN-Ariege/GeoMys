@@ -62,9 +62,16 @@ import fr.ariegenature.geomys.ui.composants.rememberAjoutMedias
 import fr.ariegenature.geomys.ui.composants.rememberGardeSortie
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 
-/** Le nom de l'écran (demande du 14 novembre 2026 d'en proposer un), titre et libellé du crayon de la
- *  liste du relevé. */
+/** Le nom de l'écran (demande du 14 novembre 2026 d'en proposer un) : dernier niveau de son bandeau et
+ *  libellé du crayon de la liste du relevé. Son titre est [titreFicheObservation] depuis le 20 novembre
+ *  2026. */
 internal const val TITRE_FICHE_OBSERVATION = "Fiche de l'observation"
+
+/** Le titre d'une fiche de l'observation, dans les deux modes (demande du 20 novembre 2026) :
+ *  « Observation : » suivi, sur la même ligne, du nom de l'espèce, son nom français seul, ou son nom
+ *  latin si elle n'en a pas ([SaisieReleveViewModel.nomFrancaisOuLatin]). Le nom latin n'est plus
+ *  dessous. */
+internal fun titreFicheObservation(nomEspece: String): String = "Observation : $nomEspece"
 
 /** Le bouton « Chant » de la fiche d'un oiseau (demande du 15 novembre 2026), et son libellé une fois
  *  le chant choisi. */
@@ -77,14 +84,14 @@ internal const val DEPLIER_MAX = "＋ Nombre max"
 /** Sous « Photo » et « Audio » d'une observation déjà sur le serveur. */
 internal const val MEDIAS_FIGES = "Observation déjà envoyée : une photo ou un son ajouté maintenant ne partirait pas."
 
-/** La fiche de l'observation : le nom de l'espèce sous le titre, et [sousTitre], son nom scientifique,
- *  s'il diffère. Le bouton flottant ✓, en bas au milieu, écrit les champs dans le relevé et y revient ([onRetour]) ; le retour demande avant
+/** La fiche de l'observation, titrée « Observation : » et [nomEspece] (à défaut, le nom de l'espèce
+ *  dans le relevé). Le bouton flottant ✓, en bas au milieu, écrit les champs dans le relevé et y revient ([onRetour]) ; le retour demande avant
  *  d'abandonner une fiche modifiée. */
 @Composable
 fun FicheEspeceScreen(
     vm: FicheEspeceViewModel,
     typeSaisieLabel: String,
-    sousTitre: String?,
+    nomEspece: String?,
     onAccueil: () -> Unit,
     onRetour: () -> Unit,
 ) {
@@ -102,8 +109,8 @@ fun FicheEspeceScreen(
     val secondaire = if (ios) CouleursGeoMys.blanc70 else MaterialTheme.colorScheme.onSurfaceVariant
     val garde = rememberGardeSortie(vm::modifie, onRetour)
     EcranFormulaireEspece(
-        titre = TITRE_FICHE_OBSERVATION,
-        sousTitre = espece.espece + (sousTitre?.let { " ($it)" } ?: ""),
+        titre = titreFicheObservation(nomEspece ?: espece.espece),
+        sousTitre = null,
         typeSaisieLabel = typeSaisieLabel,
         onAccueil = { garde.demander(onAccueil) },
         onValider = {
@@ -111,6 +118,7 @@ fun FicheEspeceScreen(
             if (refus == null) onRetour() else toasts.afficher(refus, true)
         },
         valideEnBas = true,
+        titreBandeau = TITRE_FICHE_OBSERVATION,
     ) {
         // Effectifs : « − » | champ | « ＋ », comme à l'écran Dénombrement.
         if (vm.minVisible || vm.maxVisible) {
@@ -148,9 +156,10 @@ fun FicheEspeceScreen(
                 if (vm.chante) BoutonVert(CHANT_COCHE, vm::basculerChant, modifier) else BoutonContour(CHANT, vm::basculerChant, modifier)
             }
         }
-        for (champ in vm.champsDetails) {
-            ChampNomenclatureVue(champ, vm.positions[champ.champ.code] ?: 0, { vm.positions[champ.champ.code] = it }, effacable = false)
-        }
+        // Sexe et stade de vie, type d'observation et état biologique : deux par ligne, comme sur la
+        // fiche du mode pro (demande du 20 novembre 2026). Un champ absent (le sexe d'une plante)
+        // décale les suivants ; le dernier d'un nombre impair prend toute la largeur.
+        ChampsNomenclatureEnColonnes(vm.champsDetails, { vm.positions[it.champ.code] ?: 0 }) { champ, choix -> vm.positions[champ.champ.code] = choix }
         vm.additionnelsOccurrence?.let { if (it.defsAffiches.isNotEmpty()) ChampsAdditionnelsVue(it) }
         vm.additionnelsDenombrement?.let { if (it.defsAffiches.isNotEmpty()) ChampsAdditionnelsVue(it) }
         if (vm.commentaireVisible) {

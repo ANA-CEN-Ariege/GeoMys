@@ -48,15 +48,15 @@ internal fun validerFichePro(caracterisation: CaracterisationViewModel, denombre
     return caracterisee.avecDenombrements(denombrements) to null
 }
 
-/** La fiche de l'observation du mode pro : les dénombrements, puis la caractérisation, sous le nom de
- *  l'espèce. ✓ les contrôle et [onValide] reçoit l'espèce à écrire dans le relevé ; le retour
- *  ([onRetour]) demande avant d'abandonner une fiche modifiée. */
+/** La fiche de l'observation du mode pro, titrée « Observation : » et [nomEspece] : les dénombrements,
+ *  puis la caractérisation. ✓ les contrôle et [onValide] reçoit l'espèce à écrire dans le relevé ; le
+ *  retour ([onRetour]) demande avant d'abandonner une fiche modifiée. */
 @Composable
 fun FicheProScreen(
     denombrement: DenombrementViewModel,
     caracterisation: CaracterisationViewModel,
     typeSaisieLabel: String,
-    sousTitre: String,
+    nomEspece: String,
     onAccueil: () -> Unit,
     onRetour: () -> Unit,
     onValide: (EspeceReleve) -> Unit,
@@ -66,8 +66,8 @@ fun FicheProScreen(
     val etat = rememberMediasDenombrement(denombrement)
     val garde = rememberGardeSortie({ denombrement.modifie() || caracterisation.modifie() }, onRetour)
     EcranFormulaireEspece(
-        titre = TITRE_FICHE_OBSERVATION,
-        sousTitre = sousTitre,
+        titre = titreFicheObservation(nomEspece),
+        sousTitre = null,
         typeSaisieLabel = typeSaisieLabel,
         onAccueil = { garde.demander(onAccueil) },
         onValider = {
@@ -75,6 +75,7 @@ fun FicheProScreen(
             if (espece != null) onValide(espece) else if (message != null) toasts.afficher(message, true)
         },
         valideEnBas = true,
+        titreBandeau = TITRE_FICHE_OBSERVATION,
     ) {
         // Le comportement et le statut biologique, la technique d'observation et l'état biologique
         // avant les dénombrements (demande du 19 novembre 2026) ; le reste de la caractérisation après.

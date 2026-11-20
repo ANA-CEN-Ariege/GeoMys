@@ -775,7 +775,9 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 LaunchedEffect(Unit) { nav.popBackStack() }
                 return@composable
             }
-            val sousTitre = remember(releve) { releve.releve.especes.value.getOrNull(route.index)?.let(releve::nomScientifiqueSous) }
+            // Le nom au titre de la fiche : français, sinon latin (demande du 20 novembre 2026). Lu à
+            // chaque composition, pas mémorisé : le référentiel du champ espèce peut arriver après.
+            val nomEspece = releve.releve.especes.value.getOrNull(route.index)?.let(releve::nomFrancaisOuLatin)
             if (!releve.simplifie) {
                 // Mode pro : les dénombrements puis la caractérisation, avec leurs règles.
                 val espece = remember(releve) { releve.releve.especes.value.getOrNull(route.index) }
@@ -792,7 +794,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                     denombrement,
                     caracterisation,
                     releve.typeSaisieLabel,
-                    sousTitre = espece.espece + (sousTitre?.let { " ($it)" } ?: ""),
+                    nomEspece = nomEspece ?: espece.espece,
                     onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
                     onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
                     onValide = { saisie ->
@@ -809,7 +811,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             FicheEspeceScreen(
                 vm,
                 releve.typeSaisieLabel,
-                sousTitre,
+                nomEspece,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
                 onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
             )

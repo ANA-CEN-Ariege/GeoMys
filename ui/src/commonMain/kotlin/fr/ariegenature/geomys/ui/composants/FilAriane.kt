@@ -163,9 +163,17 @@ fun FilArianeSuivis(
  *  - iOS : `FilAriane` de GeoMys-IOS (bande pleine largeur, noir 25 %, 13 pt, maison « house.fill »,
  *    niveaux demi-gras blancs), avec la maison et la hauteur de la pastille d'Android
  *    ([HAUTEUR_BANDEAU_IOS]). [titreIos] : l'écran courant en dernier niveau,
- *    là où GeoMys-IOS met le titre que l'écran Android affiche sous le bandeau. */
+ *    là où GeoMys-IOS met le titre que l'écran Android affiche sous le bandeau.
+ *  [titreAndroid] : sous Android aussi, l'écran courant en dernier niveau, où GeoMys-Android ne
+ *  mettait que [libelle] (la fiche de l'observation, demande du 20 novembre 2026). */
 @Composable
-fun BandeauNavigation(libelle: String, onAccueil: () -> Unit, modifier: Modifier = Modifier, titreIos: String? = null) {
+fun BandeauNavigation(
+    libelle: String,
+    onAccueil: () -> Unit,
+    modifier: Modifier = Modifier,
+    titreIos: String? = null,
+    titreAndroid: String? = null,
+) {
     if (estIos) {
         val texte = buildAnnotatedString {
             appendInlineContent("maison", "Accueil")
@@ -186,6 +194,10 @@ fun BandeauNavigation(libelle: String, onAccueil: () -> Unit, modifier: Modifier
             appendInlineContent("maison", "Accueil")
             append(FIL_SEPARATEUR)
             append(libelle)
+            if (titreAndroid != null) {
+                append(FIL_SEPARATEUR)
+                append(titreAndroid)
+            }
         }
         val icone = InlineTextContent(Placeholder(TAILLE_MAISON.sp, TAILLE_MAISON.sp, PlaceholderVerticalAlign.Bottom)) {
             Image(

@@ -87,7 +87,10 @@ import org.jetbrains.compose.resources.painterResource
  *  le nom de l'espèce du dénombrement), [contenu] défilant, coche de validation ([onValider]) en
  *  haut à droite ; [valideEnBas] la remplace par un bouton flottant en bas au milieu (tous les
  *  écrans d'OccTax, demandes du 17 novembre 2026 ; les détails d'une station OccHab gardent la coche
- *  du haut). */
+ *  du haut). [titreBandeau] : le dernier niveau du bandeau, sous Android aussi ; sans lui, le
+ *  bandeau finit par [titre] sous iOS et par [typeSaisieLabel] sous Android. Les fiches de
+ *  l'observation y mettent leur nom (« 🏠 › Saisie multi-taxons › Fiche de l'observation »), leur
+ *  titre portant celui de l'espèce (demandes du 20 novembre 2026). */
 @Composable
 fun EcranFormulaireEspece(
     titre: String,
@@ -96,12 +99,13 @@ fun EcranFormulaireEspece(
     onAccueil: () -> Unit,
     onValider: () -> Unit,
     valideEnBas: Boolean = false,
+    titreBandeau: String? = null,
     contenu: @Composable ColumnScope.() -> Unit,
 ) {
     FondGeoMys {
         if (estIos) {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-                BandeauNavigation(typeSaisieLabel, onAccueil, titreIos = titre)
+                BandeauNavigation(typeSaisieLabel, onAccueil, titreIos = titreBandeau ?: titre)
                 Column(
                     Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -129,7 +133,7 @@ fun EcranFormulaireEspece(
                 Column(
                     Modifier.fillMaxSize().padding(bottom = if (valideEnBas) PLACE_BOUTON_FLOTTANT else 0.dp).verticalScroll(rememberScrollState()).padding(16.dp),
                 ) {
-                    BandeauNavigation(typeSaisieLabel, onAccueil, Modifier.padding(bottom = 12.dp))
+                    BandeauNavigation(typeSaisieLabel, onAccueil, Modifier.padding(bottom = 12.dp), titreAndroid = titreBandeau)
                     Text(
                         titre,
                         fontSize = 20.sp,
@@ -250,7 +254,8 @@ fun ChampNomenclatureVue(champ: ChampNomenclature, position: Int, onChoix: (Int)
 }
 
 /** Des champs de nomenclature sur deux colonnes, deux par ligne (demande du 19 novembre 2026 : objet
- *  et type du dénombrement, technique d'observation et état biologique) ; un champ seul, ou le dernier
+ *  et type du dénombrement, technique d'observation et état biologique ; le 20 novembre, sexe, stade
+ *  de vie, type d'observation et état biologique de la fiche simplifiée) ; un champ seul, ou le dernier
  *  d'un nombre impair, garde toute la largeur. Les listes sont alignées par le bas : un libellé sur
  *  deux lignes ne décale pas sa voisine. */
 @Composable

@@ -1,6 +1,6 @@
 # Mode pro et mode simplifié : les différences
 
-État au 19 novembre 2026 (version 2.2.0-beta15, build 219).
+État au 20 novembre 2026 (version 2.2.0-beta16, build 220).
 
 **À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51, 55 à 62, 64 et 65.
 
@@ -44,7 +44,7 @@ Ce sont les détails d'un relevé (bouton « Détails ») et les détails commun
 |---|---|---|
 | Observateurs | Liste pour en ajouter, croix pour en retirer | Montrés sans pouvoir en ajouter ni en retirer : l'observateur par défaut des Paramètres |
 | Habitat | Recherche d'un habitat, si le serveur montre le champ | Absent ; un habitat déjà porté par le relevé est gardé |
-| Jeu de données | Tous ceux où l'utilisateur peut saisir | Seulement ses jeux de données personnels, s'il en a ; sinon tous |
+| Jeu de données | Tous ceux où l'utilisateur peut saisir. Pas de croix pour vider le choix : il se change en touchant le champ (depuis le 20 novembre 2026) | Seulement ses jeux de données personnels, s'il en a ; sinon tous. Pas de croix non plus |
 | Autres champs (dates, heures, commentaire, etc.) | Oui | Oui, identiques |
 | Validation | Bouton rond ✓ en bas au milieu de l'écran, sous la zone qui défile (depuis le 17 novembre 2026 ; avant, coche verte en haut à droite) | Identique |
 
@@ -75,6 +75,8 @@ Depuis le 16 novembre 2026, la ligne d'espèce est la même dans les deux modes 
 
 Dans les deux modes, un seul écran, « Fiche de l'observation », porte tous les champs de l'espèce ; son ✓ les contrôle et les écrit, et le retour demande avant d'abandonner une fiche modifiée. Depuis le 17 novembre 2026, ce ✓ est un bouton rond en bas au milieu de l'écran, sous les champs, dans les deux modes (avant, une coche en haut à droite). Les champs diffèrent.
 
+Depuis le 20 novembre 2026, son titre est « Observation : » suivi, sur la même ligne, du nom français de l'espèce seul : celui qui a été choisi, ou, pour une espèce choisie par son nom latin, son nom usuel dans TaxRef. Une espèce sans nom français garde son nom latin. Le nom latin n'est plus sous le titre (il reste sous l'espèce dans la liste du relevé), et le bandeau finit toujours par « Fiche de l'observation ».
+
 **Mode pro**, les champs du web de GeoNature (un seul écran depuis le 16 novembre 2026 ; avant, deux écrans, Dénombrement et Caractérisation, qui ne servent plus qu'à la saisie mono-taxon). Depuis le 19 novembre 2026, l'ordre s'écarte du web à la demande de l'utilisateur, et les champs vont par deux sur deux colonnes :
 
 - **En tête** : comportement et statut biologique (que le web range sous « Plus de champs »), puis technique d'observation et état biologique.
@@ -98,7 +100,9 @@ En saisie mono-taxon, l'écran Caractérisation commence par les mêmes deux lig
 | Photo | Appareil photo ou galerie | Le serveur active les médias |
 | Audio | Choix d'un fichier son | Le serveur active les médias |
 
-Dans les deux modes, et en saisie mono-taxon (Caractérisation, Dénombrement), les listes de nomenclature de la fiche n'ont plus de croix rouge pour vider le choix (depuis le 19 novembre 2026) : un choix se change, il ne se vide plus. Les champs additionnels et les détails du relevé gardent la leur.
+Depuis le 20 novembre 2026, sexe et stade de vie, type d'observation et état biologique vont par deux sur deux colonnes, comme sur la fiche du mode pro. Un champ absent décale les suivants : pour une plante, sans sexe, le stade de vie partage sa ligne avec le type d'observation, et l'état biologique prend toute la largeur.
+
+Dans les deux modes, et en saisie mono-taxon (Caractérisation, Dénombrement), les listes de nomenclature de la fiche n'ont plus de croix rouge pour vider le choix (depuis le 19 novembre 2026) : un choix se change, il ne se vide plus. Les champs additionnels gardent la leur, ainsi que les détails du relevé, sauf le jeu de données.
 
 En mode simplifié, une photo ou un son est écrit aussitôt, sans attendre le ✓, et une fiche validée sans rien changer n'écrit rien. En mode pro, les médias s'écrivent au ✓ avec le reste, et le ✓ écrit toujours les valeurs affichées, défauts du serveur compris.
 

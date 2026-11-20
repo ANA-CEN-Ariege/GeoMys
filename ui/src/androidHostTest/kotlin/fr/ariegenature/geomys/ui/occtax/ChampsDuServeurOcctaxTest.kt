@@ -216,9 +216,11 @@ class ChampsDuServeurOcctaxTest {
     }
 
     @Test
-    fun le_jeu_de_donnees_efface_bloque_comme_sur_le_web() {
-        val etat = EtatDetailsReleve(donneesReleve(), services.nomenclatures, MainScope()) { emptyList() }
-        etat.effacerDataset()
+    fun sans_jeu_de_donnees_le_releve_est_refuse_comme_sur_le_web() {
+        // La croix qui vidait le choix est retirée (20 novembre 2026) ; un relevé peut encore s'ouvrir
+        // sans jeu de données (aucun par défaut).
+        val etat = EtatDetailsReleve(donneesReleve().copy(idDataset = null), services.nomenclatures, MainScope()) { emptyList() }
+        assertNull(etat.dataset)
         assertEquals("Choisissez un jeu de données", etat.valider().second)
     }
 

@@ -151,11 +151,6 @@ class EtatDetailsReleve(
         dataset = choisi
     }
 
-    /** La croix de la liste des jeux de données du web. */
-    fun effacerDataset() {
-        dataset = null
-    }
-
     // ── Observateurs : la liste, ou un texte libre quand le serveur le demande
     // (`OCCTAX.observers_txt`) ──
 
@@ -508,7 +503,9 @@ private fun ContenuAndroid(e: EtatDetailsReleve) {
             }
         }
 
-        // Jeu de données : liste déroulante, ou ligne en lecture seule sans cache.
+        // Jeu de données : liste déroulante, ou ligne en lecture seule sans cache. Sans la croix du web
+        // (demande du 20 novembre 2026) : toucher le champ déroule la liste pour en changer, le choix
+        // ne se vide plus.
         if (d.datasets.isEmpty()) {
             LigneLectureAndroid(DetailsReleveFormulaire.LIBELLE_JDD, e.dataset?.second ?: "—")
         } else {
@@ -516,7 +513,7 @@ private fun ContenuAndroid(e: EtatDetailsReleve) {
             Box(Modifier.fillMaxWidth().barreChampObligatoire(e.dataset == null)) {
                 DeroulantAndroid(
                     DetailsReleveFormulaire.INVITE_JDD, d.datasets.map { it.second }, e.dataset?.second.orEmpty(),
-                    restaurer = true, onChoix = e::choisirDataset, onEffacer = e::effacerDataset,
+                    restaurer = true, onChoix = e::choisirDataset,
                 )
             }
         }
@@ -701,9 +698,11 @@ private fun ContenuIos(e: EtatDetailsReleve) {
         }
     }
 
+    // Sans la croix du web (demande du 20 novembre 2026) : le menu ou le champ à filtre change le jeu
+    // de données, rien ne le vide.
     SectionIos(DetailsReleveFormulaire.LIBELLE_JDD, barre = d.datasets.isNotEmpty() && e.dataset == null) {
         if (d.datasets.isEmpty()) LigneTexteSeulIos(e.dataset?.second ?: "—")
-        else LignesRechercheIos(DetailsReleveFormulaire.INVITE_JDD, d.datasets.map { it.second }, e.dataset?.second.orEmpty(), e::choisirDataset, e::effacerDataset)
+        else LignesRechercheIos(DetailsReleveFormulaire.INVITE_JDD, d.datasets.map { it.second }, e.dataset?.second.orEmpty(), e::choisirDataset)
     }
 
     val boutonPlus: @Composable () -> Unit = {

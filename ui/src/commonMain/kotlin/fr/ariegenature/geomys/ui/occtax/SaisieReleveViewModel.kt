@@ -113,6 +113,18 @@ class SaisieReleveViewModel(
     fun nomScientifiqueSous(espece: EspeceReleve): String? =
         espece.cdNom?.let { champ.entrees[it]?.sciNom }?.takeIf { !it.equals(espece.espece, ignoreCase = true) }
 
+    /** Le nom de l'espèce au titre de sa fiche (demande du 20 novembre 2026) : son nom français seul,
+     *  sinon son nom latin. Le nom choisi s'il est français ; choisie par son nom latin, l'espèce
+     *  prend le nom usuel de TaxRef (le premier de ses noms français), et garde son nom latin si elle
+     *  n'en a pas. Tant que le référentiel n'est pas lu ([EtatChampEspece.entrees], un état : le titre
+     *  suit), le nom choisi. */
+    fun nomFrancaisOuLatin(espece: EspeceReleve): String {
+        val cdNom = espece.cdNom ?: return espece.espece
+        val sciNom = champ.entrees[cdNom]?.sciNom ?: return espece.espece
+        if (!sciNom.equals(espece.espece, ignoreCase = true)) return espece.espece
+        return champ.nomsFrancais[cdNom]?.firstOrNull { it.isNotBlank() } ?: espece.espece
+    }
+
     private var dejaAffiche = false
 
     /** À chaque affichage de l'écran (onViewCreated) : le relevé est enregistré. Au retour de la fiche

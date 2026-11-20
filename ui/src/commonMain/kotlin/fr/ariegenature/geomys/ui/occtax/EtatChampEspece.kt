@@ -151,6 +151,12 @@ class EtatChampEspece(
     var entrees by mutableStateOf<Map<Int, TaxRefEntry>>(emptyMap())
         private set
 
+    /** Les noms français par cd_nom, dans l'ordre de TaxRef (le premier est le nom usuel), lus avec
+     *  [entrees] hors du fil de l'interface : le titre d'une fiche en prend un pour une espèce choisie
+     *  par son nom latin (20 novembre 2026). */
+    var nomsFrancais by mutableStateOf<Map<Int, List<String>>>(emptyMap())
+        private set
+
     /** Le `nom_valide` TAXREF d'un taxon, que le web montre sous le taxon choisi (« TAXREF - Nom
      *  valide ») quand `form_fields.display_nom_valide` le demande ; null : il n'est pas montré. */
     val nomValide: ((Int) -> String?)? =
@@ -161,7 +167,10 @@ class EtatChampEspece(
 
     init {
         portee.launch {
-            entrees = withContext(calcul) { services.taxRef.entreesParCdNom() }
+            // Les noms français sont déjà en mémoire une fois les entrées calculées : pas de copie.
+            val (parCdNom, verns) = withContext(calcul) { services.taxRef.entreesParCdNom() to services.taxRef.vernsParCdNom() }
+            nomsFrancais = verns
+            entrees = parCdNom
         }
         val liste = idListe
         portee.launch {

@@ -99,7 +99,7 @@ footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--t
 <header>
   <h1>GeoMys : mode pro et mode simplifié</h1>
   <p>GeoMys propose deux façons de saisir. Le mode pro donne tout ce que GeoNature permet. Le mode simplifié ne garde que l'essentiel pour noter une espèce sur le terrain.</p>
-  <p class="etat">État au 19 novembre 2026, version 2.2.0-beta15.</p>
+  <p class="etat">État au 20 novembre 2026, version 2.2.0-beta16.</p>
   <nav aria-label="Rubriques">
     <a href="#choix">Choisir le mode</a>
     <a href="#accueil">Accueil</a>
@@ -169,7 +169,7 @@ footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--t
     <tbody>
       <tr><th>Observateurs</th><td>Une liste pour en ajouter, une croix pour en retirer</td><td>Affichés sans pouvoir en ajouter ni en retirer : c'est l'observateur par défaut des Paramètres</td></tr>
       <tr><th>Habitat</th><td>Recherche d'un habitat, si le serveur montre le champ</td><td class="non">Absent. Un habitat déjà porté par le relevé est conservé.</td></tr>
-      <tr><th>Jeu de données</th><td>Tous ceux où vous pouvez saisir</td><td>Seulement vos jeux de données personnels, si vous en avez ; sinon tous</td></tr>
+      <tr><th>Jeu de données</th><td>Tous ceux où vous pouvez saisir. Pas de croix pour vider le choix : il se change en touchant le champ (depuis le 20 novembre 2026)</td><td>Seulement vos jeux de données personnels, si vous en avez ; sinon tous. Pas de croix non plus</td></tr>
       <tr><th>Dates, heures, commentaire…</th><td>Oui</td><td>Oui, identiques</td></tr>
       <tr><th>Validation</th><td>Bouton rond <span class="touche">✓</span> en bas au milieu de l'écran</td><td>Identique</td></tr>
     </tbody>
@@ -187,6 +187,7 @@ footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--t
       <thead><tr><th></th><th class="pro">Mode pro</th><th class="simple">Mode simplifié</th></tr></thead>
       <tbody>
         <tr><th>Ce qui s'ouvre</th><td>La « Fiche de l'observation », à chaque espèce</td><td>Identique</td></tr>
+        <tr><th>Titre de la fiche</th><td>« Observation : » suivi du nom français de l'espèce, ou de son nom latin si elle n'en a pas. Le bandeau du haut dit toujours « Fiche de l'observation ».</td><td>Identique</td></tr>
         <tr><th>Champ obligatoire resté vide</th><td>Rien de plus : il est sur la fiche</td><td>Identique</td></tr>
         <tr><th>Oiseau en période de nidification</th><td>Rien de plus : le comportement est en tête de la fiche</td><td>Rien de plus : le comportement et « Chant » sont sur la fiche</td></tr>
       </tbody>
@@ -235,7 +236,8 @@ footer { color: var(--discret); font-size: .88rem; border-top: 1px solid var(--t
       <tr><th>Audio</th><td>Choix d'un fichier son</td><td>Le serveur accepte les médias</td></tr>
     </tbody>
   </table></div>
-  <p>Dans les deux modes, et en saisie mono-taxon, les listes de la fiche n'ont plus de croix rouge pour vider le choix (depuis le 19 novembre 2026) : un choix se change, il ne se vide plus. Les champs additionnels et les détails du relevé gardent la leur.</p>
+  <p>Sexe et stade de vie, type d'observation et état biologique vont par deux, sur deux colonnes, comme sur la fiche du mode pro (depuis le 20 novembre 2026). Pour une plante, qui n'a pas de sexe, le stade de vie partage sa ligne avec le type d'observation, et l'état biologique prend toute la largeur.</p>
+  <p>Dans les deux modes, et en saisie mono-taxon, les listes de la fiche n'ont plus de croix rouge pour vider le choix (depuis le 19 novembre 2026) : un choix se change, il ne se vide plus. Les champs additionnels gardent la leur, ainsi que les détails du relevé, sauf le jeu de données.</p>
 </section>
 
 <section id="regles">

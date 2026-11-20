@@ -35,6 +35,8 @@ import fr.ariegenature.geomys.outils.ajouterTaxRefEssai
 import fr.ariegenature.geomys.store.ModeSaisie
 import fr.ariegenature.geomys.store.NomValeur
 import fr.ariegenature.geomys.store.SuggestionTaxon
+import fr.ariegenature.geomys.store.TaxRefCache
+import fr.ariegenature.geomys.store.TaxRefEntry
 import fr.ariegenature.geomys.store.TaxrefRestriction
 import fr.ariegenature.geomys.store.io.listeVersJson
 import fr.ariegenature.geomys.ui.ServicesEssai
@@ -57,6 +59,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.test.fail
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SaisieSimplifieeEcransTest {
@@ -118,6 +121,15 @@ class SaisieSimplifieeEcransTest {
             ),
         )
         services.nomenclatures.setDefauts(mapOf("STADE_VIE" to "1", "SEXE" to "5", "ETA_BIO" to "4", "METH_OBS" to "7"))
+    }
+
+    /** Attend [condition], que remplit un calcul d'arrière-plan (le référentiel du champ espèce). */
+    private fun attendre(quoi: String, condition: () -> Boolean) {
+        val limite = System.currentTimeMillis() + 10_000
+        while (!condition()) {
+            if (System.currentTimeMillis() > limite) fail("attendu : $quoi")
+            Thread.sleep(10)
+        }
     }
 
     @Test
@@ -271,6 +283,24 @@ class SaisieSimplifieeEcransTest {
         val machaon = FicheEspeceViewModel(services, releve.releve, 1)
         assertEquals(listOf("SEXE", "STADE_VIE", "METH_OBS", "ETA_BIO"), machaon.champsDetails.map { it.champ.code })
         assertTrue(machaon.comportementVisible)
+    }
+
+    /** 20 novembre 2026 : le titre de la fiche est « Observation : » et le nom français de l'espèce,
+     *  seul, sinon son nom latin. */
+    @Test
+    fun le_titre_de_la_fiche_porte_le_nom_francais_sinon_le_latin() = runTest {
+        // Un carabe sans nom français (cd_nom d'essai).
+        val bembidion = 990001
+        services.taxRef.ajouter(mapOf(TaxRefCache.normaliser("Bembidion lampros") to TaxRefEntry(bembidion, "Bembidion lampros")))
+        val releve = releve(ModeSaisie.SIMPLIFIE)
+        attendre("le référentiel du champ espèce") { releve.champ.entrees.containsKey(bembidion) }
+        releve.choisirSuggestion(SuggestionTaxon("Grand porte-queue", 54303))
+        releve.choisirSuggestion(SuggestionTaxon("Papilio machaon", 54303))
+        releve.choisirSuggestion(SuggestionTaxon("Bembidion lampros", bembidion))
+        val (francais, latin, sansNomFrancais) = releve.releve.especes.value
+        assertEquals("Observation : Grand porte-queue", titreFicheObservation(releve.nomFrancaisOuLatin(francais)), "le nom français choisi")
+        assertEquals("Machaon", releve.nomFrancaisOuLatin(latin), "choisie par son nom latin, l'espèce prend son nom français")
+        assertEquals("Bembidion lampros", releve.nomFrancaisOuLatin(sansNomFrancais), "sans nom français : le nom latin")
     }
 
     @Test
