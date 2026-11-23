@@ -23,6 +23,7 @@ package fr.ariegenature.geomys.occtax
 
 import fr.ariegenature.geomys.model.Sortie
 import fr.ariegenature.geomys.util.FormatDate
+import fr.ariegenature.geomys.util.formaterDecimal
 
 /** Les onglets de « Mes saisies ». */
 enum class OngletMesSaisies(val titre: String, val messageVide: String) {
@@ -75,6 +76,12 @@ object MesSaisies {
 
     /** Date d'une ligne : « 19 oct. 2026 07:50 ». */
     fun dateLigne(sortie: Sortie): String = FormatDate.jourMoisLettresHeure(sortie.date)
+
+    /** Distance d'une ligne, « 1250 m », ou null pour une saisie sans trace GPS : la ligne n'en dit
+     *  alors rien (demande du 23 novembre 2026). Écart voulu avec GeoMys-Android, dont la ligne
+     *  portait toujours la distance et le nombre de points de la trace, retiré le même jour. */
+    fun distanceLigne(sortie: Sortie): String? =
+        if (sortie.pointsParcours.isEmpty()) null else "${formaterDecimal(sortie.distanceTotale, 0)} m"
 
     /** « Supprimer la saisie du 19/10/2026 07:50 (3 observations) ? Cette action est définitive. » */
     fun messageSuppression(sortie: Sortie): String {

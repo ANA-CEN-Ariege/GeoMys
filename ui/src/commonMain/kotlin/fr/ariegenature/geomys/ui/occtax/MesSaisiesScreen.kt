@@ -88,14 +88,12 @@ import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.ui.ressources.ic_delete
 import fr.ariegenature.geomys.ui.ressources.ic_edit
 import fr.ariegenature.geomys.ui.ressources.ic_list
-import fr.ariegenature.geomys.ui.ressources.ic_location_on
 import fr.ariegenature.geomys.ui.ressources.ic_map
 import fr.ariegenature.geomys.ui.ressources.ic_send
 import fr.ariegenature.geomys.ui.ressources.ic_walk
 import fr.ariegenature.geomys.ui.ressources.oiseaux
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import fr.ariegenature.geomys.ui.theme.FondGeoMys
-import fr.ariegenature.geomys.util.formaterDecimal
 import org.jetbrains.compose.resources.painterResource
 
 /** android.R.color.holo_red_light : icône « Supprimer » des lignes. */
@@ -273,8 +271,8 @@ private fun ListeVide(message: String, couleur: Color, modifier: Modifier = Modi
     }
 }
 
-/** Une sortie : date, distance, observations et points de trace, dernier échec d'envoi (cadre rouge)
- *  ou état « ✅ Envoyée » ; puis les actions Liste · Envoyer · Continuer · Supprimer. */
+/** Une sortie : date, distance (s'il y a une trace GPS) et observations, dernier échec d'envoi (cadre
+ *  rouge) ou état « ✅ Envoyée » ; puis les actions Liste · Envoyer · Continuer · Supprimer. */
 @Composable
 private fun LigneSortie(
     sortie: Sortie,
@@ -318,9 +316,9 @@ private fun LigneSortie(
                 horizontalArrangement = Arrangement.spacedBy(if (ios) 14.dp else 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Statistique(Res.drawable.ic_walk, "${formaterDecimal(sortie.distanceTotale, 0)} m", couleurSecondaire)
+                // Ni nombre de points de la trace, ni « 0 m » sans trace GPS (demande du 23 novembre 2026).
+                MesSaisies.distanceLigne(sortie)?.let { Statistique(Res.drawable.ic_walk, it, couleurSecondaire) }
                 Statistique(Res.drawable.oiseaux, "${MesSaisies.nbObservations(sortie)} obs.", couleurSecondaire)
-                Statistique(Res.drawable.ic_location_on, "${sortie.pointsParcours.size} pts", couleurSecondaire)
             }
             if (erreur != null) {
                 Text(

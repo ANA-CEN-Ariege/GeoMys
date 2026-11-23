@@ -1030,3 +1030,12 @@ Demande de l'utilisateur, après la première publication de la 2.2.0 (build 222
 - **Adresse déjà enregistrée** : elle ne change pas. Une release déjà réglée sur le serveur de tests le garde ; il n'est seulement plus proposé dans la liste.
 - **Publication** : à la demande de l'utilisateur, la 2.2.0 est republiée le même jour en build 223 avec cette liste. La build 222, publiée plus tôt, proposait encore l'ancienne.
 - Tests : `ServeursGeoNatureTest.le_serveur_de_tests_n_est_propose_que_dans_une_version_de_test` (marque, liste d'une release, filtre par défaut, filtre d'une version de test) et `le_serveur_renomme_suit_l_ordre_alphabetique` ; les autres cas suivent la nouvelle liste.
+
+## 77. Mes saisies : plus de nombre de points, la distance seulement avec une trace GPS (23 novembre)
+
+Demande de l'utilisateur, qui demandait à quoi correspondait le nombre de points d'une ligne de « Mes saisies » (ceux de la trace GPS) : « Supprime cette information. De plus pour un relevé, si il n'y a pas enregistrement d'une trace gps, ne met pas l'info sur le nb de mètres ». **Écart voulu avec GeoMys-Android**, dont la ligne (`item_sortie.xml`) portait toujours la distance, le nombre d'observations et le nombre de points.
+
+- `MesSaisies.distanceLigne(sortie)` : « 1250 m » pour une saisie qui a une trace GPS (au moins un point), sinon null. Sans trace, `LigneSortie` n'affiche plus que le nombre d'observations. Vaut pour Android et iOS, dans les deux modes.
+- Ce qui disparaît : le nombre de points de la trace (« 12 pts ») sur chaque ligne, et le « 0 m » des saisies sans trace. Une trace d'un seul point garde « 0 m ».
+- Inchangés : la trace elle-même, dessinée sur la carte du détail de la saisie et incluse dans l'export GPX ; la distance de la carte de saisie, qui ne s'affiche que pendant une trace.
+- Test `MesSaisiesTest.la_distance_n_est_affichee_qu_avec_une_trace_gps` (trace, trace d'un seul point, saisie sans trace, distance sans trace).
