@@ -18,7 +18,7 @@
 """Les routes GeoNature et TaxHub qu'appelle GeoMys, relatives à la racine du serveur
 GeoNature (`/api/...`).
 
-Repris de GeoMys-Android @ cdd5196 (tools/lister_endpoints_geonature.py) et mis à jour le 21 octobre
+Repris de GeoMys-Android @ cdd5196 (tools/lister_endpoints_geonature.py) et mis à jour le 23 novembre
 2026 d'après le code de GeoMys (OccTax, OccHab, Suivis, Explorer). Aucune requête réseau : la
 liste sert à documenter la surface d'API ou à régler un pare-feu, un reverse-proxy, une liste
 d'autorisations. Le détail (authentification, délais, fichiers) est dans
@@ -68,32 +68,47 @@ ENDPOINTS = [
     ("GET", "/api/taxhub/api/biblistes", "", "public", "Listes de taxons"),
     ("GET", "/api/taxhub/api/taxref", "orderby=cd_nom&fields=listes&id_liste=<id>&limit=<n>&page=<p>", "public",
      "Taxons d'une liste, page par page"),
+    ("GET", "/api/taxhub/api/taxref/<cd_nom>", "", "public",
+     "cd_ref d'un taxon, pour la vérification « Donnée exceptionnelle »"),
     ("GET", "/api/monitorings/modules", "", "connecté", "Protocoles de suivi"),
     ("GET", "/api/monitorings/config/<module>", "", "connecté", "Schéma d'un protocole"),
     ("GET", "/api/monitorings/object/<module>/module", "depth=1", "connecté", "Enfants d'un protocole"),
     ("GET", "/api/monitorings/object/<module>/<type>/<id>", "depth=1", "connecté",
-     "Fiche d'un objet de suivi et ses enfants (aussi l'anti-doublon de l'envoi)"),
+     "Fiche d'un objet de suivi et ses enfants"),
     ("GET", "/api/<api d'un champ>", "", "connecté",
      "Options des listes des Suivis, déclarées par chaque protocole (meta/datasets, nomenclatures/nomenclature/<TYPE>, "
-     "monitorings/list/<module>/<type>, users/menu/<id>, users/roles…)"),
+     "monitorings/list/<module>/<type>, users/menu/<id>, users/menu_from_code/<code>, users/roles…) ; "
+     "celles de l'application TaxHub partent vers /api/taxhub/api/<api>"),
     ("GET", "/api/media/monitorings/<module>/img.jpg", "", "connecté", "Pictogramme d'un protocole"),
     ("GET", "/api/occhab/stations/", "format=geojson&habitats=1&nomenclatures=1", "connecté",
      "Stations OccHab (l'appli ne garde que celles de l'utilisateur)"),
     # Envoi
     ("POST", "/api/occtax/OCCTAX/only/releve", "", "écriture", "Création d'un relevé"),
     ("POST", "/api/occtax/OCCTAX/releve/<id>/occurrence", "", "écriture", "Ajout d'une occurrence"),
+    ("POST", "/api/occtax/OCCTAX/only/releve/<id>", "", "écriture",
+     "Mise à jour d'un relevé corrigé après un envoi partiel (sans ses occurrences)"),
+    ("POST", "/api/occtax/OCCTAX/occurrence/<id>", "", "écriture",
+     "Mise à jour d'une occurrence corrigée après un envoi partiel"),
     ("GET", "/api/occtax/OCCTAX/releves", "unique_id_sinp_grp=<uuid>&limit=1", "connecté", "Anti-doublon d'un relevé"),
     ("GET", "/api/occtax/OCCTAX/releve/<id>", "", "connecté", "Vérification d'un relevé avant un nouvel essai"),
     ("DELETE", "/api/occtax/OCCTAX/releve/<id>", "", "écriture", "Annulation d'un relevé incomplet"),
     ("GET", "/api/nomenclatures/nomenclature", "id_type=<id>&limit=200 (ou code_nomenclature_type=<TYPE>)", "connecté",
      "Repli à l'envoi si le cache des nomenclatures est vide (aussi /api/nomenclatures/nomenclatures)"),
-    ("POST", "/api/geo/altitude", "", "connecté", "Altitudes d'un relevé OccTax, calculées par le serveur"),
+    ("POST", "/api/geo/altitude", "", "connecté",
+     "Altitudes d'un relevé OccTax, calculées par le serveur ; aussi sans jeton pour la vérification "
+     "« Donnée exceptionnelle »"),
+    ("POST", "/api/gn_profiles/check_observation", "", "public",
+     "Vérification « Donnée exceptionnelle » d'une observation (profils de taxons)"),
     ("POST", "/api/geo/info", "", "connecté", "Altitudes d'une station OccHab"),
     ("GET", "/api/gn_commons/get_id_table_location/<schema.table>", "", "connecté", "Table de rattachement d'un média"),
     ("POST", "/api/gn_commons/media", "", "écriture", "Envoi d'un média (multipart)"),
     ("GET", "/api/gn_commons/medias/<uuid>", "", "connecté", "Médias déjà envoyés (anti-doublon)"),
     ("DELETE", "/api/gn_commons/media/<id>", "", "écriture", "Annulation d'un média"),
     ("POST", "/api/monitorings/object/<module>/<type>", "", "écriture", "Création d'une visite, d'une observation…"),
+    ("PATCH", "/api/monitorings/object/<module>/<type>/<id>", "", "écriture",
+     "Correction d'un objet de suivi déjà créé, après un envoi partiel"),
+    ("GET", "/api/monitorings/list/<module>/<type>", "<uuid_field>=<uuid>&fields=<id_field>&fields=<uuid_field>",
+     "connecté", "Anti-doublon d'un objet de suivi (recherche par uuid)"),
     ("POST", "/api/occhab/stations/", "", "écriture", "Création d'une station OccHab"),
     ("POST", "/api/occhab/stations/<id>/", "", "écriture", "Mise à jour d'une station OccHab"),
     ("GET", "/api/occhab/stations/<id>/", "", "connecté", "Version du serveur d'une station avant sa mise à jour"),

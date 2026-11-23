@@ -120,7 +120,7 @@ Une saisie enregistrée puis rouverte rend exactement le même corps (test d'all
 | cases multiples (plus d'une valeur proposée) | le tableau JSON des codes cochés, `["1","3"]` |
 | case unique | `"true"` ou `"false"` |
 
-- **Valeur au rendu.** C'est la valeur saisie ; à défaut, le défaut serveur ; à défaut, la date ou l'heure du jour pour les widgets date et heure. La chaîne `"null"` vaut une valeur vide.
+- **Valeur au rendu.** C'est la valeur saisie ; à défaut, le défaut serveur ; à défaut, la date ou l'heure du jour pour les widgets date et heure. La chaîne `"null"` vaut une valeur vide. *Depuis le 20 octobre 2026, plus de date ni d'heure du jour : à défaut du `default_value` du serveur, le champ reste vide, comme sur le web ([`LOT-9.md`](LOT-9.md) § 13).*
 - **Cases multiples.** Seul un tableau enregistré les coche : un défaut serveur scalaire ne coche rien, comme sur le web.
 - **Champs requis vides.** Ils bloquent la validation, sauf les cases, qui ne sont jamais vides.
 - **Écran « Détails du relevé ».**

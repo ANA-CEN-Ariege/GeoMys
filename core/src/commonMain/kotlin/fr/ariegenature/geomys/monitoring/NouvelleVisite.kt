@@ -397,8 +397,9 @@ object NouvelleVisite {
      * - le champ qui désigne le parent ([parentObjectType]) est retiré : le parent est déjà choisi
      *   par le parcours qui mène ici, comme sur le web ;
      * - options des datalists, valeurs initiales, utilisateur connecté ([enrichirAvecOptions]) ;
-     * - liste taxonomique des champs espèce sans liste propre : celle du type, sinon celle d'un
-     *   autre type du schéma (le module) ;
+     * - un champ espèce se limite à sa propre liste (son `id_list`, sinon la liste de son `api`,
+     *   cf. `WidgetMapping.kt`) ; sans elle, tout TaxRef : ni la liste du type ni celle du module ne la
+     *   remplacent (21 octobre 2026) ;
      * - valeurs des propriétés masquées ([valeursFixes]) ;
      * - valeurs d'une saisie rouverte ([valeursPreremplies], [medias]).
      */

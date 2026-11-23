@@ -186,10 +186,12 @@ class GeoNatureSync(
             ResultatListe(idListe, complete, items)
         }
 
-    /** Sync exhaustif : itère sur **toutes** les biblistes du serveur pour permettre à
-     *  l'utilisateur de changer la liste/dataset sélectionnés hors-réseau sans perdre les
-     *  taxons associés. Le cache `listesParCdNom` se construit naturellement par agrégation
-     *  (chaque cd_nom porte son tableau d'appartenance via `fields=listes`).
+    /** Synchro des listes UTILES seulement (depuis le 21 octobre 2026, et non plus toutes les
+     *  biblistes du serveur) : la liste choisie dans Paramètres, celles qu'imposent les jeux de
+     *  données, celles des protocoles ([protocolListIds]) et celle de la configuration d'OccTax ;
+     *  toutes les listes publiques seulement avec [toutesLesListes]. Une liste choisie plus tard
+     *  dans Paramètres s'y télécharge aussitôt. Le cache `listesParCdNom` se construit par
+     *  agrégation (chaque cd_nom porte son tableau d'appartenance via `fields=listes`).
      *
      *  Callback `progression(taxonsAccumules, listeIdx, listesTotales)` — listeIdx==0 avant
      *  le démarrage (pendant le fetch des biblistes), 1..N pendant l'itération. */
