@@ -220,29 +220,72 @@ class SaisieMono(
         /** La consigne au-dessus de la carte. */
         const val CONSIGNE = "Touchez pour placer le point · appui long pour le déplacer"
 
-        /** Rayon dans lequel des observations sont « au même endroit » qu'un marqueur touché. */
-        private const val RAYON_ICI_METRES = 30.0
-
         /** Le compteur du panneau de la carte. */
         fun compteur(n: Int): String = "$n obs. enregistrée${if (n > 1) "s" else ""}"
 
         /** La confirmation qui suit chaque « + ». */
         fun confirmation(observation: Observation): String = "${observation.espece} × ${observation.totalIndividus}"
 
-        /** Marqueur touché : les observations à 30 m au plus de [reference] (les points se
-         *  superposent vite sur le terrain), la plus récente d'abord. */
-        fun observationsIci(reference: Observation, toutes: List<Observation>): List<Observation> =
-            toutes.filter { distanceMetres(reference.latitude, reference.longitude, it.latitude, it.longitude) <= RAYON_ICI_METRES }
+        /** Rayon dans lequel des observations sont « au même point » que le marqueur touché :
+         *  plusieurs « + » sur une même position GPS (immobile, elle ne change pas) ou au centre de la
+         *  carte sans GPS. Leurs marqueurs se recouvrent exactement : seul celui du dessus reçoit le
+         *  toucher, et zoomer ne les sépare pas. */
+        private const val RAYON_MEME_POINT_METRES = 1.0
+
+        /** Marqueur touché (demande du 24 novembre 2026) : les observations au même point que
+         *  [reference], la plus récente d'abord ; [reference] seule si elle n'en a pas, et son popup
+         *  s'ouvre aussitôt. Sinon, on choisit d'abord laquelle. La liste ouvrait avant toutes celles
+         *  à 30 m, même séparées sur la carte. */
+        fun observationsAuPoint(reference: Observation, toutes: List<Observation>): List<Observation> =
+            toutes.filter { distanceMetres(reference.latitude, reference.longitude, it.latitude, it.longitude) <= RAYON_MEME_POINT_METRES }
                 .ifEmpty { listOf(reference) }
                 .sortedByDescending { it.date }
 
-        fun titreObservationsIci(n: Int): String = "$n obs. ici — appuyer pour modifier"
+        /** « 3 obs. à ce point ». */
+        fun titreObservationsAuPoint(n: Int): String = "$n obs. à ce point"
 
         /** « HH:mm  espèce · N ind. », et les notes en dessous. */
-        fun ligneObservationIci(o: Observation): String {
+        fun ligneObservationAuPoint(o: Observation): String {
             val effectif = if (o.totalIndividus > 1) " · ${o.totalIndividus} ind." else ""
             val notes = if (o.notes.isNotEmpty()) "\n   ${o.notes}" else ""
             return "${FormatDate.heure(o.date)}  ${o.espece}$effectif$notes"
+        }
+
+        /** Le popup de l'observation touchée, à éditer ou à supprimer : l'espèce en titre (une ligne
+         *  sous Android) ; en message, l'heure de l'enregistrement, qui distingue les points de la
+         *  série, l'effectif et les notes. */
+        fun optionsObservation(o: Observation): Pair<String, String> {
+            val heure = FormatDate.heure(o.date)
+            if (o.releveSansEspece) return o.espece to "Enregistré à $heure"
+            val n = o.totalIndividus
+            val ligne = "Enregistrée à $heure · $n individu${if (n > 1) "s" else ""}"
+            return o.espece to listOf(ligne, o.notes).filter { it.isNotEmpty() }.joinToString("\n")
+        }
+
+        /** « Éditer » : le relevé qui porte la fiche de [o] (null : [o] seule) et son rang dans ce
+         *  relevé. Une observation rattachée à un relevé (une espèce y a été ajoutée depuis l'écran du
+         *  relevé) s'ouvre par lui, au rang que lui donne [ReleveEnCours] : ouverte seule, elle aurait
+         *  remplacé le relevé entier, et ses autres espèces auraient disparu. */
+        fun ficheAOuvrir(o: Observation, toutes: List<Observation>): Pair<String?, Int> {
+            val rid = o.releveId?.takeIf { it.isNotEmpty() } ?: return null to 0
+            val rang = toutes.filter { it.releveId == rid }.indexOfFirst { it.id == o.id }
+            return if (rang < 0) null to 0 else rid to rang
+        }
+
+        /** Tient sur une ligne sous Android, comme « Supprimer cette espèce ? ». */
+        const val TITRE_SUPPRESSION = "Supprimer l'observation ?"
+
+        /** Ce que « Supprimer » emporte, à confirmer comme la corbeille d'une espèce du relevé. La
+         *  suppression reste locale : une donnée déjà transmise reste sur GeoNature, ce qu'il dit. */
+        fun messageSuppression(o: Observation): String {
+            val heure = FormatDate.heure(o.date)
+            return if (o.releveSansEspece) {
+                "Le relevé sans espèce enregistré à $heure sera supprimé." +
+                    if (o.envoyeeServeur) " Il a déjà été transmis à GeoNature, où il restera." else ""
+            } else {
+                "« ${o.espece} », enregistrée à $heure, sera supprimée avec ce qui a été saisi pour elle." +
+                    if (o.envoyeeServeur) " Elle a déjà été transmise à GeoNature, où elle restera." else ""
+            }
         }
     }
 }

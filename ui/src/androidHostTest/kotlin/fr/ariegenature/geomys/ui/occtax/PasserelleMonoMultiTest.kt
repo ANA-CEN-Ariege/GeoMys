@@ -44,6 +44,7 @@ class PasserelleMonoMultiTest {
         EvenementSaisieMono.Caracterisation -> "caractérisation"
         EvenementSaisieMono.Denombrement -> "dénombrement"
         is EvenementSaisieMono.EditerObservation -> "relevé"
+        is EvenementSaisieMono.OuvrirFiche -> "fiche de l'observation"
         EvenementSaisieMono.Quitter -> "écran précédent"
     }
 
@@ -65,8 +66,9 @@ class PasserelleMonoMultiTest {
             EvenementSaisieMono.Caracterisation,
             EvenementSaisieMono.Denombrement,
             EvenementSaisieMono.EditerObservation("o"),
+            EvenementSaisieMono.OuvrirFiche("o"),
             EvenementSaisieMono.Quitter,
         ).map(::destination)
-        assertEquals(listOf("aucune", "caractérisation", "dénombrement", "relevé", "écran précédent"), sorties)
+        assertEquals(listOf("aucune", "caractérisation", "dénombrement", "relevé", "fiche de l'observation", "écran précédent"), sorties)
     }
 }

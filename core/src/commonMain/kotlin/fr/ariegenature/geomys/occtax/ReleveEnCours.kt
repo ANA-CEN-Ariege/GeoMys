@@ -223,19 +223,27 @@ class ReleveEnCours(
      *  d'ouvrir un nouveau relevé sans position. */
     val introuvable: Boolean
 
+    /** Les observations que ce relevé a trouvées dans la session ou qu'il y a écrites. L'une d'elles
+     *  qui en a disparu a été supprimée, ou la saisie s'est terminée : [synchroniser] ne la recrée pas. */
+    private val idsConnus = mutableSetOf<String>()
+
     init {
         val existantes: List<Observation> = when {
             !ouverture.releveId.isNullOrEmpty() -> session.observations.value.filter { it.releveId == ouverture.releveId }
             ouverture.obsId != null -> session.observations.value.filter { it.id == ouverture.obsId }.take(1)
             else -> emptyList()
         }
+        idsConnus += existantes.map { it.id }
         introuvable = existantes.isEmpty() && (!ouverture.releveId.isNullOrEmpty() || ouverture.obsId != null)
         if (existantes.isNotEmpty()) {
             val premier = existantes.first()
             latitude = premier.latitude
             longitude = premier.longitude
             taxonInitial = premier.taxon ?: Taxon.OISEAU
-            releveIdEdite = premier.releveId
+            // Une observation seule sans relevé (saisie mono-taxon) garde sa clé d'envoi, `releveId ?:
+            // id` : un identifiant tiré au hasard ne retrouvait plus, sur GeoNature, le relevé d'une
+            // observation déjà transmise, et sa modification n'y partait jamais (24 novembre 2026).
+            releveIdEdite = premier.releveId ?: premier.id
             // Toutes les observations d'un relevé partagent ses champs de relevé et sa géométrie.
             additionnelsReleve = premier.additionalFieldsReleve
             idDataset = premier.idDatasetReleve
@@ -397,11 +405,17 @@ class ReleveEnCours(
      *  Idempotent : chaque espèce garde son identité, les espèces retirées quittent le relevé. */
     fun synchroniser() {
         val actuelles = session.observations.value
-        val nouvelles = _especes.value.map { e ->
+        val nouvelles = _especes.value.mapNotNull { e ->
             val id = e.existingId ?: e.vmId
             val nom = e.espece.ifEmpty { "Espèce inconnue" }
+            val existante = actuelles.firstOrNull { it.id == id }
+            // Une observation que ce relevé connaissait et qui a quitté la saisie n'est pas recréée
+            // (24 novembre 2026). Un import de médias de la fiche, fini après sa fermeture, la
+            // ramenait : supprimée entre-temps, elle revenait ; la saisie terminée, elle partait dans
+            // une nouvelle saisie, en double.
+            if (existante == null && id in idsConnus) return@mapNotNull null
             // L'observation existante garde sa date et sa position d'origine.
-            val base = actuelles.firstOrNull { it.id == id } ?: Observation(id = id, espece = nom, latitude = latitude, longitude = longitude)
+            val base = existante ?: Observation(id = id, espece = nom, latitude = latitude, longitude = longitude)
             e.surObservation(base).copy(
                 espece = nom,
                 additionalFieldsReleve = additionnelsAEnregistrer(),
@@ -426,6 +440,7 @@ class ReleveEnCours(
             )
         }
         session.remplacerObservationsDuReleve(releveId, nouvelles)
+        idsConnus += nouvelles.map { it.id }
     }
 
     /** ✓ « Terminer le relevé » : sans espèce, un « relevé sans espèce » est enregistré (une donnée

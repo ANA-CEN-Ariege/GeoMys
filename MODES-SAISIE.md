@@ -1,6 +1,6 @@
 # Mode pro et mode simplifié : les différences
 
-État au 20 novembre 2026 (version 2.2.0, build 223).
+État au 24 novembre 2026 (version 2.2.1-beta1, build 224).
 
 **À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51, 55 à 62, 64 et 65.
 
@@ -143,4 +143,4 @@ Le reste des Paramètres (connexion, liste des serveurs) est identique.
 
 ## Ce qui ne dépend pas du mode
 
-Saisie mono-taxon (qui garde ses écrans Dénombrement et Caractérisation ; leur ✓ et celui de ses détails sont aussi en bas au milieu depuis le 17 novembre 2026), Monitoring et OccHab (absents du mode simplifié, inchangés en mode pro), Explorer, Maps Manager, carte et trace GPS, envoi des saisies, connexion au serveur.
+Saisie mono-taxon (qui garde ses écrans Dénombrement et Caractérisation ; leur ✓ et celui de ses détails sont aussi en bas au milieu depuis le 17 novembre 2026 ; depuis le 24 novembre 2026, une observation touchée sur la carte ouvre un popup « Éditer », qui mène directement à sa fiche, ou « Supprimer » ; plusieurs au même point, on choisit d'abord laquelle), Monitoring et OccHab (absents du mode simplifié, inchangés en mode pro), Explorer, Maps Manager, carte et trace GPS, envoi des saisies, connexion au serveur.

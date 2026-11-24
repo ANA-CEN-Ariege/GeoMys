@@ -65,6 +65,12 @@ sealed interface EvenementSaisieMono {
     /** Modifier une observation enregistrée, dans l'écran du relevé. */
     data class EditerObservation(val obsId: String) : EvenementSaisieMono
 
+    /** Modifier une observation enregistrée directement dans sa fiche, sans l'écran du relevé : son
+     *  marqueur touché, puis « Éditer » (demande du 24 novembre 2026). La fiche est celle du rang
+     *  [index] du relevé [releveId] qui la porte, ou de l'observation [obsId] seule
+     *  ([SaisieMono.ficheAOuvrir]). */
+    data class OuvrirFiche(val obsId: String, val releveId: String? = null, val index: Int = 0) : EvenementSaisieMono
+
     data object Quitter : EvenementSaisieMono
 }
 
@@ -99,6 +105,10 @@ class SaisieMonoViewModel(
     var compteur by mutableStateOf(0)
         private set
 
+    /** Les identifiants de celles que [compteur] compte : une suppression ne le décompte que pour elles
+     *  (une saisie reprise ouvre l'écran avec ses observations, que le compteur ignore). */
+    private val enregistrees = mutableSetOf<String>()
+
     var suivrePosition by mutableStateOf(true)
 
     /** Point posé au doigt pour la PROCHAINE observation ; sans lui, la position GPS. */
@@ -132,8 +142,17 @@ class SaisieMonoViewModel(
     var choixFondVisible by mutableStateOf(false)
         private set
 
-    /** Les observations proches d'un marqueur touché, à rouvrir. */
-    var observationsIci by mutableStateOf<List<Observation>?>(null)
+    /** Les observations au même point que le marqueur touché, quand il y en a plusieurs : on choisit
+     *  d'abord laquelle, puis son popup s'ouvre. */
+    var observationsAuPoint by mutableStateOf<List<Observation>?>(null)
+        private set
+
+    /** L'observation dont le marqueur a été touché : son popup propose de l'éditer ou de la supprimer. */
+    var observationTouchee by mutableStateOf<Observation?>(null)
+        private set
+
+    /** L'observation dont la suppression attend sa confirmation. */
+    var suppressionDemandee by mutableStateOf<Observation?>(null)
         private set
 
     /** Le dialogue « Détails du relevé », s'il est ouvert. */
@@ -290,17 +309,55 @@ class SaisieMonoViewModel(
         pointManuel = p
     }
 
+    /** Marqueur touché : le popup de CETTE observation (demande du 24 novembre 2026 ; un toucher
+     *  listait celles à 30 m, comme sous GeoMys-Android). Plusieurs au même point, dont les marqueurs se
+     *  recouvrent : on choisit d'abord laquelle. */
     fun toucherObservation(observation: Observation) {
-        observationsIci = SaisieMono.observationsIci(observation, session.observations.value)
+        val auPoint = SaisieMono.observationsAuPoint(observation, session.observations.value)
+        if (auPoint.size > 1) observationsAuPoint = auPoint else observationTouchee = observation
     }
 
-    fun fermerObservationsIci() {
-        observationsIci = null
+    fun choisirObservationAuPoint(observation: Observation) {
+        observationsAuPoint = null
+        observationTouchee = observation
     }
 
-    fun editerObservation(obsId: String) {
-        observationsIci = null
-        _evenements.trySend(EvenementSaisieMono.EditerObservation(obsId))
+    fun fermerObservationsAuPoint() {
+        observationsAuPoint = null
+    }
+
+    fun fermerObservationTouchee() {
+        observationTouchee = null
+    }
+
+    /** « Éditer » : la fiche de l'observation, sans l'écran du relevé ; la refermer ramène à la carte.
+     *  Un « relevé sans espèce » n'a pas de fiche : son popup ne propose que « Supprimer ». */
+    fun editerObservationTouchee() {
+        val observation = observationTouchee ?: return
+        observationTouchee = null
+        if (observation.releveSansEspece) return
+        val (releveId, index) = SaisieMono.ficheAOuvrir(observation, session.observations.value)
+        _evenements.trySend(EvenementSaisieMono.OuvrirFiche(observation.id, releveId, index))
+    }
+
+    /** « Supprimer » : rien n'est supprimé avant [confirmerSuppression], comme la corbeille d'une
+     *  espèce du relevé (un doigt décalé touche l'autre bouton du popup). */
+    fun demanderSuppression() {
+        suppressionDemandee = observationTouchee ?: return
+        observationTouchee = null
+    }
+
+    fun annulerSuppression() {
+        suppressionDemandee = null
+    }
+
+    /** Suppression confirmée : l'observation quitte la saisie, dont le brouillon est réécrit. */
+    fun confirmerSuppression() {
+        val observation = suppressionDemandee ?: return
+        suppressionDemandee = null
+        session.supprimerObservation(observation.id)
+        if (enregistrees.remove(observation.id)) compteur--
+        if (confirmation?.id == observation.id) masquerConfirmation()
     }
 
     /** Marqueur lâché : la position corrigée est enregistrée. */
@@ -344,6 +401,7 @@ class SaisieMonoViewModel(
         val position = tracker.position.value?.let { LatLon(it.latitude, it.longitude) }
         val ici = pointManuel ?: position ?: centre
         val observation = saisie.enregistrer(ici.latitude, ici.longitude)
+        enregistrees += observation.id
         compteur++
         montrerConfirmation(observation)
         pointManuel = null

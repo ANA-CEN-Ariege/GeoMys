@@ -150,7 +150,10 @@ data class RouteSaisieMulti(val sortieId: String? = null)
 
 /** Saisie d'un relevé : repris ([releveId], ou l'observation seule [obsId]), sinon nouveau, posé à
  *  sa géométrie ([geometrieType], [geometrieCoords], [latitude], [longitude]), avec les champs
- *  additionnels saisis dans l'écran intercalé ([additionnelsJson], le `addReleveJson` d'Android). */
+ *  additionnels saisis dans l'écran intercalé ([additionnelsJson], le `addReleveJson` d'Android).
+ *  [ficheSeule] : le relevé de l'observation [obsId] ne fait que porter sa fiche, empilée aussitôt
+ *  par-dessus (« Éditer » d'une observation de la saisie mono-taxon) ; il ne se montre jamais, et la
+ *  fiche refermée ramène à l'écran d'avant. */
 @Serializable
 data class RouteReleve(
     val releveId: String? = null,
@@ -160,6 +163,7 @@ data class RouteReleve(
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
     val additionnelsJson: String? = null,
+    val ficheSeule: Boolean = false,
 ) {
     fun ouverture() = OuvertureReleve(
         releveId = releveId,
@@ -694,6 +698,16 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 onCaracterisation = { nav.naviguerDepuis(entree, RouteCaracterisation) },
                 onDenombrement = { nav.naviguerDepuis(entree, RouteDenombrement) },
                 onEditerObservation = { id -> nav.naviguerDepuis(entree, RouteReleve(obsId = id)) },
+                // La fiche de l'observation touchée, sans l'écran du relevé (demande du 24 novembre
+                // 2026) : son relevé, qui la porte, s'empile dessous sans se montrer. Une observation
+                // rattachée à un relevé s'ouvre par lui, à son rang : seule, elle l'aurait remplacé.
+                onOuvrirFiche = { fiche ->
+                    if (entree.lifecycle.currentState == Lifecycle.State.RESUMED) {
+                        val rid = fiche.releveId
+                        nav.navigate(if (rid != null) RouteReleve(releveId = rid, ficheSeule = true) else RouteReleve(obsId = fiche.obsId, ficheSeule = true))
+                        nav.navigate(RouteFicheEspece(fiche.index))
+                    }
+                },
                 onQuitter = { nav.popBackStack() },
             )
         }
@@ -723,6 +737,12 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
         }
         composable<RouteReleve> { entree ->
             val route = entree.toRoute<RouteReleve>()
+            if (route.ficheSeule) {
+                // Porteur d'une fiche seule : revenu au premier plan sans elle (fiche refermée d'elle-même,
+                // observation introuvable), il s'efface aussitôt au lieu de se montrer.
+                LaunchedEffect(Unit) { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() }
+                return@composable
+            }
             val vm = viewModel { SaisieReleveViewModel(services, sessionSaisie, route.ouverture()) }
             if (vm.releve.introuvable) {
                 LaunchedEffect(Unit) { nav.popBackStack() }
@@ -776,6 +796,16 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 LaunchedEffect(Unit) { nav.popBackStack() }
                 return@composable
             }
+            // Fiche ouverte seule (« Éditer » d'une observation de la saisie mono-taxon) : la refermer, par
+            // la coche ou le retour, ramène aussi sous son relevé porteur, à l'écran d'où elle s'est ouverte.
+            val ficheSeule = remember(entree) {
+                runCatching { nav.getBackStackEntry<RouteReleve>().toRoute<RouteReleve>().ficheSeule }.getOrDefault(false)
+            }
+            val fermer = {
+                if (nav.currentBackStackEntry?.id == entree.id) {
+                    if (ficheSeule) nav.popBackStack<RouteReleve>(inclusive = true) else nav.popBackStack()
+                }
+            }
             // Le nom au titre de la fiche : français, sinon latin (demande du 20 novembre 2026). Lu à
             // chaque composition, pas mémorisé : le référentiel du champ espèce peut arriver après.
             val nomEspece = releve.releve.especes.value.getOrNull(route.index)?.let(releve::nomFrancaisOuLatin)
@@ -797,12 +827,12 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                     releve.typeSaisieLabel,
                     nomEspece = nomEspece ?: espece.espece,
                     onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
-                    onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
+                    onRetour = fermer,
                     onValide = { saisie ->
                         // Gardé comme onRetour : un second toucher ne quitte pas aussi le relevé.
                         if (nav.currentBackStackEntry?.id == entree.id) {
                             releve.releve.modifier(route.index) { courante -> if (courante.vmId == espece.vmId) saisie else courante }
-                            nav.popBackStack()
+                            fermer()
                         }
                     },
                 )
@@ -814,7 +844,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 releve.typeSaisieLabel,
                 nomEspece,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
-                onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
+                onRetour = fermer,
             )
         }
         composable<RouteDenombrement> { entree ->

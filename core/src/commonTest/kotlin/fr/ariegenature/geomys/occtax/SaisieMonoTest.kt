@@ -31,6 +31,7 @@ import fr.ariegenature.geomys.model.Taxon
 import fr.ariegenature.geomys.model.WidgetType
 import fr.ariegenature.geomys.store.OcctaxFieldsConfig
 import fr.ariegenature.geomys.store.io.listeVersJson
+import fr.ariegenature.geomys.util.FormatDate
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -177,5 +178,57 @@ class SaisieMonoTest {
         assertEquals(4, donnees.idDataset)
         assertEquals("lisière", donnees.commentaire)
         assertEquals(1L, donnees.dateDebut)
+    }
+
+    /** 24 novembre 2026 : un marqueur touché ouvre le popup de SON observation (éditer, supprimer), à
+     *  l'heure de son enregistrement ; la suppression se confirme. */
+    @Test
+    fun le_popup_d_une_observation_touchee_et_la_confirmation_de_sa_suppression() {
+        val date = 1_763_970_000_000L
+        val heure = FormatDate.heure(date)
+        val merle = Observation(id = "a", espece = "Merle noir", latitude = 42.9, longitude = 1.4, date = date, nombre = 3, notes = "Chante")
+        assertEquals("Merle noir" to "Enregistrée à $heure · 3 individus\nChante", SaisieMono.optionsObservation(merle))
+        assertEquals(
+            "Merle noir" to "Enregistrée à $heure · 1 individu",
+            SaisieMono.optionsObservation(merle.copy(nombre = 1, notes = "", dateDebutReleve = date - 3_600_000L)),
+            "l'heure de l'enregistrement, pas celle des détails de la série",
+        )
+        val sansEspece = merle.copy(espece = ReleveEnCours.ESPECE_SANS_ESPECE, releveSansEspece = true, nombre = 0)
+        assertEquals("Relevé sans espèce" to "Enregistré à $heure", SaisieMono.optionsObservation(sansEspece))
+        assertEquals("Supprimer l'observation ?", SaisieMono.TITRE_SUPPRESSION)
+        assertEquals("« Merle noir », enregistrée à $heure, sera supprimée avec ce qui a été saisi pour elle.", SaisieMono.messageSuppression(merle))
+        assertEquals(
+            "« Merle noir », enregistrée à $heure, sera supprimée avec ce qui a été saisi pour elle. Elle a déjà été transmise à GeoNature, où elle restera.",
+            SaisieMono.messageSuppression(merle.copy(envoyeeServeur = true)),
+        )
+        assertEquals("Le relevé sans espèce enregistré à $heure sera supprimé.", SaisieMono.messageSuppression(sansEspece))
+    }
+
+    /** Plusieurs « + » sur la même position : leurs marqueurs se recouvrent, on choisit d'abord
+     *  laquelle ; des observations séparées sur la carte ouvrent leur popup aussitôt. */
+    @Test
+    fun les_observations_au_meme_point_se_choisissent_d_abord() {
+        val a = Observation(id = "a", espece = "Machaon", latitude = 42.9, longitude = 1.4, date = 1L)
+        val b = a.copy(id = "b", date = 2L)
+        val proche = a.copy(id = "c", latitude = 42.90005, date = 3L)
+        val toutes = listOf(a, b, proche)
+        assertEquals(listOf("b", "a"), SaisieMono.observationsAuPoint(a, toutes).map { it.id }, "la plus récente d'abord")
+        assertEquals(listOf("c"), SaisieMono.observationsAuPoint(proche, toutes).map { it.id }, "à 5 m : son popup seul")
+        assertEquals(listOf("c"), SaisieMono.observationsAuPoint(proche, emptyList()).map { it.id })
+        assertEquals("2 obs. à ce point", SaisieMono.titreObservationsAuPoint(2))
+        assertTrue(SaisieMono.ligneObservationAuPoint(a.copy(nombre = 3, notes = "Mâle")).endsWith("  Machaon · 3 ind.\n   Mâle"))
+    }
+
+    /** « Éditer » ouvre la fiche par le relevé de l'observation, s'il en a un, à son rang. */
+    @Test
+    fun editer_ouvre_la_fiche_par_le_releve_de_l_observation() {
+        val seule = Observation(id = "a", espece = "Machaon", latitude = 42.9, longitude = 1.4)
+        val premiere = seule.copy(id = "b", releveId = "R")
+        val ajoutee = seule.copy(id = "c", espece = "Flambé", releveId = "R")
+        val toutes = listOf(premiere, seule, ajoutee)
+        assertEquals(null to 0, SaisieMono.ficheAOuvrir(seule, toutes))
+        assertEquals("R" to 0, SaisieMono.ficheAOuvrir(premiere, toutes))
+        assertEquals("R" to 1, SaisieMono.ficheAOuvrir(ajoutee, toutes))
+        assertEquals(null to 0, SaisieMono.ficheAOuvrir(seule.copy(releveId = ""), toutes))
     }
 }

@@ -106,6 +106,7 @@ import fr.ariegenature.geomys.ui.composants.BoutonTexte
 import fr.ariegenature.geomys.ui.composants.DialogueActions
 import fr.ariegenature.geomys.ui.composants.DialogueAlerte
 import fr.ariegenature.geomys.ui.composants.DialogueChoixLignesAndroid
+import fr.ariegenature.geomys.ui.composants.DialogueConfirmation
 import fr.ariegenature.geomys.ui.composants.DialogueMaterialIos
 import fr.ariegenature.geomys.ui.composants.GraisseSymbole
 import fr.ariegenature.geomys.ui.composants.HAUTEUR_BANDEAU_IOS
@@ -152,7 +153,8 @@ private val VERT_CONFIRMATION = Color(0xFF669900)
 private val FRANCE = LatLon(46.5, 2.5)
 
 /** La saisie mono-taxon. [onCaracterisation] et [onDenombrement] ouvrent les sous-écrans des
- *  réglages, [onEditerObservation] l'écran du relevé sur une observation enregistrée, [onQuitter]
+ *  réglages, [onEditerObservation] l'écran du relevé sur une observation enregistrée (« Modifier » de
+ *  la confirmation), [onOuvrirFiche] directement sa fiche (marqueur touché, « Éditer »), [onQuitter]
  *  revient à l'écran précédent. */
 @Composable
 fun SaisieMonoScreen(
@@ -161,6 +163,7 @@ fun SaisieMonoScreen(
     onCaracterisation: () -> Unit,
     onDenombrement: () -> Unit,
     onEditerObservation: (String) -> Unit,
+    onOuvrirFiche: (EvenementSaisieMono.OuvrirFiche) -> Unit,
     onQuitter: () -> Unit,
 ) {
     val toasts = LocalToasts.current
@@ -171,6 +174,7 @@ fun SaisieMonoScreen(
                 EvenementSaisieMono.Caracterisation -> onCaracterisation()
                 EvenementSaisieMono.Denombrement -> onDenombrement()
                 is EvenementSaisieMono.EditerObservation -> onEditerObservation(evenement.obsId)
+                is EvenementSaisieMono.OuvrirFiche -> onOuvrirFiche(evenement)
                 EvenementSaisieMono.Quitter -> onQuitter()
             }
         }
@@ -185,7 +189,7 @@ fun SaisieMonoScreen(
         if (vm.modeActif) EcranCarteMono(vm, onAccueil) else EcranReglages(vm, onAccueil)
 
         EcranDetailsReleve(vm.details, vm.session.typeSaisieLabel, onAccueil, vm::fermerDetails, vm::validerDetails)
-        DialogueObservationsIci(vm)
+        DialoguesObservationTouchee(vm)
         DialogueChoixFond(vm.choixFondVisible, vm.fond, vm::choisirFond, vm::fermerChoixFond)
         DialogueActions(
             visible = vm.confirmerTerminer,
@@ -482,8 +486,8 @@ private fun CarteMono(vm: SaisieMonoViewModel): MapState {
         val position by vm.tracker.position.collectAsState()
         // Sous Android, le point de position est sous les marqueurs ; sous iOS, au-dessus (MapKit).
         if (!ios) position?.let { PointPosition(LatLon(it.latitude, it.longitude)) }
-        // Un marqueur par observation : le toucher liste celles du même endroit, le glisser la
-        // déplace.
+        // Un marqueur par observation : le toucher ouvre son popup (éditer, supprimer ; plusieurs au
+        // même point, on choisit d'abord laquelle), le glisser la déplace.
         observations.forEach { obs ->
             MarqueurDeplacable(
                 etat = etat,
@@ -604,43 +608,71 @@ private fun PanneauMono(vm: SaisieMonoViewModel, onEnregistrer: () -> Unit, modi
     }
 }
 
-/** Marqueur touché : les observations du même endroit, à rouvrir.
- *  - Android : AlertDialog d'AppCompat, une ligne par observation (« HH:mm  espèce · N ind. ») ;
- *  - iOS : la liste de GeoMys-IOS (icône du groupe, espèce, heure et effectif, crayon). */
+/** Marqueur touché (demande du 24 novembre 2026) : le popup de l'observation, comme celui d'un relevé
+ *  de la carte multi-taxons (AlertDialog d'AppCompat sous Android, alerte système sous iOS) :
+ *  « Éditer » ouvre sa fiche, « Supprimer » demande confirmation, comme la corbeille d'une espèce du
+ *  relevé. Plusieurs observations au même point : la liste de choix d'abord (« HH:mm  espèce · N
+ *  ind. » sous Android ; sous iOS, la liste de GeoMys-IOS : icône du groupe, espèce, heure et
+ *  effectif). Elle listait toutes les observations à 30 m et ouvrait l'écran du relevé. */
 @Composable
-private fun DialogueObservationsIci(vm: SaisieMonoViewModel) {
-    val ici = vm.observationsIci
-    val titre = SaisieMono.titreObservationsIci(ici?.size ?: 0)
+private fun DialoguesObservationTouchee(vm: SaisieMonoViewModel) {
+    val auPoint = vm.observationsAuPoint
+    val titreListe = SaisieMono.titreObservationsAuPoint(auPoint?.size ?: 0)
     if (!estIos) {
         DialogueChoixLignesAndroid(
-            visible = ici != null,
-            titre = titre,
-            lignes = ici.orEmpty().map(SaisieMono::ligneObservationIci),
-            onChoisir = { i -> ici?.getOrNull(i)?.let { vm.editerObservation(it.id) } },
-            onFermer = vm::fermerObservationsIci,
+            visible = auPoint != null,
+            titre = titreListe,
+            lignes = auPoint.orEmpty().map(SaisieMono::ligneObservationAuPoint),
+            onChoisir = { i -> auPoint?.getOrNull(i)?.let(vm::choisirObservationAuPoint) },
+            onFermer = vm::fermerObservationsAuPoint,
         )
-        return
-    }
-    DialogueMaterialIos(ici != null, titre, vm::fermerObservationsIci, boutons = {
-        BoutonIos(vm::fermerObservationsIci, opaciteAppui = 0.4f) {
-            Text("Fermer", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = CouleursGeoMys.blanc70)
-        }
-    }) {
-        ici.orEmpty().forEachIndexed { i, obs ->
-            val taxon = obs.taxon ?: Taxon.OISEAU
-            Row(
-                Modifier.fillMaxWidth().clickable { vm.editerObservation(obs.id) }.padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Image(painterResource(taxon.icone), null, colorFilter = ColorFilter.tint(taxon.couleur), modifier = Modifier.size(22.dp))
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(obs.espece, fontSize = 15.sp, color = Color.White)
-                    Text("${FormatDate.heure(obs.date)} · ${obs.totalIndividus} ind.", fontSize = 12.sp, color = CouleursGeoMys.blanc70)
-                }
-                SymboleSf("square.and.pencil", 17f, listOf(CouleursGeoMys.primaire))
+    } else {
+        DialogueMaterialIos(auPoint != null, titreListe, vm::fermerObservationsAuPoint, boutons = {
+            BoutonIos(vm::fermerObservationsAuPoint, opaciteAppui = 0.4f) {
+                Text("Fermer", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = CouleursGeoMys.blanc70)
             }
-            if (i < ici.orEmpty().lastIndex) SeparateurIos()
+        }) {
+            auPoint.orEmpty().forEachIndexed { i, obs ->
+                val taxon = obs.taxon ?: Taxon.OISEAU
+                Row(
+                    Modifier.fillMaxWidth().clickable { vm.choisirObservationAuPoint(obs) }.padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Image(painterResource(taxon.icone), null, colorFilter = ColorFilter.tint(taxon.couleur), modifier = Modifier.size(22.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(obs.espece, fontSize = 15.sp, color = Color.White)
+                        Text("${FormatDate.heure(obs.date)} · ${obs.totalIndividus} ind.", fontSize = 12.sp, color = CouleursGeoMys.blanc70)
+                    }
+                    SymboleSf("chevron.right", 14f, listOf(CouleursGeoMys.blanc70))
+                }
+                if (i < auPoint.orEmpty().lastIndex) SeparateurIos()
+            }
         }
     }
+    val touchee = vm.observationTouchee
+    val (titre, message) = touchee?.let(SaisieMono::optionsObservation) ?: ("" to "")
+    DialogueAlerte(
+        visible = touchee != null,
+        titre = titre,
+        message = message,
+        // Un relevé sans espèce n'a pas de fiche à éditer.
+        boutons = listOfNotNull(
+            BoutonAlerte("Supprimer", destructif = true, action = vm::demanderSuppression),
+            BoutonAlerte("Éditer", action = vm::editerObservationTouchee).takeIf { touchee?.releveSansEspece != true },
+            BoutonAlerte("Fermer", annulation = true),
+        ),
+        onFermer = vm::fermerObservationTouchee,
+    )
+    val aSupprimer = vm.suppressionDemandee
+    DialogueConfirmation(
+        visible = aSupprimer != null,
+        titre = SaisieMono.TITRE_SUPPRESSION,
+        message = aSupprimer?.let(SaisieMono::messageSuppression).orEmpty(),
+        boutons = listOf(
+            BoutonAlerte("Annuler", annulation = true),
+            BoutonAlerte("Supprimer", destructif = true, action = vm::confirmerSuppression),
+        ),
+        onFermer = vm::annulerSuppression,
+    )
 }

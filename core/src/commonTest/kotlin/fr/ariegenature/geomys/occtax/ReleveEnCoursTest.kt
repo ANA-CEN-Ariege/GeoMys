@@ -111,6 +111,43 @@ class ReleveEnCoursTest {
         assertEquals("R2", session.observations.value.single { it.id == "autre" }.releveId)
     }
 
+    /** 24 novembre 2026 : une observation mono-taxon (sans relevé) éditée garde sa clé d'envoi
+     *  (`releveId ?: id`), qui retrouve sur GeoNature le relevé d'une observation déjà transmise. */
+    @Test
+    fun une_observation_seule_editee_garde_sa_cle_d_envoi() = runTest {
+        val session = session()
+        session.ajouterObservation(Observation(id = "m1", espece = "Machaon", taxon = Taxon.INSECTE, cdNom = 54303, latitude = 42.9, longitude = 1.4, envoyeeServeur = true))
+        val releve = ReleveEnCours(session, config, OuvertureReleve(obsId = "m1"), dernierTaxon = null)
+        assertEquals("m1", releve.releveId)
+        releve.modifier(0) { it.copy(nombre = 2) }
+        val m1 = session.observations.value.single()
+        assertEquals("m1", m1.releveId ?: m1.id)
+        assertEquals(2, m1.nombre)
+        assertTrue(m1.envoyeeServeur)
+    }
+
+    /** 24 novembre 2026 : une observation que le relevé connaissait et que la saisie a perdue (supprimée
+     *  depuis la carte mono-taxon, ou saisie terminée, pendant qu'un import de médias de sa fiche
+     *  courait encore) n'est pas recréée ; une espèce nouvelle s'enregistre toujours. */
+    @Test
+    fun une_observation_supprimee_entre_temps_n_est_pas_recreee() = runTest {
+        val session = session()
+        session.ajouterObservation(Observation(id = "m1", espece = "Machaon", taxon = Taxon.INSECTE, latitude = 42.9, longitude = 1.4))
+        session.ajouterObservation(Observation(id = "m2", espece = "Machaon", taxon = Taxon.INSECTE, latitude = 42.91, longitude = 1.41))
+        val releve = ReleveEnCours(session, config, OuvertureReleve(obsId = "m1"), dernierTaxon = null)
+        session.supprimerObservation("m1")
+        releve.modifier(0) { it.copy(notes = "photo arrivée après coup") }
+        assertEquals(listOf("m2"), session.observations.value.map { it.id })
+        // Une espèce ajoutée au relevé s'enregistre…
+        releve.ajouter(Taxon.INSECTE, "Flambé", 54317)
+        val flambe = session.observations.value.single { it.espece == "Flambé" }
+        assertEquals(listOf("m2", flambe.id), session.observations.value.map { it.id })
+        // … et, supprimée à son tour (ou la saisie vidée à sa fin), ne revient pas non plus.
+        session.supprimerObservation(flambe.id)
+        releve.modifier(1) { it.copy(notes = "photo arrivée après coup") }
+        assertEquals(listOf("m2"), session.observations.value.map { it.id })
+    }
+
     @Test
     fun terminer_sans_espece_enregistre_un_releve_d_absence() = runTest {
         val session = session()
