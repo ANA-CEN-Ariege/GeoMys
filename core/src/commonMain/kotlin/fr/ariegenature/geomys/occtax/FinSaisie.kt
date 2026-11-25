@@ -79,7 +79,11 @@ object FinSaisie {
         session.attendreEcritures()
         val id = session.sortieEnEditionId
         val existante = id?.let { sid -> store.charger().firstOrNull { it.id == sid } }
-        val sortie = (existante ?: Sortie()).copy(observations = session.observations.value)
+        // Les valeurs de la série mono-taxon restent avec la saisie, pour « Continuer la saisie ».
+        val sortie = (existante ?: Sortie(saisieMono = true)).copy(
+            observations = session.observations.value,
+            modeleMono = session.modeleMono ?: existante?.modeleMono,
+        )
         if (sortie.observations.isNotEmpty()) {
             val ok = if (id != null) store.remplacer(id, sortie) else store.ajouter(sortie)
             if (!ok) return Resultat(sortie, ecrite = false)

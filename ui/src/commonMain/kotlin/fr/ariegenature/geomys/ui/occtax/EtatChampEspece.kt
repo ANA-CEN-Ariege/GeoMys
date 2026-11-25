@@ -176,8 +176,12 @@ class EtatChampEspece(
         portee.launch {
             val visibles = withContext(calcul) { services.taxRef.groupesNonVides(liste) }
             groupes = visibles
-            taxon = groupeDeDepart(taxon, visibles)
+            val voulu = taxon
+            taxon = groupeDeDepart(voulu, visibles)
             rafraichirPropositions()
+            // Groupe changé d'office : un nom déjà posé (saisie mono-taxon reprise) désigne un taxon de
+            // l'ancien groupe, il est re-résolu dans le nouveau, comme après un choix de groupe.
+            if (taxon != voulu && texte.isNotEmpty()) recherche.relancer(texte)
         }
         // Filtre des propositions à chaque frappe, hors du fil de l'interface (15 000 à 50 000 noms).
         portee.launch {
@@ -225,6 +229,13 @@ class EtatChampEspece(
         vocaux = null
         texteChoisi = nom
         texte = nom
+    }
+
+    /** Le choix posé reste, statut compris, mais la liste le propose de nouveau : en saisie mono-taxon,
+     *  après une fiche de la série refermée sans ✓ dans les réglages
+     *  ([SaisieMonoViewModel.ficheSerieAbandonnee]), toucher l'espèce rouvre sa fiche (24 novembre 2026). */
+    fun libererChoix() {
+        texteChoisi = null
     }
 
     /** Le champ vidé, sans statut. */

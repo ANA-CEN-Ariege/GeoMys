@@ -41,9 +41,7 @@ class PasserelleMonoMultiTest {
     /** Où mène chaque événement de la saisie mono-taxon. */
     private fun destination(e: EvenementSaisieMono): String = when (e) {
         is EvenementSaisieMono.Message -> "aucune"
-        EvenementSaisieMono.Caracterisation -> "caractérisation"
-        EvenementSaisieMono.Denombrement -> "dénombrement"
-        is EvenementSaisieMono.EditerObservation -> "relevé"
+        EvenementSaisieMono.FicheSerie -> "fiche de la série"
         is EvenementSaisieMono.OuvrirFiche -> "fiche de l'observation"
         EvenementSaisieMono.Quitter -> "écran précédent"
     }
@@ -63,12 +61,10 @@ class PasserelleMonoMultiTest {
     fun la_saisie_mono_n_ouvre_pas_la_carte_multi() {
         val sorties = listOf(
             EvenementSaisieMono.Message("x"),
-            EvenementSaisieMono.Caracterisation,
-            EvenementSaisieMono.Denombrement,
-            EvenementSaisieMono.EditerObservation("o"),
+            EvenementSaisieMono.FicheSerie,
             EvenementSaisieMono.OuvrirFiche("o"),
             EvenementSaisieMono.Quitter,
         ).map(::destination)
-        assertEquals(listOf("aucune", "caractérisation", "dénombrement", "relevé", "fiche de l'observation", "écran précédent"), sorties)
+        assertEquals(listOf("aucune", "fiche de la série", "fiche de l'observation", "écran précédent"), sorties)
     }
 }

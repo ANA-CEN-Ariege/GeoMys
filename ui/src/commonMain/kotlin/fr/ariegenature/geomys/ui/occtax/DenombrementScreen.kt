@@ -64,7 +64,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import fr.ariegenature.geomys.model.Denombrement
 import fr.ariegenature.geomys.ui.composants.BoutonAlerte
 import fr.ariegenature.geomys.ui.composants.BoutonIos
 import fr.ariegenature.geomys.ui.composants.BoutonMaterial
@@ -73,7 +72,6 @@ import fr.ariegenature.geomys.ui.composants.ChampLibelle
 import fr.ariegenature.geomys.ui.composants.ChampTexteFormulaire
 import fr.ariegenature.geomys.ui.composants.DialogueActions
 import fr.ariegenature.geomys.ui.composants.DialogueConfirmation
-import fr.ariegenature.geomys.ui.composants.DialogueGardeSortie
 import fr.ariegenature.geomys.ui.composants.GRIS_TITRE_CHAMP
 import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.SymboleSf
@@ -81,7 +79,6 @@ import fr.ariegenature.geomys.ui.composants.barreChampObligatoire
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.composants.nomMedia
 import fr.ariegenature.geomys.ui.composants.rememberAjoutMedias
-import fr.ariegenature.geomys.ui.composants.rememberGardeSortie
 import fr.ariegenature.geomys.ui.composants.styleLibelleMaterial
 import fr.ariegenature.geomys.ui.composants.styleSaisieIos
 import fr.ariegenature.geomys.ui.ressources.Res
@@ -136,8 +133,9 @@ internal fun rememberMediasDenombrement(vm: DenombrementViewModel): EtatMediasDe
     )
 }
 
-/** Les dénombrements de l'espèce, un cadre chacun, et « Ajouter un dénombrement » : le contenu de
- *  l'écran Dénombrement (saisie mono-taxon) et de la fiche de l'observation (saisie multi-taxons). */
+/** Les dénombrements de l'espèce, un cadre chacun, et « Ajouter un dénombrement », dans la fiche de
+ *  l'observation du mode pro, d'un relevé ou d'une série mono-taxon. Ils ont eu leur propre écran,
+ *  Dénombrement, que la saisie mono-taxon a ouvert jusqu'au 24 novembre 2026. */
 @Composable
 internal fun ContenuDenombrement(vm: DenombrementViewModel, etat: EtatMediasDenombrement) {
     vm.cartes.forEachIndexed { index, carte ->
@@ -173,35 +171,6 @@ internal fun DialoguesDenombrement(vm: DenombrementViewModel, etat: EtatMediasDe
         onConfirmer = { etat.mediaASupprimer?.let { (carte, uri) -> vm.retirerMedia(carte, uri) } },
         onFermer = etat.fermerSuppression,
     )
-}
-
-/** Les dénombrements de l'espèce ; [onValide] reçoit la liste, le n° 0 en tête. */
-@Composable
-fun DenombrementScreen(
-    vm: DenombrementViewModel,
-    typeSaisieLabel: String,
-    onAccueil: () -> Unit,
-    onRetour: () -> Unit,
-    onValide: (List<Denombrement>) -> Unit,
-) {
-    val toasts = LocalToasts.current
-    val etat = rememberMediasDenombrement(vm)
-    val garde = rememberGardeSortie(vm::modifie, onRetour)
-    EcranFormulaireEspece(
-        titre = "Dénombrement",
-        sousTitre = vm.nomEspece,
-        typeSaisieLabel = typeSaisieLabel,
-        onAccueil = { garde.demander(onAccueil) },
-        onValider = {
-            val (liste, message) = vm.valider()
-            if (liste != null) onValide(liste) else if (message != null) toasts.afficher(message, true)
-        },
-        valideEnBas = true,
-    ) {
-        ContenuDenombrement(vm, etat)
-    }
-    DialoguesDenombrement(vm, etat)
-    DialogueGardeSortie(garde, "Dénombrement non enregistré", onAbandon = vm::abandonner)
 }
 
 @Composable

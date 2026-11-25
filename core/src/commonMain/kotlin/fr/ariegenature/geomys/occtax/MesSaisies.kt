@@ -21,6 +21,7 @@
 
 package fr.ariegenature.geomys.occtax
 
+import fr.ariegenature.geomys.model.Observation
 import fr.ariegenature.geomys.model.Sortie
 import fr.ariegenature.geomys.util.FormatDate
 import fr.ariegenature.geomys.util.formaterDecimal
@@ -65,7 +66,11 @@ object MesSaisies {
     fun peutEnvoyer(sortie: Sortie, envoiAutorise: Boolean): Boolean = envoiAutorise && estEnvoyable(sortie)
 
     /** Les vraies observations : le placeholder « relevé sans espèce » n'en est pas une. */
-    fun nbObservations(sortie: Sortie): Int = sortie.observations.count { !it.releveSansEspece }
+    fun nbObservations(sortie: Sortie): Int = nbObservations(sortie.observations)
+
+    /** Les vraies observations de [observations], comptées comme celles d'une saisie : aussi le compteur
+     *  de la carte mono-taxon, depuis le 25 novembre 2026. */
+    fun nbObservations(observations: List<Observation>): Int = observations.count { !it.releveSansEspece }
 
     /** Bouton « Lister les espèces » : dès qu'il y a au moins une observation. */
     fun aDesObservations(sortie: Sortie): Boolean = nbObservations(sortie) > 0

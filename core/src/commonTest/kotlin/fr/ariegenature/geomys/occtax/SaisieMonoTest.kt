@@ -127,13 +127,11 @@ class SaisieMonoTest {
         }
         assertEquals(43.0 to 1.7, b.latitude to b.longitude)
         // Total de tous les dénombrements (2 + 1), défaut n° 5 de l'inventaire corrigé : sous
-        // GeoMys-Android, le résumé et la confirmation n'affichaient que le n° 0 (« × 2 »).
+        // GeoMys-Android, le résumé n'affichait que le n° 0 (« × 2 »).
         assertEquals("Renard roux × 3", mono.resume())
-        assertEquals("M", mono.resumeDetails())
         assertEquals("M", mono.indicateurDetails())
         assertEquals("2 obs. enregistrées", SaisieMono.compteur(2))
         assertEquals("1 obs. enregistrée", SaisieMono.compteur(1))
-        assertEquals("Renard roux × 3", SaisieMono.confirmation(a))
     }
 
     @Test
@@ -178,6 +176,76 @@ class SaisieMonoTest {
         assertEquals(4, donnees.idDataset)
         assertEquals("lisière", donnees.commentaire)
         assertEquals(1L, donnees.dateDebut)
+    }
+
+    /** 24 novembre 2026 : « Continuer la saisie » rouvre la carte sur le dernier « + » qui a une espèce
+     *  de TaxRef. Une espèce ajoutée ensuite par l'écran de son relevé n'est pas un « + ». */
+    @Test
+    fun la_reprise_continue_l_espece_du_dernier_plus() {
+        val merle = Observation(id = "a", espece = "Merle noir", taxon = Taxon.OISEAU, cdNom = 4117, latitude = 42.9, longitude = 1.6, date = 1_000L)
+        val machaon = Observation(id = "b", espece = "Machaon", taxon = Taxon.INSECTE, cdNom = 54303, latitude = 42.9, longitude = 1.6, date = 3_000L)
+        val rougegorge = Observation(id = "e", espece = "Rougegorge familier", taxon = Taxon.OISEAU, cdNom = 4001, latitude = 42.9, longitude = 1.6, date = 500L)
+        val sansEspece = Observation(id = "c", espece = "Relevé sans espèce", latitude = 42.9, longitude = 1.6, date = 5_000L, releveSansEspece = true)
+        val horsTaxRef = Observation(id = "d", espece = "Inconnu", latitude = 42.9, longitude = 1.6, date = 4_000L)
+        assertEquals(machaon, SaisieMono.observationAReprendre(listOf(machaon, merle, sansEspece, horsTaxRef)), "la plus récente, en tête")
+        assertEquals(machaon, SaisieMono.observationAReprendre(listOf(merle, machaon, sansEspece, horsTaxRef)), "dans l'ordre d'enregistrement")
+        assertEquals(machaon, SaisieMono.observationAReprendre(listOf(merle, machaon, rougegorge)), "la plus récente, au milieu")
+        assertEquals(merle, SaisieMono.observationAReprendre(listOf(merle)))
+        assertNull(SaisieMono.observationAReprendre(listOf(sansEspece, horsTaxRef)), "rien à reprendre : les réglages")
+        assertNull(SaisieMono.observationAReprendre(emptyList()))
+
+        // Le Machaon modifié seul (son id pour relevé, § 78), puis un Pinson ajouté à son relevé : la
+        // série reprend le Machaon, pas l'espèce ajoutée après lui.
+        val machaonEdite = machaon.copy(releveId = machaon.id)
+        val pinson = Observation(id = "f", espece = "Pinson des arbres", taxon = Taxon.OISEAU, cdNom = 3762, latitude = 42.9, longitude = 1.6, date = 9_000L, releveId = machaon.id)
+        assertEquals(machaonEdite, SaisieMono.observationAReprendre(listOf(merle, machaonEdite, pinson)))
+        // Le « + » mis à la corbeille dans son relevé : l'espèce restante est reprise.
+        assertEquals(pinson, SaisieMono.observationAReprendre(listOf(merle, pinson)))
+    }
+
+    /** 24 novembre 2026 : les valeurs de la série (sa fiche) ne portent ni photo ni son, que chaque « + »
+     *  recopierait ; elles partent avec la saisie au démarrage, et au ✓ de la fiche rouverte par le « i »
+     *  de la carte (25 novembre 2026), et se reprennent telles quelles. */
+    @Test
+    fun les_valeurs_de_la_serie_sans_media_gardees_avec_la_saisie_et_reprises() = runTest {
+        val session = session()
+        val mono = SaisieMono(session, config, Taxon.INSECTE)
+        mono.choisirEspece(Taxon.INSECTE, "Machaon", 54303)
+        mono.modifier {
+            it.copy(nombre = 3, sexe = "M", mediaUrisCounting0 = listOf("photo.jpg"), denombrementsAdditionnels = listOf(Denombrement(nombreMin = 1, mediaUris = listOf("son.m4a"))))
+        }
+        val m = mono.modele.value
+        assertTrue(m.mediaUrisCounting0.isEmpty() && m.denombrementsAdditionnels.single().mediaUris.isEmpty())
+        assertNull(session.modeleMono, "rien d'écrit avant le démarrage de la série")
+        mono.demarrer("Machaon", 54303)
+        val gardees = session.modeleMono
+        assertEquals(Triple("Machaon", 3, "M"), Triple(gardees?.espece, gardees?.nombre, gardees?.sexe))
+        val obs = mono.enregistrer(42.9, 1.6)
+        assertEquals(4, obs.totalIndividus)
+        assertTrue(obs.mediaUrisCounting0.isEmpty())
+
+        // La fiche rouverte par le « i » de la carte (25 novembre 2026) : ses valeurs repartent avec la saisie
+        // à son ✓ seulement, et l'observation déjà enregistrée garde les siennes.
+        mono.modifier { it.copy(nombre = 5, sexe = "F") }
+        assertEquals(3, session.modeleMono?.nombre, "pas avant le ✓")
+        mono.garderAvecLaSaisie()
+        assertEquals(Triple("Machaon", 5, "F"), session.modeleMono.let { Triple(it?.espece, it?.nombre, it?.sexe) })
+        assertEquals(3, session.observations.value.single().nombre)
+        assertEquals(5, mono.enregistrer(42.91, 1.61).nombre, "le « + » suivant")
+
+        // « Continuer la saisie » : une nouvelle série reprend les valeurs gardées en dernier, celles du ✓
+        // du « i » (sans média, même s'il y en avait).
+        val reprise = SaisieMono(session, config, Taxon.OISEAU)
+        reprise.reprendreModele(session.modeleMono!!.copy(mediaUrisCounting0 = listOf("autre.jpg")))
+        val r = reprise.modele.value
+        assertEquals(listOf<Any?>("Machaon", 54303, Taxon.INSECTE, 5, "F"), listOf(r.espece, r.cdNom, r.taxon, r.nombre, r.sexe))
+        assertTrue(r.mediaUrisCounting0.isEmpty())
+
+        // Une autre espèce repart des valeurs par défaut ; la même les garde.
+        reprise.choisirEspece(Taxon.INSECTE, "Machaon", 54303)
+        assertEquals(5, reprise.modele.value.nombre)
+        reprise.choisirEspece(Taxon.INSECTE, "Flambé", 54317)
+        assertEquals(1 to "", reprise.modele.value.let { it.nombre to it.sexe })
     }
 
     /** 24 novembre 2026 : un marqueur touché ouvre le popup de SON observation (éditer, supprimer), à

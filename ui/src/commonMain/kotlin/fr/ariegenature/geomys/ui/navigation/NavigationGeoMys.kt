@@ -82,9 +82,7 @@ import fr.ariegenature.geomys.occtax.MesSaisies
 import fr.ariegenature.geomys.occtax.OuvertureReleve
 import fr.ariegenature.geomys.occtax.SaisieMono
 import fr.ariegenature.geomys.saisie.ChampsAdditionnels
-import fr.ariegenature.geomys.ui.occtax.CaracterisationScreen
 import fr.ariegenature.geomys.ui.occtax.CaracterisationViewModel
-import fr.ariegenature.geomys.ui.occtax.DenombrementScreen
 import fr.ariegenature.geomys.ui.occtax.DenombrementViewModel
 import fr.ariegenature.geomys.ui.occtax.DetailsReleveIntercalaireScreen
 import fr.ariegenature.geomys.ui.occtax.DetailsReleveIntercalaireViewModel
@@ -177,9 +175,12 @@ data class RouteReleve(
 @Serializable
 data object RouteObservations
 
-/** Saisie mono-taxon, avec les champs de relevé de l'écran intercalé ([additionnelsJson]). */
+/** Saisie mono-taxon, avec les champs de relevé de l'écran intercalé ([additionnelsJson]). [reprise] :
+ *  « Continuer la saisie » depuis « Mes saisies » (demande du 24 novembre 2026) : la série reprend les
+ *  valeurs gardées avec la saisie (`Sortie.modeleMono`), sinon l'espèce et les valeurs de son dernier
+ *  « + », et s'ouvre sur la carte, après « Détails » ou la fiche de la série s'ils sont demandés. */
 @Serializable
-data class RouteSaisieMono(val additionnelsJson: String? = null)
+data class RouteSaisieMono(val additionnelsJson: String? = null, val reprise: Boolean = false)
 
 /** Les champs additionnels obligatoires d'un nouveau relevé, avant ses espèces, posé à sa géométrie ;
  *  [mono] : avant la saisie mono-taxon, dont ils seront le défaut. */
@@ -192,19 +193,17 @@ data class RouteDetailsReleve(
     val mono: Boolean = false,
 )
 
-/** Caractérisation de l'espèce de la saisie mono-taxon. */
+/** La fiche de l'espèce de la série mono-taxon, celle du mode (pro ou simplifié), sans photo ni son :
+ *  ses valeurs valent pour chaque « + » (demande du 24 novembre 2026), et le « i » de la carte la
+ *  rouvre pour la suite de la série (25 novembre 2026). */
 @Serializable
-data object RouteCaracterisation
+data object RouteFicheSerie
 
 /** La « Fiche de l'observation » [index] du relevé ouvert, qui porte tous ses champs : ceux du mode du
  *  relevé (pro ou simplifié). [nidification] : ouverte d'elle-même pour un oiseau nicheur ; ne change
  *  plus rien depuis que le comportement est en tête de la fiche du mode pro (19 novembre 2026). */
 @Serializable
 data class RouteFicheEspece(val index: Int, val nidification: Boolean = false)
-
-/** Dénombrements de l'espèce de la saisie mono-taxon. */
-@Serializable
-data object RouteDenombrement
 
 /** Contenu d'une liste de taxons du cache (Paramètres › Détails). */
 @Serializable
@@ -296,8 +295,7 @@ private val DESTINATIONS_SAISIE = listOf(
     RouteObservations::class,
     RouteDetailsReleve::class,
     RouteReleve::class,
-    RouteCaracterisation::class,
-    RouteDenombrement::class,
+    RouteFicheSerie::class,
     RouteFicheEspece::class,
 )
 
@@ -624,10 +622,10 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 onDetail = { id -> nav.navigate(RouteSortieDetail(id)) },
                 onContinuer = { sortie ->
                     if (sortie.saisieMono) {
-                        // Saisie mono-taxon : elle se rouvre en mono, reprise dans la session.
+                        // Saisie mono-taxon : elle se rouvre en mono, reprise dans la session, sur la carte.
                         sessionSaisie.session.reprendreSortie(sortie)
                         val additionnels = MesSaisies.additionnelsPourContinuerEnMono(sortie)
-                        nav.navigate(RouteSaisieMono(additionnels.takeIf { it.isNotEmpty() }?.let(::mapVersJson)))
+                        nav.navigate(RouteSaisieMono(additionnels.takeIf { it.isNotEmpty() }?.let(::mapVersJson), reprise = true))
                     } else {
                         // Recharger la sortie et recadrer la carte dessus, même déjà éditée dans la session.
                         sessionSaisie.session.forcerRepriseAuProchainEcran()
@@ -683,21 +681,23 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
         }
         composable<RouteSaisieMono> { entree ->
             val route = entree.toRoute<RouteSaisieMono>()
-            val vm = viewModel { SaisieMonoViewModel(services, sessionSaisie, route.additionnelsJson?.let(::mapDepuisJson)) }
+            val vm = viewModel { SaisieMonoViewModel(services, sessionSaisie, route.additionnelsJson?.let(::mapDepuisJson), route.reprise) }
             if (essaiMonoCarte) {
                 LaunchedEffect(vm) {
                     essaiMonoCarte = false
                     vm.champ.saisir("Merle noir")
                     vm.champ.recherche.poser(TaxRefStatut.Trouve(4117, "Turdus merula", "Merle noir"), "Merle noir")
-                    vm.demarrer()
+                    // La carte, comme après le ✓ de la fiche de la série (« Démarrer » l'ouvrirait d'abord).
+                    vm.ficheSerieValidee()
                 }
             }
             SaisieMonoScreen(
                 vm,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
-                onCaracterisation = { nav.naviguerDepuis(entree, RouteCaracterisation) },
-                onDenombrement = { nav.naviguerDepuis(entree, RouteDenombrement) },
-                onEditerObservation = { id -> nav.naviguerDepuis(entree, RouteReleve(obsId = id)) },
+                // Pas naviguerDepuis : à la reprise, la fiche est demandée dès l'ouverture de l'écran, quand
+                // son entrée n'est encore que STARTED. Un second toucher reste sans effet : la fiche est
+                // alors en haut de la pile.
+                onFicheSerie = { if (nav.currentBackStackEntry?.id == entree.id) nav.navigate(RouteFicheSerie) },
                 // La fiche de l'observation touchée, sans l'écran du relevé (demande du 24 novembre
                 // 2026) : son relevé, qui la porte, s'empile dessous sans se montrer. Une observation
                 // rattachée à un relevé s'ouvre par lui, à son rang : seule, elle l'aurait remplacé.
@@ -768,24 +768,62 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 },
             )
         }
-        // Caractérisation et Dénombrement ne s'ouvrent plus qu'en saisie mono-taxon : en saisie
-        // multi-taxons, la fiche de l'observation porte leurs champs (16 novembre 2026).
-        composable<RouteCaracterisation> { entree ->
+        // La fiche de la série mono-taxon (demande du 24 novembre 2026) : la fiche de l'observation du
+        // mode, comme pour une espèce ajoutée en multi-taxons, mais sur les valeurs de la série, sans
+        // photo ni son ; son ✓ ouvre la carte, ou y ramène si le « i » de la carte l'a ouverte (25 novembre
+        // 2026). Plus d'écrans Caractérisation et Dénombrement à part : en saisie multi-taxons, la fiche
+        // porte leurs champs depuis le 16 novembre 2026.
+        composable<RouteFicheSerie> { entree ->
             val mono = saisieMonoOuverte(nav, entree, services, sessionSaisie)
-            val espece = remember(mono) { mono?.especeFormulaires() }
-            if (mono == null || espece == null) {
+            // Sans espèce, pas de série à régler : la pile restaurée après la mort du processus revient
+            // avec un ViewModel neuf (relecture du 25 novembre 2026). La fiche s'efface, comme sans saisie.
+            if (mono == null || mono.saisie.modele.value.cdNom == null) {
                 LaunchedEffect(Unit) { nav.popBackStack() }
                 return@composable
             }
-            val vm = viewModel { CaracterisationViewModel(services, espece, comportementSeul = false, mono.saisie.idDatasetEffectif()) }
-            CaracterisationScreen(
+            // Refermée sans ✓ : retour à l'écran d'où elle s'est ouverte, la carte, ou les réglages, où le
+            // champ espèce la propose de nouveau.
+            val abandonner = {
+                if (nav.currentBackStackEntry?.id == entree.id) {
+                    mono.ficheSerieAbandonnee()
+                    nav.popBackStack()
+                }
+            }
+            val nomEspece = mono.nomFicheSerie()
+            if (services.preferences.modeSaisie != ModeSaisie.SIMPLIFIE) {
+                val espece = remember(mono) { mono.saisie.modele.value }
+                val idDataset = mono.saisie.idDatasetEffectif()
+                val denombrement = viewModel { DenombrementViewModel(services, espece, idDataset, avecMedias = false) }
+                val caracterisation = viewModel { CaracterisationViewModel(services, espece, comportementSeul = false, idDataset) }
+                FicheProScreen(
+                    denombrement,
+                    caracterisation,
+                    sessionSaisie.session.typeSaisieLabel,
+                    nomEspece = nomEspece,
+                    onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
+                    onRetour = abandonner,
+                    onValide = { fiche ->
+                        // Gardé comme onRetour : un second toucher ne quitte pas aussi la saisie.
+                        if (nav.currentBackStackEntry?.id == entree.id) {
+                            mono.validerFicheSerie(fiche)
+                            nav.popBackStack()
+                        }
+                    },
+                )
+                return@composable
+            }
+            val vm = viewModel { FicheEspeceViewModel(services, mono.saisie.ficheSerie, 0, avecMedias = false) }
+            FicheEspeceScreen(
                 vm,
                 sessionSaisie.session.typeSaisieLabel,
+                nomEspece,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
-                onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
-                onValide = { caracterisee ->
-                    mono.appliquerCaracterisation(caracterisee)
-                    nav.popBackStack()
+                onRetour = abandonner,
+                onValide = {
+                    if (nav.currentBackStackEntry?.id == entree.id) {
+                        mono.ficheSerieValidee()
+                        nav.popBackStack()
+                    }
                 },
             )
         }
@@ -845,25 +883,6 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 nomEspece,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
                 onRetour = fermer,
-            )
-        }
-        composable<RouteDenombrement> { entree ->
-            val mono = saisieMonoOuverte(nav, entree, services, sessionSaisie)
-            val espece = remember(mono) { mono?.especeFormulaires() }
-            if (mono == null || espece == null) {
-                LaunchedEffect(Unit) { nav.popBackStack() }
-                return@composable
-            }
-            val vm = viewModel { DenombrementViewModel(services, espece, mono.saisie.idDatasetEffectif()) }
-            DenombrementScreen(
-                vm,
-                sessionSaisie.session.typeSaisieLabel,
-                onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
-                onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
-                onValide = { liste ->
-                    mono.appliquerDenombrements(liste)
-                    nav.popBackStack()
-                },
             )
         }
         composable<RouteOccHabCarte> { entree ->
@@ -969,7 +988,8 @@ private fun saisieMonoOuverte(
 ): SaisieMonoViewModel? {
     val parent = remember(entree) { runCatching { nav.getBackStackEntry<RouteSaisieMono>() }.getOrNull() } ?: return null
     return viewModel(parent) {
-        SaisieMonoViewModel(services, sessionSaisie, parent.toRoute<RouteSaisieMono>().additionnelsJson?.let(::mapDepuisJson))
+        val route = parent.toRoute<RouteSaisieMono>()
+        SaisieMonoViewModel(services, sessionSaisie, route.additionnelsJson?.let(::mapDepuisJson), route.reprise)
     }
 }
 

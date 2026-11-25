@@ -36,8 +36,8 @@ import fr.ariegenature.geomys.ServicesGeoNature
 import fr.ariegenature.geomys.occtax.ChampNomenclature
 import fr.ariegenature.geomys.occtax.DetailsReleveFormulaire
 import fr.ariegenature.geomys.occtax.EspeceReleve
+import fr.ariegenature.geomys.occtax.EspecesModifiables
 import fr.ariegenature.geomys.occtax.FormulairesEspece
-import fr.ariegenature.geomys.occtax.ReleveEnCours
 import fr.ariegenature.geomys.occtax.SaisieSimplifiee
 import fr.ariegenature.geomys.saisie.ChampsTaxon
 import fr.ariegenature.geomys.saisie.EtatChampsAdditionnels
@@ -47,11 +47,13 @@ import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.util.moisCourant
 import kotlinx.coroutines.launch
 
-/** La fiche de l'espèce [index] du [releve]. */
+/** La fiche de l'espèce [index] du [releve] : un relevé, ou la série d'une saisie mono-taxon
+ *  ([fr.ariegenature.geomys.occtax.SaisieMono.ficheSerie]), sans « Photo » ni « Audio » ([avecMedias]). */
 class FicheEspeceViewModel(
     private val services: ServicesGeoNature,
-    val releve: ReleveEnCours,
+    val releve: EspecesModifiables,
     private val index: Int,
+    private val avecMedias: Boolean = true,
     /** L'espèce (cd_nom) est-elle en période de nidification ce mois-ci ? Par défaut, le fichier embarqué. */
     private val enPeriodeNidification: suspend (Int) -> Boolean = { cdNom ->
         NidificationOiseaux(services.taxRef) { Res.readBytes(SaisieReleveViewModel.FICHIER_NIDIFICATION).decodeToString() }
@@ -116,7 +118,7 @@ class FicheEspeceViewModel(
         maxDeplie = true
     }
 
-    /** Le max suit le min tant qu'il n'a pas été saisi à part, comme à l'écran Dénombrement. */
+    /** Le max suit le min tant qu'il n'a pas été saisi à part, comme aux dénombrements du mode pro. */
     fun saisirMin(texte: String) {
         max = FormulairesEspece.maxApresMin(min, texte, max)
         min = texte
@@ -224,8 +226,9 @@ class FicheEspeceViewModel(
 
     // ─── Médias ───
 
-    /** « Photo » et « Audio » : si le serveur active les médias (`OCCTAX.ENABLE_MEDIAS`). */
-    val mediasVisibles = config.occtaxMediasActifs
+    /** « Photo » et « Audio » : si le serveur active les médias (`OCCTAX.ENABLE_MEDIAS`), sauf pour les
+     *  valeurs d'une série mono-taxon, que chaque « + » copie. */
+    val mediasVisibles = avecMedias && config.occtaxMediasActifs
 
     /** Dossier des copies locales des médias. */
     val dossierMedias: String = services.cheminMedias

@@ -18,8 +18,9 @@
 
 // Propre au portage : la fiche d'une espèce de la saisie multi-taxons en mode pro (demande du 16 novembre
 // 2026 : « fait la même chose pour le mode pro », après la fiche du mode simplifié). Un seul écran porte
-// tous les champs des écrans Dénombrement et Caractérisation, qui ne s'ouvrent plus qu'en saisie
-// mono-taxon ; les règles restent celles de leurs ViewModels.
+// tous les champs des écrans Dénombrement et Caractérisation, que la saisie mono-taxon a encore ouverts
+// jusqu'au 24 novembre 2026, et qui n'existent plus : elle ouvre cette fiche pour les valeurs de sa
+// série. Les règles restent celles de leurs ViewModels.
 
 package fr.ariegenature.geomys.ui.occtax
 

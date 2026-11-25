@@ -84,6 +84,7 @@ class ObservationToucheeMonoTest {
         val session = vm { SessionSaisieViewModel(services) }
         val mono = vm { SaisieMonoViewModel(services, session, null) }
         mono.choisirSuggestion(SuggestionTaxon("Machaon", 54303))
+        assertEquals(EvenementSaisieMono.FicheSerie, mono.evenements.first(), "l'espèce choisie ouvre la fiche de la série")
         mono.demarrer()
         assertTrue(mono.modeActif)
         return mono
@@ -105,13 +106,13 @@ class ObservationToucheeMonoTest {
     @Test
     fun supprimer_demande_confirmation_puis_retire_l_observation_et_la_decompte() = runTest {
         val mono = serie()
-        // Enregistrée avant l'ouverture de l'écran (saisie reprise) : le compteur l'ignore.
+        // Enregistrée avant l'ouverture de l'écran (saisie reprise) : le compteur la compte aussi, comme
+        // toutes celles de la saisie (25 novembre 2026).
         val ancienne = mono.saisie.enregistrer(42.89, 1.59)
         mono.enregistrerIci(LatLon(42.9, 1.6))
         mono.enregistrerIci(LatLon(42.91, 1.61))
         val derniere = mono.session.observations.value.last()
-        assertEquals(2, mono.compteur)
-        assertEquals(derniere.id, mono.confirmation?.id)
+        assertEquals(3, mono.nombreObservations())
 
         mono.toucherObservation(derniere)
         mono.demanderSuppression()
@@ -125,14 +126,13 @@ class ObservationToucheeMonoTest {
         mono.confirmerSuppression()
         assertNull(mono.suppressionDemandee)
         assertTrue(mono.session.observations.value.none { it.id == derniere.id })
-        assertEquals(1, mono.compteur)
-        assertNull(mono.confirmation, "la confirmation de l'observation supprimée disparaît")
+        assertEquals(2, mono.nombreObservations())
 
         mono.toucherObservation(ancienne)
         mono.demanderSuppression()
         mono.confirmerSuppression()
         assertEquals(1, mono.session.observations.value.size)
-        assertEquals(1, mono.compteur, "une observation d'avant l'ouverture ne décompte rien")
+        assertEquals(1, mono.nombreObservations(), "une observation d'avant l'ouverture se décompte aussi")
     }
 
     /** Observations au même point (une espèce ajoutée au relevé d'une observation par l'écran du

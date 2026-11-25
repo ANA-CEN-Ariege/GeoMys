@@ -225,6 +225,11 @@ data class Sortie(
      *  les sorties d'avant ce champ, que GeoMys-Android rouvrait toujours en multi-taxons (défaut
      *  n° 7 de l'inventaire). */
     var saisieMono: Boolean = false,
+    /** Saisie mono-taxon : les valeurs de sa série, réglées dans la fiche ouverte par le choix de
+     *  l'espèce, que chaque « + » copie ; « Continuer la saisie » les reprend telles quelles (demande
+     *  du 24 novembre 2026). Une observation sans position, sans relevé ni média. Null : saisie
+     *  multi-taxons, ou saisie mono-taxon d'avant ce champ. */
+    var modeleMono: Observation? = null,
     /** Message du dernier ÉCHEC d'envoi GeoNature (humanisé). Null si jamais échoué ou si
      *  l'envoi a fini par réussir. Sert au marquage visuel (cadre rouge) dans « Mes saisies »
      *  pour qu'un échec ne passe pas inaperçu une fois le dialog d'erreur fermé. */

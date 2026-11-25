@@ -85,8 +85,9 @@ internal const val DEPLIER_MAX = "＋ Nombre max"
 internal const val MEDIAS_FIGES = "Observation déjà envoyée : une photo ou un son ajouté maintenant ne partirait pas."
 
 /** La fiche de l'observation, titrée « Observation : » et [nomEspece] (à défaut, le nom de l'espèce
- *  dans le relevé). Le bouton flottant ✓, en bas au milieu, écrit les champs dans le relevé et y revient ([onRetour]) ; le retour demande avant
- *  d'abandonner une fiche modifiée. */
+ *  dans le relevé). Le bouton flottant ✓, en bas au milieu, écrit les champs dans le relevé puis
+ *  [onValide], par défaut le retour au relevé ([onRetour]) ; le retour demande avant d'abandonner une
+ *  fiche modifiée. */
 @Composable
 fun FicheEspeceScreen(
     vm: FicheEspeceViewModel,
@@ -94,6 +95,7 @@ fun FicheEspeceScreen(
     nomEspece: String?,
     onAccueil: () -> Unit,
     onRetour: () -> Unit,
+    onValide: () -> Unit = onRetour,
 ) {
     val ios = estIos
     val toasts = LocalToasts.current
@@ -115,12 +117,12 @@ fun FicheEspeceScreen(
         onAccueil = { garde.demander(onAccueil) },
         onValider = {
             val refus = vm.valider()
-            if (refus == null) onRetour() else toasts.afficher(refus, true)
+            if (refus == null) onValide() else toasts.afficher(refus, true)
         },
         valideEnBas = true,
         titreBandeau = TITRE_FICHE_OBSERVATION,
     ) {
-        // Effectifs : « − » | champ | « ＋ », comme à l'écran Dénombrement.
+        // Effectifs : « − » | champ | « ＋ », comme aux dénombrements de la fiche du mode pro.
         if (vm.minVisible || vm.maxVisible) {
             // « Nombre max » replié par défaut : un seul champ « Nombre », sur la moitié de la
             // largeur, et un lien discret pour déplier le max (demande du 18 novembre 2026).

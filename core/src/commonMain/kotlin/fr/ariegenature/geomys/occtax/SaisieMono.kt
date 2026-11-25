@@ -19,7 +19,9 @@
 // Porté de GeoMys-Android @ d72b8da (app/src/main/java/fr/ariegenature/geomys/ui/SaisieRapideFragment.kt) : les
 // réglages de la saisie mono-taxon — l'espèce, sa caractérisation et son dénombrement, les détails du relevé
 // communs à la série — et l'observation que chaque « + » enregistre. Ce que le fragment gardait dans ses
-// champs ; l'écran n'en garde que l'affichage.
+// champs ; l'écran n'en garde que l'affichage. Depuis le 24 novembre 2026, la caractérisation et le
+// dénombrement de la série se règlent dans la fiche de l'espèce, comme en multi-taxons ([ficheSerie]), et
+// restent avec la saisie ([Sortie.modeleMono]) ; depuis le 25, le « i » de la carte rouvre cette fiche.
 
 package fr.ariegenature.geomys.occtax
 
@@ -45,9 +47,34 @@ class SaisieMono(
     // Le déterminateur du web pour chaque taxon, caractérisation ouverte ou non.
     private val _modele = MutableStateFlow(EspeceReleve(taxonInitial, "", null, determinateur = determinateurParDefaut(config)))
 
-    /** L'espèce de la série et ses caractérisation et dénombrement par défaut : chaque observation en
-     *  est une copie. Le nom et le cd_nom ne sont posés qu'au démarrage ([demarrer]). */
+    /** L'espèce de la série et ses valeurs, réglées dans sa fiche : chaque observation en est une copie.
+     *  Le nom et le cd_nom sont posés au choix de l'espèce ([choisirEspece]) et au démarrage
+     *  ([demarrer]). Sans média : une photo est celle d'une observation. */
     val modele: StateFlow<EspeceReleve> = _modele.asStateFlow()
+
+    private val _especesSerie = MutableStateFlow(listOf(_modele.value))
+
+    /** L'espèce de la série, au rang 0, pour la fiche qui règle ses valeurs (demande du 24 novembre
+     *  2026 : comme en multi-taxons, la fiche s'ouvre au choix de l'espèce, et ses valeurs valent pour
+     *  chaque « + »). */
+    val ficheSerie: EspecesModifiables = object : EspecesModifiables {
+        override val especes: StateFlow<List<EspeceReleve>> = _especesSerie.asStateFlow()
+
+        override fun modifier(index: Int, transformation: (EspeceReleve) -> EspeceReleve) {
+            if (index == 0) this@SaisieMono.modifier(transformation)
+        }
+
+        override fun requis(): RequisEspece = this@SaisieMono.requis()
+
+        override fun dejaTransmise(espece: EspeceReleve): Boolean = false
+    }
+
+    /** Le modèle de la série devient [m], sans média. */
+    private fun poserModele(m: EspeceReleve) {
+        val sansMedias = m.sansMedias()
+        _modele.value = sansMedias
+        _especesSerie.value = listOf(sansMedias)
+    }
 
     // ── Détails du relevé, communs à toutes les observations de la série ──
     var additionnelsReleve: Map<String, String> = additionnelsIntercales.orEmpty()
@@ -81,18 +108,73 @@ class SaisieMono(
 
     /** Le groupe de la palette suit le modèle. */
     fun choisirTaxon(taxon: Taxon) {
-        _modele.value = _modele.value.copy(taxon = taxon)
+        poserModele(_modele.value.copy(taxon = taxon))
     }
 
-    /** Retour de la caractérisation ou du dénombrement : le modèle modifié. */
+    /** L'espèce choisie dans les réglages ([nom], [cdNom], du groupe [taxon]) : sa fiche, qui s'ouvre
+     *  alors, règle les valeurs de la série pour elle. La même espèce garde les valeurs de la série :
+     *  celles du modèle, ou celles de la série démarrée ([SessionSaisieOcctax.modeleMono]) si une autre
+     *  espèce a été choisie entre-temps sans que sa fiche soit validée. Une autre espèce repart des
+     *  valeurs par défaut, comme une espèce ajoutée en multi-taxons. */
+    fun choisirEspece(taxon: Taxon, nom: String, cdNom: Int) {
+        val m = _modele.value
+        val serie = session.modeleMono?.takeIf { it.cdNom == cdNom }
+        val base = when {
+            m.cdNom == cdNom -> m
+            serie != null -> especeDepuisObservation(serie)
+            else -> EspeceReleve(taxon, "", null, determinateur = determinateurParDefaut(config))
+        }
+        poserModele(base.copy(taxon = taxon, espece = nom, cdNom = cdNom))
+    }
+
+    /** La fiche de la série validée : le modèle transformé. */
     fun modifier(transformation: (EspeceReleve) -> EspeceReleve) {
-        _modele.value = transformation(_modele.value)
+        poserModele(transformation(_modele.value))
     }
 
     /** « Démarrer la saisie » : l'espèce trouvée ([nom], [cdNom]) devient celle de chaque
-     *  observation ; sans nom, le nom du groupe. */
+     *  observation ; sans nom, le nom du groupe. Les valeurs de la série partent alors avec la saisie
+     *  ([garderAvecLaSaisie]). */
     fun demarrer(nom: String, cdNom: Int?) {
-        _modele.value = _modele.value.copy(espece = nom, cdNom = cdNom)
+        poserModele(_modele.value.copy(espece = nom, cdNom = cdNom))
+        garderAvecLaSaisie()
+    }
+
+    /** Les valeurs de la série partent avec la saisie, pour « Continuer la saisie »
+     *  ([SessionSaisieOcctax.definirModeleMono]) : au démarrage de la série, puis au ✓ de sa fiche
+     *  rouverte par le « i » de la carte (demande du 25 novembre 2026), dont les valeurs valent pour la
+     *  suite. */
+    fun garderAvecLaSaisie() {
+        val m = _modele.value
+        session.definirModeleMono(m.surObservation(Observation(espece = m.espece.ifEmpty { m.taxon.nomSingulier }, latitude = 0.0, longitude = 0.0)))
+    }
+
+    /** « Continuer la saisie » : les valeurs de la série reprises de [o], celles écrites avec la saisie
+     *  ([Sortie.modeleMono]), sinon celles de sa dernière observation ; sans média. */
+    fun reprendreModele(o: Observation) {
+        poserModele(especeDepuisObservation(o))
+    }
+
+    /** « Continuer la saisie » : les détails du relevé de la série repris de [o], son dernier « + » :
+     *  jeu de données, observateurs, date et heures, commentaire, habitat, nomenclatures et champs du
+     *  relevé (relecture du 25 novembre 2026). La série repartait des défauts (l'observateur des
+     *  Paramètres, la date de chaque « + », sans heure, commentaire ni habitat), et la carte n'ouvre plus
+     *  « Détails » pour les reposer. Sans les altitudes, propres à la position de [o] ([ALTITUDES]). Les
+     *  champs additionnels du relevé arrivent déjà avec « Continuer la saisie » ([additionnelsReleve]). */
+    fun reprendreDetails(o: Observation) {
+        o.idDatasetReleve?.let { idDataset = it }
+        idsObservateurs = o.observateursReleveIds
+        nomsObservateurs = o.observateursReleveNoms
+        observateursTexte = o.observateursReleveTxt
+        commentaire = o.commentReleve.orEmpty()
+        cdHab = o.cdHabReleve
+        habitatLabel = o.habitatReleveLabel
+        dateDebut = o.dateDebutReleve
+        dateFin = o.dateFinReleve
+        heureDebut = o.heureDebutReleve
+        heureFin = o.heureFinReleve
+        typGrp = o.typGrpReleve.orEmpty()
+        champsExtra = o.champsReleveExtra - ALTITUDES
     }
 
     /** « Valider » des détails : les valeurs de toute la série (sans saisie a posteriori, comme
@@ -126,6 +208,14 @@ class SaisieMono(
 
     /** Les champs additionnels obligatoires à remplir de l'espèce, pour le jeu de la série. */
     fun requis(): RequisEspece = memoRequis.pour(config.additionalFieldsOcctaxJson, idDatasetEffectif())
+
+    /** Un champ additionnel obligatoire de l'espèce (caractérisation ou dénombrement) reste vide dans
+     *  les valeurs de la série : sa fiche les demande avant le premier « + ». */
+    fun modeleIncomplet(): Boolean {
+        val r = requis()
+        val m = _modele.value
+        return r.caracterisationIncomplete(m) || r.denombrementIncomplet(m)
+    }
 
     /** Les valeurs de départ du dialogue « Détails du relevé » de la série. */
     fun donneesDetails(): DonneesDetailsReleve = DonneesDetailsReleve(
@@ -187,7 +277,7 @@ class SaisieMono(
 
     // ── Affichage ──
 
-    /** Sous les boutons Caractérisation et Dénombrement : les codes du sexe, du stade et de la
+    /** Sous le champ espèce des réglages, les valeurs de la série : les codes du sexe, du stade et de la
      *  technique réglés, sinon « Détails renseignés » s'il y a d'autres réglages ; null sinon. */
     fun indicateurDetails(): String? {
         val m = _modele.value
@@ -202,29 +292,35 @@ class SaisieMono(
     }
 
     /** Le résumé du panneau de la carte : « <espèce> × N », N le total de tous les dénombrements
-     *  (défaut n° 5 de l'inventaire : GeoMys-Android n'y comptait que le n° 0). */
+     *  (défaut n° 5 de l'inventaire : GeoMys-Android n'y comptait que le n° 0). Seul depuis le
+     *  25 novembre 2026 : les codes du sexe et du stade, en dessous, sont retirés à la demande de
+     *  l'utilisateur. */
     fun resume(): String {
         val m = _modele.value
         return "${m.espece.ifEmpty { m.taxon.nomSingulier }} × ${m.total}"
     }
 
-    /** Sous le résumé : les codes du sexe et du stade, s'il y en a. */
-    fun resumeDetails(): String? {
-        val m = _modele.value
-        return listOf(m.sexe, m.stadeVie).filter { it.isNotEmpty() }.joinToString(" · ").ifEmpty { null }
-    }
-
     companion object {
         const val LIBELLE = "Saisie mono-taxon"
 
-        /** La consigne au-dessus de la carte. */
-        const val CONSIGNE = "Touchez pour placer le point · appui long pour le déplacer"
+        /** La consigne au-dessus de la carte. Sa seconde ligne (demande du 25 novembre 2026) dit qu'une
+         *  observation touchée s'édite, comme l'aide de la carte multi-taxons ([CarteSaisie.AIDE_REPRISE]) :
+         *  la ligne de confirmation de chaque « + », et son « Modifier », ne sont plus sous la carte. */
+        const val CONSIGNE = "Touchez pour placer le point · appui long pour le déplacer\nTouchez une observation pour l'éditer"
 
         /** Le compteur du panneau de la carte. */
         fun compteur(n: Int): String = "$n obs. enregistrée${if (n > 1) "s" else ""}"
 
-        /** La confirmation qui suit chaque « + ». */
-        fun confirmation(observation: Observation): String = "${observation.espece} × ${observation.totalIndividus}"
+        /** « Continuer la saisie » d'une saisie mono-taxon (demande du 24 novembre 2026) : la dernière
+         *  observation d'un « + » qui a une espèce de TaxRef (un cd_nom), où la carte s'ouvre sans GPS, et
+         *  dont la série reprend l'espèce et les valeurs si la saisie ne les a pas gardées (saisie
+         *  d'avant [Sortie.modeleMono]). Une espèce ajoutée par l'écran du relevé d'un « + » rejoint
+         *  son relevé, après lui : de chaque relevé, la première. Null s'il n'y en a pas. */
+        fun observationAReprendre(observations: List<Observation>): Observation? =
+            observations.filter { !it.releveSansEspece && it.cdNom != null && it.espece.isNotBlank() }
+                .groupBy { it.releveId?.takeIf(String::isNotEmpty) ?: it.id }
+                .values.map { releve -> releve.minBy { it.date } }
+                .sortedBy { it.date }.lastOrNull()
 
         /** Rayon dans lequel des observations sont « au même point » que le marqueur touché :
          *  plusieurs « + » sur une même position GPS (immobile, elle ne change pas) ou au centre de la

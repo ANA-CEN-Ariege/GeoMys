@@ -65,13 +65,11 @@ class DenombrementViewModel(
     private val services: ServicesGeoNature,
     espece: EspeceReleve,
     idDataset: Int?,
+    avecMedias: Boolean = true,
 ) : ViewModel() {
     private val config = services.config
     private val nomenclatures = services.nomenclatures
     private val formFields = config.formFieldsJson
-
-    /** Le nom de l'espèce, sous le titre. */
-    val nomEspece = espece.espece
 
     /** Le taxon de l'espèce, qui filtre les valeurs proposées comme sur le web. */
     private val groupe = ChampsTaxon.groupeTaxonomique(espece.taxon, espece.cdNom, services.taxRef)
@@ -89,8 +87,9 @@ class DenombrementViewModel(
     val minVisible = champFormVisible(formFields, "count_min")
     val maxVisible = champFormVisible(formFields, "count_max")
 
-    /** Le bloc Médias, si le serveur l'active (`OCCTAX.ENABLE_MEDIAS`). */
-    val mediasVisibles = config.occtaxMediasActifs
+    /** Le bloc Médias, si le serveur l'active (`OCCTAX.ENABLE_MEDIAS`), sauf pour les valeurs d'une
+     *  série mono-taxon, que chaque « + » copie ([avecMedias]). */
+    val mediasVisibles = avecMedias && config.occtaxMediasActifs
 
     /** Les observateurs proposés aux champs additionnels `observers`. */
     private val observateurs = DetailsReleveFormulaire.observateurs(config)

@@ -18,7 +18,8 @@
 
 // Le cadre des écrans Caractérisation et Dénombrement : fragment_caracterisation.xml et
 // fragment_denombrement.xml de GeoMys-Android @ cdd5196 (bandeau, titre, coche de 32 dp) sous Android,
-// EcranFormulaireSaisie de GeoMys-IOS (UI/Saisie/ComposantsFormulaireSaisie.swift) sous iOS.
+// EcranFormulaireSaisie de GeoMys-IOS (UI/Saisie/ComposantsFormulaireSaisie.swift) sous iOS. Ces deux
+// écrans n'existent plus (24 novembre 2026) : le cadre est celui des fiches de l'observation.
 
 package fr.ariegenature.geomys.ui.occtax
 

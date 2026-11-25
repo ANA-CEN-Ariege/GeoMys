@@ -31,7 +31,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 
 /** La session de saisie OccTax ([SessionSaisieOcctax]), partagée par la carte, les relevés, les
- *  dénombrements, la caractérisation et la liste des observations. */
+ *  fiches des observations et leur liste. */
 @OptIn(FlowPreview::class)
 class SessionSaisieViewModel(private val services: ServicesGeoNature) : ViewModel() {
     val session = SessionSaisieOcctax(services.sortieStore, services.locationTracker, viewModelScope)

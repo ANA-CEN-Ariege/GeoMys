@@ -33,7 +33,6 @@ import fr.ariegenature.geomys.carte.FondChoisi
 import fr.ariegenature.geomys.carte.chargerFondChoisi
 import fr.ariegenature.geomys.carte.enregistrerFondChoisi
 import fr.ariegenature.geomys.geo.LatLon
-import fr.ariegenature.geomys.model.Denombrement
 import fr.ariegenature.geomys.model.Observation
 import fr.ariegenature.geomys.model.Taxon
 import fr.ariegenature.geomys.network.TaxRefStatut
@@ -42,15 +41,12 @@ import fr.ariegenature.geomys.occtax.DetailsReleveFormulaire
 import fr.ariegenature.geomys.occtax.DetailsReleveResult
 import fr.ariegenature.geomys.occtax.EspeceReleve
 import fr.ariegenature.geomys.occtax.FinSaisie
+import fr.ariegenature.geomys.occtax.MesSaisies
 import fr.ariegenature.geomys.occtax.SaisieMono
-import fr.ariegenature.geomys.occtax.VerificationProfil
 import fr.ariegenature.geomys.occtax.libelleChampEspeceMono
-import fr.ariegenature.geomys.occtax.nomSingulier
 import fr.ariegenature.geomys.store.SuggestionTaxon
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
@@ -58,15 +54,15 @@ import kotlinx.coroutines.launch
 sealed interface EvenementSaisieMono {
     data class Message(val texte: String) : EvenementSaisieMono
 
-    data object Caracterisation : EvenementSaisieMono
-
-    data object Denombrement : EvenementSaisieMono
-
-    /** Modifier une observation enregistrée, dans l'écran du relevé. */
-    data class EditerObservation(val obsId: String) : EvenementSaisieMono
+    /** La fiche de l'espèce de la série, ouverte à son choix comme en multi-taxons : ses valeurs valent
+     *  pour chaque « + », et son ✓ ouvre la carte (demande du 24 novembre 2026). Le « i » de la carte la
+     *  rouvre, et son ✓ y ramène (25 novembre 2026). */
+    data object FicheSerie : EvenementSaisieMono
 
     /** Modifier une observation enregistrée directement dans sa fiche, sans l'écran du relevé : son
-     *  marqueur touché, puis « Éditer » (demande du 24 novembre 2026). La fiche est celle du rang
+     *  marqueur touché, puis « Éditer » (demande du 24 novembre 2026). Depuis le 25 novembre 2026, plus
+     *  rien n'ouvre l'écran du relevé depuis la carte : « Modifier » de la confirmation qui suivait chaque
+     *  « + » (`EditerObservation`) est retiré avec elle. La fiche est celle du rang
      *  [index] du relevé [releveId] qui la porte, ou de l'observation [obsId] seule
      *  ([SaisieMono.ficheAOuvrir]). */
     data class OuvrirFiche(val obsId: String, val releveId: String? = null, val index: Int = 0) : EvenementSaisieMono
@@ -74,19 +70,28 @@ sealed interface EvenementSaisieMono {
     data object Quitter : EvenementSaisieMono
 }
 
-/** La saisie mono-taxon : réglages de la série (espèce, caractérisation, dénombrement, détails),
- *  puis la carte où chaque « + » enregistre une observation. [additionnels] : les champs de relevé
- *  de l'écran intercalé. */
+/** La saisie mono-taxon : réglages de la série (l'espèce, dont la fiche règle les valeurs de la série,
+ *  et ses détails), puis la carte où chaque « + » enregistre une observation. [additionnels] : les
+ *  champs de relevé de l'écran intercalé. [reprise] : « Continuer la saisie » d'une saisie déjà
+ *  reprise dans la session, qui s'ouvre sur la carte avec les valeurs de sa série. */
 class SaisieMonoViewModel(
     private val services: ServicesGeoNature,
     sessionVm: SessionSaisieViewModel,
     additionnels: Map<String, String>?,
+    reprise: Boolean = false,
 ) : ViewModel() {
     private val config = services.config
     val session = sessionVm.session
     val tracker = services.locationTracker
 
-    private val taxonDepart = services.preferences.dernierTaxon() ?: Taxon.OISEAU
+    /** Saisie reprise : l'observation de son dernier « + », où la carte s'ouvre sans GPS. */
+    private val dernierPlus: Observation? = if (reprise) SaisieMono.observationAReprendre(session.observations.value) else null
+
+    /** Saisie reprise : les valeurs de sa série (demande du 24 novembre 2026), celles qu'elle a gardées
+     *  ([fr.ariegenature.geomys.model.Sortie.modeleMono]), sinon celles de son dernier « + ». */
+    private val modeleRepris: Observation? = if (reprise) session.modeleMono?.takeIf { it.cdNom != null } ?: dernierPlus else null
+
+    private val taxonDepart = modeleRepris?.let { it.taxon ?: Taxon.OISEAU } ?: services.preferences.dernierTaxon() ?: Taxon.OISEAU
 
     val saisie = SaisieMono(session, config, taxonDepart, additionnels)
 
@@ -101,38 +106,16 @@ class SaisieMonoViewModel(
     var modeActif by mutableStateOf(false)
         private set
 
-    /** Les observations enregistrées depuis l'ouverture de l'écran. */
-    var compteur by mutableStateOf(0)
-        private set
-
-    /** Les identifiants de celles que [compteur] compte : une suppression ne le décompte que pour elles
-     *  (une saisie reprise ouvre l'écran avec ses observations, que le compteur ignore). */
-    private val enregistrees = mutableSetOf<String>()
+    /** Le compteur du panneau : toutes les observations de la saisie, reprises comprises, comptées comme
+     *  dans « Mes saisies » (demande du 25 novembre 2026 ; il ne comptait que celles enregistrées depuis
+     *  l'ouverture de l'écran, et repartait de 0 à chaque « Continuer la saisie »). */
+    fun nombreObservations(observations: List<Observation> = session.observations.value): Int = MesSaisies.nbObservations(observations)
 
     var suivrePosition by mutableStateOf(true)
 
     /** Point posé au doigt pour la PROCHAINE observation ; sans lui, la position GPS. */
     var pointManuel by mutableStateOf<LatLon?>(null)
         private set
-
-    /** Les vérifications des profils de taxons, que le panneau suit pour [avertissementDerniere]. */
-    val profils: StateFlow<Map<String, VerificationProfil>> get() = services.profils.resultats
-
-    /** « Donnée exceptionnelle » de la dernière observation enregistrée d'après [resultats] : son
-     *  espèce et ce que le serveur signale ; null s'il n'y a rien. Il reste affiché jusqu'au « + »
-     *  suivant : la vérification arrive après la confirmation. */
-    fun avertissementDerniere(resultats: Map<String, VerificationProfil>): Pair<String, List<String>>? {
-        val observations = session.observations.value
-        val derniere = observations.lastOrNull { !it.releveSansEspece } ?: return null
-        val groupe = observations.filter { (it.releveId ?: it.id) == (derniere.releveId ?: derniere.id) }
-        val messages = services.profils.resultat(derniere, groupe, resultats)?.messages.orEmpty()
-        return if (messages.isEmpty()) null else derniere.espece to messages
-    }
-
-    /** La dernière observation enregistrée, confirmée trois secondes sous le résumé. */
-    var confirmation by mutableStateOf<Observation?>(null)
-        private set
-    private var tacheConfirmation: Job? = null
 
     /** false (défaut) = carte figée nord en haut ; true = carte tournée par la boussole. */
     var carteSuitBoussole by mutableStateOf(false)
@@ -177,16 +160,76 @@ class SaisieMonoViewModel(
     /** « Démarrer » avec une position connue : la carte s'y ouvre au zoom 19. */
     var cibleDemarrage: LatLon? = null
 
+    /** Ce que poursuit la validation des détails obligatoires (jeu de données, date à choisir) demandés
+     *  d'abord ([validerDetails]) : la reprise d'une saisie, ou le démarrage d'une série dont la fiche
+     *  vient d'être validée. */
+    private enum class ApresDetails { RIEN, REPRISE, DEMARRAGE }
+
+    private var apresDetails = ApresDetails.RIEN
+
     init {
         // Écran d'entrée du flux mono-taxon : les écrans en aval affichent le même bandeau.
         session.typeSaisieLabel = SaisieMono.LIBELLE
         session.saisieMono = true
-        // Le modèle suit le groupe de la palette.
-        viewModelScope.launch { snapshotFlow { champ.taxon }.collect { saisie.choisirTaxon(it) } }
+        // Le modèle suit le groupe de la palette, choisi dans les réglages ; sur la carte, il garde
+        // celui de la série démarrée.
+        viewModelScope.launch { snapshotFlow { champ.taxon }.collect { if (!modeActif) saisie.choisirTaxon(it) } }
+        // Saisie reprise : les détails du relevé de la série, ceux de son dernier « + » (observateurs,
+        // date, heures, commentaire, habitat…). La carte n'ouvre plus « Détails » pour les reposer
+        // (relecture du 25 novembre 2026) ; une date reprise n'est plus à choisir.
+        dernierPlus?.let(saisie::reprendreDetails)
         // Sans jeu de données connu, ou sans date quand le serveur la veut à choisir, la série
         // commence par ses détails, comme le web : l'un et l'autre sont obligatoires.
         if (saisie.idDatasetEffectif() == null || saisie.dateAChoisir()) ouvrirDetails()
+        modeleRepris?.let(::reprendre)
     }
+
+    /** « Continuer la saisie » (demande du 24 novembre 2026) : la série reprend l'espèce et les valeurs
+     *  de [m], et la carte s'ouvre sans passer par les réglages ; après les détails, s'ils sont demandés
+     *  d'abord (jeu de données, date), et après la fiche de la série, s'il manque à ses valeurs un champ
+     *  obligatoire. Le champ espèce montre l'espèce : refermer ces détails ou cette fiche laisse les
+     *  réglages prêts pour « Démarrer ». */
+    private fun reprendre(m: Observation) {
+        val cdNom = m.cdNom ?: return
+        saisie.reprendreModele(m)
+        champ.poserChoix(m.espece)
+        champ.recherche.poser(TaxRefStatut.Trouve(cdNom, m.espece, m.espece), m.espece)
+        viewModelScope.launch {
+            // Le statut d'un choix dans la liste (choisirSuggestion), une fois les entrées du champ
+            // chargées : le nom scientifique du cd_nom ; un nom qui l'est déjà n'a pas de nom français.
+            val sci = snapshotFlow { champ.entrees }.first { it.isNotEmpty() }[cdNom]?.sciNom ?: return@launch
+            val pose = champ.recherche.statut as? TaxRefStatut.Trouve
+            if (champ.texte == m.espece && pose?.cdNom == cdNom) {
+                champ.recherche.poser(TaxRefStatut.Trouve(cdNom, sci, m.espece.takeIf { it != sci }), m.espece)
+            }
+        }
+        if (details != null) apresDetails = ApresDetails.REPRISE else poursuivreReprise()
+    }
+
+    /** La reprise, ses détails obligatoires posés : la fiche de la série s'il manque à ses valeurs un
+     *  champ obligatoire, sinon la carte, centrée sur la position, sinon sur le dernier « + ». */
+    private fun poursuivreReprise() {
+        val m = saisie.modele.value
+        val cdNom = m.cdNom ?: return
+        if (saisie.modeleIncomplet()) {
+            _evenements.trySend(EvenementSaisieMono.FicheSerie)
+            return
+        }
+        ouvrirCarte(m.espece, cdNom, m.taxon, positionGps() ?: dernierPlus?.let { LatLon(it.latitude, it.longitude) })
+    }
+
+    /** La série démarre sur l'espèce [nom] ([cdNom], du groupe [taxon]) : la carte s'ouvre — au zoom 19
+     *  sur [centre], s'il est connu, avec le suivi. */
+    private fun ouvrirCarte(nom: String, cdNom: Int, taxon: Taxon, centre: LatLon?) {
+        saisie.choisirTaxon(taxon)
+        saisie.demarrer(nom, cdNom)
+        modeActif = true
+        centre ?: return
+        suivrePosition = true
+        cibleDemarrage = centre
+    }
+
+    private fun positionGps(): LatLon? = tracker.position.value?.let { LatLon(it.latitude, it.longitude) }
 
     fun demarrerSuivi() {
         services.demarrerSuiviGps()
@@ -204,12 +247,17 @@ class SaisieMonoViewModel(
     fun dicterPartiel(entendu: String) = champ.dicterPartiel(entendu)
 
     /** Une proposition CHOISIE est prise telle quelle, avec son cd_nom : re-chercher son texte
-     *  pouvait désigner un autre taxon du même groupe et de la même liste portant ce nom. */
+     *  pouvait désigner un autre taxon du même groupe et de la même liste portant ce nom. Sa fiche
+     *  s'ouvre alors, comme pour une espèce ajoutée en multi-taxons : ses valeurs valent pour chaque
+     *  « + » de la série (demande du 24 novembre 2026). */
     fun choisirSuggestion(suggestion: SuggestionTaxon) {
         champ.poserChoix(suggestion.nom)
         val sci = champ.entrees[suggestion.cdNom]?.sciNom.orEmpty().ifEmpty { suggestion.nom }
         // En mode « noms scientifiques », le nom choisi EST le nom scientifique.
-        champ.recherche.poser(TaxRefStatut.Trouve(suggestion.cdNom, sci, if (champ.nomScientifique) null else suggestion.nom), suggestion.nom)
+        val trouve = TaxRefStatut.Trouve(suggestion.cdNom, sci, if (champ.nomScientifique) null else suggestion.nom)
+        champ.recherche.poser(trouve, suggestion.nom)
+        saisie.choisirEspece(champ.taxon, trouve.nomFrancais ?: trouve.nomScientifique, trouve.cdNom)
+        _evenements.trySend(EvenementSaisieMono.FicheSerie)
     }
 
     /** Fin de la dictée : ce qui a été entendu dans le champ, et les espèces reconnues ou proches dans
@@ -218,28 +266,43 @@ class SaisieMonoViewModel(
 
     fun vocabulaire(): List<String> = champ.vocabulaire()
 
-    /** Ce qu'ouvrent Caractérisation et Dénombrement : le modèle, avec le groupe et l'espèce du
-     *  champ (avant même « Démarrer » : ils décrivent la série qu'on s'apprête à enchaîner). */
-    fun especeFormulaires(): EspeceReleve {
-        val trouve = champ.recherche.statut as? TaxRefStatut.Trouve
-        return saisie.modele.value.copy(taxon = champ.taxon, cdNom = trouve?.cdNom, espece = champ.texte.ifEmpty { champ.taxon.nomSingulier })
+    // ─── Fiche de la série ───
+
+    /** Le nom au titre de la fiche de la série : français, sinon latin, comme en multi-taxons. */
+    fun nomFicheSerie(): String {
+        val m = saisie.modele.value
+        val cdNom = m.cdNom ?: return m.espece
+        val sciNom = champ.entrees[cdNom]?.sciNom ?: return m.espece
+        if (!sciNom.equals(m.espece, ignoreCase = true)) return m.espece
+        return champ.nomsFrancais[cdNom]?.firstOrNull { it.isNotBlank() } ?: m.espece
     }
 
-    fun ouvrirCaracterisation() {
-        _evenements.trySend(EvenementSaisieMono.Caracterisation)
+    /** ✓ de la fiche de la série du mode pro : ses valeurs deviennent celles de chaque « + » suivant
+     *  (l'espèce reste celle de la série), puis [ficheSerieValidee]. */
+    fun validerFicheSerie(fiche: EspeceReleve) {
+        saisie.modifier { m -> fiche.copy(taxon = m.taxon, espece = m.espece, cdNom = m.cdNom) }
+        ficheSerieValidee()
     }
 
-    fun ouvrirDenombrement() {
-        _evenements.trySend(EvenementSaisieMono.Denombrement)
+    /** ✓ de la fiche de la série, ses valeurs écrites (la fiche du mode simplifié les écrit elle-même).
+     *  Ouverte des réglages : la carte s'ouvre, après les détails s'ils manquent ; une fiche validée ne
+     *  se rouvre pas pour un champ obligatoire qu'elle ne montrerait pas. Ouverte de la carte
+     *  ([ouvrirFicheSerie]) : on y revient telle qu'on l'a laissée, sans recentrage ni changement de
+     *  groupe, et les nouvelles valeurs partent avec la saisie. */
+    fun ficheSerieValidee() {
+        apresDetails = ApresDetails.RIEN
+        if (modeActif) {
+            saisie.garderAvecLaSaisie()
+            return
+        }
+        demarrer(verifierFiche = false)
     }
 
-    /** Retour de la caractérisation : ses champs seulement (l'espèce reste celle de la série). */
-    fun appliquerCaracterisation(caracterisee: EspeceReleve) {
-        saisie.modifier { m -> caracterisee.copy(taxon = m.taxon, espece = m.espece, cdNom = m.cdNom) }
-    }
-
-    fun appliquerDenombrements(liste: List<Denombrement>) {
-        saisie.modifier { it.avecDenombrements(liste) }
+    /** La fiche de la série refermée sans ✓ : rien ne change. Ouverte des réglages, on y reste, et le
+     *  champ espèce la propose de nouveau (toucher l'espèce la rouvre) ; ouverte de la carte, on y
+     *  revient. */
+    fun ficheSerieAbandonnee() {
+        if (!modeActif) champ.libererChoix()
     }
 
     fun ouvrirDetails() {
@@ -252,13 +315,25 @@ class SaisieMonoViewModel(
     fun fermerDetails() {
         details?.fermer()
         details = null
+        // Détails refermés sans validation : on reste sur les réglages.
+        apresDetails = ApresDetails.RIEN
     }
 
     fun validerDetails(resultat: DetailsReleveResult) {
+        val suite = apresDetails
         saisie.appliquerDetails(resultat)
         fermerDetails()
         // Un autre jeu de données peut imposer une autre liste de taxons.
+        val liste = champ.listeTaxons
         champ.actualiserListe()
+        // La suite, les détails obligatoires posés : la reprise, ou la carte d'une fiche validée. Si la
+        // liste de taxons a changé, l'espèce est à revoir : on reste sur les réglages.
+        if (champ.listeTaxons != liste || saisie.idDatasetEffectif() == null || saisie.dateAChoisir()) return
+        when (suite) {
+            ApresDetails.REPRISE -> poursuivreReprise()
+            ApresDetails.DEMARRAGE -> demarrer(verifierFiche = false)
+            ApresDetails.RIEN -> Unit
+        }
     }
 
     /** « Annuler » des réglages : rien n'est saisi ; le GPS lancé à l'ouverture est libéré. */
@@ -268,35 +343,53 @@ class SaisieMonoViewModel(
     }
 
     /** « Démarrer la saisie » : l'espèce trouvée devient celle de la série, la carte s'ouvre — au
-     *  zoom 19 sur la position, si elle est connue, avec le suivi. */
-    fun demarrer() {
+     *  zoom 19 sur la position, si elle est connue, avec le suivi. Sa fiche s'ouvre d'abord pour une
+     *  espèce qui ne l'a pas encore eue (tapée sans toucher la liste), et s'il manque aux valeurs de la
+     *  série un champ obligatoire de l'espèce, comme « Détails » pour la date : les boutons qui le
+     *  signalaient d'une barre rouge, « Caractérisation » et « Dénombrement », n'y sont plus
+     *  (24 novembre 2026). */
+    fun demarrer() = demarrer(verifierFiche = true)
+
+    /** [verifierFiche] à faux : la fiche de la série vient d'être validée. */
+    private fun demarrer(verifierFiche: Boolean) {
         val trouve = champ.recherche.statut as? TaxRefStatut.Trouve ?: return
-        // Le jeu de données est obligatoire : sans lui, la série ne démarre pas.
+        // Le jeu de données est obligatoire : sans lui, la série ne démarre pas. Une fiche validée
+        // ouvre la carte à la validation des détails.
         if (saisie.idDatasetEffectif() == null) {
             _evenements.trySend(EvenementSaisieMono.Message(DetailsReleveFormulaire.CHOISIR_JDD))
             ouvrirDetails()
+            if (!verifierFiche) apresDetails = ApresDetails.DEMARRAGE
             return
         }
         if (saisie.dateAChoisir()) {
             _evenements.trySend(EvenementSaisieMono.Message(DetailsReleveFormulaire.CHOISIR_DATE_DEBUT))
             ouvrirDetails()
+            if (!verifierFiche) apresDetails = ApresDetails.DEMARRAGE
             return
         }
-        saisie.demarrer(trouve.nomFrancais ?: trouve.nomScientifique, trouve.cdNom)
-        modeActif = true
-        masquerConfirmation()
-        val position = tracker.position.value ?: return
-        suivrePosition = true
-        cibleDemarrage = LatLon(position.latitude, position.longitude)
-    }
-
-    /** « Modifier » du panneau : retour aux réglages. */
-    fun modifierReglages() {
-        modeActif = false
-        masquerConfirmation()
+        val nom = trouve.nomFrancais ?: trouve.nomScientifique
+        // Une espèce dont la fiche n'a pas été présentée : les valeurs de la série sont celles d'une autre.
+        val sansFiche = saisie.modele.value.cdNom != trouve.cdNom
+        // Une autre espèce que celle des valeurs de la série repart des valeurs par défaut.
+        saisie.choisirEspece(champ.taxon, nom, trouve.cdNom)
+        if (verifierFiche && (sansFiche || saisie.modeleIncomplet())) {
+            _evenements.trySend(EvenementSaisieMono.FicheSerie)
+            return
+        }
+        // Une saisie reprise, dont la carte ne s'est pas encore montrée : sur son dernier « + » sans GPS.
+        val centre = positionGps() ?: dernierPlus?.takeIf { centreMemorise == null }?.let { LatLon(it.latitude, it.longitude) }
+        ouvrirCarte(nom, trouve.cdNom, champ.taxon, centre)
     }
 
     // ─── Carte ───
+
+    /** « i » de la carte (demande du 25 novembre 2026), comme celui de la carte multi-taxons : la fiche
+     *  de la série. Ses valeurs, validées, valent pour toute la suite de la série ; les observations
+     *  déjà enregistrées gardent les leurs, et chacune se modifie par son marqueur (« Éditer »). Il
+     *  remplace « Modifier » du panneau, qui ramenait aux réglages pour rouvrir la fiche. */
+    fun ouvrirFicheSerie() {
+        if (modeActif) _evenements.trySend(EvenementSaisieMono.FicheSerie)
+    }
 
     /** Toucher la carte pose (ou déplace) le point de la prochaine observation. */
     fun toucherCarte(p: LatLon): Boolean {
@@ -356,8 +449,6 @@ class SaisieMonoViewModel(
         val observation = suppressionDemandee ?: return
         suppressionDemandee = null
         session.supprimerObservation(observation.id)
-        if (enregistrees.remove(observation.id)) compteur--
-        if (confirmation?.id == observation.id) masquerConfirmation()
     }
 
     /** Marqueur lâché : la position corrigée est enregistrée. */
@@ -396,38 +487,16 @@ class SaisieMonoViewModel(
 
     /** « + » : une observation au point posé, sinon à la position GPS, sinon au centre de la carte
      *  [centre]. Le point posé ne vaut que pour elle, et le suivi reprend : rend la position où
-     *  recentrer la carte. */
+     *  recentrer la carte. Le téléphone vibre, le marqueur apparaît et le compteur avance : depuis le
+     *  25 novembre 2026, plus de ligne de confirmation (l'espèce, l'effectif et « Modifier ») trois
+     *  secondes sous le résumé. Le compteur compte toutes celles de la saisie ([nombreObservations]). */
     fun enregistrerIci(centre: LatLon): LatLon? {
         val position = tracker.position.value?.let { LatLon(it.latitude, it.longitude) }
         val ici = pointManuel ?: position ?: centre
-        val observation = saisie.enregistrer(ici.latitude, ici.longitude)
-        enregistrees += observation.id
-        compteur++
-        montrerConfirmation(observation)
+        saisie.enregistrer(ici.latitude, ici.longitude)
         pointManuel = null
         suivrePosition = true
         return position
-    }
-
-    private fun montrerConfirmation(observation: Observation) {
-        tacheConfirmation?.cancel()
-        confirmation = observation
-        tacheConfirmation = viewModelScope.launch {
-            delay(3000)
-            confirmation = null
-        }
-    }
-
-    private fun masquerConfirmation() {
-        tacheConfirmation?.cancel()
-        confirmation = null
-    }
-
-    /** « Modifier » de la confirmation : la dernière observation, dans l'écran du relevé. */
-    fun modifierDerniere() {
-        val id = confirmation?.id ?: return
-        masquerConfirmation()
-        _evenements.trySend(EvenementSaisieMono.EditerObservation(id))
     }
 
     // ─── Fin de la saisie ───

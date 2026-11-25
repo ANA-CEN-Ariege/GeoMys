@@ -106,6 +106,19 @@ class SessionSaisieOcctax(
      *  multi-taxons), retenu par la sortie à sa création ([Sortie.saisieMono]). */
     var saisieMono = false
 
+    /** Les valeurs de la série mono-taxon en cours ([Sortie.modeleMono]), écrites avec la sortie ;
+     *  reprises par [reprendreSortie]. */
+    var modeleMono: Observation? = null
+        private set
+
+    /** Les valeurs de la série mono-taxon ont changé (fiche validée, autre espèce) : écrites aussitôt
+     *  si la saisie existe déjà ; sinon, avec sa première observation. */
+    fun definirModeleMono(modele: Observation) {
+        if (modele == modeleMono) return
+        modeleMono = modele
+        if (sortieEnEditionId != null) persisterBrouillon()
+    }
+
     /** La date commune n'est retenue que MODIFIÉE : elle arme alors la saisie a posteriori, qui la
      *  transmet aux nouveaux relevés. Validée telle quelle, elle n'était que l'heure d'ouverture du
      *  dialogue, que GeoMys-Android imposait à tous les relevés suivants, par-dessus une date a
@@ -218,6 +231,7 @@ class SessionSaisieOcctax(
         val parcours = locationTracker.parcours.value
         val distance = locationTracker.distanceTotale.value
         val id = sortieEnEditionId
+        val modele = modeleMono
         if (obs.isEmpty() && parcours.isEmpty()) {
             if (id != null) ecritures.trySend { sortieStore.supprimer(id) }
             return
@@ -229,13 +243,14 @@ class SessionSaisieOcctax(
                     val base = existante ?: Sortie(id = id, saisieMono = saisieMono)
                     val ok = sortieStore.remplacer(
                         id,
-                        base.copy(observations = obs, pointsParcours = parcours, distanceTotale = distance),
+                        // Les valeurs de la série : celles de la session, sinon celles déjà écrites.
+                        base.copy(observations = obs, pointsParcours = parcours, distanceTotale = distance, modeleMono = modele ?: base.modeleMono),
                     )
                     signalerEchec(ok)
                 }
             }
         } else {
-            val nouvelle = Sortie(observations = obs, pointsParcours = parcours, distanceTotale = distance, saisieMono = saisieMono)
+            val nouvelle = Sortie(observations = obs, pointsParcours = parcours, distanceTotale = distance, saisieMono = saisieMono, modeleMono = modele)
             // Id fixé même sur échec : la prochaine tentative passera par remplacer (upsert), pas par
             // un nouvel ajout (qui créerait un doublon si l'écriture repart).
             sortieEnEditionId = nouvelle.id
@@ -269,6 +284,7 @@ class SessionSaisieOcctax(
         _observations.value = emptyList()
         locationTracker.reinitialiser()
         sortieEnEditionId = null
+        modeleMono = null
         reinitialiserAPosteriori()
     }
 
@@ -298,6 +314,7 @@ class SessionSaisieOcctax(
         locationTracker.restaurerParcours(sortie.pointsParcours)
         locationTracker.definirDistance(sortie.distanceTotale)
         sortieEnEditionId = sortie.id
+        modeleMono = sortie.modeleMono
         reinitialiserAPosteriori()
     }
 
@@ -308,5 +325,6 @@ class SessionSaisieOcctax(
 }
 
 /** Les altitudes d'un relevé, que le web recalcule (MNT du serveur) à chaque changement de sa
- *  géométrie : un relevé déplacé les perd, l'envoi les redemande au serveur. */
-private val ALTITUDES = setOf("altitude_min", "altitude_max")
+ *  géométrie : un relevé déplacé les perd, l'envoi les redemande au serveur. Une série mono-taxon
+ *  reprise ne les reprend pas de son dernier « + » ([SaisieMono.reprendreDetails]). */
+internal val ALTITUDES = setOf("altitude_min", "altitude_max")

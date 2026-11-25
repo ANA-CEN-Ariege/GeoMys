@@ -73,6 +73,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -100,9 +101,7 @@ import fr.ariegenature.geomys.ui.composants.BandeauNavigation
 import fr.ariegenature.geomys.ui.composants.BoutonAlerte
 import fr.ariegenature.geomys.ui.composants.BoutonContour
 import fr.ariegenature.geomys.ui.composants.BoutonIos
-import fr.ariegenature.geomys.ui.composants.BoutonMaterial
 import fr.ariegenature.geomys.ui.composants.BoutonPlein
-import fr.ariegenature.geomys.ui.composants.BoutonTexte
 import fr.ariegenature.geomys.ui.composants.DialogueActions
 import fr.ariegenature.geomys.ui.composants.DialogueAlerte
 import fr.ariegenature.geomys.ui.composants.DialogueChoixLignesAndroid
@@ -116,18 +115,16 @@ import fr.ariegenature.geomys.ui.composants.RetourSysteme
 import fr.ariegenature.geomys.ui.composants.SeparateurIos
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.afficher
-import fr.ariegenature.geomys.ui.composants.barreChampObligatoire
 import fr.ariegenature.geomys.ui.composants.estIos
 import fr.ariegenature.geomys.ui.composants.fondEnRelief
 import fr.ariegenature.geomys.ui.composants.rememberDemandeLocalisation
 import fr.ariegenature.geomys.ui.composants.rememberDictee
 import fr.ariegenature.geomys.ui.composants.rememberVibration
-import fr.ariegenature.geomys.ui.composants.styleLibelleMaterial
 import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.ui.ressources.coche
 import fr.ariegenature.geomys.ui.ressources.ic_add
 import fr.ariegenature.geomys.ui.ressources.ic_bird_marker
-import fr.ariegenature.geomys.ui.ressources.ic_check_circle
+import fr.ariegenature.geomys.ui.ressources.ic_info
 import fr.ariegenature.geomys.ui.ressources.ic_location_off
 import fr.ariegenature.geomys.ui.ressources.ic_location_on
 import fr.ariegenature.geomys.ui.ressources.ic_map
@@ -146,23 +143,29 @@ import org.maplibre.compose.map.rememberMapState
 /** colorPrimaryVariant : l'indicateur des réglages sous iOS. */
 private val BLEU_VARIANTE = Color(0xFF1565C0)
 
-/** android.R.color.holo_green_dark : la confirmation d'un enregistrement. */
-private val VERT_CONFIRMATION = Color(0xFF669900)
-
 /** France entière, quand ni la carte ni le GPS n'ont encore de position. */
 private val FRANCE = LatLon(46.5, 2.5)
 
-/** La saisie mono-taxon. [onCaracterisation] et [onDenombrement] ouvrent les sous-écrans des
- *  réglages, [onEditerObservation] l'écran du relevé sur une observation enregistrée (« Modifier » de
- *  la confirmation), [onOuvrirFiche] directement sa fiche (marqueur touché, « Éditer »), [onQuitter]
+/** Le « + » du panneau : 48 dp, pour des doigts gantés. */
+private val TAILLE_PLUS = 48.dp
+
+/** Au-dessus et au-dessous du « + », dans le panneau du bas. */
+private val MARGE_PANNEAU = 8.dp
+
+/** Les boutons de la carte, 12 dp au-dessus du panneau du bas (une ligne, 64 dp depuis le 25 novembre
+ *  2026 ; ils étaient à 180 dp, au-dessus de ses lignes de confirmation et d'avertissement). En
+ *  paysage, la colonne de droite et ses quatre boutons tiennent ainsi sous la coche « Terminer ». */
+private val AU_DESSUS_DU_PANNEAU = TAILLE_PLUS + MARGE_PANNEAU * 2 + 12.dp
+
+/** La saisie mono-taxon. [onFicheSerie] ouvre la fiche de l'espèce de la série (son choix,
+ *  « Démarrer », la reprise d'une série dont un champ obligatoire est vide, le « i » de la carte),
+ *  [onOuvrirFiche] la fiche d'une observation enregistrée (marqueur touché, « Éditer »), [onQuitter]
  *  revient à l'écran précédent. */
 @Composable
 fun SaisieMonoScreen(
     vm: SaisieMonoViewModel,
     onAccueil: () -> Unit,
-    onCaracterisation: () -> Unit,
-    onDenombrement: () -> Unit,
-    onEditerObservation: (String) -> Unit,
+    onFicheSerie: () -> Unit,
     onOuvrirFiche: (EvenementSaisieMono.OuvrirFiche) -> Unit,
     onQuitter: () -> Unit,
 ) {
@@ -171,9 +174,7 @@ fun SaisieMonoScreen(
         vm.evenements.collect { evenement ->
             when (evenement) {
                 is EvenementSaisieMono.Message -> toasts.afficher(evenement.texte)
-                EvenementSaisieMono.Caracterisation -> onCaracterisation()
-                EvenementSaisieMono.Denombrement -> onDenombrement()
-                is EvenementSaisieMono.EditerObservation -> onEditerObservation(evenement.obsId)
+                EvenementSaisieMono.FicheSerie -> onFicheSerie()
                 is EvenementSaisieMono.OuvrirFiche -> onOuvrirFiche(evenement)
                 EvenementSaisieMono.Quitter -> onQuitter()
             }
@@ -220,6 +221,10 @@ fun SaisieMonoScreen(
 
 // ─── Réglages (panneau_config) ───
 
+/** Les réglages de la série : groupe, détails, espèce, « Annuler » et « Démarrer la saisie ». Depuis le
+ *  24 novembre 2026, l'espèce choisie ouvre sa fiche, comme en multi-taxons, dont les valeurs valent
+ *  pour chaque « + » : plus de boutons « Caractérisation » et « Dénombrement ». La ligne sous le champ
+ *  espèce résume ces valeurs. */
 @Composable
 private fun EcranReglages(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
     val ios = estIos
@@ -227,10 +232,6 @@ private fun EcranReglages(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
     val champ = vm.champ
     val ligne by champ.recherche.ligne.collectAsState()
     val modele by vm.saisie.modele.collectAsState()
-    // Un champ additionnel obligatoire vide : la barre rouge sur le bouton qui y mène (21 octobre).
-    val requis = vm.saisie.requis()
-    val caracterisationARemplir = requis.caracterisationIncomplete(modele)
-    val denombrementARemplir = requis.denombrementIncomplet(modele)
     // Seule une espèce RÉELLEMENT proposée ouvre la saisie.
     val demarrable = champ.texte.trim().isNotEmpty() && ligne.statut is TaxRefStatut.Trouve
     val dictee = rememberDictee(
@@ -283,10 +284,6 @@ private fun EcranReglages(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
                     BoutonDetailsIos(vm::ouvrirDetails)
                 }
                 champEspece(Modifier)
-                Row(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BoutonContour("Caractérisation", vm::ouvrirCaracterisation, Modifier.weight(1f).barreChampObligatoire(caracterisationARemplir))
-                    BoutonContour("Dénombrement", vm::ouvrirDenombrement, Modifier.weight(1f).barreChampObligatoire(denombrementARemplir))
-                }
                 indicateur?.let { Text(it, fontSize = 12.sp, color = BLEU_VARIANTE, modifier = Modifier.fillMaxWidth()) }
                 Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     BoutonContour("Annuler", vm::annuler, Modifier.weight(1f))
@@ -320,10 +317,6 @@ private fun EcranReglages(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
                     )
                 }
                 champEspece(Modifier)
-                Row(Modifier.fillMaxWidth().padding(top = 12.dp)) {
-                    BoutonContour("Caractérisation", vm::ouvrirCaracterisation, Modifier.weight(1f).padding(end = 4.dp).barreChampObligatoire(caracterisationARemplir))
-                    BoutonContour("Dénombrement", vm::ouvrirDenombrement, Modifier.weight(1f).padding(start = 4.dp).barreChampObligatoire(denombrementARemplir))
-                }
                 indicateur?.let { Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 4.dp)) }
                 Row(Modifier.fillMaxWidth().padding(top = 16.dp)) {
                     BoutonContour("Annuler", vm::annuler, Modifier.padding(end = 8.dp))
@@ -361,11 +354,14 @@ private fun EcranCarteMono(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
         if (ios) {
             Column(haut.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 BandeauNavigation(vm.session.typeSaisieLabel, onAccueil)
+                // Sur deux lignes depuis le 25 novembre 2026 (une observation touchée s'édite) : centrées,
+                // comme la consigne de la carte multi-taxons.
                 Text(
                     SaisieMono.CONSIGNE,
                     color = Color.White,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier
                         .padding(start = 12.dp, end = 12.dp, top = 18.dp)
                         .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(10.dp))
@@ -377,11 +373,12 @@ private fun EcranCarteMono(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
             }
         } else {
             BandeauNavigation(vm.session.typeSaisieLabel, onAccueil, haut.padding(12.dp))
-            Box(haut.fillMaxWidth().padding(top = 84.dp), contentAlignment = Alignment.Center) {
+            Box(haut.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 84.dp), contentAlignment = Alignment.Center) {
                 Text(
                     SaisieMono.CONSIGNE,
                     color = Color.White,
                     fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier
                         .background(Color(0xA6000000), RoundedCornerShape(20.dp))
                         .padding(horizontal = 16.dp, vertical = 10.dp),
@@ -401,11 +398,14 @@ private fun EcranCarteMono(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
             )
         }
 
-        // ─── Bas droite : centrer, boussole, fond ; bas gauche : zoom (au-dessus du panneau) ───
+        // ─── Bas droite : fiche de la série, centrer, boussole, fond ; bas gauche : zoom (au-dessus du panneau) ───
         Column(
-            Modifier.align(Alignment.BottomEnd).then(bas).padding(end = 12.dp, bottom = 180.dp),
+            Modifier.align(Alignment.BottomEnd).then(bas).padding(end = 12.dp, bottom = AU_DESSUS_DU_PANNEAU),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // Le « i » de la carte multi-taxons, à la même place (demande du 25 novembre 2026) : ici, la
+            // fiche de la série, dont les valeurs valent pour la suite.
+            BoutonCarte(Res.drawable.ic_info, "Fiche du relevé", StyleBoutonCarte.CONTROLE_SAISIE, vm::ouvrirFicheSerie)
             BoutonCarte(
                 if (vm.suivrePosition || ios) Res.drawable.ic_location_on else Res.drawable.ic_location_off,
                 "Recentrer sur ma position",
@@ -420,7 +420,7 @@ private fun EcranCarteMono(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
             BoutonCarte(Res.drawable.ic_map, "Changer fond", StyleBoutonCarte.CONTROLE, vm::montrerChoixFond)
         }
         Column(
-            Modifier.align(Alignment.BottomStart).then(bas).padding(start = 12.dp, bottom = 180.dp),
+            Modifier.align(Alignment.BottomStart).then(bas).padding(start = 12.dp, bottom = AU_DESSUS_DU_PANNEAU),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             BoutonCarte(Res.drawable.ic_add, "Zoom avant", StyleBoutonCarte.CONTROLE_SAISIE, {
@@ -431,7 +431,7 @@ private fun EcranCarteMono(vm: SaisieMonoViewModel, onAccueil: () -> Unit) {
             })
         }
 
-        // ─── Bas : résumé, confirmation, compteur et « + » ; la mention des données au-dessus ───
+        // ─── Bas : résumé, compteur et « + » ; la mention des données au-dessus ───
         var hautPanneau by remember { mutableStateOf(0.dp) }
         AttributionFond(vm.fond, Modifier.align(Alignment.BottomCenter).padding(bottom = hautPanneau).padding(horizontal = 60.dp))
         PanneauMono(vm, enregistrer, Modifier.align(Alignment.BottomCenter).onSizeChanged { hautPanneau = with(densite) { it.height.toDp() } })
@@ -508,8 +508,13 @@ private fun CarteMono(vm: SaisieMonoViewModel): MapState {
     return etat
 }
 
-/** Le panneau du bas : ce que chaque « + » enregistre (« Modifier » revient aux réglages), la
- *  confirmation du dernier enregistrement, le compteur et « + ».
+/** Le panneau du bas, sur une seule ligne depuis le 25 novembre 2026 (demande de l'utilisateur :
+ *  « diminuer la hauteur du bandeau du bas ») : le groupe, ce que chaque « + » enregistre (« Merle
+ *  noir × 2 ») et, dessous, le compteur des observations de la saisie, puis « + ». Le même jour, à la
+ *  demande de l'utilisateur, il a perdu « Modifier », qui ramenait aux réglages (le « i » de la carte
+ *  rouvre la fiche de la série), les codes du sexe et du stade sous l'espèce, l'avertissement
+ *  « Donnée exceptionnelle » de la dernière observation et la ligne de confirmation de chaque « + »,
+ *  avec son « Modifier » (une observation touchée s'édite : la consigne en haut de la carte le dit).
  *  - Android : `panel_bg` bleu nuit jusque sous la barre de navigation ;
  *  - iOS : le panneau de SaisieRapideView, sur le même bleu nuit. */
 @Composable
@@ -517,93 +522,48 @@ private fun PanneauMono(vm: SaisieMonoViewModel, onEnregistrer: () -> Unit, modi
     val ios = estIos
     val modele by vm.saisie.modele.collectAsState()
     val resume = remember(modele) { vm.saisie.resume() }
-    val details = remember(modele) { vm.saisie.resumeDetails() }
-    val confirmation = vm.confirmation
-    val profils by vm.profils.collectAsState()
-    val avertissement = vm.avertissementDerniere(profils)
+    // Toutes les observations de la saisie, reprises comprises, comptées comme « Mes saisies ».
+    val observations by vm.session.observations.collectAsState()
+    val nombre = remember(observations) { vm.nombreObservations(observations) }
     val gris = if (ios) CouleursGeoMys.blanc70 else MaterialTheme.colorScheme.onSurfaceVariant
-    Column(
+    Row(
         modifier
             .fillMaxWidth()
             .then(if (ios) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)) else Modifier)
             .background(FOND_PANNEAU)
             .then(if (ios) Modifier else Modifier.windowInsetsPadding(WindowInsets.navigationBars))
-            .padding(horizontal = 16.dp)
-            .padding(top = 12.dp, bottom = if (ios) 12.dp else 16.dp),
-        verticalArrangement = Arrangement.spacedBy(if (ios) 8.dp else 0.dp),
+            .padding(horizontal = 16.dp, vertical = MARGE_PANNEAU),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val taxon = modele.taxon
-            Box(Modifier.size(if (ios) 28.dp else 24.dp), contentAlignment = Alignment.Center) {
-                Image(
-                    painterResource(taxon.icone),
-                    contentDescription = null,
-                    colorFilter = ColorFilter.tint(taxon.couleur),
-                    modifier = Modifier.size(if (ios) 22.dp else 24.dp),
-                )
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(if (ios) 1.dp else 0.dp)) {
-                Text(resume, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (ios) Color.White else Color.Unspecified)
-                details?.let { Text(it, fontSize = 12.sp, color = gris) }
-            }
-            if (ios) {
-                BoutonIos(vm::modifierReglages, opaciteAppui = 0.3f) { Text("Modifier", fontSize = 13.sp, color = CouleursGeoMys.jauneClair) }
-            } else {
-                BoutonTexte("Modifier", CouleursGeoMys.jauneClair, vm::modifierReglages)
-            }
+        val taxon = modele.taxon
+        Box(Modifier.size(if (ios) 28.dp else 24.dp), contentAlignment = Alignment.Center) {
+            Image(
+                painterResource(taxon.icone),
+                contentDescription = null,
+                colorFilter = ColorFilter.tint(taxon.couleur),
+                modifier = Modifier.size(if (ios) 22.dp else 24.dp),
+            )
         }
-        if (confirmation != null) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(top = if (ios) 0.dp else 8.dp)
-                    .background(Color(0x1A4CAF50))
-                    .padding(horizontal = 12.dp, vertical = if (ios) 8.dp else 0.dp)
-                    .padding(vertical = if (ios) 0.dp else 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (ios) {
-                    SymboleSf("checkmark.circle.fill", 17f, listOf(CouleursGeoMys.vert))
-                } else {
-                    Image(painterResource(Res.drawable.ic_check_circle), null, colorFilter = ColorFilter.tint(VERT_CONFIRMATION), modifier = Modifier.size(16.dp))
-                }
-                Text(
-                    SaisieMono.confirmation(confirmation),
-                    fontSize = 13.sp,
-                    color = if (ios) CouleursGeoMys.vert else VERT_CONFIRMATION,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                if (ios) {
-                    BoutonIos(vm::modifierDerniere, opaciteAppui = 0.3f) {
-                        Text("Modifier", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = CouleursGeoMys.jauneClair)
-                    }
-                } else {
-                    BoutonMaterial(
-                        onClick = vm::modifierDerniere,
-                        marges = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        couleurContenu = CouleursGeoMys.jauneClair,
-                    ) { Text("Modifier", style = styleLibelleMaterial(CouleursGeoMys.jauneClair, 12f)) }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(if (ios) 2.dp else 0.dp)) {
+            Text(
+                resume,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (ios) Color.White else Color.Unspecified,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (nombre > 0) Text(SaisieMono.compteur(nombre), fontSize = 13.sp, color = gris, maxLines = 1)
+        }
+        if (ios) {
+            BoutonIos(onEnregistrer, opaciteAppui = 0.6f) {
+                Box(Modifier.size(TAILLE_PLUS).fondEnRelief(CouleursGeoMys.primaire, CircleShape), contentAlignment = Alignment.Center) {
+                    SymboleSf("plus", 22f, listOf(Color.White), graisse = GraisseSymbole.GRASSE, description = "Enregistrer ici")
                 }
             }
-        }
-        avertissement?.let { (espece, messages) ->
-            AvertissementProfil(messages, Modifier.padding(top = if (ios) 0.dp else 8.dp), espece = espece)
-        }
-        Row(Modifier.fillMaxWidth().padding(top = if (ios) 4.dp else 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (vm.compteur > 0) Text(SaisieMono.compteur(vm.compteur), fontSize = 13.sp, color = gris)
-            Spacer(Modifier.weight(1f))
-            if (ios) {
-                BoutonIos(onEnregistrer, opaciteAppui = 0.6f) {
-                    Box(Modifier.size(48.dp).fondEnRelief(CouleursGeoMys.primaire, CircleShape), contentAlignment = Alignment.Center) {
-                        SymboleSf("plus", 22f, listOf(Color.White), graisse = GraisseSymbole.GRASSE, description = "Enregistrer ici")
-                    }
-                }
-            } else {
-                BoutonRondAndroid(Res.drawable.ic_add, CouleursGeoMys.primaire, BLEU_APPUYE, 48.dp, "Enregistrer ici", onEnregistrer)
-            }
+        } else {
+            BoutonRondAndroid(Res.drawable.ic_add, CouleursGeoMys.primaire, BLEU_APPUYE, TAILLE_PLUS, "Enregistrer ici", onEnregistrer)
         }
     }
 }

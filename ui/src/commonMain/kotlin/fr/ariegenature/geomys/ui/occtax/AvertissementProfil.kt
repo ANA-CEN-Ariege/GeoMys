@@ -35,14 +35,15 @@ import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 private val ORANGE_ANDROID = Color(0xFFFF8800)
 
 /** L'avertissement d'une observation que le serveur trouve inhabituelle ([messages] non vides) :
- *  « ⚠ Donnée exceptionnelle. Le taxon n'a jamais été observé… », précédé de l'[espece] quand elle
- *  n'est pas à côté. Rien s'il n'y a pas de [messages]. */
+ *  « ⚠ Donnée exceptionnelle. Le taxon n'a jamais été observé… », sous l'espèce. Rien s'il n'y a pas
+ *  de [messages]. Le panneau de la carte mono-taxon, qui le faisait précéder de l'espèce, ne le montre
+ *  plus depuis le 25 novembre 2026. */
 @Composable
-fun AvertissementProfil(messages: List<String>, modifier: Modifier = Modifier, espece: String? = null) {
+fun AvertissementProfil(messages: List<String>, modifier: Modifier = Modifier) {
     if (messages.isEmpty()) return
     val couleur = if (estIos) CouleursGeoMys.orange else ORANGE_ANDROID
     Text(
-        "⚠ " + (espece?.let { "$it — " } ?: "") + TextesProfils.MESSAGE,
+        "⚠ " + TextesProfils.MESSAGE,
         fontSize = 12.sp,
         fontWeight = FontWeight.Bold,
         color = couleur,

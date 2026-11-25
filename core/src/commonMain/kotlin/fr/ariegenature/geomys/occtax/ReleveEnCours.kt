@@ -142,6 +142,41 @@ data class EspeceReleve(
     )
 }
 
+/** L'espèce que porte l'observation [o] : groupe, nom, cd_nom, dénombrements, caractérisation, médias et
+ *  champs de l'occurrence, l'inverse de [EspeceReleve.surObservation] ; sans [EspeceReleve.existingId]. */
+fun especeDepuisObservation(o: Observation): EspeceReleve = EspeceReleve(
+    taxon = o.taxon ?: Taxon.OISEAU,
+    espece = o.espece,
+    cdNom = o.cdNom,
+    nombre = o.nombre,
+    nombreMax = o.nombreMax,
+    sexe = o.sexe ?: "",
+    stadeVie = o.stadeVie ?: "",
+    objDenbr = o.objDenbr ?: "",
+    typDenbr = o.typDenbr ?: "",
+    denombrementsAdditionnels = o.denombrementsAdditionnels,
+    statutObs = o.statutObs ?: "",
+    techniqueObs = o.techniqueObs ?: "",
+    statutBio = o.statutBio ?: "",
+    etaBio = o.etaBio ?: "",
+    preuveExist = o.preuveExist ?: "",
+    comportement = o.comportement ?: "",
+    methDetermin = o.methDetermin ?: "",
+    naturalite = o.naturalite ?: "",
+    determinateur = o.determinateur ?: "",
+    notes = o.notes,
+    mediaUrisCounting0 = o.mediaUrisCounting0,
+    additionalFieldsReleve = o.additionalFieldsReleve,
+    additionalFieldsOccurrence = o.additionalFieldsOccurrence,
+    champsOccExtra = o.champsOccExtra,
+    additionalFieldsCounting0 = o.additionalFieldsCounting0,
+)
+
+/** L'espèce sans ses photos ni ses sons, ceux de tous ses dénombrements : une valeur de série
+ *  mono-taxon, que chaque « + » copie, n'en porte pas (une photo est celle d'une observation). */
+fun EspeceReleve.sansMedias(): EspeceReleve =
+    copy(mediaUrisCounting0 = emptyList(), denombrementsAdditionnels = denombrementsAdditionnels.map { it.copy(mediaUris = emptyList()) })
+
 /** Ce qui ouvre l'écran du relevé : un relevé repris ([releveId], ou une observation seule
  *  [obsId]), sinon un nouveau relevé posé à [geometrie], avec les champs additionnels déjà saisis
  *  dans l'écran intercalé ([additionnelsIntercales]). */
@@ -160,11 +195,11 @@ class ReleveEnCours(
     private val config: GeoNatureConfig,
     ouverture: OuvertureReleve,
     dernierTaxon: Taxon?,
-) {
+) : EspecesModifiables {
     private val _especes = MutableStateFlow<List<EspeceReleve>>(emptyList())
 
     /** Les espèces du relevé, dans l'ordre de saisie (la liste les AFFICHE à l'envers). */
-    val especes: StateFlow<List<EspeceReleve>> = _especes.asStateFlow()
+    override val especes: StateFlow<List<EspeceReleve>> = _especes.asStateFlow()
 
     // ── Valeurs du relevé, communes à toutes ses espèces (« Détails du relevé ») ──
     var additionnelsReleve: Map<String, String> = emptyMap()
@@ -263,36 +298,7 @@ class ReleveEnCours(
             champsExtra = premier.champsReleveExtra
             geometryType = premier.geometryType
             geometryCoordsJson = premier.geometryCoordsJson
-            _especes.value = existantes.map { o ->
-                EspeceReleve(
-                    taxon = o.taxon ?: Taxon.OISEAU,
-                    espece = o.espece,
-                    cdNom = o.cdNom,
-                    nombre = o.nombre,
-                    nombreMax = o.nombreMax,
-                    sexe = o.sexe ?: "",
-                    stadeVie = o.stadeVie ?: "",
-                    objDenbr = o.objDenbr ?: "",
-                    typDenbr = o.typDenbr ?: "",
-                    denombrementsAdditionnels = o.denombrementsAdditionnels,
-                    statutObs = o.statutObs ?: "",
-                    techniqueObs = o.techniqueObs ?: "",
-                    statutBio = o.statutBio ?: "",
-                    etaBio = o.etaBio ?: "",
-                    preuveExist = o.preuveExist ?: "",
-                    comportement = o.comportement ?: "",
-                    methDetermin = o.methDetermin ?: "",
-                    naturalite = o.naturalite ?: "",
-                    determinateur = o.determinateur ?: "",
-                    notes = o.notes,
-                    mediaUrisCounting0 = o.mediaUrisCounting0,
-                    additionalFieldsReleve = o.additionalFieldsReleve,
-                    additionalFieldsOccurrence = o.additionalFieldsOccurrence,
-                    champsOccExtra = o.champsOccExtra,
-                    additionalFieldsCounting0 = o.additionalFieldsCounting0,
-                    existingId = o.id,
-                )
-            }
+            _especes.value = existantes.map { o -> especeDepuisObservation(o).copy(existingId = o.id) }
         } else {
             val geometrie = ouverture.geometrie
             latitude = geometrie?.latitude ?: 0.0
@@ -345,9 +351,8 @@ class ReleveEnCours(
         synchroniser()
     }
 
-    /** Retour d'un sous-écran (Caractérisation, Dénombrement) : l'espèce [index] modifiée, et le
-     *  relevé enregistré. */
-    fun modifier(index: Int, transformation: (EspeceReleve) -> EspeceReleve) {
+    /** Retour de la fiche de l'espèce : l'espèce [index] modifiée, et le relevé enregistré. */
+    override fun modifier(index: Int, transformation: (EspeceReleve) -> EspeceReleve) {
         val liste = _especes.value
         if (index !in liste.indices) return
         _especes.value = liste.toMutableList().also { it[index] = transformation(it[index]) }
@@ -387,13 +392,13 @@ class ReleveEnCours(
     fun dateAChoisir(): Boolean = !config.occtaxDateDuJour && dateDebut == null
 
     /** L'observation de [espece] est déjà sur le serveur : une mise à jour n'y porte pas de média. */
-    fun dejaTransmise(espece: EspeceReleve): Boolean =
+    override fun dejaTransmise(espece: EspeceReleve): Boolean =
         session.observations.value.any { it.id == (espece.existingId ?: espece.vmId) && it.envoyeeServeur }
 
     private val memoRequis = MemoRequis()
 
     /** Les champs additionnels obligatoires à remplir des espèces, pour le jeu du relevé. */
-    fun requis(): RequisEspece = memoRequis.pour(config.additionalFieldsOcctaxJson, idDatasetEffectif())
+    override fun requis(): RequisEspece = memoRequis.pour(config.additionalFieldsOcctaxJson, idDatasetEffectif())
 
     /** Les champs additionnels de relevé à enregistrer : ceux du relevé, sinon (écran intercalé
      *  sauté et « Détails » jamais ouvert) les valeurs par défaut du serveur. */

@@ -1,6 +1,6 @@
 # Mode pro et mode simplifié : les différences
 
-État au 24 novembre 2026 (version 2.2.1-beta1, build 224).
+État au 25 novembre 2026 (version 2.2.1-beta2, build 225).
 
 **À tenir à jour.** Toute modification qui fait diverger ou converger les deux modes se reporte ici, et dans la page destinée aux utilisateurs [`MODES-SAISIE.html`](MODES-SAISIE.html), dans le même commit. Les divergences se retrouvent dans le code par `ModeSaisie`, `simplifie`, `occtaxSeul` et `donneesSimplifiees` ; le détail des décisions est dans [`LOT-9.md`](LOT-9.md) § 43 à 51, 55 à 62, 64 et 65.
 
@@ -77,13 +77,13 @@ Dans les deux modes, un seul écran, « Fiche de l'observation », porte tous le
 
 Depuis le 20 novembre 2026, son titre est « Observation : » suivi, sur la même ligne, du nom français de l'espèce seul : celui qui a été choisi, ou, pour une espèce choisie par son nom latin, son nom usuel dans TaxRef. Une espèce sans nom français garde son nom latin. Le nom latin n'est plus sous le titre (il reste sous l'espèce dans la liste du relevé), et le bandeau finit toujours par « Fiche de l'observation ».
 
-**Mode pro**, les champs du web de GeoNature (un seul écran depuis le 16 novembre 2026 ; avant, deux écrans, Dénombrement et Caractérisation, qui ne servent plus qu'à la saisie mono-taxon). Depuis le 19 novembre 2026, l'ordre s'écarte du web à la demande de l'utilisateur, et les champs vont par deux sur deux colonnes :
+**Mode pro**, les champs du web de GeoNature (un seul écran depuis le 16 novembre 2026 ; avant, deux écrans, Dénombrement et Caractérisation, que la saisie mono-taxon a gardés jusqu'au 24 novembre 2026). Depuis le 19 novembre 2026, l'ordre s'écarte du web à la demande de l'utilisateur, et les champs vont par deux sur deux colonnes :
 
 - **En tête** : comportement et statut biologique (que le web range sous « Plus de champs »), puis technique d'observation et état biologique.
 - **Dénombrement** : objet et type du dénombrement, nombre min et nombre max, stade de vie et sexe, médias, champs additionnels ; plusieurs dénombrements par espèce.
 - **« Plus de détails »** (la section « Avancé » du web, repliée) : déterminateur, méthode de détermination, statut d'observation, naturalité, statut de la source, floutage, preuve d'existence, preuves numérique et non numérique, commentaire ; puis les champs additionnels.
 
-En saisie mono-taxon, l'écran Caractérisation commence par les mêmes deux lignes (comportement et statut biologique, technique d'observation et état biologique).
+En saisie mono-taxon, depuis le 24 novembre 2026, la même fiche règle les valeurs de la série, sans les médias ; depuis le 25 novembre 2026, le « i » de la carte la rouvre pour la suite de la série (voir « Ce qui ne dépend pas du mode »).
 
 **Mode simplifié**, un choix réduit de champs, dans cet ordre (le comportement et « Chant » juste sous les nombres depuis le 18 novembre 2026 ; sur la fiche elle-même depuis le 16 novembre 2026 ; avant, des boutons « Détails », « Comportement » et « Commentaire » ouvraient chacun un écran) :
 
@@ -102,7 +102,7 @@ En saisie mono-taxon, l'écran Caractérisation commence par les mêmes deux lig
 
 Depuis le 20 novembre 2026, sexe et stade de vie, type d'observation et état biologique vont par deux sur deux colonnes, comme sur la fiche du mode pro. Un champ absent décale les suivants : pour une plante, sans sexe, le stade de vie partage sa ligne avec le type d'observation, et l'état biologique prend toute la largeur.
 
-Dans les deux modes, et en saisie mono-taxon (Caractérisation, Dénombrement), les listes de nomenclature de la fiche n'ont plus de croix rouge pour vider le choix (depuis le 19 novembre 2026) : un choix se change, il ne se vide plus. Les champs additionnels gardent la leur, ainsi que les détails du relevé, sauf le jeu de données.
+Dans les deux modes, et donc en saisie mono-taxon, les listes de nomenclature de la fiche n'ont plus de croix rouge pour vider le choix (depuis le 19 novembre 2026) : un choix se change, il ne se vide plus. Les champs additionnels gardent la leur, ainsi que les détails du relevé, sauf le jeu de données.
 
 En mode simplifié, une photo ou un son est écrit aussitôt, sans attendre le ✓, et une fiche validée sans rien changer n'écrit rien. En mode pro, les médias s'écrivent au ✓ avec le reste, et le ✓ écrit toujours les valeurs affichées, défauts du serveur compris.
 
@@ -143,4 +143,4 @@ Le reste des Paramètres (connexion, liste des serveurs) est identique.
 
 ## Ce qui ne dépend pas du mode
 
-Saisie mono-taxon (qui garde ses écrans Dénombrement et Caractérisation ; leur ✓ et celui de ses détails sont aussi en bas au milieu depuis le 17 novembre 2026 ; depuis le 24 novembre 2026, une observation touchée sur la carte ouvre un popup « Éditer », qui mène directement à sa fiche, ou « Supprimer » ; plusieurs au même point, on choisit d'abord laquelle), Monitoring et OccHab (absents du mode simplifié, inchangés en mode pro), Explorer, Maps Manager, carte et trace GPS, envoi des saisies, connexion au serveur.
+Saisie mono-taxon (le ✓ de ses détails est en bas au milieu depuis le 17 novembre 2026. Depuis le 24 novembre 2026 : l'espèce choisie dans ses réglages ouvre sa fiche, comme en multi-taxons, celle du mode, pro ou simplifié, sans photo ni son ; ses valeurs valent pour chaque « + » et restent avec la saisie, et son ✓ ouvre la carte ; plus de boutons « Caractérisation » et « Dénombrement ». Une observation touchée sur la carte ouvre un popup « Éditer », qui mène directement à sa fiche, ou « Supprimer » ; plusieurs au même point, on choisit d'abord laquelle. « Continuer la saisie » la rouvre directement sur sa carte, avec les valeurs de sa série et, depuis le 25 novembre 2026, les détails du relevé de son dernier « + » (observateurs, date et heures, commentaire, habitat). Depuis le 25 novembre 2026, un « i » sur la carte, au même endroit et de même allure que sur la carte multi-taxons, rouvre la fiche de la série, dont les valeurs valent pour les « + » suivants ; plus de « Modifier » vers les réglages, donc plus de changement d'espèce ni de détails depuis la carte, ni de codes du sexe et du stade sous l'espèce, ni d'avertissement « Donnée exceptionnelle » sur la carte : il reste dans « Mes saisies » et le détail d'une saisie ; plus de ligne de confirmation après chaque « + », ni de « Modifier » vers l'écran du relevé de la dernière observation : la consigne en haut de la carte dit qu'une observation touchée s'édite ; le compteur compte toutes les observations de la saisie, reprises comprises, et le panneau du bas tient sur une ligne), Monitoring et OccHab (absents du mode simplifié, inchangés en mode pro), Explorer, Maps Manager, carte et trace GPS, envoi des saisies, connexion au serveur.

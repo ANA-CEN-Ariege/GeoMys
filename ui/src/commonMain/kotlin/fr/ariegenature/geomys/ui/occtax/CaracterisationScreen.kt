@@ -48,14 +48,10 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import fr.ariegenature.geomys.occtax.EspeceReleve
 import fr.ariegenature.geomys.ui.composants.ChampLibelle
 import fr.ariegenature.geomys.ui.composants.ChampTexteFormulaire
-import fr.ariegenature.geomys.ui.composants.DialogueGardeSortie
-import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.estIos
-import fr.ariegenature.geomys.ui.composants.rememberGardeSortie
 
 /** android.R.color.holo_blue_dark : le bouton « Avancé ». */
 private val BLEU_LIEN = Color(0xFF0099CC)
@@ -67,35 +63,9 @@ private val BLEU_VARIANTE = Color(0xFF1565C0)
 /** Le titre de la section avancée (« Avancé » sur le web et jusqu'au 19 novembre 2026). */
 private const val LIBELLE_AVANCE = "Plus de détails"
 
-/** La caractérisation de l'occurrence ; [onValide] reçoit l'espèce caractérisée. */
-@Composable
-fun CaracterisationScreen(
-    vm: CaracterisationViewModel,
-    typeSaisieLabel: String,
-    onAccueil: () -> Unit,
-    onRetour: () -> Unit,
-    onValide: (EspeceReleve) -> Unit,
-) {
-    val toasts = LocalToasts.current
-    val garde = rememberGardeSortie(vm::modifie, onRetour)
-    EcranFormulaireEspece(
-        titre = "Caractérisation de l'occurrence",
-        sousTitre = null,
-        typeSaisieLabel = typeSaisieLabel,
-        onAccueil = { garde.demander(onAccueil) },
-        onValider = {
-            val (espece, message) = vm.valider()
-            if (espece != null) onValide(espece) else if (message != null) toasts.afficher(message, true)
-        },
-        valideEnBas = true,
-    ) {
-        ContenuCaracterisation(vm)
-    }
-    DialogueGardeSortie(garde, "Caractérisation non enregistrée")
-}
-
-/** Les champs de la caractérisation : le contenu de l'écran Caractérisation (saisie mono-taxon) et de
- *  la fiche de l'observation (saisie multi-taxons). */
+/** Les champs de la caractérisation, dans la fiche de l'observation du mode pro, d'un relevé ou d'une
+ *  série mono-taxon. Ils ont eu leur propre écran, Caractérisation, que la saisie mono-taxon a ouvert
+ *  jusqu'au 24 novembre 2026. */
 @Composable
 internal fun ContenuCaracterisation(vm: CaracterisationViewModel) {
     EnTeteCaracterisation(vm)
