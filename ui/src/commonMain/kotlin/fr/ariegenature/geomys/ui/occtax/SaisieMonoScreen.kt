@@ -26,6 +26,7 @@ package fr.ariegenature.geomys.ui.occtax
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -160,7 +161,7 @@ private val AU_DESSUS_DU_PANNEAU = TAILLE_PLUS + MARGE_PANNEAU * 2 + 12.dp
 /** La saisie mono-taxon. [onFicheSerie] ouvre la fiche de l'espèce de la série (son choix,
  *  « Démarrer », la reprise d'une série dont un champ obligatoire est vide, le « i » de la carte),
  *  [onOuvrirFiche] la fiche d'une observation enregistrée (marqueur touché, « Éditer »), [onQuitter]
- *  revient à l'écran précédent. */
+ *  revient à l'écran précédent. [auPremierPlan] : la saisie est l'écran du dessus de la pile. */
 @Composable
 fun SaisieMonoScreen(
     vm: SaisieMonoViewModel,
@@ -168,6 +169,7 @@ fun SaisieMonoScreen(
     onFicheSerie: () -> Unit,
     onOuvrirFiche: (EvenementSaisieMono.OuvrirFiche) -> Unit,
     onQuitter: () -> Unit,
+    auPremierPlan: () -> Boolean = { true },
 ) {
     val toasts = LocalToasts.current
     LaunchedEffect(vm) {
@@ -183,11 +185,16 @@ fun SaisieMonoScreen(
     // Localisation demandée à l'ouverture, puis suivi GPS (sans trace).
     val demandeLocalisation = rememberDemandeLocalisation { vm.demarrerSuivi() }
     LaunchedEffect(Unit) { demandeLocalisation() }
-    // Le retour système passe par « Terminer la saisie », pour libérer le GPS comme la coche.
-    RetourSysteme { vm.demanderTerminer() }
+    // Le retour système passe par « Terminer la saisie », pour libérer le GPS comme la coche. Pas
+    // tant qu'une fiche s'ouvre par-dessus (relecture du 25 novembre 2026), comme en multi-taxons.
+    RetourSysteme { if (auPremierPlan()) vm.demanderTerminer() }
 
     FondGeoMys {
         if (vm.modeActif) EcranCarteMono(vm, onAccueil) else EcranReglages(vm, onAccueil)
+        // Pendant l'écriture de la fin, l'écran ne répond plus, sans voile (comme en multi-taxons).
+        if (vm.finEnCours) {
+            Box(Modifier.fillMaxSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {})
+        }
 
         EcranDetailsReleve(vm.details, vm.session.typeSaisieLabel, onAccueil, vm::fermerDetails, vm::validerDetails)
         DialoguesObservationTouchee(vm)

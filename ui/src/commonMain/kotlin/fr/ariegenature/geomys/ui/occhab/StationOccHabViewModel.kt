@@ -145,14 +145,25 @@ class StationOccHabViewModel(
 
     // ─── Terminer ───
 
+    /** La coche a été touchée : la station s'écrit, puis la carte suivante s'ouvre ([terminer]). */
+    private var finEnCours = false
+
     /** Coche verte : la station est (ré)écrite, puis une carte vierge pour la suivante. Écriture
-     *  échouée : on RESTE sur la station courante — enchaîner jetterait la seule copie mémoire. */
+     *  échouée : on RESTE sur la station courante — enchaîner jetterait la seule copie mémoire.
+     *  Une seule fois, et jamais sans géométrie, comme [ouverture] : un second toucher, reçu après
+     *  l'écriture pendant que l'écran se fermait, écrivait la station vierge de la suivante (point
+     *  0,0, sans habitat) dans la saisie, prête à partir (relecture du 25 novembre 2026). */
     fun terminer() {
+        if (finEnCours || !session.station.geometrieDefinie()) return
+        finEnCours = true
         viewModelScope.launch {
             // Station importée ENCORE (ou DE NOUVEAU) intacte : aucune copie « à envoyer » ne
             // subsiste, le message ne doit pas prétendre le contraire.
             val intacte = store.estIntacte(session.saisieId, session.stationAEnregistrer())
-            if (!sauvegarder()) return@launch
+            if (!sauvegarder()) {
+                finEnCours = false
+                return@launch
+            }
             _evenements.send(EvenementStationOccHab.Message(if (intacte) StationOccHab.AUCUNE_MODIFICATION else StationOccHab.ENREGISTREE, longue = true))
             session.nouvelleStation()
             _evenements.send(EvenementStationOccHab.CarteSuivante)

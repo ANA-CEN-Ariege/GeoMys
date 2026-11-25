@@ -795,6 +795,12 @@ private fun CoucheDialogueAndroid(visible: Boolean, onFermer: () -> Unit, conten
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
                 content = contenu,
             )
+            // Fermé, il ne répond plus pendant son fondu de sortie, comme la fenêtre d'un AlertDialog
+            // retirée aussitôt : un second toucher d'un bouton relançait son action (« Enregistrer et
+            // envoyer » deux fois ; relecture du 25 novembre 2026).
+            if (!visible) {
+                Box(Modifier.matchParentSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {})
+            }
         }
     }
 }

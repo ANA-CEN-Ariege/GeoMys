@@ -305,13 +305,26 @@ private fun NavHostController.naviguerDepuis(depuis: NavBackStackEntry, route: A
     if (depuis.lifecycle.currentState == Lifecycle.State.RESUMED) navigate(route, options)
 }
 
-/** Un niveau du fil d'Ariane des Suivis touché (le dernier de [cible]) : `naviguerVersFil` de
- *  GeoMys-Android.
+/** Le retour depuis l'écran [depuis] : il quitte la pile s'il est encore au premier plan, et jamais
+ *  quand il est le dernier écran visible (l'accueil). Rend vrai s'il l'a quittée. Un second toucher de
+ *  la coche ou de « Retour », reçu pendant que l'écran se fermait, dépilait aussi celui d'en dessous :
+ *  sous la carte multi-taxons quittée sans observation, l'accueil, et la pile vide ne montrait plus
+ *  que le fond de la fenêtre, sans un bouton (Galaxy A12, 25 novembre 2026 : l'accueil avait mis près
+ *  d'une seconde à se dessiner). Interne pour les tests de navigation (iosTest). */
+internal fun NavHostController.retourDepuis(depuis: NavBackStackEntry): Boolean =
+    currentBackStackEntry?.id == depuis.id && previousBackStackEntry != null && popBackStack()
+
+/** Un niveau du fil d'Ariane des Suivis touché (le dernier de [cible]) depuis l'écran [depuis] :
+ *  `naviguerVersFil` de GeoMys-Android.
  *  - Accueil, liste des protocoles, protocole : on y remonte s'il est dans la pile, sinon on
  *    l'ouvre (le détail d'un protocole y est unique) ;
  *  - objet : sa fiche, en repliant d'un coup les niveaux au-dessus du détail du protocole quand il
- *    est présent ; sinon la fiche s'empile (édition depuis les saisies en attente). */
-private fun NavHostController.naviguerVersFil(moduleCode: String, cible: List<FilSegment>) {
+ *    est présent ; sinon la fiche s'empile (édition depuis les saisies en attente).
+ *  Seulement si [depuis] est au premier plan, comme [retourDepuis] : un second toucher de la maison,
+ *  reçu pendant que l'écran se fermait, ne trouvait plus rien à dépiler et empilait un second accueil
+ *  (relecture du 25 novembre 2026). Interne pour les tests de navigation (iosTest). */
+internal fun NavHostController.naviguerVersFil(depuis: NavBackStackEntry, moduleCode: String, cible: List<FilSegment>) {
+    if (currentBackStackEntry?.id != depuis.id) return
     val seg = cible.last()
     when (seg.type) {
         FIL_TYPE_ACCUEIL -> if (!popBackStack(RouteAccueil, inclusive = false)) navigate(RouteAccueil)
@@ -509,11 +522,11 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
         },
     ) {
         composable<RouteAccueil> { EcranAccueil(infos, services, sessionSaisie, sessionOccHab, nav) }
-        composable<RouteParametres> {
+        composable<RouteParametres> { entree ->
             val vm = viewModel { ParametresViewModel(services) }
             ParametresScreen(
                 vm,
-                onFermer = { nav.popBackStack() },
+                onFermer = { nav.retourDepuis(entree) },
                 onTaxonsListe = { id, nom -> nav.navigate(RouteTaxonsListe(id, nom)) },
                 defilerEnBas = ecranInitial == "parametres-selections",
                 versionDeTest = infos.versionDeTest,
@@ -521,7 +534,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
         }
         composable<RouteTaxonsListe> { entree ->
             val route = entree.toRoute<RouteTaxonsListe>()
-            TaxonsListeScreen(services, route.idListe, route.nomListe, onRetour = { nav.popBackStack() })
+            TaxonsListeScreen(services, route.idListe, route.nomListe, onRetour = { nav.retourDepuis(entree) })
         }
         composable<RouteSuivis> { entree ->
             val vm = viewModel { SuivisViewModel(services) }
@@ -540,7 +553,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             val vm = viewModel { SuiviDetailViewModel(services, route.moduleCode) }
             SuiviDetailScreen(
                 vm,
-                onNiveau = { cible -> nav.naviguerVersFil(route.moduleCode, cible) },
+                onNiveau = { cible -> nav.naviguerVersFil(entree, route.moduleCode, cible) },
                 onFiche = { l -> nav.naviguerDepuis(entree, RouteFicheObjet(route.moduleCode, l.type, l.id, encoderFil(vm.filDe(l)))) },
                 onCarte = { l -> nav.naviguerDepuis(entree, RouteCarteSuivi(route.moduleCode, l.type, l.id, l.nom, encoderFil(vm.filDe(l)))) },
                 onNouvelle = { l ->
@@ -556,13 +569,13 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
         composable<RouteFicheObjet> { entree ->
             val route = entree.toRoute<RouteFicheObjet>()
             if (route.id <= 0) {
-                LaunchedEffect(Unit) { nav.popBackStack() }
+                LaunchedEffect(Unit) { nav.retourDepuis(entree) }
                 return@composable
             }
             val vm = viewModel { FicheObjetViewModel(services, route.moduleCode, route.objectType, route.id, decoderFil(route.fil)) }
             FicheObjetScreen(
                 vm,
-                onNiveau = { cible -> nav.naviguerVersFil(route.moduleCode, cible) },
+                onNiveau = { cible -> nav.naviguerVersFil(entree, route.moduleCode, cible) },
                 onFiche = { e -> nav.naviguerDepuis(entree, RouteFicheObjet(route.moduleCode, e.type, e.id, encoderFil(e.fil))) },
                 onCarte = { e -> nav.naviguerDepuis(entree, RouteCarteSuivi(route.moduleCode, e.type, e.id, e.nom, encoderFil(e.fil))) },
                 onNouvelle = { n ->
@@ -581,7 +594,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             val vm = viewModel { CarteSuiviViewModel(services, route.moduleCode, route.objectType, route.id, route.titre, decoderFil(route.fil)) }
             CarteSuiviScreen(
                 vm,
-                onNiveau = { cible -> nav.naviguerVersFil(route.moduleCode, cible) },
+                onNiveau = { cible -> nav.naviguerVersFil(entree, route.moduleCode, cible) },
                 onFiche = { type, id, fil -> nav.naviguerDepuis(entree, RouteFicheObjet(route.moduleCode, type, id, encoderFil(fil))) },
                 onNouvelleSaisie = { o -> nav.naviguerDepuis(entree, o.route()) },
             )
@@ -603,9 +616,9 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             // Le formulaire suivant ou la fiche du parent REMPLACENT celui-ci : « retour » ramène au fil.
             NouvelleVisiteScreen(
                 vm,
-                onNiveau = { cible -> nav.naviguerVersFil(vm.moduleCodeCourant, cible) },
-                onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
-                onRemplacer = { o -> nav.navigate(o.route()) { popUpTo<RouteNouvelleVisite> { inclusive = true } } },
+                onNiveau = { cible -> nav.naviguerVersFil(entree, vm.moduleCodeCourant, cible) },
+                onRetour = { nav.retourDepuis(entree) },
+                onRemplacer ={ o -> nav.navigate(o.route()) { popUpTo<RouteNouvelleVisite> { inclusive = true } } },
                 onFiche = { f ->
                     nav.navigate(RouteFicheObjet(f.moduleCode, f.objectType, f.id, encoderFil(f.fil))) {
                         popUpTo<RouteNouvelleVisite> { inclusive = true }
@@ -655,7 +668,10 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                     )
                 },
                 onOuvrirListe = { nav.naviguerDepuis(entree, RouteObservations) },
-                onQuitter = { nav.popBackStack() },
+                // Une fois : un second toucher de la coche, pendant que la carte se ferme, aurait dépilé
+                // l'accueil aussi (retourDepuis).
+                onQuitter = { nav.retourDepuis(entree) },
+                auPremierPlan = { nav.currentBackStackEntry?.id == entree.id },
             )
         }
         composable<RouteSortieDetail> { entree ->
@@ -664,7 +680,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             SortieDetailScreen(
                 vm,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
-                onRetour = { nav.popBackStack() },
+                onRetour = { nav.retourDepuis(entree) },
             )
         }
         composable<RouteObservations> { entree ->
@@ -672,7 +688,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             ObservationsScreen(
                 vm,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
-                onFermer = { nav.popBackStack() },
+                onFermer = { nav.retourDepuis(entree) },
                 onEditer = { releve ->
                     val rid = releve.releveId
                     nav.naviguerDepuis(entree, if (!rid.isNullOrEmpty()) RouteReleve(releveId = rid) else RouteReleve(obsId = releve.premier.id))
@@ -708,7 +724,8 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                         nav.navigate(RouteFicheEspece(fiche.index))
                     }
                 },
-                onQuitter = { nav.popBackStack() },
+                onQuitter = { nav.retourDepuis(entree) },
+                auPremierPlan = { nav.currentBackStackEntry?.id == entree.id },
             )
         }
         composable<RouteDetailsReleve> { entree ->
@@ -717,7 +734,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             DetailsReleveIntercalaireScreen(
                 vm,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
-                onAnnuler = { nav.popBackStack() },
+                onAnnuler = { nav.retourDepuis(entree) },
                 onContinuer = { valeurs ->
                     // L'écran quitte la pile : le retour depuis la saisie ramène à l'écran d'avant.
                     val suite = if (route.mono) {
@@ -740,12 +757,12 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             if (route.ficheSeule) {
                 // Porteur d'une fiche seule : revenu au premier plan sans elle (fiche refermée d'elle-même,
                 // observation introuvable), il s'efface aussitôt au lieu de se montrer.
-                LaunchedEffect(Unit) { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() }
+                LaunchedEffect(Unit) { nav.retourDepuis(entree) }
                 return@composable
             }
             val vm = viewModel { SaisieReleveViewModel(services, sessionSaisie, route.ouverture()) }
             if (vm.releve.introuvable) {
-                LaunchedEffect(Unit) { nav.popBackStack() }
+                LaunchedEffect(Unit) { nav.retourDepuis(entree) }
                 return@composable
             }
             if (essaiDetails && ecranInitial == "details-releve") {
@@ -759,12 +776,16 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
                 onFicheEspece = { index, nidification -> nav.naviguerDepuis(entree, RouteFicheEspece(index, nidification)) },
                 onTermine = {
-                    // Comme le drapeau que GeoMys-Android pose sur l'écran précédent : seule la carte
-                    // multi-taxons repart en positionnement (pas la saisie mono, ni la liste).
-                    if (nav.previousBackStackEntry?.destination?.hasRoute<RouteSaisieMulti>() == true) {
-                        sessionSaisie.demarrerSaisieSuivante = true
+                    // Une fois : un second toucher, pendant que le relevé se ferme, aurait aussi quitté la
+                    // carte (retourDepuis).
+                    if (nav.currentBackStackEntry?.id == entree.id) {
+                        // Comme le drapeau que GeoMys-Android pose sur l'écran précédent : seule la carte
+                        // multi-taxons repart en positionnement (pas la saisie mono, ni la liste).
+                        if (nav.previousBackStackEntry?.destination?.hasRoute<RouteSaisieMulti>() == true) {
+                            sessionSaisie.demarrerSaisieSuivante = true
+                        }
+                        nav.retourDepuis(entree)
                     }
-                    nav.popBackStack()
                 },
             )
         }
@@ -778,7 +799,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             // Sans espèce, pas de série à régler : la pile restaurée après la mort du processus revient
             // avec un ViewModel neuf (relecture du 25 novembre 2026). La fiche s'efface, comme sans saisie.
             if (mono == null || mono.saisie.modele.value.cdNom == null) {
-                LaunchedEffect(Unit) { nav.popBackStack() }
+                LaunchedEffect(Unit) { nav.retourDepuis(entree) }
                 return@composable
             }
             // Refermée sans ✓ : retour à l'écran d'où elle s'est ouverte, la carte, ou les réglages, où le
@@ -786,7 +807,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             val abandonner = {
                 if (nav.currentBackStackEntry?.id == entree.id) {
                     mono.ficheSerieAbandonnee()
-                    nav.popBackStack()
+                    nav.retourDepuis(entree)
                 }
             }
             val nomEspece = mono.nomFicheSerie()
@@ -806,7 +827,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                         // Gardé comme onRetour : un second toucher ne quitte pas aussi la saisie.
                         if (nav.currentBackStackEntry?.id == entree.id) {
                             mono.validerFicheSerie(fiche)
-                            nav.popBackStack()
+                            nav.retourDepuis(entree)
                         }
                     },
                 )
@@ -822,7 +843,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 onValide = {
                     if (nav.currentBackStackEntry?.id == entree.id) {
                         mono.ficheSerieValidee()
-                        nav.popBackStack()
+                        nav.retourDepuis(entree)
                     }
                 },
             )
@@ -831,7 +852,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             val route = entree.toRoute<RouteFicheEspece>()
             val releve = releveOuvert(nav, entree, services, sessionSaisie)
             if (releve == null) {
-                LaunchedEffect(Unit) { nav.popBackStack() }
+                LaunchedEffect(Unit) { nav.retourDepuis(entree) }
                 return@composable
             }
             // Fiche ouverte seule (« Éditer » d'une observation de la saisie mono-taxon) : la refermer, par
@@ -841,7 +862,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
             }
             val fermer = {
                 if (nav.currentBackStackEntry?.id == entree.id) {
-                    if (ficheSeule) nav.popBackStack<RouteReleve>(inclusive = true) else nav.popBackStack()
+                    if (ficheSeule) nav.popBackStack<RouteReleve>(inclusive = true) else nav.retourDepuis(entree)
                 }
             }
             // Le nom au titre de la fiche : français, sinon latin (demande du 20 novembre 2026). Lu à
@@ -851,7 +872,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 // Mode pro : les dénombrements puis la caractérisation, avec leurs règles.
                 val espece = remember(releve) { releve.releve.especes.value.getOrNull(route.index) }
                 if (espece == null) {
-                    LaunchedEffect(Unit) { nav.popBackStack() }
+                    LaunchedEffect(Unit) { nav.retourDepuis(entree) }
                     return@composable
                 }
                 val idDataset = releve.releve.idDatasetEffectif()
@@ -932,7 +953,7 @@ fun NavigationGeoMys(infos: InfosApp, services: ServicesGeoNature, ecranInitial:
                 vm,
                 onAccueil = { nav.popBackStack(RouteAccueil, inclusive = false) },
                 // Habitat validé : retour à la station (l'écran de l'habitat quitte la pile).
-                onRetour = { if (nav.currentBackStackEntry?.id == entree.id) nav.popBackStack() },
+                onRetour = { nav.retourDepuis(entree) },
             )
         }
         composable<RouteMesStations> { entree ->

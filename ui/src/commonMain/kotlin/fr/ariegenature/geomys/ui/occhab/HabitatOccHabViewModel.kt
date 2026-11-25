@@ -36,6 +36,7 @@ import fr.ariegenature.geomys.occhab.NomenclatureHabitat
 import fr.ariegenature.geomys.occhab.SaisiesHabitat
 import fr.ariegenature.geomys.occhab.SessionOccHab
 import fr.ariegenature.geomys.occhab.StationOccHab
+import fr.ariegenature.geomys.util.uuidAleatoire
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -71,6 +72,12 @@ class HabitatOccHabViewModel(
     private val config = services.config
     private val existant = session.station.habitats.firstOrNull { it.id == habitatId }
     private val nouveau = existant == null
+
+    /** L'identité d'un nouvel habitat, tirée une fois : un second toucher de « Valider l'habitat »
+     *  (l'écran se fermait encore), ou un nouvel essai après un échec d'écriture, le met à jour au lieu
+     *  de l'ajouter une seconde fois à la station (relecture du 25 novembre 2026). */
+    private val idNouveau = uuidAleatoire()
+    private val uuidNouveau = uuidAleatoire()
 
     private fun visible(cle: String) = config.occhabChampVisible(cle)
 
@@ -210,7 +217,7 @@ class HabitatOccHabViewModel(
             _evenements.trySend(EvenementHabitatOccHab.Message(it))
             return
         }
-        val habitat = HabitatOccHab.habitat(
+        val saisi = HabitatOccHab.habitat(
             existant,
             SaisiesHabitat(
                 cdHab = cdHab,
@@ -226,6 +233,7 @@ class HabitatOccHabViewModel(
                 choisiDansLaListe = habitatChoisi,
             ),
         )
+        val habitat = if (existant == null) saisi.copy(id = idNouveau, uuidHabitat = uuidNouveau) else saisi
         session.ajouterOuMajHabitat(habitat)
         val station = session.stationAEnregistrer()
         val saisieId = session.saisieId

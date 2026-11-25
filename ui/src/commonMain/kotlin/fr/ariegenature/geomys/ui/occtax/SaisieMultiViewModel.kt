@@ -115,6 +115,11 @@ class SaisieMultiViewModel(
     var echecFin by mutableStateOf(false)
         private set
 
+    /** L'écriture de la fin de la saisie ([terminer]) : la carte ne répond plus, pour qu'aucun écran ne
+     *  s'empile avant que « Quitter » la ferme. */
+    var finEnCours by mutableStateOf(false)
+        private set
+
     /** Relevé touché sur la carte : ses observations, pour le dialogue d'options. */
     var optionsReleve by mutableStateOf<List<Observation>?>(null)
         private set
@@ -365,8 +370,9 @@ class SaisieMultiViewModel(
     // ─── Fin de la saisie ───
 
     /** ✓ ou retour : sans observation, on quitte (le GPS est libéré) ; sinon, « Terminer la
-     *  saisie ». */
+     *  saisie ». Sans effet pendant l'écriture de la fin : la carte va se fermer. */
     fun demanderTerminer() {
+        if (finEnCours) return
         if (session.observations.value.isEmpty()) {
             tracker.arreterParcours()
             services.arreterSuiviGps()
@@ -382,11 +388,20 @@ class SaisieMultiViewModel(
 
     val peutEnvoyer: Boolean get() = CarteSaisie.peutEnvoyer(session.observations.value, config.estConfiguree)
 
+    /** Une seule fin à la fois ([finEnCours]). L'écriture faite, la suite part sans attendre : un
+     *  toucher ne peut pas se glisser entre la fin de [finEnCours] et « Quitter », le voile de l'envoi
+     *  ou l'alerte d'échec. */
     fun terminer(envoyer: Boolean) {
+        if (finEnCours) return
         confirmerTerminer = false
         services.arreterSuiviGps()
+        finEnCours = true
         viewModelScope.launch {
-            val fin = FinSaisie.terminerMulti(session, services.sortieStore)
+            val fin = try {
+                FinSaisie.terminerMulti(session, services.sortieStore)
+            } finally {
+                finEnCours = false
+            }
             if (!fin.ecrite) {
                 echecFin = true
                 return@launch

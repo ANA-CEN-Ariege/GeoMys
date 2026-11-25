@@ -180,7 +180,7 @@ private val GRIS_ICONE_ANDROID = Color(0xFF757575)
 
 /** La carte de la saisie multi-taxons. [onOuvrirReleve] ouvre la saisie d'un relevé, [onOuvrirListe]
  *  la liste des observations, « i » le dialogue des détails communs de la saisie ; [onQuitter]
- *  revient à l'écran précédent. */
+ *  revient à l'écran précédent. [auPremierPlan] : la carte est l'écran du dessus de la pile. */
 @Composable
 fun SaisieMultiScreen(
     vm: SaisieMultiViewModel,
@@ -188,6 +188,7 @@ fun SaisieMultiScreen(
     onOuvrirReleve: (EvenementSaisieMulti.OuvrirReleve) -> Unit,
     onOuvrirListe: () -> Unit,
     onQuitter: () -> Unit,
+    auPremierPlan: () -> Boolean = { true },
 ) {
     val toasts = LocalToasts.current
     LaunchedEffect(vm) {
@@ -203,8 +204,10 @@ fun SaisieMultiScreen(
     // Localisation demandée à chaque affichage (onViewCreated), puis suivi GPS.
     val demandeLocalisation = rememberDemandeLocalisation { vm.demarrerSuivi() }
     LaunchedEffect(Unit) { demandeLocalisation() }
-    // Le retour système passe par « Terminer la saisie », pour libérer le GPS comme la coche.
-    RetourSysteme { vm.demanderTerminer() }
+    // Le retour système passe par « Terminer la saisie », pour libérer le GPS comme la coche. Pas
+    // tant qu'un relevé ou la liste s'ouvre par-dessus : la carte, encore composée, recevait le
+    // retour, arrêtait la trace et ne quittait rien (relecture du 25 novembre 2026).
+    RetourSysteme { if (auPremierPlan()) vm.demanderTerminer() }
 
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         if (vm.repriseChargee) EcranCarte(vm, onAccueil)
@@ -396,6 +399,11 @@ private fun EcranCarte(vm: SaisieMultiViewModel, onAccueil: () -> Unit) {
                 IndicateurActivite(Color.White, tailleAndroid = 48f)
                 Text("Envoi vers GeoNature…", color = Color.White, fontSize = 16.sp)
             }
+        } else if (vm.finEnCours) {
+            // Pendant l'écriture de la fin (quelques dixièmes de seconde), la carte ne répond plus,
+            // sans voile : un relevé ou la liste ouverts entre-temps recouvraient la carte, qui ne
+            // pouvait plus se fermer (relecture du 25 novembre 2026).
+            Box(Modifier.fillMaxSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {})
         }
     }
 }

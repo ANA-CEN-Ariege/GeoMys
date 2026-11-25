@@ -153,6 +153,11 @@ class SaisieMonoViewModel(
     var echecFin by mutableStateOf(false)
         private set
 
+    /** L'écriture de la fin de la saisie ([terminer]) : l'écran ne répond plus, pour qu'aucune fiche ne
+     *  s'empile avant que « Quitter » le ferme. */
+    var finEnCours by mutableStateOf(false)
+        private set
+
     /** Caméra quittée (onPause d'Android) : centre et zoom, repris au retour d'un sous-écran. */
     var centreMemorise: LatLon? = null
     var zoomMemorise: Double? = null
@@ -502,8 +507,9 @@ class SaisieMonoViewModel(
     // ─── Fin de la saisie ───
 
     /** ✓ ou retour : sans observation, on quitte (le GPS est libéré) ; sinon, « Terminer la
-     *  saisie ». */
+     *  saisie ». Sans effet pendant l'écriture de la fin : l'écran va se fermer. */
     fun demanderTerminer() {
+        if (finEnCours) return
         if (session.observations.value.isEmpty()) {
             services.arreterSuiviGps()
             _evenements.trySend(EvenementSaisieMono.Quitter)
@@ -518,11 +524,19 @@ class SaisieMonoViewModel(
 
     val peutEnvoyer: Boolean get() = CarteSaisie.peutEnvoyer(session.observations.value, config.estConfiguree)
 
+    /** Une seule fin à la fois ([finEnCours]) ; l'écriture faite, « Quitter » ou l'envoi partent sans
+     *  attendre, comme en multi-taxons. */
     fun terminer(envoyer: Boolean) {
+        if (finEnCours) return
         confirmerTerminer = false
         services.arreterSuiviGps()
+        finEnCours = true
         viewModelScope.launch {
-            val fin = FinSaisie.terminerMono(session, services.sortieStore)
+            val fin = try {
+                FinSaisie.terminerMono(session, services.sortieStore)
+            } finally {
+                finEnCours = false
+            }
             if (!fin.ecrite) {
                 echecFin = true
                 return@launch

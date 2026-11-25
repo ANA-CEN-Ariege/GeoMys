@@ -51,8 +51,12 @@ class SessionSaisieViewModel(private val services: ServicesGeoNature) : ViewMode
 
     /** On quitte le flux de saisie DANS l'appli (≠ arrière-plan, veille) : la sortie en cours est
      *  persistée avec sa trace (sinon la trace accumulée depuis la dernière observation serait
-     *  perdue), puis le tracé GPS et son suivi s'arrêtent (MainActivity de GeoMys-Android). */
+     *  perdue), puis le tracé GPS et son suivi s'arrêtent (MainActivity de GeoMys-Android). Le
+     *  positionnement du relevé suivant ne survit pas à la sortie : un retour reçu juste après la
+     *  coche d'un relevé quittait aussi la carte avant qu'elle le lise, et la saisie suivante
+     *  s'ouvrait en positionnement (relecture du 25 novembre 2026). */
     fun quitterFluxSaisie() {
+        demarrerSaisieSuivante = false
         session.sauvegarderBrouillon()
         services.locationTracker.arreterParcours()
         services.arreterSuiviGps()
