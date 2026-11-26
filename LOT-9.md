@@ -1232,3 +1232,16 @@ Demande de l'utilisateur : « ne pas sauvegarder de saisie sans obs ».
   - `FinSaisieTest` : rien n'est écrit sans observation, même avec une trace, une reprise vidée disparaît, et une saisie déjà vide sur le disque reste ;
   - `SessionSaisieOcctaxTest.une_ancienne_saisie_sans_observation_rouverte_reste`.
 - **Relevé par la relecture, hors de ce changement, à corriger ensuite.** Pendant « Enregistrer et envoyer », on peut encore quitter la carte : retour système d'Android sous le voile en multi-taxons, ou n'importe quel geste en mono-taxon, qui n'a pas de voile pendant l'envoi. Si l'on rouvre alors la saisie depuis « Mes saisies » avant la fin de l'envoi, les espèces ajoutées après son marquage « envoyée » ne sont plus enregistrées.
+
+## 91. iOS pour iPhone seul ; l'accueil défile quand la hauteur manque (26 novembre)
+
+Choix de l'utilisateur (« oui »), avant la soumission à l'App Store.
+
+- **iPhone seul** : `TARGETED_DEVICE_FAMILY = 1`, en Debug et en Release.
+  - Le build 2.2.2 (227), envoyé à App Store Connect, déclarait aussi l'iPad. Le soumettre aurait exigé des captures iPad 13 pouces, et l'iPad, jamais essayé (interface de téléphone étirée), n'aurait plus pu être retiré après la publication.
+  - Sur iPad, GeoMys reste installable, en mode compatibilité iPhone ; la prise en charge de l'iPad pourra être ajoutée plus tard.
+- **L'accueil défile** (`ColonneAccueil`, deux allures). Le haut (logo, nom, version, licence) reste en haut, et les boutons en bas, comme avec le `Spacer(weight)` d'avant.
+  - En portrait, rien ne bouge.
+  - Quand la hauteur manque, l'ensemble défile au lieu d'écraser les boutons : un téléphone en paysage, ou l'iPhone en mode compatibilité sur un iPad en paysage, où l'examinateur d'Apple peut l'essayer. D'après la relecture du 26 novembre, un iPhone 16 en paysage ne laissait qu'environ 80 pt pour un bloc qui en demande au moins 126, et le bouton principal se réduisait à une vingtaine de points.
+- **Version 2.2.2 (228)** : le build 227 ne sera pas soumis.
+- **Test** : `AccueilMiseEnPageTest` (simulateur iOS, deux allures). En portrait, le bloc des boutons touche le bas de l'écran comme avant. En paysage, il garde sa hauteur et son dernier bouton se rejoint en faisant défiler.

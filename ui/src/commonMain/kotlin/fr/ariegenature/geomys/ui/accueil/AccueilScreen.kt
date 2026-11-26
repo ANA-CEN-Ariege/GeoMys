@@ -34,7 +34,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -52,7 +55,9 @@ import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -71,6 +76,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -230,15 +236,51 @@ internal fun entreesMenu(etat: EtatAccueil): List<Pair<EntreeMenuAccueil, Int>> 
 
 private val insetsSysteme @Composable get() = WindowInsets.systemBars.union(WindowInsets.displayCutout)
 
+/** L'accueil : le haut (logo, nom, version) en haut de l'écran, les boutons en bas, comme le faisait un
+ *  `Spacer(weight)`. Quand la hauteur manque (téléphone en paysage, iPhone en mode compatibilité sur un
+ *  iPad), l'ensemble défile au lieu d'écraser les boutons (demande du 26 novembre 2026, avant le dépôt
+ *  sur l'App Store). [marges] : celles de l'écran entier (encoches, barres du système). */
+@Composable
+private fun ColonneAccueil(
+    marges: Modifier,
+    haut: @Composable ColumnScope.() -> Unit,
+    bas: @Composable ColumnScope.() -> Unit,
+) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val hauteurVisible = maxHeight
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .heightIn(min = hauteurVisible)
+                .then(marges),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            // L'écart minimal entre le haut et les boutons, quand l'écran défile.
+            Column(Modifier.padding(bottom = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, content = haut)
+            Column(Modifier.fillMaxWidth().testTag(ETIQUETTE_BOUTONS_ACCUEIL), content = bas)
+        }
+    }
+}
+
+/** Le bloc des boutons de l'accueil, pour les tests de mise en page. */
+internal const val ETIQUETTE_BOUTONS_ACCUEIL = "accueil-boutons"
+
 @Composable
 private fun ContenuAndroid(etat: EtatAccueil, actions: ActionsAccueil, nomAppli: String, onLicence: () -> Unit) {
-    Column(
-        Modifier
-            .fillMaxSize()
+    ColonneAccueil(
+        marges = Modifier
             .windowInsetsPadding(insetsSysteme.only(WindowInsetsSides.Vertical))
             .padding(top = 60.dp, bottom = 60.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
+        haut = { EnteteAndroid(etat, nomAppli, onLicence) },
+        bas = { BoutonsAndroid(etat, actions) },
+    )
+}
+
+@Composable
+private fun EnteteAndroid(etat: EtatAccueil, nomAppli: String, onLicence: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Image(painterResource(Res.drawable.logo_geomys), contentDescription = "Logo GeoMys", modifier = Modifier.size(120.dp))
         Text(nomAppli, color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 16.dp))
         Text("v${etat.version}", color = CouleursGeoMys.blanc70, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
@@ -252,7 +294,12 @@ private fun ContenuAndroid(etat: EtatAccueil, actions: ActionsAccueil, nomAppli:
                 .clickable(remember { MutableInteractionSource() }, ripple(bounded = false), onClick = onLicence)
                 .padding(horizontal = 8.dp, vertical = 4.dp),
         )
-        Spacer(Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun BoutonsAndroid(etat: EtatAccueil, actions: ActionsAccueil) {
+    Column(Modifier.fillMaxWidth()) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
             if (etat.simplifie) {
                 BoutonDemarrerAndroid(etat.saisieValide, actions)
@@ -400,7 +447,16 @@ private fun BoutonIconeAndroid(onClick: () -> Unit, icone: @Composable () -> Uni
 
 @Composable
 private fun ContenuIos(etat: EtatAccueil, actions: ActionsAccueil, nomAppli: String, onLicence: () -> Unit) {
-    Column(Modifier.fillMaxSize().safeDrawingPadding(), horizontalAlignment = Alignment.CenterHorizontally) {
+    ColonneAccueil(
+        marges = Modifier.safeDrawingPadding(),
+        haut = { EnteteIos(etat, nomAppli, onLicence) },
+        bas = { BoutonsIos(etat, actions) },
+    )
+}
+
+@Composable
+private fun EnteteIos(etat: EtatAccueil, nomAppli: String, onLicence: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(60.dp))
         // Coins arrondis à la façon d'une icône iOS (environ 22 %, courbure continue).
         Image(
@@ -414,7 +470,12 @@ private fun ContenuIos(etat: EtatAccueil, actions: ActionsAccueil, nomAppli: Str
         BoutonIos(onClick = onLicence, opaciteAppui = 0.3f) {
             Text("Logiciel libre — GNU GPL v3", color = CouleursGeoMys.jauneClair, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
         }
-        Spacer(Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun BoutonsIos(etat: EtatAccueil, actions: ActionsAccueil) {
+    Column(Modifier.fillMaxWidth()) {
         Column(
             Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 60.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

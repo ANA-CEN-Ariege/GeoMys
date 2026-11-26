@@ -307,6 +307,7 @@ Les défauts de GeoMys-Android que le portage reproduisait sont corrigés ([`LOT
 |---|---|---|
 | Identifiant | `fr.ariegenature.public.geomys` (release, celui de GeoMys-Android sur Google Play) ; `fr.ariegenature.geomys.common` (versions de test) | `fr.ariegenature.geomys` (configuration Release, celle d'un dépôt sur l'App Store) ; `fr.ariegenature.geomys.common` (configuration Debug) |
 | Signature | clé de GeoMys-Android, hors du dépôt (`keystore.properties`) | `TEAM_ID` dans `Config.xcconfig` : équipe de l'ANA, qui publie sur l'App Store et signe aussi les versions de test |
+| Appareils | téléphones et tablettes Android | iPhone (`TARGETED_DEVICE_FAMILY = 1`) ; sur iPad, en mode compatibilité iPhone |
 | Nom sous l'icône | `androidApp/src/main/res/values/strings.xml` | `APP_DISPLAY_NAME` dans `iosApp/Configuration/Config.xcconfig` |
 | Version | `versionName` / `versionCode` dans `androidApp/build.gradle.kts` | `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` dans `Config.xcconfig` |
 
