@@ -3,7 +3,7 @@
 *Inventaire établi le 18 octobre 2026 à partir de GeoMys-Android `cdd5196` (v1.4.7, versionCode 196), en lecture seule. GeoMys-IOS `64d303b` (v0.11) a été consulté pour repérer les équivalents iOS déjà écrits. Aucun fichier de ces deux applications n'a été modifié.*
 
 > **Décisions du 18 octobre 2026**
-> - **Identité.** Décidée le 18 octobre : une application indépendante, avec son propre identifiant (`fr.ariegenature.geomys.common`), un autre nom et le même logo. Revue le 22 octobre : sous Android, GeoMys remplace GeoMys-Android sur Google Play (identifiant `fr.ariegenature.public.geomys`, nom « GeoMys », reprise des saisies non envoyées, `LOT-9.md` § 30) ; les versions de test et l'iOS gardent `fr.ariegenature.geomys.common`.
+> - **Identité.** Décidée le 18 octobre : une application indépendante, avec son propre identifiant (`fr.ariegenature.geomys.common`), un autre nom et le même logo. Revue le 22 octobre : sous Android, GeoMys remplace GeoMys-Android sur Google Play (identifiant `fr.ariegenature.public.geomys`, nom « GeoMys », reprise des saisies non envoyées, `LOT-9.md` § 30) ; les versions de test et l'iOS gardent `fr.ariegenature.geomys.common`. Revue le 26 novembre : sous iOS, la configuration Release prend `fr.ariegenature.geomys`, en vue d'un dépôt sur l'App Store ; le debug garde `fr.ariegenature.geomys.common` (`LOT-9.md` § 86).
 > - **Aucune donnée reprise.** Les données des applications existantes sont des données de test. Le § 6 ne s'applique donc plus, hormis les contrats côté serveur.
 > - **Plan de rattrapage iOS hors sujet.**
 >

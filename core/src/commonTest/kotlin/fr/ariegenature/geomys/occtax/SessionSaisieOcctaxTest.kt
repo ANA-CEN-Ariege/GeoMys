@@ -157,6 +157,72 @@ class SessionSaisieOcctaxTest {
         assertTrue(store.charger().isEmpty())
     }
 
+    /** Demande du 26 novembre 2026 : une saisie sans observation n'est pas gardée, même avec une trace.
+     *  La trace reste dans la session, et repart avec la saisie à la prochaine observation. */
+    @Test
+    fun une_saisie_videe_de_ses_observations_disparait_meme_avec_une_trace() = runTest {
+        val session = session()
+        tracker.demarrer()
+        tracker.demarrerParcours()
+        t.positions.emettre(PositionGps(42.90, 1.40, 5f))
+        t.positions.emettre(PositionGps(42.91, 1.40, 5f))
+        session.ajouterObservation(obs("a"))
+        session.attendreEcritures()
+        val id = store.charger().single().id
+        session.supprimerObservation("a")
+        session.attendreEcritures()
+        assertTrue(store.charger().isEmpty(), "la trace seule ne fait pas une saisie")
+        assertEquals(2, tracker.parcours.value.size, "la trace continue dans la session")
+        session.ajouterObservation(obs("b"))
+        session.attendreEcritures()
+        val reecrite = store.charger().single()
+        assertEquals(id, reecrite.id, "même saisie, sous la même id")
+        assertEquals(2, reecrite.pointsParcours.size)
+    }
+
+    /** Retirer puis remettre l'espèce du seul relevé d'une saisie reprise la réécrit telle qu'elle
+     *  était (date, place dans la liste), et non comme une saisie neuve. */
+    @Test
+    fun une_saisie_reprise_videe_puis_remplie_garde_sa_date() = runTest {
+        store.ajouter(Sortie(id = "s1", date = 1_000L, observations = listOf(obs("a", releveId = "R")), derniereErreurEnvoi = "réseau"))
+        val session = session()
+        session.reprendreSortie(store.charger().single())
+        session.remplacerObservationsDuReleve("R", emptyList())
+        session.attendreEcritures()
+        assertTrue(store.charger().isEmpty())
+        session.remplacerObservationsDuReleve("R", listOf(obs("b", releveId = "R")))
+        session.attendreEcritures()
+        val reecrite = store.charger().single()
+        assertEquals("s1", reecrite.id)
+        assertEquals(1_000L, reecrite.date)
+        assertEquals("réseau", reecrite.derniereErreurEnvoi)
+        assertEquals(listOf("b"), reecrite.observations.map { it.id })
+    }
+
+    /** Une saisie déjà vide sur le disque (trace seule, d'avant le 26 novembre 2026), rouverte puis
+     *  refermée, reste : seule une saisie que la session a vidée disparaît (relecture du 26 novembre). */
+    @Test
+    fun une_ancienne_saisie_sans_observation_rouverte_reste() = runTest {
+        val ancienne = Sortie(id = "trace", pointsParcours = listOf(PointTrace(42.9, 1.4), PointTrace(42.91, 1.4)))
+        store.ajouter(ancienne)
+        val session = session()
+        session.reprendreSortie(store.charger().single())
+        session.sauvegarderBrouillon()
+        session.attendreEcritures()
+        assertEquals("trace", store.charger().single().id)
+        assertEquals(2, store.charger().single().pointsParcours.size)
+    }
+
+    @Test
+    fun vider_une_saisie_deja_envoyee_ne_la_supprime_pas() = runTest {
+        store.ajouter(Sortie(id = "s1", observations = listOf(obs("a")), envoyeGeoNature = true))
+        val session = session()
+        session.reprendreSortie(store.charger().single())
+        session.supprimerObservation("a")
+        session.attendreEcritures()
+        assertEquals("s1", store.charger().single().id)
+    }
+
     @Test
     fun une_sortie_deja_envoyee_n_est_jamais_reecrite() = runTest {
         val envoyee = Sortie(id = "s1", observations = listOf(obs("a")), envoyeGeoNature = true)

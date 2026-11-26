@@ -63,9 +63,21 @@ class AccueilSimplifieTest {
         assertFalse(etat.occhabDisponible)
         assertFalse(etat.monitoringDisponible)
         assertEquals(
-            listOf(EntreeMenuAccueil.MES_SAISIES, EntreeMenuAccueil.EXPLORER, EntreeMenuAccueil.MAPS_MANAGER),
+            listOf(EntreeMenuAccueil.MES_SAISIES, EntreeMenuAccueil.EXPLORER, EntreeMenuAccueil.MAPS_MANAGER, EntreeMenuAccueil.AIDE),
             entreesMenu(etat).map { it.first },
         )
+    }
+
+    /** « Aide » ferme le menu dans les deux modes, et mène au guide du site (demande du 26 novembre 2026). */
+    @Test
+    fun l_aide_ferme_le_menu_dans_les_deux_modes() {
+        occhabOuvert()
+        for (mode in listOf(ModeSaisie.SIMPLIFIE, ModeSaisie.PRO)) {
+            services.preferences.modeSaisie = mode
+            assertEquals(EntreeMenuAccueil.AIDE to 0, entreesMenu(lireEtatAccueil(infos, services)).last(), "mode $mode")
+        }
+        assertEquals("Aide", EntreeMenuAccueil.AIDE.libelle)
+        assertEquals("https://geomys.ariegenature.fr/guide.html", ADRESSE_AIDE)
     }
 
     @Test
@@ -89,6 +101,7 @@ class AccueilSimplifieTest {
                 EntreeMenuAccueil.MES_STATIONS to 1,
                 EntreeMenuAccueil.EXPLORER to 0,
                 EntreeMenuAccueil.MAPS_MANAGER to 0,
+                EntreeMenuAccueil.AIDE to 0,
             ),
             entreesMenu(etat),
         )

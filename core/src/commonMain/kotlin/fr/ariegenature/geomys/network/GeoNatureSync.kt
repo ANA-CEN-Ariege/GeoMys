@@ -224,7 +224,7 @@ class GeoNatureSync(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                return@withContext Pair(0, "Impossible de récupérer les listes de taxons : ${e.message}")
+                return@withContext Pair(0, "Impossible de récupérer les listes de taxons : ${detailErreurReseau(e) ?: e::class.simpleName}")
             }
         }
         // Récupère aussi les `id_taxa_list` référencés par les datasets : certains serveurs
@@ -624,7 +624,7 @@ class GeoNatureSync(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Pair(0, "Erreur : ${e.message}")
+                Pair(0, "Erreur : ${detailErreurReseau(e) ?: e::class.simpleName}")
             }
         }
 
@@ -695,7 +695,7 @@ class GeoNatureSync(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Pair(0, "Erreur settings OCCTAX : ${e.message}")
+                Pair(0, "Erreur settings OCCTAX : ${detailErreurReseau(e) ?: e::class.simpleName}")
             }
         }
 

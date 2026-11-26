@@ -174,7 +174,7 @@ class SyncRunner(
                         if (r.isNotEmpty()) { config.datasetsCacheJson = listeVersJson(GeoNatureDataset.serializer(), r); null }
                         else "Aucun jeu de données"
                     } catch (e: CancellationException) { throw e
-                    } catch (e: Exception) { e.message ?: "Erreur datasets" }
+                    } catch (e: Exception) { detailErreurReseau(e) ?: "Erreur datasets" }
                 }
                 // Datasets CRÉABLES en Occtax (CRUVED C) — pour aligner la liste proposée sur le web.
                 // Best-effort : si indisponible, set vide = pas de restriction.
@@ -189,7 +189,7 @@ class SyncRunner(
                         if (r.isNotEmpty()) { config.listesCacheJson = listeVersJson(GeoNatureListe.serializer(), r); null }
                         else "Aucune liste de taxons"
                     } catch (e: CancellationException) { throw e
-                    } catch (e: Exception) { e.message ?: "Erreur listes" }
+                    } catch (e: Exception) { detailErreurReseau(e) ?: "Erreur listes" }
                 }
                 val obs = async {
                     try {
@@ -197,7 +197,7 @@ class SyncRunner(
                         if (r.isNotEmpty()) { config.observateursCacheJson = listeVersJson(GeoNatureObservateur.serializer(), r); null }
                         else "Aucun observateur"
                     } catch (e: CancellationException) { throw e
-                    } catch (e: Exception) { e.message ?: "Erreur observateurs" }
+                    } catch (e: Exception) { detailErreurReseau(e) ?: "Erreur observateurs" }
                 }
                 val add = async {
                     try {
@@ -207,7 +207,7 @@ class SyncRunner(
                         config.additionalFieldsOcctaxJson = listeVersJson(AdditionalFieldDef.serializer(), r)
                         null
                     } catch (e: CancellationException) { throw e
-                    } catch (e: Exception) { e.message ?: "Erreur champs additionnels" }
+                    } catch (e: Exception) { detailErreurReseau(e) ?: "Erreur champs additionnels" }
                 }
                 // Config de visibilité des champs Occtax (settings.json serveur). Best-effort, non
                 // bloquant : sans config publiée le registre par défaut s'applique (tous champs visibles).
@@ -334,7 +334,7 @@ class SyncRunner(
             // remontée dans `echecs`, au lieu d'aborter toute la synchro ou de planter l'appli.
             // L'annulation de coroutine (CancellationException) est re-levée (jamais avalée).
             fun erreurEtape(e: Throwable): Pair<Int, String> =
-                0 to "${e::class.simpleName}: ${e.message?.take(80).orEmpty()}"
+                0 to "${e::class.simpleName}: ${detailErreurReseau(e)?.take(80).orEmpty()}"
             coroutineScope {
                 val taxJob = async {
                     try {

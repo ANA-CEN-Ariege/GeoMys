@@ -260,7 +260,7 @@ class OccHabUpload(private val auth: GeoNatureAuth, private val clients: Clients
             // net : ce serait inviter à un re-POST aveugle.
             throw GNErreur.EnvoiIncertain(
                 "Réseau interrompu pendant l'envoi de la station — statut incertain " +
-                    "(${e.message ?: e::class.simpleName}). La station a peut-être été enregistrée.")
+                    "(${detailErreurReseau(e) ?: e::class.simpleName}). La station a peut-être été enregistrée.")
         }
         val code = reponse.status.value
         if (code !in 200..299) {
@@ -342,7 +342,7 @@ class OccHabUpload(private val auth: GeoNatureAuth, private val clients: Clients
             throw e
         } catch (e: Exception) {
             throw GNErreur.EnvoiIncertain("Vérification anti-doublon impossible " +
-                "(${e.message ?: e::class.simpleName}) — réessayez.")
+                "(${detailErreurReseau(e) ?: e::class.simpleName}) — réessayez.")
         }
     }
 

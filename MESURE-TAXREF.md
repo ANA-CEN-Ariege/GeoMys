@@ -139,7 +139,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project ios
   -scheme iosApp -configuration Release -destination 'id=<UDID>' -allowProvisioningUpdates build
 xcrun devicectl device install app --device <UDID> <DerivedData>/Build/Products/Release-iphoneos/GeoMys.app
 xcrun devicectl device process launch --console --terminate-existing --device <UDID> \
-  fr.ariegenature.geomys.common -- -ecran mesure-taxref -action mesurer -lecture chaine
+  fr.ariegenature.geomys -- -ecran mesure-taxref -action mesurer -lecture chaine
 ```
 
 ## 6. Ce qui reste de la mesure dans le code

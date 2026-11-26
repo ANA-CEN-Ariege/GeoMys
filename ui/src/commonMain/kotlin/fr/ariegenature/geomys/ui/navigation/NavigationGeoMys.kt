@@ -51,6 +51,7 @@ import fr.ariegenature.geomys.store.configurationComplete
 import fr.ariegenature.geomys.store.envoisEnAttente
 import fr.ariegenature.geomys.store.io.mapDepuisJson
 import fr.ariegenature.geomys.store.io.mapVersJson
+import fr.ariegenature.geomys.ui.accueil.ADRESSE_AIDE
 import fr.ariegenature.geomys.ui.accueil.AccueilScreen
 import fr.ariegenature.geomys.ui.accueil.ActionsAccueil
 import fr.ariegenature.geomys.ui.accueil.EntreeMenuAccueil
@@ -1096,6 +1097,7 @@ private fun EcranAccueil(
                     EntreeMenuAccueil.MES_STATIONS -> nav.navigate(RouteMesStations)
                     EntreeMenuAccueil.EXPLORER -> nav.navigate(RouteExplorer())
                     EntreeMenuAccueil.MAPS_MANAGER -> nav.navigate(RouteMapsManager())
+                    EntreeMenuAccueil.AIDE -> liens.openUri(ADRESSE_AIDE)
                 }
             },
         ),

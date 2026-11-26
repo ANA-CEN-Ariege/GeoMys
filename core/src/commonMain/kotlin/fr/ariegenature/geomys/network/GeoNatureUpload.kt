@@ -366,7 +366,7 @@ class GeoNatureUpload(
                     clients.postJson("$base/api/occtax/OCCTAX/only/releve", corps, token, cookies, timeoutMs = 30_000)
                 } catch (e: IOException) {
                     dernierCodeErreur = 0
-                    derniereErreur = "Réseau interrompu pendant la création du relevé (${e.message ?: e::class.simpleName})"
+                    derniereErreur = "Réseau interrompu pendant la création du relevé (${detailErreurReseau(e) ?: e::class.simpleName})"
                     continue
                 }
                 val code1 = reponse.status.value
@@ -520,7 +520,7 @@ class GeoNatureUpload(
                     code
                 } catch (e: IOException) {
                     dernierCodeErreur = 0
-                    derniereErreur = "Réseau interrompu pendant l'envoi de l'occurrence (${e.message ?: e::class.simpleName})"
+                    derniereErreur = "Réseau interrompu pendant l'envoi de l'occurrence (${detailErreurReseau(e) ?: e::class.simpleName})"
                     // Impossible de savoir si la requête a atteint le serveur : INCERTAIN — persisté
                     // tout de suite, le prochain envoi vérifiera par uuid client.
                     obsIncertaines.add(obs.id to idReleve)
@@ -600,7 +600,7 @@ class GeoNatureUpload(
                         r.status.value.also { if (it !in 200..299) derniereErreur = parseErreur(it, lireCorps(r)) }
                     }
                 } catch (e: IOException) {
-                    derniereErreur = "Réseau interrompu pendant la mise à jour du relevé (${e.message ?: e::class.simpleName})"
+                    derniereErreur = "Réseau interrompu pendant la mise à jour du relevé (${detailErreurReseau(e) ?: e::class.simpleName})"
                     -1
                 }
                 if (code in 200..299) {
@@ -641,7 +641,7 @@ class GeoNatureUpload(
                                 r.status.value.also { if (it !in 200..299) derniereErreur = parseErreur(it, lireCorps(r)) }
                             }
                         } catch (e: IOException) {
-                            derniereErreur = "Réseau interrompu pendant la mise à jour de « ${obs.espece} » (${e.message ?: e::class.simpleName})"
+                            derniereErreur = "Réseau interrompu pendant la mise à jour de « ${obs.espece} » (${detailErreurReseau(e) ?: e::class.simpleName})"
                             -1
                         }
                         if (code in 200..299) {
@@ -954,7 +954,7 @@ class GeoNatureUpload(
             throw e
         } catch (e: Exception) {
             Journal.e(TAG_MEDIA, "Exception get_id_table_location", e)
-            Pair(null, "Exception : ${e.message}")
+            Pair(null, "Exception : ${detailErreurReseau(e) ?: e::class.simpleName}")
         }
     }
 
@@ -1106,7 +1106,7 @@ class GeoNatureUpload(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Pair(null, "Exception get_id_table_location : ${e.message}")
+            Pair(null, "Exception get_id_table_location : ${detailErreurReseau(e) ?: e::class.simpleName}")
         }
 
     /** Upload multipart d'un fichier média vers `/api/gn_commons/media` (singulier). Renvoie le JSON
@@ -1175,7 +1175,7 @@ class GeoNatureUpload(
             throw e
         } catch (e: Exception) {
             Journal.e(TAG_MEDIA, "Exception upload média", e)
-            Pair(null, "Exception : ${e.message}")
+            Pair(null, "Exception : ${detailErreurReseau(e) ?: e::class.simpleName}")
         }
     }
 

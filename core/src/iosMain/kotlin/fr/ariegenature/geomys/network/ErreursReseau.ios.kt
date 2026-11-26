@@ -19,25 +19,64 @@
 package fr.ariegenature.geomys.network
 
 import io.ktor.client.engine.darwin.DarwinHttpRequestException
+import platform.Foundation.NSError
+import platform.Foundation.NSPOSIXErrorDomain
 import platform.Foundation.NSURLErrorCannotConnectToHost
 import platform.Foundation.NSURLErrorCannotFindHost
 import platform.Foundation.NSURLErrorDNSLookupFailed
+import platform.Foundation.NSURLErrorDataNotAllowed
 import platform.Foundation.NSURLErrorDomain
+import platform.Foundation.NSURLErrorInternationalRoamingOff
 import platform.Foundation.NSURLErrorNetworkConnectionLost
 import platform.Foundation.NSURLErrorNotConnectedToInternet
+import platform.Foundation.NSURLErrorSecureConnectionFailed
+import platform.Foundation.NSURLErrorServerCertificateHasBadDate
+import platform.Foundation.NSURLErrorServerCertificateHasUnknownRoot
+import platform.Foundation.NSURLErrorServerCertificateNotYetValid
+import platform.Foundation.NSURLErrorServerCertificateUntrusted
 import platform.Foundation.NSURLErrorTimedOut
+import platform.posix.ECONNABORTED
+import platform.posix.ECONNREFUSED
+import platform.posix.ECONNRESET
+import platform.posix.EHOSTUNREACH
+import platform.posix.ENETDOWN
+import platform.posix.ENETUNREACH
+import platform.posix.ENOTCONN
+import platform.posix.ETIMEDOUT
+
+/** L'erreur de NSURLSession que porte [e] ou l'une de ses causes. */
+private fun erreurSysteme(e: Throwable): NSError? =
+    generateSequence(e) { it.cause }.take(10).firstNotNullOfOrNull { (it as? DarwinHttpRequestException)?.origin }
 
 // Les erreurs de NSURLSession qui correspondent aux exceptions java.net testées sous Android.
 internal actual fun classerErreurReseauPlateforme(e: Throwable): ErreurReseau? {
-    val erreur = (e as? DarwinHttpRequestException)?.origin ?: return null
-    if (erreur.domain != NSURLErrorDomain) return null
-    return when (erreur.code) {
-        NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed, NSURLErrorNotConnectedToInternet -> ErreurReseau.HOTE_INCONNU
-        NSURLErrorTimedOut -> ErreurReseau.DELAI_DEPASSE
-        NSURLErrorCannotConnectToHost, NSURLErrorNetworkConnectionLost -> ErreurReseau.CONNEXION_IMPOSSIBLE
+    val erreur = erreurSysteme(e) ?: return null
+    return when (erreur.domain) {
+        NSURLErrorDomain -> when (erreur.code) {
+            // Sans réseau : hors ligne, données cellulaires refusées à l'appli, itinérance coupée.
+            NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed, NSURLErrorNotConnectedToInternet,
+            NSURLErrorDataNotAllowed, NSURLErrorInternationalRoamingOff -> ErreurReseau.HOTE_INCONNU
+            NSURLErrorTimedOut -> ErreurReseau.DELAI_DEPASSE
+            NSURLErrorCannotConnectToHost, NSURLErrorNetworkConnectionLost -> ErreurReseau.CONNEXION_IMPOSSIBLE
+            // -1200 : négociation TLS coupée (vue le 26 novembre 2026 en 5G, liaison « minimale »).
+            // Les certificats client exigés ou refusés (-1205, -1206) restent non classés : la
+            // description du système le dit mieux qu'un conseil de réseau.
+            NSURLErrorSecureConnectionFailed -> ErreurReseau.CONNEXION_SECURISEE
+            NSURLErrorServerCertificateHasBadDate, NSURLErrorServerCertificateUntrusted,
+            NSURLErrorServerCertificateHasUnknownRoot, NSURLErrorServerCertificateNotYetValid -> ErreurReseau.CERTIFICAT
+            else -> null
+        }
+        // Depuis iOS 12, NSURLSession rend aussi des erreurs POSIX : 53 au retour d'arrière-plan
+        // pendant un envoi, par exemple.
+        NSPOSIXErrorDomain -> when (erreur.code.toInt()) {
+            ENETDOWN, ENETUNREACH -> ErreurReseau.HOTE_INCONNU
+            ETIMEDOUT -> ErreurReseau.DELAI_DEPASSE
+            ECONNABORTED, ECONNRESET, ENOTCONN, ECONNREFUSED, EHOSTUNREACH -> ErreurReseau.CONNEXION_IMPOSSIBLE
+            else -> null
+        }
         else -> null
     }
 }
 
-internal actual fun detailErreurReseau(e: Throwable): String? =
-    (e as? DarwinHttpRequestException)?.origin?.localizedDescription ?: e.message
+internal actual fun detailErreurReseauPlateforme(e: Throwable): String? =
+    erreurSysteme(e)?.localizedDescription ?: e.message

@@ -24,6 +24,7 @@ package fr.ariegenature.geomys.occtax
 import fr.ariegenature.geomys.ServicesDeTest
 import fr.ariegenature.geomys.location.PositionGps
 import fr.ariegenature.geomys.model.Observation
+import fr.ariegenature.geomys.model.PointTrace
 import fr.ariegenature.geomys.model.Sortie
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -95,6 +96,35 @@ class FinSaisieTest {
         val res = FinSaisie.terminerMulti(session, store)
         assertFalse(res.ecrite)
         assertEquals(1, session.observations.value.size, "seule copie de la saisie : rien n'est effacé")
+    }
+
+    /** Demande du 26 novembre 2026 : sans observation, la saisie n'est pas gardée, même avec une
+     *  trace GPS ; une reprise vidée de ses observations disparaît. */
+    @Test
+    fun multi_sans_observation_n_ecrit_rien_meme_avec_une_trace() = runTest {
+        val session = session()
+        tracker.demarrer()
+        tracker.demarrerParcours()
+        t.positions.emettre(PositionGps(42.90, 1.40, 5f))
+        t.positions.emettre(PositionGps(42.91, 1.40, 5f))
+        val res = FinSaisie.terminerMulti(session, store)
+        assertTrue(res.ecrite)
+        assertTrue(store.charger().isEmpty())
+        assertTrue(tracker.parcours.value.isEmpty(), "session remise à zéro")
+        // Une saisie reprise puis vidée de ses observations disparaît.
+        store.ajouter(Sortie(id = "s1", observations = listOf(obs("a"))))
+        val reprise = session()
+        reprise.reprendreSortie(store.charger().single())
+        reprise.supprimerObservation("a")
+        FinSaisie.terminerMulti(reprise, store)
+        assertTrue(store.charger().isEmpty())
+        // Une saisie déjà vide sur le disque (trace seule, d'une ancienne version), rouverte puis
+        // terminée, reste.
+        store.ajouter(Sortie(id = "trace", pointsParcours = listOf(PointTrace(42.9, 1.4))))
+        val ancienne = session()
+        ancienne.reprendreSortie(store.charger().single())
+        FinSaisie.terminerMulti(ancienne, store)
+        assertEquals("trace", store.charger().single().id)
     }
 
     @Test

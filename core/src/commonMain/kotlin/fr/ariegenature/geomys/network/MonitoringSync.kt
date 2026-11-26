@@ -66,7 +66,7 @@ class MonitoringSync(
 
         val modules = try { api.chargerModules(config) }
             catch (e: CancellationException) { throw e }
-            catch (e: Exception) { return@withContext Pair(0, "Modules monitoring : ${e.message}") }
+            catch (e: Exception) { return@withContext Pair(0, "Modules monitoring : ${detailErreurReseau(e) ?: e::class.simpleName}") }
 
         if (modules.isEmpty()) return@withContext Pair(0, "Aucun module monitoring exposé par le serveur.")
 

@@ -96,7 +96,7 @@ Mode pro seulement.
 Consultation cartographique des observations récentes du serveur (synthèse, 1 000 observations au plus) : requête sur l'emprise visible, rien au-delà de 100 km de large. Les observations sont regroupées par cellules d'environ 110 m, un marqueur par cellule avec l'icône de son groupe taxonomique et son effectif ; une barre filtre par groupe. Toucher un marqueur liste les observations de la cellule. La profondeur d'historique est celle publiée par le serveur (365 jours par défaut).
 
 ### Hors-ligne et envoi
-- **Saisies enregistrées au fil de l'eau** dans le téléphone (OccTax, visites des Suivis, stations OccHab), et **envoyées à la demande** uniquement, jamais automatiquement. Une pastille rouge sur le menu de l'accueil rappelle qu'il reste des données à envoyer.
+- **Saisies enregistrées au fil de l'eau** dans le téléphone (OccTax, visites des Suivis, stations OccHab), et **envoyées à la demande** uniquement, jamais automatiquement. Une saisie OccTax sans observation n'est pas gardée, même avec une trace GPS. Une pastille rouge sur le menu de l'accueil rappelle qu'il reste des données à envoyer.
 - **Caches** : « Charger les données » met en cache les référentiels (TaxRef, nomenclatures, jeux de données, listes, observateurs, champs additionnels), les protocoles des Suivis avec leurs objets structurels (groupes de sites, sites, points…, pas les visites passées), le référentiel HABREF et les stations OccHab de l'utilisateur. Les écrans lisent ces caches ; restent en ligne le chargement lui-même, les envois et leurs contrôles anti-doublon, l'Explorer, le test de connexion, la vérification « Donnée exceptionnelle », et la fiche d'une visite ou d'une observation des Suivis, mise à jour depuis le serveur à son ouverture s'il répond.
 - **Envois et chargement protégés de la mise en veille** : service au premier plan sous Android (avec une notification pour le chargement), tâche d'arrière-plan sous iOS.
 
@@ -150,7 +150,8 @@ Dans la saisie OccTax, le bouton **Détails** du relevé modifie le jeu de donn�
   - **Mes visites** : saisies des Suivis, si le module est là ou s'il reste quelque chose à envoyer ;
   - **Mes stations** : saisies OccHab, même règle ;
   - **Explorer** : observations récentes du serveur sur carte ;
-  - **Maps Manager** : fonds de carte hors-ligne et cartes MBTiles.
+  - **Maps Manager** : fonds de carte hors-ligne et cartes MBTiles ;
+  - **Aide** : le guide d'utilisation du site de GeoMys (`https://geomys.ariegenature.fr/guide.html`), ouvert dans le navigateur ; son pied de page mène à la politique de confidentialité et au contact.
 
   Chacun de ces écrans a un fil d'Ariane (maison › nom de l'écran) qui ramène à l'accueil.
 
@@ -304,7 +305,8 @@ Les défauts de GeoMys-Android que le portage reproduisait sont corrigés ([`LOT
 
 | | Android | iOS |
 |---|---|---|
-| Identifiant | `fr.ariegenature.public.geomys` (release, celui de GeoMys-Android sur Google Play) ; `fr.ariegenature.geomys.common` (versions de test) | `fr.ariegenature.geomys.common` |
+| Identifiant | `fr.ariegenature.public.geomys` (release, celui de GeoMys-Android sur Google Play) ; `fr.ariegenature.geomys.common` (versions de test) | `fr.ariegenature.geomys` (configuration Release, celle d'un dépôt sur l'App Store) ; `fr.ariegenature.geomys.common` (configuration Debug) |
+| Signature | clé de GeoMys-Android, hors du dépôt (`keystore.properties`) | `TEAM_ID` dans `Config.xcconfig` : équipe de l'ANA, qui publie sur l'App Store et signe aussi les versions de test |
 | Nom sous l'icône | `androidApp/src/main/res/values/strings.xml` | `APP_DISPLAY_NAME` dans `iosApp/Configuration/Config.xcconfig` |
 | Version | `versionName` / `versionCode` dans `androidApp/build.gradle.kts` | `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` dans `Config.xcconfig` |
 

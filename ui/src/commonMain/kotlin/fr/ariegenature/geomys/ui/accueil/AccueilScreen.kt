@@ -144,7 +144,12 @@ enum class EntreeMenuAccueil(val libelle: String) {
     MES_STATIONS("Mes stations"),
     EXPLORER("Explorer"),
     MAPS_MANAGER("Maps Manager"),
+    AIDE("Aide"),
 }
+
+/** « Aide » (demande du 26 novembre 2026) : le guide d'utilisation du site de GeoMys, ouvert dans le
+ *  navigateur. Son pied de page mène à la politique de confidentialité et au contact. */
+const val ADRESSE_AIDE = "https://geomys.ariegenature.fr/guide.html"
 
 /** Les actions de l'accueil. */
 class ActionsAccueil(
@@ -210,13 +215,15 @@ fun AccueilScreen(etat: EtatAccueil, actions: ActionsAccueil, onTexteLicence: ()
 
 /** Entrées du menu, dans l'ordre et selon les conditions de GeoMys-Android, avec leur nombre
  *  d'éléments en attente d'envoi. « Mes visites » et « Mes stations » restent tant qu'il y a quelque
- *  chose à envoyer, même sans Monitoring ni OccHab (saisie simplifiée) : rien ne reste hors d'atteinte. */
+ *  chose à envoyer, même sans Monitoring ni OccHab (saisie simplifiée) : rien ne reste hors d'atteinte.
+ *  « Aide », toujours là, ferme la liste. */
 internal fun entreesMenu(etat: EtatAccueil): List<Pair<EntreeMenuAccueil, Int>> = buildList {
     add(EntreeMenuAccueil.MES_SAISIES to etat.saisiesEnAttente)
     if (etat.monitoringDisponible || etat.visitesEnAttente > 0) add(EntreeMenuAccueil.MES_VISITES to etat.visitesEnAttente)
     if (etat.occhabDisponible || etat.stationsEnAttente > 0) add(EntreeMenuAccueil.MES_STATIONS to etat.stationsEnAttente)
     add(EntreeMenuAccueil.EXPLORER to 0)
     add(EntreeMenuAccueil.MAPS_MANAGER to 0)
+    add(EntreeMenuAccueil.AIDE to 0)
 }
 
 // ─── Allure Android (fragment_accueil.xml) ───

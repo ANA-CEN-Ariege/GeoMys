@@ -21,19 +21,39 @@ package fr.ariegenature.geomys.network
 import io.ktor.client.network.sockets.ConnectTimeoutException
 import io.ktor.client.network.sockets.SocketTimeoutException
 import io.ktor.client.plugins.HttpRequestTimeoutException
+import io.ktor.utils.io.ClosedByteChannelException
 
-/** Les erreurs réseau que [humaniserErreurReseau] explique à l'utilisateur. */
-enum class ErreurReseau { HOTE_INCONNU, DELAI_DEPASSE, CONNEXION_IMPOSSIBLE }
+/** Les erreurs réseau que [humaniserErreurReseau] explique à l'utilisateur. [CONNEXION_SECURISEE] :
+ *  la négociation TLS a échoué (souvent un réseau trop faible, qui la coupe) ; [CERTIFICAT] : le
+ *  certificat du serveur est refusé (expiré, non reconnu, ou page de connexion d'un Wi-Fi public). */
+enum class ErreurReseau { HOTE_INCONNU, DELAI_DEPASSE, CONNEXION_IMPOSSIBLE, CONNEXION_SECURISEE, CERTIFICAT }
+
+/** L'erreur d'origine. Une erreur survenue pendant la lecture du corps de la réponse, après les
+ *  en-têtes, arrive enveloppée par Ktor dans une [ClosedByteChannelException]
+ *  (ClosedReadChannelException…), parfois deux fois (copie de la reprise des traces de coroutines). */
+internal fun origineReseau(e: Throwable): Throwable {
+    var x = e
+    repeat(8) {
+        val cause = x.cause
+        if (x !is ClosedByteChannelException || cause == null) return x
+        x = cause
+    }
+    return x
+}
 
 /** La nature d'une erreur réseau, ou null si [e] n'en est pas une connue. Les délais de Ktor sont
- *  reconnus ici ; le reste dépend du moteur (java.net sous Android, NSURLErrorDomain sous iOS). */
-fun classerErreurReseau(e: Throwable): ErreurReseau? = when (e) {
+ *  reconnus ici ; le reste dépend du moteur (java.net sous Android, NSURLSession sous iOS). */
+fun classerErreurReseau(e: Throwable): ErreurReseau? = when (val origine = origineReseau(e)) {
     is HttpRequestTimeoutException, is ConnectTimeoutException, is SocketTimeoutException -> ErreurReseau.DELAI_DEPASSE
-    else -> classerErreurReseauPlateforme(e)
+    else -> classerErreurReseauPlateforme(origine)
 }
 
 internal expect fun classerErreurReseauPlateforme(e: Throwable): ErreurReseau?
 
-/** Le détail lisible d'une erreur réseau : le message de l'exception sous Android, la description
- *  du système sous iOS. */
-internal expect fun detailErreurReseau(e: Throwable): String?
+/** Le détail lisible d'une erreur, à montrer à l'utilisateur au lieu de `e.message` : le message de
+ *  l'exception sous Android, la description du système sous iOS (jamais le NSError entier), sans
+ *  point final, car il se met souvent entre parenthèses. */
+fun detailErreurReseau(e: Throwable): String? =
+    detailErreurReseauPlateforme(origineReseau(e))?.trim()?.trimEnd('.', ' ')?.takeIf { it.isNotEmpty() }
+
+internal expect fun detailErreurReseauPlateforme(e: Throwable): String?

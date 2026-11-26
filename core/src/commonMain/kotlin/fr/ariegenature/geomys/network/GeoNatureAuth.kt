@@ -170,7 +170,13 @@ class GeoNatureAuth(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Pair(false, "Impossible de joindre le serveur : ${e.message}")
+                // Une erreur réseau connue a son message clair ; les autres gardent leur détail,
+                // lisible aussi sous iOS (la description du système, pas le NSError entier).
+                Pair(
+                    false,
+                    if (classerErreurReseau(e) != null) humaniserErreurReseau(e)
+                    else "Impossible de joindre le serveur : ${detailErreurReseau(e) ?: e::class.simpleName}",
+                )
             }
         }
 

@@ -21,6 +21,8 @@
 
 package fr.ariegenature.geomys.monitoring
 
+import fr.ariegenature.geomys.network.detailErreurReseau
+
 /** Les textes de l'écran « Monitoring » (liste des protocoles). */
 object ListeProtocoles {
     const val TITRE = "Monitoring"
@@ -29,7 +31,8 @@ object ListeProtocoles {
     /** Le bouton vers les saisies non envoyées, montré seulement s'il y en a. */
     fun libelleAttente(nombre: Int): String = "Données en attente d'envoi ($nombre)"
 
-    fun messageErreur(erreur: Throwable): String = "Erreur de chargement : ${erreur.message}"
+    fun messageErreur(erreur: Throwable): String =
+        "Erreur de chargement : ${detailErreurReseau(erreur) ?: erreur::class.simpleName}"
 
     /** Aucune liste en cache : la synchro des Suivis n'a jamais abouti (les écrans ne lisent que le
      *  cache, décision de l'utilisateur du 20 octobre). */

@@ -50,7 +50,9 @@ object FinSaisie {
 
     /** Fin d'une saisie multi-taxons : la sortie reprend la trace et les observations de la
      *  session. En reprise, on garde l'id et la date d'origine, pour que la sortie reste à sa place
-     *  chronologique dans la liste. La session n'est remise à zéro que si l'écriture a réussi :
+     *  chronologique dans la liste. Sans observation, elle n'est pas gardée, même avec une trace GPS
+     *  (demande du 26 novembre 2026 ; GeoMys-Android gardait une trace seule) : son brouillon
+     *  disparaît, comme en mono-taxon. La session n'est remise à zéro que si l'écriture a réussi :
      *  réinitialiser après un échec perdrait la seule copie (mémoire) de la saisie, et envoyer sans
      *  trace dans le store rendrait les marquages anti-doublon inopérants (audit 2026-08-23). */
     suspend fun terminerMulti(session: SessionSaisieOcctax, store: SortieStore): Resultat {
@@ -64,9 +66,12 @@ object FinSaisie {
         val distance = tracker.distanceTotale.value
         val sortie = existante?.copy(pointsParcours = parcours, observations = obs, distanceTotale = distance)
             ?: Sortie(date = maintenantMillis(), pointsParcours = parcours, observations = obs, distanceTotale = distance)
-        if (sortie.pointsParcours.isNotEmpty() || sortie.observations.isNotEmpty()) {
+        if (sortie.observations.isNotEmpty()) {
             val ok = if (idReprise != null) store.remplacer(idReprise, sortie) else store.ajouter(sortie)
             if (!ok) return Resultat(sortie, ecrite = false)
+        } else if (idReprise != null && existante != null && !existante.envoyeGeoNature && existante.observations.isNotEmpty()) {
+            // Une saisie déjà vide sur le disque, rouverte puis refermée, reste (voir persisterBrouillon).
+            store.supprimer(idReprise)
         }
         session.reinitialiser()
         return Resultat(sortie, ecrite = true)
@@ -87,8 +92,8 @@ object FinSaisie {
         if (sortie.observations.isNotEmpty()) {
             val ok = if (id != null) store.remplacer(id, sortie) else store.ajouter(sortie)
             if (!ok) return Resultat(sortie, ecrite = false)
-        } else {
-            id?.let { store.supprimer(it) }
+        } else if (id != null && existante?.envoyeGeoNature != true) {
+            store.supprimer(id)
         }
         session.reinitialiser()
         return Resultat(sortie, ecrite = true)

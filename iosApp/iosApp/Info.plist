@@ -27,11 +27,12 @@
 	<string>$(APP_DISPLAY_NAME) utilise votre position pour géolocaliser les observations et enregistrer votre trace GPS.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>$(APP_DISPLAY_NAME) enregistre votre trace GPS en arrière-plan pendant une sortie sur le terrain.</string>
-	<!-- Dictée vocale du nom d'espèce (textes de GeoMys-IOS). -->
+	<!-- Dictée vocale du nom d'espèce, seul champ dicté (bouton micro du champ espèce d'OccTax). Les textes de
+	     GeoMys-IOS parlaient de « notes d'observation », que l'appli ne dicte pas (règle 5.1.1(ii) de l'App Store). -->
 	<key>NSMicrophoneUsageDescription</key>
-	<string>$(APP_DISPLAY_NAME) utilise le micro pour la dictée vocale lors de la saisie des notes d'observation.</string>
+	<string>$(APP_DISPLAY_NAME) utilise le micro pour la dictée vocale du nom de l'espèce observée.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>$(APP_DISPLAY_NAME) utilise la reconnaissance vocale pour la dictée des notes d'observation.</string>
+	<string>$(APP_DISPLAY_NAME) utilise la reconnaissance vocale d'Apple pour transcrire le nom d'espèce que vous dictez.</string>
 	<!-- Photo d'un dénombrement (UIImagePickerController ; texte de GeoMys-IOS). La galerie (PHPicker)
 	     et les fichiers son n'en demandent pas. -->
 	<key>NSCameraUsageDescription</key>
@@ -48,6 +49,10 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<!-- Conformité à l'export : seul le chiffrement d'iOS sert (HTTPS par URLSession, trousseau), qui est
+	     exempté. App Store Connect ne pose plus la question à chaque build ; pas de déclaration française. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

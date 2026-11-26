@@ -36,6 +36,7 @@ import fr.ariegenature.geomys.geo.Emprise
 import fr.ariegenature.geomys.geo.LatLon
 import fr.ariegenature.geomys.model.ObsExplorer
 import fr.ariegenature.geomys.model.Taxon
+import fr.ariegenature.geomys.network.detailErreurReseau
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -135,7 +136,7 @@ class ExplorerViewModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                message = Explorer.erreur(e.message)
+                message = Explorer.erreur(detailErreurReseau(e) ?: e::class.simpleName)
             } finally {
                 // Une requête abandonnée ne coupe pas l'indicateur de la suivante.
                 if (numero == numeroRequete) chargement = false

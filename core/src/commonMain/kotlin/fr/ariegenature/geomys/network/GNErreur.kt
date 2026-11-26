@@ -60,6 +60,20 @@ internal fun parseErreur(code: Int, body: String?): String {
 /** Le message du web pour un cadre d'acquisition fermé. */
 const val CADRE_ACQUISITION_FERME = "Cadre d'acquisition fermé, action impossible"
 
+/** [ErreurReseau.CONNEXION_SECURISEE]. Le plus souvent un réseau faible qui coupe la négociation ;
+ *  sinon une adresse qui ne mène pas à un serveur HTTPS, ou un réglage du serveur. */
+const val CONNEXION_SECURISEE_IMPOSSIBLE =
+    "Connexion sécurisée au serveur impossible. Le réseau est peut-être trop faible : réessayez, " +
+        "ou changez de réseau (Wi-Fi ou données mobiles). Si cela persiste, vérifiez l'adresse du " +
+        "serveur ou prévenez son administrateur."
+
+/** [ErreurReseau.CERTIFICAT]. La cause peut aussi être du côté du téléphone : date fausse, adresse
+ *  tapée avec un autre nom que celui du certificat, portail d'un Wi-Fi public. */
+const val CERTIFICAT_REFUSE =
+    "Certificat du serveur refusé. Vérifiez la date et l'heure du téléphone, l'adresse du serveur, " +
+        "et que le réseau Wi-Fi ne demande pas de connexion. Sinon, prévenez l'administrateur du " +
+        "serveur : son certificat est peut-être expiré."
+
 /** Convertit une exception réseau (typiquement [GNErreur.EnvoiEchoue] ou [GNErreur.AuthEchouee])
  *  en message lisible par l'utilisateur final. Le code HTTP brut reste en parenthèses pour
  *  le support technique. */
@@ -98,7 +112,10 @@ fun humaniserErreurReseau(e: Throwable): String {
                 "Serveur injoignable ou trop lent (délai dépassé). Réessayez avec une meilleure connexion."
             ErreurReseau.CONNEXION_IMPOSSIBLE ->
                 "Connexion au serveur impossible (${detailErreurReseau(e) ?: "refusée"}). Vérifiez le réseau et l'URL."
-            null -> "Erreur réseau : ${e.message ?: e::class.simpleName}"
+            ErreurReseau.CONNEXION_SECURISEE -> CONNEXION_SECURISEE_IMPOSSIBLE
+            ErreurReseau.CERTIFICAT -> CERTIFICAT_REFUSE
+            // Le détail lisible : sous iOS, la description du système, pas le NSError entier.
+            null -> "Erreur réseau : ${detailErreurReseau(e) ?: e::class.simpleName}"
         }
         else -> "Erreur HTTP $code : ${detail ?: e.message ?: "—"}"
     }

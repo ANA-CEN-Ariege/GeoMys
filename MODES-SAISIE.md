@@ -29,7 +29,7 @@ Depuis le 20 novembre 2026, une nouvelle installation démarre en mode simplifi�
 | Configuration incomplète | Boutons estompés | Bouton estompé et, dessous, « Pour commencer, renseignez la connexion dans les Paramètres », qui ouvre les Paramètres |
 | « Monitoring » | Si des protocoles sont chargés | Jamais |
 | « OccHab » | Si le serveur l'a et que l'utilisateur peut créer | Jamais |
-| Menu : « Mes saisies », « Explorer », « Maps Manager » | Oui | Oui |
+| Menu : « Mes saisies », « Explorer », « Maps Manager », « Aide » | Oui | Oui |
 | Menu : « Mes visites », « Mes stations » | Si le module est là, ou s'il reste quelque chose à envoyer | Seulement s'il reste quelque chose à envoyer |
 
 ## Saisie multi-taxons

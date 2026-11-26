@@ -217,6 +217,10 @@ class SessionSaisieOcctax(
         portee.launch { for (ecriture in ecritures) ecriture() }
     }
 
+    /** La dernière saisie purgée faute d'observation ([persisterBrouillon]). Lue et écrite seulement
+     *  dans les [ecritures], qui passent une à une. */
+    private var brouillonPurge: Sortie? = null
+
     /** Auto-save « au fil de l'eau » de la saisie en cours : à chaque modification des observations
      *  (mono ou multi-taxons), on écrit/met à jour la sortie courante dans [sortieStore] sous une id
      *  stable ([sortieEnEditionId]). Elle apparaît ainsi dans « Mes saisies → À envoyer » et survit
@@ -224,7 +228,11 @@ class SessionSaisieOcctax(
      *
      *  - 1ère obs d'une nouvelle saisie → crée la sortie et fixe [sortieEnEditionId].
      *  - obs suivantes / reprise → met à jour la sortie existante (préserve id + date).
-     *  - saisie vidée (plus aucune obs ni trace) → purge le brouillon.
+     *  - saisie vidée (plus aucune obs) → purge le brouillon, même s'il reste une trace GPS : une
+     *    saisie sans observation n'est pas gardée (demande du 26 novembre 2026). La trace reste dans
+     *    la session ; une nouvelle observation réécrit la saisie, trace comprise, sous la même id,
+     *    telle qu'elle était ([brouillonPurge] : date, mode, import, dernière erreur d'envoi), par
+     *    exemple quand on retire puis remet l'espèce du seul relevé d'une saisie reprise.
      *  Ne touche jamais une sortie déjà envoyée à GeoNature. */
     private fun persisterBrouillon() {
         val obs = _observations.value
@@ -232,13 +240,24 @@ class SessionSaisieOcctax(
         val distance = locationTracker.distanceTotale.value
         val id = sortieEnEditionId
         val modele = modeleMono
-        if (obs.isEmpty() && parcours.isEmpty()) {
-            if (id != null) ecritures.trySend { sortieStore.supprimer(id) }
+        if (obs.isEmpty()) {
+            if (id != null) {
+                ecritures.trySend {
+                    // Seule une saisie que la session a vidée disparaît : une saisie déjà vide sur le
+                    // disque (trace seule, d'une version d'avant le 26 novembre 2026), simplement
+                    // rouverte puis refermée, reste ; elle se supprime à la corbeille de « Mes saisies ».
+                    val existante = sortieStore.charger().firstOrNull { it.id == id }
+                    if (existante != null && !existante.envoyeGeoNature && existante.observations.isNotEmpty()) {
+                        brouillonPurge = existante
+                        sortieStore.supprimer(id)
+                    }
+                }
+            }
             return
         }
         if (id != null) {
             ecritures.trySend {
-                val existante = sortieStore.charger().firstOrNull { it.id == id }
+                val existante = sortieStore.charger().firstOrNull { it.id == id } ?: brouillonPurge?.takeIf { it.id == id }
                 if (existante?.envoyeGeoNature != true) {
                     val base = existante ?: Sortie(id = id, saisieMono = saisieMono)
                     val ok = sortieStore.remplacer(

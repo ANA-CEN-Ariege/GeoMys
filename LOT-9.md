@@ -1142,3 +1142,93 @@ Relecture du § 84 : le même geste, un second toucher reçu pendant qu'un écra
 - **Les dialogues d'Android** ne répondent plus pendant leur fondu de sortie (150 ms), comme la fenêtre d'un AlertDialog, retirée aussitôt (`CoucheDialogueAndroid`) : un second toucher d'un bouton relançait son action, par exemple « Enregistrer et envoyer » une fois la saisie vidée. Sous iOS, les alertes et feuilles du système le font déjà.
 - **OccHab** : un nouvel habitat garde la même identité à chaque « Valider l'habitat ». Un second toucher, ou un nouvel essai après un échec d'écriture, le met à jour au lieu de l'ajouter une seconde fois à la station, qui partait ainsi vers GeoNature. La coche de la station ne l'écrit qu'une fois, et jamais sans géométrie, comme l'ouverture de l'écran depuis l'audit du 27 août : un second toucher, reçu après l'écriture, écrivait la station vierge de la suivante (point 0,0, sans habitat) dans la saisie, prête à partir.
 - Tests : `FinSaisieUneFoisTest` (multi-taxons et mono-taxon : un seul « Quitter », le retour système et un second « Enregistrer et quitter » ignorés pendant l'écriture, l'écran de nouveau actif ensuite) ; `DoubleToucherOccHabTest` (un seul habitat, une seule écriture de la station et une seule carte suivante, jamais de station sans géométrie).
+
+## 86. iOS : la release prend l'identifiant `fr.ariegenature.geomys` (26 novembre)
+
+Demande de l'utilisateur, à la question d'un dépôt sur l'App Store : « change l'identifiant pour fr.ariegenature.geomys ».
+
+- **La configuration Release** de Xcode, celle d'une archive pour l'App Store et de la mesure de TaxRef sur un iPhone, prend `fr.ariegenature.geomys` (`BUNDLE_ID[config=Release]` dans `Config.xcconfig`). Cet identifiant deviendra définitif au premier dépôt.
+- **La configuration Debug** garde `fr.ariegenature.geomys.common`, comme les versions de test sous Android, et cohabitera avec la version publiée sur un même iPhone.
+- **L'équipe** : celle de l'ANA (`MDLYU65243`, « ANA - CONSERVATOIRE D'ESPACES NATURELS ARIEGE », adhérente au programme développeur d'Apple ; l'utilisateur y est administrateur) signe les deux configurations (`TEAM_ID`). Elle publiera l'appli et enregistrera `fr.ariegenature.geomys` à la première archive. Le profil des versions de test vaut un an, au lieu des 7 jours de l'équipe personnelle gratuite `5J5PGRYHS5`, qui les signait jusque-là et ne peut pas publier. iOS refuse de remplacer une appli signée par une autre équipe : la version de test déjà installée sur un iPhone se supprime une fois, avec ses réglages, son mot de passe, ses saisies et ses cartes, avant d'installer la nouvelle.
+- **Inchangés** : le nom « GeoMys » ; le service du trousseau (`CoffreKeychain`, une simple étiquette) ; la version de test, reconnue par `Platform.isDebugBinary` et non par l'identifiant ; GeoMys-IOS (`fr.ariegenature.GeoMys-IOS`), avec laquelle les deux cohabitent.
+- Docs : README (Identité), INVENTAIRE (décisions), MESURE-TAXREF (lancement iOS, construit en Release).
+
+## 87. iOS : manifeste de confidentialité, chiffrement déclaré, textes de la dictée (26 novembre)
+
+Suite de l'audit du dépôt sur l'App Store (rapport local, non versionné), à la demande de l'utilisateur (« vas y »).
+
+- **Manifeste de confidentialité** (`iosApp/iosApp/PrivacyInfo.xcprivacy`, copié dans l'appli par la phase Resources).
+  - **Pourquoi** : sans lui, App Store Connect refuse le build (ITMS-91053). Le framework Kotlin est statique : Kotlin/Native, Compose, Skiko, MapLibre Native, Okio et multiplatform-settings sont dans l'exécutable, sans manifeste propre.
+  - **API déclarées**, d'après le binaire Release :
+    - l'horodatage de fichiers (`stat`, `fstat`, `lstat`, `attributesOfItemAtPath`), sur les fichiers du conteneur, motif C617.1. Le sélecteur de documents copie dans le conteneur les fichiers choisis ;
+    - l'heure de démarrage : le sélecteur `systemUptime` de metal-cpp, jamais appelé, motif 35F9.1 par prudence ;
+    - les préférences : suites privées de `NSUserDefaults`, motif CA92.1.
+  - **Données déclarées** : ni pistage ni domaine de pistage. Six types de données partent vers le serveur choisi, pour la seule fonction de l'appli : position précise, photos, sons, contenu des saisies, identifiant, noms des observateurs. Ils sont à garder d'accord avec la fiche « Confidentialité de l'app » d'App Store Connect.
+- **Chiffrement** : `ITSAppUsesNonExemptEncryption = NO`. Seul sert le chiffrement d'iOS (HTTPS, trousseau), qui est exempté. La question ne revient plus à chaque build, et aucune déclaration française n'est à faire.
+- **Textes du micro et de la reconnaissance vocale** : repris de GeoMys-IOS, ils parlaient de « notes d'observation », alors que la dictée ne remplit que le nom d'espèce (règle 5.1.1(ii)). Ils deviennent :
+  - « GeoMys utilise le micro pour la dictée vocale du nom de l'espèce observée. » ;
+  - « GeoMys utilise la reconnaissance vocale d'Apple pour transcrire le nom d'espèce que vous dictez. »
+- **Vérifié** : le manifeste et les clés arrivent dans `GeoMys.app`, en Debug pour l'iPhone comme en Release. Le rapport de confidentialité de l'archive (Organizer > Generate Privacy Report) reste à regarder à la première archive.
+
+## 88. Erreurs réseau : un message clair pour une connexion sécurisée coupée ou un certificat refusé, jusque dans le test de connexion (26 novembre)
+
+Relevé par l'utilisateur sur l'iPhone, en 5G : « Tester la connexion » affichait l'erreur brute d'iOS, une vingtaine de lignes commençant par « Exception in http request: Error Domain=NSURLErrorDomain Code=-1200 ». Le serveur allait bien : son HTTPS est valide, et le test des connexions sécurisées d'Apple (`nscurl --ats-diagnostics`) réussit depuis le Mac. C'est la liaison 5G, notée « minimale » par iOS, qui avait coupé la négociation TLS. Demande de l'utilisateur, à la proposition d'un message clair : « fais le ».
+
+- **Deux erreurs de plus** dans le classement commun (`ErreurReseau`) :
+  - `CONNEXION_SECURISEE` : la négociation TLS échoue.
+    - iOS : -1200 (`NSURLErrorSecureConnectionFailed`).
+    - Android : une `SSLException` dont aucune cause n'est un certificat.
+    - Message : « Connexion sécurisée au serveur impossible. Le réseau est peut-être trop faible : réessayez, ou changez de réseau (Wi-Fi ou données mobiles). Si cela persiste, vérifiez l'adresse du serveur ou prévenez son administrateur. » La fin du message couvre les échecs qui ne viennent pas du réseau : une adresse qui ne mène pas à un serveur HTTPS, ou une version de TLS refusée.
+  - `CERTIFICAT` : le certificat du serveur est refusé.
+    - iOS : -1201 à -1204.
+    - Android : une `SSLPeerUnverifiedException` (nom d'hôte refusé par OkHttp), ou une `SSLException` causée par une `CertificateException` ou une `CertPathValidatorException` (certificat expiré, chaîne non reconnue).
+    - Message : « Certificat du serveur refusé. Vérifiez la date et l'heure du téléphone, l'adresse du serveur, et que le réseau Wi-Fi ne demande pas de connexion. Sinon, prévenez l'administrateur du serveur : son certificat est peut-être expiré. »
+  - Sous iOS, « pas de réseau » couvre aussi les données cellulaires refusées à l'appli (-1020) et l'itinérance coupée (-1018). Les certificats client exigés ou refusés (-1205, -1206) restent non classés : la description du système les nomme mieux qu'un conseil de réseau.
+- **Ce que la relecture a ajouté :**
+  - **Enveloppes de Ktor.** Une erreur survenue pendant la lecture du corps de la réponse arrive enveloppée dans une `ClosedByteChannelException`, parfois deux fois : le classement et le détail lisent désormais l'erreur d'origine (`origineReseau`). Cela vaut aussi pour un délai de lecture, qui retrouve son message.
+  - **Routes suivantes d'OkHttp 5.** OkHttp essaie l'IPv6, puis l'IPv4, et ne relève que l'erreur de la première route ; les autres sont dans ses « suppressed ». Sous Android, un certificat refusé ou une négociation TLS ratée, où qu'ils soient (exception, causes, « suppressed »), l'emportent.
+  - **Android 11 et plus.** Un RST pendant la négociation arrive en `SocketException` (« Connection reset »). Toute `SocketException` donne maintenant « Connexion au serveur impossible », comme -1005 sous iOS.
+  - **Erreurs POSIX sous iOS.** Depuis iOS 12, NSURLSession rend aussi des erreurs du domaine POSIX, par exemple 53 au retour d'arrière-plan pendant un envoi. Elles sont classées : 50 et 51 en pas de réseau, 60 en délai dépassé, 53, 54, 57, 61 et 65 en connexion impossible.
+  - **Ponctuation.** Le détail perd son point final, car il se met entre parenthèses : on n'a plus « (… hors ligne.). ».
+- **Le test de connexion** (`GeoNatureAuth.testerConnexion`) donne, comme les envois, ces messages clairs pour toute erreur réseau connue. Les autres erreurs gardent « Impossible de joindre le serveur : … », avec un détail lisible : sous iOS, la description du système au lieu du NSError entier.
+- **Les envois** (`humaniserErreurReseau`) gagnent les deux messages. Leur cas inconnu (« Erreur réseau : … ») prend lui aussi, sous iOS, la description du système.
+- **Les autres textes d'erreur** montrés à l'écran prennent ce détail lisible (`detailErreurReseau`, désormais public) au lieu de `e.message`, qui était sous iOS le NSError entier. C'est le cas :
+  - des envois OccTax (« Réseau interrompu pendant… », médias, `GeoNatureUpload`) et OccHab (`OccHabUpload`) ;
+  - du chargement des données (`SyncRunner`, `GeoNatureSync`, `MonitoringSync`) ;
+  - de la liste des protocoles des Suivis (`ListeProtocoles`) ;
+  - de l'Explorer (`ExplorerViewModel`).
+
+  Les textes ne changent pas sous Android, à part la ponctuation.
+- **Tests** :
+  - `ErreursReseauJvmTest` : exceptions TLS d'Android (7 à 10, puis 11 et plus) et d'OkHttp, enveloppes de Ktor, routes suivantes d'OkHttp 5 (« suppressed »), point final du détail, et test de connexion ;
+  - `ErreursReseauIosTest` : codes NSURLError et POSIX, enveloppe de Ktor, certificat client non classé, une erreur non classée qui ne montre plus le NSError, point final de la description du système, et test de connexion.
+
+  `outils/verifier.sh` passe : `core` (1 236 tests sur la JVM, 1 231 sur le simulateur iOS), `ui` (178 sur la JVM, 17 sur le simulateur), APK de debug et appli iOS pour le simulateur.
+- **Relecture indépendante** : trois relectures (Android et OkHttp, iOS et NSURLSession, appels et messages), puis une contre-vérification de chacune. Ce qu'elles ont confirmé est corrigé ci-dessus. Deux points sont réfutés : -1022 (ATS), et un conseil d'adresse jugé inutile dans le test de connexion, puisque l'adresse s'affiche juste au-dessus.
+
+## 89. Accueil : « Aide » dans le menu (26 novembre)
+
+Demande de l'utilisateur : « ajoute un lien "Aide" dans le menu en haut à gauche de l'écran d'accueil ».
+
+- **« Aide »** ferme le menu de l'accueil, sous Android comme sous iOS, dans les deux modes. Il ouvre dans le navigateur le guide d'utilisation du site de GeoMys, `https://geomys.ariegenature.fr/guide.html` (`ADRESSE_AIDE`). Le pied de page du guide mène à la politique de confidentialité et au contact. Sans pastille : rien n'y attend d'envoi.
+- Il passe par `LocalUriHandler`, comme le texte complet de la licence.
+- Tests : `AccueilSimplifieTest` (« Aide » ferme le menu dans les deux modes, avec son adresse ; listes du menu mises à jour).
+- Docs : README (menu de l'accueil), MODES-SAISIE (.md et .html).
+
+## 90. Une saisie sans observation n'est plus gardée, même avec une trace GPS (26 novembre)
+
+Demande de l'utilisateur : « ne pas sauvegarder de saisie sans obs ».
+
+- **La cause** : une saisie OccTax restait dans « Mes saisies », avec « 0 obs. », quand on supprimait toutes ses observations pendant une trace GPS. La sauvegarde automatique (`SessionSaisieOcctax.persisterBrouillon`) ne purgeait le brouillon que sans observation **et** sans trace. Quitter la carte, sans observation, n'y touchait pas. La fin multi-taxons (`FinSaisie.terminerMulti`) gardait elle aussi une trace seule, comme GeoMys-Android.
+- **Désormais** :
+  - sans observation, le brouillon est supprimé, même s'il reste une trace. La trace continue dans la session et repart avec la saisie, sous la même id, à la prochaine observation. La saisie est alors réécrite telle qu'elle était, gardée en mémoire (`brouillonPurge`) : date, place dans la liste, mode, import, dernière erreur d'envoi. C'est le cas, par exemple, quand on retire puis remet l'espèce du seul relevé d'une saisie reprise ;
+  - la fin multi-taxons n'écrit rien sans observation, et supprime le brouillon d'une saisie reprise puis vidée, comme le faisait déjà la fin mono-taxon ;
+  - une saisie déjà envoyée n'est jamais supprimée ;
+  - seule une saisie que la session a vidée disparaît : une saisie déjà vide sur le disque, rouverte par « Continuer la saisie » puis refermée, reste (relecture indépendante du changement). La 2.2.1 en créait en quittant la carte multi-taxons, trace allumée et sans observation, par `sauvegarderBrouillon` à la sortie du flux. Ce chemin ne crée plus rien.
+- **Ce qui disparaît** (accepté par la demande) : un parcours enregistré sans aucune observation n'est plus gardé, et ne peut donc plus être exporté en GPX.
+- **Inchangés** : le « relevé sans espèce », enregistré exprès quand on valide un relevé sans espèce, reste une donnée gardée et envoyée, même si « Mes saisies » l'affiche « 0 obs. ». Les saisies importées ne sont pas concernées. Les saisies vides déjà enregistrées restent ; elles se suppriment à la corbeille de « Mes saisies ».
+- Tests :
+  - `SessionSaisieOcctaxTest` : une saisie vidée disparaît même avec une trace, la trace repart ensuite avec elle ; une saisie reprise vidée puis remplie garde sa date et sa dernière erreur d'envoi ; une saisie envoyée n'est pas supprimée ;
+  - `FinSaisieTest` : rien n'est écrit sans observation, même avec une trace, une reprise vidée disparaît, et une saisie déjà vide sur le disque reste ;
+  - `SessionSaisieOcctaxTest.une_ancienne_saisie_sans_observation_rouverte_reste`.
+- **Relevé par la relecture, hors de ce changement, à corriger ensuite.** Pendant « Enregistrer et envoyer », on peut encore quitter la carte : retour système d'Android sous le voile en multi-taxons, ou n'importe quel geste en mono-taxon, qui n'a pas de voile pendant l'envoi. Si l'on rouvre alors la saisie depuis « Mes saisies » avant la fin de l'envoi, les espèces ajoutées après son marquage « envoyée » ne sont plus enregistrées.
