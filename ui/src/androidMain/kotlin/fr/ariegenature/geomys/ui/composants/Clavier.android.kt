@@ -27,6 +27,9 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.platform.InterceptPlatformTextInput
 import androidx.compose.ui.platform.PlatformTextInputMethodRequest
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PlatformImeOptions
+
+internal actual val OptionsClavierIdentifiant: PlatformImeOptions? = null
 
 actual val ClavierNombresEtPonctuation: KeyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
 

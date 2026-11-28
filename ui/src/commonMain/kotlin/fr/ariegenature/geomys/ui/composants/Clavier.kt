@@ -20,6 +20,12 @@ package fr.ariegenature.geomys.ui.composants
 
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.text.input.PlatformImeOptions
+
+/** Le champ Identifiant de la connexion déclaré comme nom d'utilisateur (`textContentType`
+ *  `.username`), pour que l'app Mots de passe d'iOS s'y propose. Le champ Mot de passe n'en a pas
+ *  besoin : Compose le déclare lui-même mot de passe, d'après son clavier. Sous Android, rien. */
+internal expect val OptionsClavierIdentifiant: PlatformImeOptions?
 
 /** Clavier chiffres et ponctuation (`.numbersAndPunctuation` des champs nombre de GeoMys-IOS) : le
  *  signe moins et la virgule, que le pavé décimal d'iOS n'a pas. Sous Android, qui n'a pas ce

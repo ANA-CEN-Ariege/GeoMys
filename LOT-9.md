@@ -1286,3 +1286,23 @@ Demande de l'utilisateur : « dans les formulaires de monitoring, pour les champ
 
   Passent : l'APK de debug, `core` (1 242 tests sur la JVM, 1 237 sur le simulateur iOS), `ui` (180 sur la JVM, 36 sur le simulateur).
 - **Pas encore essayé sur les téléphones** (A12, iPhone 16) : l'aspect des deux filtres, les dialogues clavier ouvert, et, sur l'iPhone 16, la liste d'un observateur bas dans l'écran une fois le clavier posé.
+
+## 93. iOS : le champ Identifiant se déclare nom d'utilisateur pour l'app Mots de passe (28 novembre)
+
+Question de l'utilisateur : « pourquoi sur l'iPhone, l'identifiant et le mot de passe ne sont pas proposés par l'appli Mots de passe ? », puis « vas-y » pour la première des deux étapes proposées.
+
+- **La cause** : sous iOS, Compose dessine lui-même les champs. iOS ne voit qu'une zone de saisie invisible, celle du champ qui a le clavier, avec le type de contenu que Compose lui donne. Compose 1.12.2 tire ce type du clavier :
+  - le champ Mot de passe, au clavier mot de passe, est déclaré `.password` ;
+  - le champ Identifiant, au clavier ordinaire, n'a aucun type.
+
+  Faute de type, iOS devine, mais ses heuristiques supposent l'identifiant et le mot de passe visibles ensemble, et iOS ne voit jamais qu'un des deux champs à la fois.
+- **La correction** : le champ Identifiant de la connexion (Paramètres) se déclare nom d'utilisateur par l'option iOS de Compose `PlatformImeOptions { textContentType(UITextContentTypeUsername) }` (`OptionsClavierIdentifiant`, `ui/…/composants/Clavier.kt`, encore expérimentale). Seul le type de contenu est donné : le clavier, sans majuscule ni correction, ne change pas. Sous Android, rien ne change.
+- **Ce qui reste** : iOS ne propose un compte au-dessus du clavier que pour les domaines associés à l'appli (« Associated Domains », `webcredentials:`), dont le site publie un fichier `apple-app-site-association` qui nomme l'appli. GeoMys n'en a aucun. La clé « Mots de passe » ouvre donc la liste de tous les mots de passe, où l'on choisit son compte. L'association avec le serveur de l'ANA, proposée comme seconde étape, n'est pas faite : l'utilisateur s'en tient là (« ça va comme ça »).
+
+  MODES-SAISIE n'est pas concerné : la connexion est la même dans les deux modes.
+- **Tests** :
+  - `ClavierIdentifiantTest` (simulateur iOS) : l'identifiant se déclare nom d'utilisateur, sans majuscule ni correction ; les autres types de champ n'ont pas d'option iOS. Compose ne publie pas le type de contenu de ses options iOS : le test les compare à des options construites, et deux contre-épreuves vérifient que la comparaison porte bien sur le type de contenu ;
+  - `ClavierIdentifiantAndroidTest` (JVM) : sous Android, pas d'option de plateforme.
+
+  Contre-épreuve : l'identifiant déclaré adresse électronique, le test iOS échoue.
+- **Essayé par l'utilisateur sur l'iPhone 16** (version de debug) : « maintenant les champs proposent de choisir dans le coffre-fort ».

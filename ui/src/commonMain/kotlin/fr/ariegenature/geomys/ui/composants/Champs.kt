@@ -108,13 +108,18 @@ import org.jetbrains.compose.resources.painterResource
 
 /** Nature d'un champ : clavier, majuscules et correction automatiques. URL, identifiant et mot de
  *  passe n'ont ni majuscule ni correction automatique (le clavier iOS changeait « cgross » en
- *  « Cgross »). */
+ *  « Cgross »). Sous iOS, l'identifiant est aussi déclaré nom d'utilisateur, pour l'app Mots de
+ *  passe ([OptionsClavierIdentifiant]). */
 enum class TypeChamp { TEXTE, URL, IDENTIFIANT, MOT_DE_PASSE, NOMBRE }
 
 internal fun TypeChamp.clavier() = when (this) {
     TypeChamp.TEXTE -> KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
     TypeChamp.URL -> KeyboardOptions(KeyboardCapitalization.None, autoCorrectEnabled = false, keyboardType = KeyboardType.Uri)
-    TypeChamp.IDENTIFIANT -> KeyboardOptions(KeyboardCapitalization.None, autoCorrectEnabled = false)
+    TypeChamp.IDENTIFIANT -> KeyboardOptions(
+        KeyboardCapitalization.None,
+        autoCorrectEnabled = false,
+        platformImeOptions = OptionsClavierIdentifiant,
+    )
     TypeChamp.MOT_DE_PASSE -> KeyboardOptions(KeyboardCapitalization.None, autoCorrectEnabled = false, keyboardType = KeyboardType.Password)
     TypeChamp.NOMBRE -> KeyboardOptions(keyboardType = KeyboardType.Number)
 }

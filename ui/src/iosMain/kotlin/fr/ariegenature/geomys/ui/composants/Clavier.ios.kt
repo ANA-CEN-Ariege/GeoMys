@@ -24,6 +24,13 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PlatformImeOptions
 import platform.UIKit.UIKeyboardTypeNumbersAndPunctuation
+import platform.UIKit.UITextContentTypeUsername
+
+/** Seul le type de contenu est donné : le clavier, les majuscules et la correction restent ceux des
+ *  `KeyboardOptions` du champ. */
+@OptIn(ExperimentalComposeUiApi::class)
+internal actual val OptionsClavierIdentifiant: PlatformImeOptions? =
+    PlatformImeOptions { textContentType(UITextContentTypeUsername) }
 
 @OptIn(ExperimentalComposeUiApi::class)
 actual val ClavierNombresEtPonctuation: KeyboardOptions = KeyboardOptions(
