@@ -1301,7 +1301,7 @@ Question de l'utilisateur : « pourquoi sur l'iPhone, l'identifiant et le mot de
 
   MODES-SAISIE n'est pas concerné : la connexion est la même dans les deux modes.
 - **Tests** :
-  - `ClavierIdentifiantTest` (simulateur iOS) : l'identifiant se déclare nom d'utilisateur, sans majuscule ni correction ; les autres types de champ n'ont pas d'option iOS. Compose ne publie pas le type de contenu de ses options iOS : le test les compare à des options construites, et deux contre-épreuves vérifient que la comparaison porte bien sur le type de contenu ;
+  - `ClavierIdentifiantTest` (simulateur iOS) : l'identifiant se déclare nom d'utilisateur, explicitement, et ne donne aucune autre option iOS (clavier, majuscules, correction, saisie sécurisée, touche de retour). Il garde ainsi son clavier sans majuscule ni correction. Les autres types de champ n'ont pas d'option iOS. Le test lit les options par les propriétés que Compose publie sous iOS, encore expérimentales ;
   - `ClavierIdentifiantAndroidTest` (JVM) : sous Android, pas d'option de plateforme.
 
   Contre-épreuve : l'identifiant déclaré adresse électronique, le test iOS échoue.

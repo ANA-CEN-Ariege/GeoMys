@@ -26,26 +26,40 @@ package fr.ariegenature.geomys.ui.composants
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PlatformImeOptions
+import androidx.compose.ui.text.input.autocapitalizationType
+import androidx.compose.ui.text.input.autocorrectionType
+import androidx.compose.ui.text.input.hasExplicitTextContentType
+import androidx.compose.ui.text.input.isSecureTextEntry
+import androidx.compose.ui.text.input.keyboardType
+import androidx.compose.ui.text.input.returnKeyType
+import androidx.compose.ui.text.input.textContentType
+import androidx.compose.ui.text.input.usingNativeTextInput
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import platform.UIKit.UITextContentTypePassword
+import kotlin.test.assertTrue
 import platform.UIKit.UITextContentTypeUsername
 
 @OptIn(ExperimentalComposeUiApi::class)
 class ClavierIdentifiantTest {
 
-    /** Compose ne publie pas le type de contenu des options iOS : on les compare à des options
-     *  construites, qui se comparent par valeur (deux contre-épreuves vérifient qu'elles le font bien
-     *  sur le type de contenu). */
+    /** Les options iOS se lisent par les propriétés, expérimentales, que Compose publie : le type de
+     *  contenu et son drapeau « explicite », que Compose lit pour la zone de saisie, puis les autres
+     *  options, laissées vides pour que le clavier reste celui des `KeyboardOptions` du champ. */
     @Test
     fun l_identifiant_se_declare_nom_d_utilisateur_sans_majuscule_ni_correction() {
         val options = TypeChamp.IDENTIFIANT.clavier()
-        assertEquals(PlatformImeOptions { textContentType(UITextContentTypeUsername) }, options.platformImeOptions)
-        assertNotEquals(PlatformImeOptions { textContentType(UITextContentTypePassword) }, options.platformImeOptions)
-        assertNotEquals(PlatformImeOptions {}, options.platformImeOptions)
+        val ios = assertNotNull(options.platformImeOptions)
+        assertEquals(UITextContentTypeUsername, ios.textContentType)
+        assertTrue(ios.hasExplicitTextContentType)
+        assertNull(ios.keyboardType)
+        assertNull(ios.autocapitalizationType)
+        assertNull(ios.autocorrectionType)
+        assertNull(ios.isSecureTextEntry)
+        assertNull(ios.returnKeyType)
+        assertFalse(ios.usingNativeTextInput)
         assertEquals(KeyboardCapitalization.None, options.capitalization)
         assertEquals(false, options.autoCorrectEnabled)
         assertEquals(KeyboardType.Unspecified, options.keyboardType)
