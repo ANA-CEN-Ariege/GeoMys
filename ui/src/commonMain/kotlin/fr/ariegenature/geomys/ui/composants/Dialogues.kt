@@ -32,6 +32,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -41,7 +42,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -60,17 +63,23 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -82,11 +91,15 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import fr.ariegenature.geomys.occtax.DetailsReleveFormulaire
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
 import fr.ariegenature.geomys.ui.theme.FormeContinue
 
@@ -386,10 +399,18 @@ fun DialogueChoixUnique(
 
 /** Choix de plusieurs [options] (le champ « Observateurs » d'une visite), [coches] cochées à
  *  l'ouverture ; « Valider » rend les options cochées à [onValider], « Annuler » ne change rien.
+ *  [recherche] et au moins [SEUIL_RECHERCHE_LISTE] options (les observateurs des Suivis, demande du
+ *  27 novembre 2026) : un filtre en tête de la liste, vide à chaque ouverture, ne garde que les options
+ *  qui contiennent sa frappe (accents et casse ignorés). Une option cochée que le filtre masque reste
+ *  cochée, et « Valider » la rend aussi. Ouvert, il retire le focus au champ qui l'avait : le clavier ne
+ *  s'ouvre qu'au toucher du filtre ; « Annuler » et « Valider » le ferment.
  *  - Android : AlertDialog d'AppCompat avec `setMultiChoiceItems` (case de 18 dp, orange cochée,
- *    texte 18 sp, lignes de 48 dp), « Annuler » et « Valider » ;
+ *    texte 18 sp, lignes de 48 dp), « Annuler » et « Valider » ; le filtre, un EditText souligné sous
+ *    le titre (GeoMys-Android n'en avait pas). Le clavier ouvert, la couche du dialogue s'arrête au-dessus
+ *    de lui (`safeDrawingPadding`) : la liste rétrécit, les boutons restent visibles ;
  *  - iOS : la feuille de GeoMys-IOS (`SelectMultipleSheet`) : barre de navigation au titre en ligne,
- *    « Annuler » à gauche, « Valider » demi-gras à droite, liste groupée aux cases SF vertes. */
+ *    « Annuler » à gauche, « Valider » demi-gras à droite, liste groupée aux cases SF vertes ; le filtre,
+ *    la barre de recherche de son `.searchable(prompt: "Filtrer…")`, que le portage avait laissée de côté. */
 @Composable
 fun DialogueChoixMultiple(
     visible: Boolean,
@@ -398,15 +419,39 @@ fun DialogueChoixMultiple(
     coches: Set<Int>,
     onValider: (Set<Int>) -> Unit,
     onFermer: () -> Unit,
+    recherche: Boolean = false,
 ) {
-    // La sélection en cours, reprise à chaque ouverture.
+    // La sélection en cours, reprise à chaque ouverture : des positions dans toutes les [options], que
+    // le filtre en masque ou non.
     var courante by remember(visible, coches) { mutableStateOf(coches) }
     val basculer: (Int) -> Unit = { i -> courante = if (i in courante) courante - i else courante + i }
+    val filtrable = recherche && options.size >= SEUIL_RECHERCHE_LISTE
+    // Avec un filtre, le dialogue fermé de n'importe quelle façon rend le focus : le clavier se ferme.
+    // Sans filtre, rien ne change (champs additionnels d'OccTax, listes courtes).
+    val focus = LocalFocusManager.current
+    val fermer = {
+        if (filtrable) focus.clearFocus()
+        onFermer()
+    }
+    // Ouvert, il retire aussi le focus au champ qui l'avait (un texte, une espèce…) : toucher la ligne
+    // qui l'ouvre ne le prend pas, et la frappe destinée au filtre partait dans ce champ, caché sous le
+    // dialogue, son clavier resté ouvert (relecture du 27 novembre 2026).
+    LaunchedEffect(visible, filtrable) {
+        if (visible && filtrable) focus.clearFocus()
+    }
     if (estIos) {
-        FeuilleChoixMultipleIos(visible, titre, options, courante, basculer, onValider = { onValider(courante) }, onFermer)
+        FeuilleChoixMultipleIos(visible, titre, options, filtrable, courante, basculer, onValider = { onValider(courante) }, fermer)
         return
     }
-    CoucheDialogueAndroid(visible, onFermer) {
+    CoucheDialogueAndroid(visible, fermer) {
+        // Le filtre vit avec le contenu du dialogue, retiré à la fermeture : vide à chaque ouverture, il
+        // reste tel quel pendant le fondu de sortie, où la liste ne change donc pas de hauteur.
+        var filtre by remember { mutableStateOf("") }
+        val visibles = remember(options, filtrable, filtre) { optionsVisibles(options, filtrable, filtre) }
+        // La liste, sous le filtre et hors de son défilement, repart de son haut à chaque frappe : gardé,
+        // le défilement montrait le milieu ou la fin des noms trouvés, les premiers cachés au-dessus.
+        val defilement = rememberScrollState()
+        LaunchedEffect(filtre) { defilement.scrollTo(0) }
         Text(
             titre,
             fontSize = 20.sp,
@@ -416,30 +461,88 @@ fun DialogueChoixMultiple(
             modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 18.dp),
         )
         Spacer(Modifier.height(8.dp))
-        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
-            options.forEachIndexed { i, option ->
-                val cochee = i in courante
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .clickable { basculer(i) }
-                        .padding(horizontal = 24.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // listChoiceIndicatorMultiple : carré de 18 dp, plein d'orange (colorControlActivated) si coché.
-                    CaseACocherAndroid(cochee)
-                    Spacer(Modifier.width(20.dp))
-                    Text(option, fontSize = 18.sp, color = Color.White)
+        if (filtrable) ChampFiltreAndroid(filtre, { filtre = it }, Modifier.padding(horizontal = 24.dp))
+        Column(Modifier.weight(1f, fill = false).verticalScroll(defilement)) {
+            if (filtrable && visibles.isEmpty()) {
+                Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 24.dp), contentAlignment = Alignment.CenterStart) {
+                    Text(AUCUN_RESULTAT, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            visibles.forEach { i ->
+                key(i) {
+                    val cochee = i in courante
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clickable { basculer(i) }
+                            .padding(horizontal = 24.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // listChoiceIndicatorMultiple : carré de 18 dp, plein d'orange (colorControlActivated) si coché.
+                        CaseACocherAndroid(cochee)
+                        Spacer(Modifier.width(20.dp))
+                        Text(options[i], fontSize = 18.sp, color = Color.White)
+                    }
                 }
             }
         }
         BarreBoutonsAndroid(
             listOf(BoutonAlerte("Annuler", annulation = true), BoutonAlerte("Valider") { onValider(courante) }),
-            onFermer,
+            fermer,
         )
     }
 }
+
+/** La ligne d'un filtre qui ne trouve rien. */
+private const val AUCUN_RESULTAT = "Aucun résultat"
+
+/** Les positions des options que montre le dialogue de choix multiple : toutes, ou celles qui
+ *  contiennent [filtre], accents et casse ignorés, comme les listes des détails d'un relevé. */
+private fun optionsVisibles(options: List<String>, filtrable: Boolean, filtre: String): List<Int> =
+    if (filtrable) DetailsReleveFormulaire.filtrer(options, filtre) else options.indices.toList()
+
+/** Le filtre du dialogue de choix multiple sous Android : un EditText souligné d'une ligne, comme ceux
+ *  des formulaires (trait de 1 dp colorControlNormal, 2 dp orange avec le focus, retiré de 4 dp des
+ *  côtés et de 7 dp du bas ; curseur orange), texte de 16 sp, invite « Filtrer… ». Tout le champ, ses
+ *  marges comprises, prend le toucher. La touche de recherche du clavier le ferme. */
+@Composable
+private fun ChampFiltreAndroid(texte: String, onTexte: (String) -> Unit, modifier: Modifier = Modifier) {
+    val focus = LocalFocusManager.current
+    val couleurs = MaterialTheme.colorScheme
+    val interactions = remember { MutableInteractionSource() }
+    val focalise by interactions.collectIsFocusedAsState()
+    val trait = if (focalise) CouleursGeoMys.orange else couleurs.onSurfaceVariant
+    val epaisseur = if (focalise) 2.dp else 1.dp
+    val style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, color = couleurs.onSurface)
+    BasicTextField(
+        value = texte,
+        onValueChange = onTexte,
+        singleLine = true,
+        textStyle = style,
+        cursorBrush = SolidColor(CouleursGeoMys.orange),
+        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),
+        interactionSource = interactions,
+        modifier = modifier
+            .fillMaxWidth()
+            .drawBehind {
+                val e = epaisseur.toPx()
+                val retrait = 4.dp.toPx()
+                val y = size.height - 7.dp.toPx() - e / 2
+                drawLine(trait, Offset(retrait, y), Offset(size.width - retrait, y), e)
+            },
+        decorationBox = { champ ->
+            Box(Modifier.defaultMinSize(minHeight = 48.dp).padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 14.dp)) {
+                if (texte.isEmpty()) Text(INVITE_FILTRE, style = style.copy(color = couleurs.onBackground.copy(alpha = 0.6f)), maxLines = 1)
+                champ()
+            }
+        },
+    )
+}
+
+/** L'invite du filtre, celle du `.searchable` de GeoMys-IOS. */
+private const val INVITE_FILTRE = "Filtrer…"
 
 /** `abc_btn_check_material` : carré de 18 dp au trait de 2 dp aux coins de 2 dp ; coché, plein
  *  d'orange avec la coche blanche. */
@@ -465,20 +568,79 @@ private fun CaseACocherAndroid(cochee: Boolean) {
 }
 
 /** La feuille de choix multiple de GeoMys-IOS : fond groupé élevé du mode sombre ; lignes de la liste
- *  groupée sur #2C2C2E, cases `checkmark.square.fill` vertes ou `square` grises de 20 pt. */
+ *  groupée sur #2C2C2E, cases `checkmark.square.fill` vertes ou `square` grises de 20 pt. [filtrable] :
+ *  au-dessus de la liste, la barre de recherche de son `.searchable` ([BarreRechercheIos]), puis, à
+ *  12 pt, les seules lignes trouvées. */
 @Composable
 private fun FeuilleChoixMultipleIos(
     visible: Boolean,
     titre: String,
     options: List<String>,
+    filtrable: Boolean,
     courante: Set<Int>,
     basculer: (Int) -> Unit,
     onValider: () -> Unit,
     onFermer: () -> Unit,
 ) {
     FeuilleIos(visible, titre, onAnnuler = onFermer, onValider = { onValider(); onFermer() }) {
+        // Comme sous Android : vide à chaque ouverture, le filtre reste tel quel pendant la sortie.
+        var filtre by remember { mutableStateOf("") }
+        val visibles = remember(options, filtrable, filtre) { optionsVisibles(options, filtrable, filtre) }
+        if (filtrable) {
+            BarreRechercheIos(filtre) { filtre = it }
+            Spacer(Modifier.height(12.dp))
+        }
         Column(Modifier.fillMaxWidth().background(FOND_LIGNE_FEUILLE_IOS, FormeContinue(10.dp))) {
-            LignesChoixMultipleIos(options, courante, basculer)
+            if (filtrable && visibles.isEmpty()) {
+                Text(AUCUN_RESULTAT, fontSize = 17.sp, color = SECONDAIRE_FEUILLE_IOS, modifier = Modifier.padding(horizontal = 16.dp, vertical = 11.dp))
+            }
+            LignesChoixMultipleIos(options, visibles, courante, basculer)
+        }
+    }
+}
+
+/** tertiarySystemFill du mode sombre : le fond du champ d'une barre de recherche. */
+private val FOND_RECHERCHE_IOS = Color(0x3D767680)
+
+/** La barre de recherche d'un `.searchable` de SwiftUI (UISearchBar) : champ de 36 pt aux coins
+ *  continus de 10 pt, loupe et invite « Filtrer… » en secondaire, texte blanc de 17 pt au curseur jaune
+ *  (la teinte de GeoMys-IOS) ; tant qu'il y a du texte, la croix `xmark.circle.fill` qui l'efface. La
+ *  loupe prend le toucher avec le champ. La touche de recherche du clavier le ferme. */
+@Composable
+private fun BarreRechercheIos(texte: String, onTexte: (String) -> Unit) {
+    val focus = LocalFocusManager.current
+    Row(
+        Modifier.fillMaxWidth().height(36.dp).background(FOND_RECHERCHE_IOS, FormeContinue(10.dp)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        BasicTextField(
+            value = texte,
+            onValueChange = onTexte,
+            singleLine = true,
+            textStyle = styleSaisieIos,
+            cursorBrush = SolidColor(CouleursGeoMys.jauneClair),
+            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { focus.clearFocus() }),
+            modifier = Modifier.weight(1f).fillMaxHeight(),
+            decorationBox = { champ ->
+                Row(Modifier.fillMaxHeight().padding(start = 8.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SymboleSf("magnifyingglass", 17f, listOf(SECONDAIRE_FEUILLE_IOS), graisse = GraisseSymbole.MOYENNE)
+                    Spacer(Modifier.width(6.dp))
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                        if (texte.isEmpty()) Text(INVITE_FILTRE, style = styleSaisieIos.copy(color = SECONDAIRE_FEUILLE_IOS), maxLines = 1)
+                        champ()
+                    }
+                }
+            },
+        )
+        if (texte.isNotEmpty()) {
+            Box(
+                Modifier
+                    .clickable(remember { MutableInteractionSource() }, indication = null, role = Role.Button) { onTexte("") }
+                    .padding(start = 2.dp, end = 8.dp),
+            ) {
+                SymboleSf("xmark.circle.fill", 17f, listOf(SECONDAIRE_FEUILLE_IOS), description = "Effacer le filtre")
+            }
         }
     }
 }
@@ -617,27 +779,30 @@ fun DialogueFormulaireAppCompat(
     }
 }
 
-/** Les lignes de la liste groupée de [FeuilleChoixMultipleIos]. */
+/** Les lignes de la liste groupée de [FeuilleChoixMultipleIos] : celles des options [visibles], un
+ *  filet entre deux. */
 @Composable
-private fun LignesChoixMultipleIos(options: List<String>, courante: Set<Int>, basculer: (Int) -> Unit) {
-    options.forEachIndexed { i, option ->
-        val cochee = i in courante
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { basculer(i) }
-                .padding(horizontal = 16.dp, vertical = 11.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            SymboleSf(
-                if (cochee) "checkmark.square.fill" else "square",
-                20f,
-                listOf(if (cochee) CouleursGeoMys.vert else Color(0x99EBEBF5)),
-            )
-            Text(option, fontSize = 17.sp, color = Color.White)
+private fun LignesChoixMultipleIos(options: List<String>, visibles: List<Int>, courante: Set<Int>, basculer: (Int) -> Unit) {
+    visibles.forEachIndexed { rang, i ->
+        key(i) {
+            val cochee = i in courante
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { basculer(i) }
+                    .padding(horizontal = 16.dp, vertical = 11.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SymboleSf(
+                    if (cochee) "checkmark.square.fill" else "square",
+                    20f,
+                    listOf(if (cochee) CouleursGeoMys.vert else Color(0x99EBEBF5)),
+                )
+                Text(options[i], fontSize = 17.sp, color = Color.White)
+            }
+            if (rang < visibles.lastIndex) SeparateurIos(Modifier.padding(start = 16.dp))
         }
-        if (i < options.lastIndex) SeparateurIos(Modifier.padding(start = 16.dp))
     }
 }
 

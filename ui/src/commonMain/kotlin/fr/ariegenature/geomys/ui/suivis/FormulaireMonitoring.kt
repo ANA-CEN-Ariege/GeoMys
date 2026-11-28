@@ -100,6 +100,7 @@ import fr.ariegenature.geomys.ui.composants.ChampDateMonitoring
 import fr.ariegenature.geomys.ui.composants.ChampTexteFormulaire
 import fr.ariegenature.geomys.ui.composants.ClavierNombresEtPonctuation
 import fr.ariegenature.geomys.ui.composants.ClavierNumeriqueSigne
+import fr.ariegenature.geomys.ui.composants.DeroulantAndroid
 import fr.ariegenature.geomys.ui.composants.DialogueChoixMultiple
 import fr.ariegenature.geomys.ui.composants.FOND_LIGNE_FORMULAIRE_IOS
 import fr.ariegenature.geomys.ui.composants.Interrupteur
@@ -108,6 +109,8 @@ import fr.ariegenature.geomys.ui.composants.LocalToasts
 import fr.ariegenature.geomys.ui.composants.MenuSysteme
 import fr.ariegenature.geomys.ui.composants.ModeDateHeure
 import fr.ariegenature.geomys.ui.composants.PopupListeAndroid
+import fr.ariegenature.geomys.ui.composants.RechercheListeIos
+import fr.ariegenature.geomys.ui.composants.SEUIL_RECHERCHE_LISTE
 import fr.ariegenature.geomys.ui.composants.SeparateurIos
 import fr.ariegenature.geomys.ui.composants.SymboleSf
 import fr.ariegenature.geomys.ui.composants.TexteHtmlRiche
@@ -176,6 +179,11 @@ private fun entreesListe(f: EditableField, etat: FormulaireEtat): Pair<List<Stri
 /** La position choisie dans [entreesListe] rapportée à l'option. */
 private fun optionDe(f: EditableField, position: Int): Int = if (f.optionVide != null) position - 1 else position
 
+/** Une liste d'observateurs à choix simple ([EditableField.observateurs]) se filtre au clavier à partir de
+ *  [SEUIL_RECHERCHE_LISTE] [entrees], comme le ng-select du web et les listes des détails d'un relevé
+ *  (demande du 27 novembre 2026) ; en dessous, comme toute autre liste, elle reste un menu. */
+internal fun observateursAFiltrer(f: EditableField, entrees: Int): Boolean = f.observateurs && entrees >= SEUIL_RECHERCHE_LISTE
+
 /** La barre de la ligne d'un champ : celle d'un champ médias rempli passe sur les titres de ses
  *  médias, que le web exige (cf. [ChampMediasAndroid]). */
 private fun barreDeLigne(f: EditableField, etat: FormulaireEtat, barre: Boolean): Boolean =
@@ -223,6 +231,8 @@ internal fun DialogueChoixMultipleFormulaire(etat: FormulaireEtat, code: String?
         coches = f.values.indices.filter { f.values[it].value in choisies }.toSet(),
         onValider = { indices -> etat.validerChoixMultiple(f.code, indices.map { f.values[it].value }.toSet()) },
         onFermer = onFermer,
+        // Les observateurs se filtrent au clavier (demande du 27 novembre 2026).
+        recherche = f.observateurs,
     )
 }
 
@@ -308,12 +318,22 @@ private fun ChampAndroid(f: EditableField, etat: FormulaireEtat, onAjouterPhotos
             Text(horsListe, fontSize = 16.sp, color = couleurs.onSurface.copy(alpha = 0.38f), modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp))
         } ?: run {
             val (libelles, position) = entreesListe(f, etat)
-            ListeDeroulante(
-                libelles,
-                position,
-                { etat.choisirOption(code, optionDe(f, it)) },
-                onEffacer = if (f.effacable) ({ etat.choisirOption(code, -1) }) else null,
-            )
+            val effacer = if (f.effacable) ({ etat.choisirOption(code, -1) }) else null
+            if (observateursAFiltrer(f, libelles.size)) {
+                // Le menu déroulant à filtre des détails d'un relevé. Son titre, qui monte dans le cadre une
+                // fois un nom choisi, est le libellé du champ, comme « Observateur(s) » dans ces détails :
+                // « Choisir… » y restait écrit au-dessus du nom choisi.
+                DeroulantAndroid(
+                    indication = f.label,
+                    libelles = libelles,
+                    texteChoisi = libelles.getOrNull(position).orEmpty(),
+                    restaurer = true,
+                    onChoix = { etat.choisirOption(code, optionDe(f, it)) },
+                    onEffacer = effacer,
+                )
+            } else {
+                ListeDeroulante(libelles, position, { etat.choisirOption(code, optionDe(f, it)) }, onEffacer = effacer)
+            }
         }
         ViewType.RADIO -> {
             val horizontal = radioEnLigne(f.values.map { it.label })
@@ -610,16 +630,28 @@ private fun ChampIos(f: EditableField, etat: FormulaireEtat, onAjouterPhotos: (S
             Text(horsListe, fontSize = 17.sp, color = SECONDAIRE_IOS.copy(alpha = 0.4f))
         } ?: run {
             val (libelles, position) = entreesListe(f, etat)
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.weight(1f)) {
-                    ValeurListeIos(libelles.getOrNull(position).orEmpty())
-                    MenuSysteme(libelles, position, { etat.choisirOption(code, optionDe(f, it)) }, Modifier.matchParentSize())
-                }
-                // La croix d'une nomenclature, des observateurs, d'un jeu de données.
-                if (f.effacable && etat.indexChoisi(code) >= 0) {
-                    Spacer(Modifier.width(8.dp))
-                    BoutonIos({ etat.choisirOption(code, -1) }, opaciteAppui = 0.6f) {
-                        SymboleSf("xmark", 13f, listOf(CouleursGeoMys.rougePastille), description = "Effacer")
+            if (observateursAFiltrer(f, libelles.size)) {
+                // Le champ à filtre des détails d'une station, sans le menu du système, dans la ligne.
+                RechercheListeIos(
+                    "Choisir…",
+                    libelles,
+                    libelles.getOrNull(position).orEmpty(),
+                    { etat.choisirOption(code, optionDe(f, it)) },
+                    onEffacer = if (f.effacable) ({ etat.choisirOption(code, -1) }) else null,
+                    enSection = false,
+                )
+            } else {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) {
+                        ValeurListeIos(libelles.getOrNull(position).orEmpty())
+                        MenuSysteme(libelles, position, { etat.choisirOption(code, optionDe(f, it)) }, Modifier.matchParentSize())
+                    }
+                    // La croix d'une nomenclature, des observateurs, d'un jeu de données.
+                    if (f.effacable && etat.indexChoisi(code) >= 0) {
+                        Spacer(Modifier.width(8.dp))
+                        BoutonIos({ etat.choisirOption(code, -1) }, opaciteAppui = 0.6f) {
+                            SymboleSf("xmark", 13f, listOf(CouleursGeoMys.rougePastille), description = "Effacer")
+                        }
                     }
                 }
             }

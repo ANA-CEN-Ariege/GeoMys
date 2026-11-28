@@ -28,17 +28,26 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -50,6 +59,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
@@ -63,7 +74,9 @@ import androidx.compose.ui.input.key.onInterceptKeyBeforeSoftKeyboard
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -73,6 +86,7 @@ import fr.ariegenature.geomys.ui.ressources.Res
 import fr.ariegenature.geomys.ui.ressources.mdc_fleche_bas
 import fr.ariegenature.geomys.ui.ressources.mdc_fleche_haut
 import fr.ariegenature.geomys.ui.theme.CouleursGeoMys
+import kotlinx.coroutines.flow.collectLatest
 import org.jetbrains.compose.resources.painterResource
 
 /** Nombre de valeurs à partir duquel une liste de choix se filtre au clavier ; en dessous, elle se
@@ -228,9 +242,8 @@ internal fun ObservateursAndroid(
 
 /** Le pendant de [DeroulantAndroid] dans une [SectionIos]. Moins de [SEUIL_RECHERCHE_LISTE] valeurs :
  *  la ligne de choix et son menu, sans clavier. Au-delà, certaines instances exposant des dizaines de
- *  jeux de données : un champ à filtre, et toute la liste filtrée dessous, qui défile, tant qu'il a le
- *  focus. Le toucher le vide et ouvre la liste ; quitté, avec ou sans choix, il affiche [texteChoisi].
- *  [onEffacer] : la croix des listes du web, qui vide le choix. */
+ *  jeux de données : le champ à filtre de [RechercheListeIos], en lignes de la section. [onEffacer] : la
+ *  croix des listes du web, qui vide le choix. */
 @Composable
 internal fun LignesRechercheIos(
     indication: String,
@@ -244,12 +257,44 @@ internal fun LignesRechercheIos(
         LigneChoixIos("", libelles, libelles.indexOf(texteChoisi), invite = texteChoisi.ifEmpty { indication }, onEffacer = onEffacer, onChoix = onChoix)
         return
     }
+    RechercheListeIos(indication, libelles, texteChoisi, onChoix, onEffacer)
+}
+
+/** Un champ à filtre, et toute la liste filtrée dessous, qui défile, tant qu'il a le focus. Le toucher
+ *  le vide et ouvre la liste ; quitté, avec ou sans choix, il affiche [texteChoisi]. « OK » du clavier
+ *  le quitte. [onEffacer] : la croix des listes du web, qui vide le choix. [enSection] : le champ et
+ *  chaque valeur sont des lignes de [SectionIos] ([LignesRechercheIos]) ; sinon, ils tiennent dans la
+ *  ligne d'un formulaire des Suivis, qui a déjà ses marges (les observateurs, demande du 27 novembre
+ *  2026). */
+@Composable
+internal fun RechercheListeIos(
+    indication: String,
+    libelles: List<String>,
+    texteChoisi: String,
+    onChoix: (Int) -> Unit,
+    onEffacer: (() -> Unit)?,
+    enSection: Boolean = true,
+) {
     val focus = LocalFocusManager.current
     var focalise by remember { mutableStateOf(false) }
     var recherche by remember { mutableStateOf("") }
     // Le choix fait, le champ quitte le focus avant que [texteChoisi] change : il le lit à l'affichage.
     val texte = if (focalise) recherche else texteChoisi
-    LigneIos {
+    // Le champ et sa liste, amenés ensemble à l'écran une fois le clavier posé : sous un champ bas dans
+    // l'écran, la liste restait sous le clavier et la barre de boutons (relecture du 27 novembre 2026).
+    // Chaque hauteur de l'animation du clavier relance l'attente. S'ils ne tiennent pas ensemble à
+    // l'écran, le défilement met le champ en haut, la liste dessous.
+    val aVoir = remember { BringIntoViewRequester() }
+    val clavier = WindowInsets.ime
+    val densite = LocalDensity.current
+    LaunchedEffect(focalise, recherche) {
+        if (!focalise) return@LaunchedEffect
+        snapshotFlow { clavier.getBottom(densite) }.collectLatest {
+            repeat(2) { withFrameNanos { } }
+            aVoir.bringIntoView()
+        }
+    }
+    val champFiltre: @Composable () -> Unit = {
         Row(verticalAlignment = Alignment.CenterVertically) {
             BasicTextField(
                 value = texte,
@@ -257,6 +302,10 @@ internal fun LignesRechercheIos(
                 singleLine = true,
                 textStyle = styleSaisieIos,
                 cursorBrush = SolidColor(CouleursGeoMys.jauneClair),
+                // Des noms : sans correction automatique, qui changeait la frappe. « OK » quitte le champ,
+                // et sa liste avec lui : sans lui, seul un choix la refermait (relecture du 27 novembre 2026).
+                keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
                 modifier = Modifier.weight(1f).onFocusChanged {
                     if (it.isFocused != focalise) {
                         focalise = it.isFocused
@@ -271,24 +320,47 @@ internal fun LignesRechercheIos(
                 },
             )
             if (onEffacer != null && texteChoisi.isNotEmpty() && !focalise) {
-                Box(Modifier.clickable(remember { MutableInteractionSource() }, indication = null, onClick = onEffacer)) {
+                // Dans la ligne d'un formulaire des Suivis, 8 pt avant la croix, comme celle des autres
+                // listes du formulaire : un long nom la touchait.
+                Box(
+                    Modifier
+                        .clickable(remember { MutableInteractionSource() }, indication = null, onClick = onEffacer)
+                        .padding(start = if (enSection) 0.dp else 8.dp),
+                ) {
                     SymboleSf("xmark", 13f, listOf(CouleursGeoMys.rougePastille), graisse = GraisseSymbole.DEMI_GRASSE, description = "Effacer")
                 }
             }
         }
     }
-    if (focalise) {
-        // Toute la liste filtrée, qui défile sur cinq lignes et demie : seules les cinq premières
-        // valeurs se voyaient.
-        val trouvees = DetailsReleveFormulaire.filtrer(libelles, recherche)
-        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 250.dp)) {
-            items(trouvees) { i ->
-                SeparateurIos(Modifier.padding(start = 16.dp))
-                LigneIos(Modifier.clickable {
-                    onChoix(i)
-                    focus.clearFocus()
-                }) {
-                    Text(libelles[i], fontSize = 17.sp, color = Color.White)
+    // Hors d'une section, l'écart de 4 pt entre les éléments de la ligne d'un formulaire des Suivis, que ce
+    // regroupement ne doit pas retirer entre le champ et sa liste.
+    Column(
+        Modifier.fillMaxWidth().bringIntoViewRequester(aVoir),
+        verticalArrangement = Arrangement.spacedBy(if (enSection) 0.dp else 4.dp),
+    ) {
+        if (enSection) LigneIos(contenu = champFiltre) else champFiltre()
+        if (focalise) {
+            // Toute la liste filtrée, qui défile sur cinq lignes et demie : seules les cinq premières
+            // valeurs se voyaient.
+            val trouvees = DetailsReleveFormulaire.filtrer(libelles, recherche)
+            val marge = if (enSection) 16.dp else 0.dp
+            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 250.dp)) {
+                items(trouvees) { i ->
+                    SeparateurIos(Modifier.padding(start = marge))
+                    // Une [LigneIos], sans ses marges de côté hors d'une section.
+                    Box(
+                        Modifier
+                            .clickable {
+                                onChoix(i)
+                                focus.clearFocus()
+                            }
+                            .fillMaxWidth()
+                            .defaultMinSize(minHeight = 44.dp)
+                            .padding(horizontal = marge, vertical = 11.dp),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        Text(libelles[i], fontSize = 17.sp, color = Color.White)
+                    }
                 }
             }
         }

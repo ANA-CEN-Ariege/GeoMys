@@ -147,6 +147,11 @@ fun construireFormulaire(schemaObjet: MonitoringApi.MonitoringSchemaObjet): Form
                 },
                 effacable = viewType == ViewType.SELECT && widget in setOf("nomenclature", "observers", "dataset"),
                 selectSimple = viewType == ViewType.SELECT && widget == "select",
+                // Le `pnx-observers` du web, un ng-select où l'on tape pour chercher, ou une datalist
+                // d'utilisateurs (`type_util` user, api `users/menu/<id>`), forme des « Observateurs »
+                // d'une visite dans d'anciennes versions du module, que le web cherche de même ;
+                // `observers-text` est une ligne de texte.
+                observateurs = widget == "observers" || (widget == "datalist" && prop.typeUtil.equals("user", ignoreCase = true)),
                 hiddenExpr = prop.hiddenExpr,
                 // Pour les widgets TAXON, la liste portée par le champ lui-même (son `id_list`, sinon
                 // celle de son api, 26 octobre) : l'autocomplétion s'y limite. Sans elle, tout TaxRef

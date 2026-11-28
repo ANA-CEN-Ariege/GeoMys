@@ -187,9 +187,11 @@ object DetailsReleveFormulaire {
 
     /** Filtre de la liste d'un champ déroulant (jeu de données, observateurs) : les positions des
      *  [libelles] qui contiennent [saisie], ni les accents ni la casse ne comptant ; saisie vide : tout
-     *  (l'AdaptateurAutocomplete de GeoMys-Android). */
+     *  (l'AdaptateurAutocomplete de GeoMys-Android). Les espaces de début et de fin ne comptent pas, comme
+     *  dans la feuille de choix multiple de GeoMys-IOS : une suggestion du clavier touchée en ajoute une,
+     *  et « martin » suivi d'une espace ne trouvait plus « Éric Martin » (relecture du 27 novembre 2026). */
     fun filtrer(libelles: List<String>, saisie: String): List<Int> {
-        val cle = ListeTaxons.normaliser(saisie)
+        val cle = ListeTaxons.normaliser(saisie.trim())
         return libelles.indices.filter { cle.isEmpty() || ListeTaxons.normaliser(libelles[it]).contains(cle) }
     }
 

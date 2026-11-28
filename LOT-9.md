@@ -1245,3 +1245,44 @@ Choix de l'utilisateur (« oui »), avant la soumission à l'App Store.
   - Quand la hauteur manque, l'ensemble défile au lieu d'écraser les boutons : un téléphone en paysage, ou l'iPhone en mode compatibilité sur un iPad en paysage, où l'examinateur d'Apple peut l'essayer. D'après la relecture du 26 novembre, un iPhone 16 en paysage ne laissait qu'environ 80 pt pour un bloc qui en demande au moins 126, et le bouton principal se réduisait à une vingtaine de points.
 - **Version 2.2.2 (228)** : le build 227 ne sera pas soumis.
 - **Test** : `AccueilMiseEnPageTest` (simulateur iOS, deux allures). En portrait, le bloc des boutons touche le bas de l'écran comme avant. En paysage, il garde sa hauteur et son dernier bouton se rejoint en faisant défiler.
+
+## 92. Suivis : les listes d'observateurs se filtrent au clavier (27 novembre)
+
+Demande de l'utilisateur : « dans les formulaires de monitoring, pour les champs observateurs, permettre la recherche ».
+
+- **Les champs concernés** : les listes d'observateurs, à choix simple comme multiple (`EditableField.observateurs`, posé par `construireFormulaire`) :
+  - le widget `observers` du schéma. Sur le web, c'est le `pnx-observers`, un ng-select où l'on tape pour chercher ;
+  - une `datalist` d'utilisateurs (`type_util` `user`, api `users/menu/<id>`), que le web cherche de même. C'est la forme des « Observateurs » d'une visite dans d'anciennes versions du module (exemple de configuration de gn_mobile_monitoring). À choix simple, facultative et à `nullDefault`, elle garde son « -- Aucun -- » en tête, compté parmi les noms et filtré comme eux.
+
+  Le filtre apparaît à partir de 20 noms (`SEUIL_RECHERCHE_LISTE`, la règle du 21 octobre) et garde les noms qui contiennent la frappe, accents et casse ignorés (`DetailsReleveFormulaire.filtrer`, celui des listes des détails d'un relevé). Les espaces de début et de fin ne comptent pas, comme dans la feuille de GeoMys-IOS : une suggestion du clavier touchée en ajoute une, et « martin » suivi d'une espace ne trouvait plus « Éric Martin ».
+- **Choix multiple** (le dialogue « Observateurs » d'une visite, `DialogueChoixMultiple(recherche = true)`) : le filtre se place en tête de la liste.
+  - Il est vide à chaque ouverture. Le clavier ne s'ouvre qu'au toucher du filtre ; « Annuler » et « Valider » le ferment.
+  - Ouvert, le dialogue retire le focus au champ qui l'avait. Toucher « Observateurs » ne le prend pas : d'après la relecture du 27 novembre, la frappe destinée au filtre partait dans le champ texte ou espèce rempli juste avant, caché sous le dialogue, son clavier resté ouvert, et s'enregistrait avec la visite.
+  - Un nom coché que le filtre masque reste coché, et « Valider » le garde avec les autres. « Annuler » ne change rien.
+  - Quand rien ne correspond, une ligne grise dit « Aucun résultat ».
+  - Android : sous le titre de l'AlertDialog, un EditText souligné d'une ligne (invite « Filtrer… », texte de 16 sp, trait orange avec le focus), aux marges de 24 dp des lignes. GeoMys-Android n'avait pas de filtre. Le clavier ouvert, le dialogue tient au-dessus de lui sans changement : sa couche s'arrêtait déjà au clavier (`safeDrawingPadding` de `CoucheDialogueAndroid`), la liste rétrécit et « Annuler » et « Valider » restent visibles. La liste, sous le filtre et hors de son défilement, repart de son haut à chaque frappe : gardé, son défilement cachait les premiers noms trouvés au-dessus.
+  - iOS : la barre de recherche du `.searchable(prompt: "Filtrer…")` de la feuille de GeoMys-IOS (`SelectMultipleSheet`), que le portage avait laissée de côté. C'est un champ de 36 pt aux coins continus sur fond gris translucide, avec la loupe, l'invite et la croix qui efface la frappe. La liste groupée des seuls noms trouvés suit, 12 pt plus bas.
+- **Choix simple** : le champ à filtre remplace le Spinner (Android) ou le menu du système (iOS). C'est celui des détails d'un relevé sous Android (`DeroulantAndroid`) et celui des détails d'une station sous iOS (`RechercheListeIos`, extrait de `LignesRechercheIos` pour tenir dans la ligne d'un formulaire, sans doubler ses marges). Toucher le champ déroule toute la liste, la frappe la filtre, et le nom choisi s'affiche dans le champ. La croix du web vide toujours le choix.
+  - Sous Android, le titre du champ, qui monte dans son cadre une fois un nom choisi, est le libellé du champ, comme « Observateur(s) » dans les détails d'un relevé : une invite « Choisir… » y serait restée écrite au-dessus du nom choisi. Sous iOS, « Choisir… » n'est que l'invite du champ vide ; dans la ligne du formulaire, la croix est à 8 pt du nom, comme celle des autres listes.
+  - Sous iOS, la liste s'ouvre sous le champ. Celle d'un champ bas dans l'écran restait sous le clavier et la barre de boutons (relecture du 27 novembre) : le champ et sa liste défilent désormais ensemble jusqu'à se voir, une fois le clavier posé. S'ils ne tiennent pas ensemble à l'écran, le champ se place en haut, la liste dessous.
+  - Sous iOS encore, le clavier du champ est sans correction automatique, et sa touche « OK » quitte le champ, qui reprend le nom choisi. Seul un choix refermait la liste.
+- **Inchangés** :
+  - les listes d'observateurs de moins de 20 noms ;
+  - les autres listes : nomenclatures, jeux de données, `select`, datalists autres que d'utilisateurs ;
+  - `observers-text`, une ligne de texte ;
+  - les champs additionnels d'OccTax, qui partagent le dialogue de choix multiple, sans filtre.
+
+  Les listes filtrées des détails d'un relevé (OccTax) et d'une station (OccHab) partagent ces champs et gagnent les mêmes corrections : les espaces de début et de fin ignorées, et sous iOS, le champ et sa liste amenés à l'écran, le clavier sans correction, « OK » qui quitte le champ.
+
+  MODES-SAISIE n'est pas concerné : les Suivis n'existent qu'en saisie pro, et les listes partagées changent de même dans les deux modes.
+- **Tests** :
+  - `WidgetMappingTest.seules_les_listes_d_observateurs_se_filtrent_au_clavier` : `observers` et datalist d'utilisateurs, à choix simple et multiple, et pas les autres widgets ;
+  - `DetailsReleveFormulaireTest.le_filtre_ignore_accents_et_casse` : les espaces de début et de fin ne comptent pas ;
+  - `ObservateursAFiltrerTest` (JVM) : le choix simple, du menu au filtre, à partir de 20 noms ;
+  - `DialogueChoixMultipleTest` (simulateur iOS, deux allures) : le filtre à partir de 20 noms, sans le focus, et jamais sans recherche ; « eric » ne garde qu'Éric Martin ; une coche masquée reste et part avec « Valider » ; « Aucun résultat » ; rouvert, le filtre est vide ; « Valider » et « Annuler » rendent le focus ; ouvert, le dialogue retire le focus à un autre champ, et la frappe va au filtre touché ; sous Android, la liste filtrée repart de son haut. Contre-épreuve : sans le focus rendu, les tests du focus échouent dans les deux allures ;
+  - `ObservateursFormulaireTest` (simulateur iOS) : un observateur choisi parmi 22 en tapant, dans les deux allures, puis effacé par la croix ; sous 20 noms ou pour une autre liste, pas de clavier ; le dialogue des observateurs se filtre, pas celui des jeux de données ; sous iOS, la liste d'un champ au bas d'un écran de 400 pt vient à l'écran avec lui, une espace finale ne compte pas, et « OK » referme la liste.
+
+  Contre-épreuve des corrections de la relecture du 27 novembre : le focus retiré à l'ouverture, le retour en haut de la liste, le défilement vers le champ et sa liste, et « OK », retirés ensemble, les cinq nouveaux tests d'écran échouent, chacun à son assertion, et eux seuls ; sans les espaces ôtées, le test du filtre et celui de l'écran de 400 pt échouent.
+
+  Passent : l'APK de debug, `core` (1 242 tests sur la JVM, 1 237 sur le simulateur iOS), `ui` (180 sur la JVM, 36 sur le simulateur).
+- **Pas encore essayé sur les téléphones** (A12, iPhone 16) : l'aspect des deux filtres, les dialogues clavier ouvert, et, sur l'iPhone 16, la liste d'un observateur bas dans l'écran une fois le clavier posé.

@@ -138,4 +138,8 @@ data class EditableField(
     val effacable: Boolean = false,
     /** SELECT d'un vrai `select` : une valeur hors de ses options reste, grisée, comme sur le web. */
     val selectSimple: Boolean = false,
+    /** Liste d'observateurs, à choix simple ou multiple : le widget `observers` du schéma, ou une
+     *  datalist d'utilisateurs (`type_util` user). Elle se filtre au clavier à partir de
+     *  SEUIL_RECHERCHE_LISTE noms (20, ui/composants/ChampsListes.kt ; demande du 27 novembre 2026). */
+    val observateurs: Boolean = false,
 )

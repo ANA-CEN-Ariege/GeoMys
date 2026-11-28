@@ -158,4 +158,37 @@ class WidgetMappingTest {
         assertEquals(listOf("comments", "observers_txt", "nb_observations", "medias"), construction.fields.map { it.code })
         assertEquals(listOf("carte" to "geometry"), construction.ignores)
     }
+
+    @Test
+    fun seules_les_listes_d_observateurs_se_filtrent_au_clavier() {
+        // Demande du 27 novembre 2026 : les observateurs, à choix simple comme multiple, se cherchent au
+        // clavier, comme dans le ng-select du web : le widget `observers`, ou une datalist d'utilisateurs
+        // (`type_util` user), forme des « Observateurs » d'une visite dans d'anciennes versions du module.
+        // Ni les autres listes ni `observers-text`, une ligne de texte.
+        val schema = MonitoringSchemaObjet(
+            type = "visit", label = "Visite", labelList = null, nameField = null, parentType = "site", childrenTypes = emptyList(),
+            properties = linkedMapOf(
+                "observers" to prop("observers", nom = "observers", multiple = true),
+                "id_observateur" to prop("observers", nom = "id_observateur"),
+                "observateurs_liste" to prop("datalist", nom = "observateurs_liste", multiple = true, typeUtil = "user", apiUrl = "users/menu/1"),
+                "id_inventeur" to prop("datalist", nom = "id_inventeur", typeUtil = "user", apiUrl = "users/menu/1"),
+                "id_dataset" to prop("dataset", nom = "id_dataset"),
+                "id_nomenclature_meteo" to prop("nomenclature", nom = "id_nomenclature_meteo"),
+                "habitat" to prop("datalist", nom = "habitat"),
+                "observers_txt" to prop("observers-text", nom = "observers_txt"),
+            ),
+        )
+        val champs = construireFormulaire(schema).fields.associateBy { it.code }
+        assertEquals(ViewType.SELECT_MULTIPLE, champs.getValue("observers").viewType)
+        assertTrue(champs.getValue("observers").observateurs, "observateurs à choix multiple")
+        assertEquals(ViewType.SELECT, champs.getValue("id_observateur").viewType)
+        assertTrue(champs.getValue("id_observateur").observateurs, "observateur à choix simple")
+        assertEquals(ViewType.SELECT_MULTIPLE, champs.getValue("observateurs_liste").viewType)
+        assertTrue(champs.getValue("observateurs_liste").observateurs, "datalist d'utilisateurs à choix multiple")
+        assertEquals(ViewType.SELECT, champs.getValue("id_inventeur").viewType)
+        assertTrue(champs.getValue("id_inventeur").observateurs, "datalist d'utilisateurs à choix simple")
+        for (autre in listOf("id_dataset", "id_nomenclature_meteo", "habitat", "observers_txt")) {
+            assertFalse(champs.getValue(autre).observateurs, autre)
+        }
+    }
 }

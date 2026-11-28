@@ -198,6 +198,10 @@ class DetailsReleveFormulaireTest {
         assertEquals(listOf(0, 1), DetailsReleveFormulaire.filtrer(libelles, "EMIL"))
         assertEquals(listOf(2), DetailsReleveFormulaire.filtrer(libelles, "dup"))
         assertEquals(listOf(0, 1, 2), DetailsReleveFormulaire.filtrer(libelles, ""), "saisie vide : toute la liste")
+        // Les espaces de début et de fin ne comptent pas : une suggestion du clavier en ajoute une.
+        assertEquals(listOf(2), DetailsReleveFormulaire.filtrer(libelles, "dupont "))
+        assertEquals(listOf(2), DetailsReleveFormulaire.filtrer(libelles, " jean"))
+        assertEquals(listOf(0, 1, 2), DetailsReleveFormulaire.filtrer(libelles, "  "), "des espaces seules : toute la liste")
     }
 
     @Test
